@@ -216,7 +216,7 @@ def package(source, *,panel_only=False,download=False,preview=False,probe_abi=No
             assets['assets/pgrazor/quick-summary.js']=ROOT/'diagnostics/quick-summary.js'
             assets['assets/pgrazor/quick-close.js']=script_bundle.bundle(ROOT,'quick-close.js')
         if quick_ball:
-            assets['assets/pgrazor/quick-ball.js']=ROOT/'diagnostics/quick-ball.js'
+            assets['assets/pgrazor/quick-ball.js']=script_bundle.bundle(ROOT,'quick-ball.js')
         for notice in ['NOTICE.txt','COPYING.frida-tools','bridge-provenance.json']:
             assets['assets/pgrazor/bridge-notices/'+notice]=ROOT/'vendor'/notice
     report={'input':str(source.resolve()),'input_sha256':runtime_assets.sha256(source),'package':package_name,
@@ -270,7 +270,7 @@ def package(source, *,panel_only=False,download=False,preview=False,probe_abi=No
             'acceleration_default':False,
             'source':str(ROOT/'diagnostics/quick-ball.js'),
             'asset':'assets/pgrazor/quick-ball.js',
-            'sha256':runtime_assets.sha256(ROOT/'diagnostics/quick-ball.js')}
+            'sha256':hashlib.sha256(assets['assets/pgrazor/quick-ball.js']).hexdigest()}
     report['module_sha256']=runtime_assets.sha256(dex)
     for index,(path,info) in enumerate(rows):
         stem='base' if path==base else f'split-{index}'

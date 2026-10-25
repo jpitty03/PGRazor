@@ -5,8 +5,8 @@ import org.json.*;
 
 /** Validation is completed before any settings are written. No credential stores are accepted. */
 public final class SettingsBackupRules {
-    public static final String[] SETTINGS=("uiScalePercent locationSpoofing darkTheme joystickVisible spawnBooster giftOptions vgpOverlay vgpStopOnCooldown vgpOptions buddyBerry autoIncubate incubateLongest cooldownOverlay autoBerry berryPriority encounterBerry battleOptions rocketOptions itemTransfer itemRules itemLimits quickSpin autoTransfer transferProtect transferKeepAll transferOverlay transferKeepSpecies autoDismiss throwAr curve grade mapTap ivCatch ivOwned").split(" ");
-    private static final Set<String> BOOLEANS=new HashSet<>(Arrays.asList(("locationSpoofing darkTheme joystickVisible spawnBooster vgpOverlay vgpStopOnCooldown autoIncubate incubateLongest cooldownOverlay encounterBerry itemTransfer quickSpin autoTransfer transferKeepAll transferOverlay autoDismiss throwAr curve ivCatch ivOwned").split(" ")));
+    public static final String[] SETTINGS=("uiScalePercent locationSpoofing darkTheme joystickVisible spawnBooster giftOptions vgpOverlay vgpStopOnCooldown vgpOptions shinyScanner buddyBerry autoIncubate incubateLongest cooldownOverlay autoBerry berryPriority encounterBerry battleOptions rocketOptions itemTransfer itemRules itemLimits quickSpin autoTransfer transferProtect transferKeepAll transferOverlay transferKeepSpecies autoDismiss throwAr curve grade mapTap ivCatch ivOwned").split(" ");
+    private static final Set<String> BOOLEANS=new HashSet<>(Arrays.asList(("locationSpoofing darkTheme joystickVisible spawnBooster vgpOverlay vgpStopOnCooldown shinyScanner autoIncubate incubateLongest cooldownOverlay encounterBerry itemTransfer quickSpin autoTransfer transferKeepAll transferOverlay autoDismiss throwAr curve ivCatch ivOwned").split(" ")));
     private static void require(boolean yes,String message)throws JSONException{if(!yes)throw new JSONException(message);}
     private static double number(Object o,double min,double max,String label)throws JSONException{
         require(o instanceof Number,"Invalid "+label);double n=((Number)o).doubleValue();require(Double.isFinite(n)&&n>=min&&n<=max,"Invalid "+label);return n;
@@ -34,7 +34,7 @@ public final class SettingsBackupRules {
             require(Arrays.asList("pgrazor-map","pgrazor-overlays","pgrazor-saved-places-v1","pgrazor-livefeed").contains(scope),"Unknown settings group");
             for(Iterator<String> keys=group.keys();keys.hasNext();){String key=keys.next();Object value=group.get(key);
                 if(scope.equals("pgrazor-map")){require(Arrays.asList("Stops","Gyms","Raids").contains(key),"Unknown map setting");bool(value,key);}
-                else if(scope.equals("pgrazor-overlays")){require(Arrays.asList("cooldown.fx","cooldown.fy","vgp.fx","vgp.fy","transfer.fx","transfer.fy").contains(key),"Unknown overlay setting");number(value,0,1,key);}
+                else if(scope.equals("pgrazor-overlays")){require(Arrays.asList("cooldown.fx","cooldown.fy","vgp.fx","vgp.fy","transfer.fx","transfer.fy","shiny.fx","shiny.fy").contains(key),"Unknown overlay setting");number(value,0,1,key);}
                 else if(scope.equals("pgrazor-saved-places-v1")){require(key.equals("places")&&value instanceof String,"Invalid favorites");places((String)value);}
                 else if(key.equals("category"))integer(value,5,key);
                 else if(key.equals("radius"))integer(value,2,key);

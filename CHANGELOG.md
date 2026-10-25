@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add an optional nearby shiny scanner with a map status overlay. Scanning pauses outside the map and while VGP is active; it does not catch Pokémon.
+
 ## v0.1.4
 
 [Full release notes](docs/releases/v0.1.4.md)

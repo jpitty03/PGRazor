@@ -21,6 +21,7 @@ public final class ControlSettingsTest {
             Control.setQuickSpinEnabled(true); Control.setAutoTransferEnabled(true); Control.setTransferProtect(13);
             Control.setQuickBallEnabled(true); Control.setQuickSummaryEnabled(true);
             Control.setIvCatchEnabled(false); Control.setIvOwnedEnabled(true);
+            Control.setShinyScannerEnabled(true);
             Control.setThrowGrade(3); Control.setThrowCurve(true); Control.setMapTapMode(2);
             Control.setQuickBallReady(false,"Loading"); Control.setQuickSummaryReady(false,"Loading");
         }
@@ -39,6 +40,7 @@ public final class ControlSettingsTest {
         if(Control.quickSpinAllowed()||Control.autoTransferAllowed()||Control.quickBallAllowed()||Control.quickSummaryAllowed()||Control.mapTapAllowed()||Control.throwAllowed())
             throw new AssertionError("Saved preferences bypassed runtime readiness");
         if(Control.ivCatchEnabled()||!Control.ivOwnedEnabled())throw new AssertionError("IV display preferences lost across process restart");
+        if(!Control.shinyScannerEnabled()||Control.shinyScannerAllowed())throw new AssertionError("Scanner preference must persist without granting runtime permission");
         // Pending off-thread writes must reach disk before this process exits, or the restart cannot see them.
         Control.flushSettings(5000);
         if(args[0].equals("save")) {

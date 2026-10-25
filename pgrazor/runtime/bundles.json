@@ -20,5 +20,9 @@
     "runtime/features/nativePromise.js",
     "runtime/features/vgp.js",
     "diagnostics/quick-close.js"
+  ],
+  "quick-ball.js": [
+    "runtime/features/shinyScanner.js",
+    "diagnostics/quick-ball.js"
   ]
 }

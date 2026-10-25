@@ -406,8 +406,8 @@ class PackageTests(unittest.TestCase):
             shutil.copyfile(ROOT/'runtime/bundles.json', work/'runtime/bundles.json')
             (work/'runtime/location.js').write_bytes(b'// location fixture\n')
             (work/'runtime/translated.js').write_bytes(b'// translated fixture\n')
-            for part in json.loads((ROOT/'runtime/bundles.json').read_text())['quick-close.js']:
-                if part.startswith('runtime/'):
+            for part in {part for parts in json.loads((ROOT/'runtime/bundles.json').read_text()).values() for part in parts}:
+                if part.startswith('runtime/') and not (work/part).exists():
                     fixture=work/part; fixture.parent.mkdir(parents=True,exist_ok=True)
                     fixture.write_bytes(('// fixture '+part+'\n').encode())
             bridge=work/'bridge.js'; bridge.write_bytes(b'// bridge fixture\n')
@@ -499,6 +499,8 @@ class PackageTests(unittest.TestCase):
                                 expected_bytes=expected.read_bytes()
                                 if key=='quick_summary' and options.get('quick_close'):
                                     expected_bytes=b'\n;\n'.join((work/part).read_bytes() for part in json.loads((work/'runtime/bundles.json').read_text())['quick-close.js'])
+                                if key=='quick_ball':
+                                    expected_bytes=b'\n;\n'.join((work/part).read_bytes() for part in json.loads((work/'runtime/bundles.json').read_text())['quick-ball.js'])
                                 self.assertEqual(diagnostic['sha256'],hashlib.sha256(expected_bytes).hexdigest())
                                 self.assertEqual(diagnostic['source'],str(expected))
                                 self.assertEqual(archive.read(diagnostic['asset']),expected_bytes)

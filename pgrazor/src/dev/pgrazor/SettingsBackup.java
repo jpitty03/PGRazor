@@ -17,7 +17,7 @@ import org.json.*;
 final class SettingsBackup {
     private static final int EXPORT=71, IMPORT=72, LIMIT=512*1024;
     private static final String[] SCOPES={"pgrazor-map","pgrazor-overlays","pgrazor-saved-places-v1","pgrazor-livefeed"};
-    private static final String[][] KEYS={{"Stops","Gyms","Raids"},{"cooldown.fx","cooldown.fy","vgp.fx","vgp.fy","transfer.fx","transfer.fy"},{"places"},{"category","radius","minIv","myShinies","filters_v1","filter_presets_v1"}};
+    private static final String[][] KEYS={{"Stops","Gyms","Raids"},{"cooldown.fx","cooldown.fy","vgp.fx","vgp.fy","transfer.fx","transfer.fy","shiny.fx","shiny.fy"},{"places"},{"category","radius","minIv","myShinies","filters_v1","filter_presets_v1"}};
     private final Activity activity;
     private TextView status;
     private Button export,restore,back;

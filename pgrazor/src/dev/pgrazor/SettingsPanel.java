@@ -54,6 +54,8 @@ final class SettingsPanel {
     private TextView quickSummaryLabel, vgpStatus;
     private final CheckBox[] vgpChoices=new CheckBox[3];
     private CheckBox vgpCooldownStop;
+    private Switch shinyScannerSwitch;
+    private TextView shinyScannerStatusLine;
     // Status / caption lines (muted, readiness driven).
     private TextView state, steeringStatus, spawnStatus, quickSummaryStatus, transferStatus, quickSpinStatus,
         buddyStatus, giftStatus, itemStatus, rocketStatus, battleStatus, quickBallStatus, ivStatus, cameraStatus, interactionStatus;
@@ -159,6 +161,7 @@ final class SettingsPanel {
         buildLocationSection();
         buildCatchSection();
         buildVgpSection();
+        buildShinyScannerSection();
         buildIncubationSection();
         buildBuddySection();
         buildGiftsSection();
@@ -241,6 +244,14 @@ final class SettingsPanel {
         vgpCooldownStop=new CheckBox(activity);vgpCooldownStop.setText("Stop on cooldown (estimated)");vgpCooldownStop.setContentDescription("Stop Virtual Go Plus during the estimated action cooldown");vgpCooldownStop.setChecked(Control.vgpStopOnCooldown());vgpC.addView(vgpCooldownStop);
         vgpCooldownStop.setOnClickListener(v->{if(vgpCooldownStop.isChecked()!=Control.vgpStopOnCooldown())Control.setVgpStopOnCooldown(vgpCooldownStop.isChecked());host.refresh();});
         vgpStatus=caption(vgpC,Control.vgpStatus());
+    }
+
+    private void buildShinyScannerSection() {
+        LinearLayout scanC=section(body,"Shiny Scanner",false);
+        shinyScannerSwitch=switchRow(scanC,"Shiny scanner");shinyScannerSwitch.setChecked(Control.shinyScannerEnabled());
+        shinyScannerSwitch.setOnCheckedChangeListener((v,checked)->{if(checked==Control.shinyScannerEnabled())return;Control.setShinyScannerEnabled(shinyScannerSwitch.isChecked());host.refresh();});
+        caption(scanC,"Shows nearby shinies on the map. Pauses while Virtual Go Plus is on.");
+        shinyScannerStatusLine=caption(scanC,Control.shinyScannerStatus());
     }
 
     private void buildIncubationSection() {
@@ -414,6 +425,7 @@ final class SettingsPanel {
         refreshSummaryVisibility();
         refreshTransfer();
         refreshVgpStatus();
+        refreshShinyScanner();
         refreshIncubation();
         refreshVgpOptions();
         refreshBuddy();
@@ -466,6 +478,11 @@ final class SettingsPanel {
 
     private void refreshVgpStatus() {
         vgpSwitch.setChecked(Control.vgpOverlay());vgpStatus.setText(Control.vgpStatus());
+    }
+
+    private void refreshShinyScanner() {
+        shinyScannerSwitch.setChecked(Control.shinyScannerEnabled());
+        shinyScannerStatusLine.setText(Control.shinyScannerStatus());
     }
 
     private void refreshIncubation() {

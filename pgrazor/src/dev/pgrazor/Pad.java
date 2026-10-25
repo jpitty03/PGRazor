@@ -32,6 +32,12 @@ public final class Pad {
     // Draggable, position-persisting Keep All / transfer-rules overlay button.
     private TransferToggle transferToggle;
     private OverlayDrag transferDrag;
+    // Compact, draggable map-only pill for the Shiny Scanner: runtime status and the latest shiny species/CP.
+    private TextView shinyScannerPill;
+    private OverlayDrag shinyScannerDrag;
+    // Bundled id->name table, loaded once; used only to label the found shiny in the pill.
+    private org.json.JSONObject shinySpeciesNames;
+    private boolean shinySpeciesNamesLoaded;
 
     private int dp(float x){return SettingsUi.dp(activity,x);}
     private int ink(){return SettingsUi.ink();}
@@ -52,6 +58,7 @@ public final class Pad {
         if(encounterBerry!=null)encounterBerry.invalidate();
         if(cooldownTimer!=null)cooldownTimer.setBackground(rounded(Control.darkTheme()?0xcc141b25:0xccf1f5f8,12));
         if(transferToggle!=null)transferToggle.invalidate();
+        if(shinyScannerPill!=null){shinyScannerPill.setTextColor(ink());shinyScannerPill.setBackground(rounded(surface(),10));}
         if(quickMenu!=null)quickMenu.applyTheme();
     }
     private void draggable(View handle,View target,boolean clickable){
@@ -115,6 +122,10 @@ public final class Pad {
         // Compact Keep All / transfer-rules overlay; tap toggles Keep All, drag repositions (persists transfer.fx/fy).
         transferToggle=new TransferToggle(host);FrameLayout.LayoutParams transferLayout=new FrameLayout.LayoutParams(dp(54),dp(54),Gravity.TOP|Gravity.LEFT);transferLayout.leftMargin=dp(12);transferLayout.topMargin=dp(300);parent.addView(transferToggle,transferLayout);transferToggle.setOnClickListener(v->{Control.setTransferKeepAll(!Control.transferKeepAll());refresh();});
         transferDrag=OverlayDrag.attach(parent,transferToggle,"transfer");transferToggle.setVisibility(View.GONE);
+        // Themed status pill for the Shiny Scanner; the pill is its own drag handle (persists shiny.fx/fy).
+        shinyScannerPill=text("Shiny Scanner",12,ink());shinyScannerPill.setPadding(dp(10),dp(6),dp(10),dp(6));shinyScannerPill.setMaxLines(2);shinyScannerPill.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        FrameLayout.LayoutParams shinyLayout=new FrameLayout.LayoutParams(dp(210),-2,Gravity.TOP|Gravity.LEFT);shinyLayout.leftMargin=dp(12);shinyLayout.topMargin=dp(372);parent.addView(shinyScannerPill,shinyLayout);shinyScannerPill.setVisibility(View.GONE);
+        shinyScannerDrag=OverlayDrag.attach(parent,shinyScannerPill,"shiny");
         launcher=new RazorIcon(host);FrameLayout.LayoutParams iconLayout=new FrameLayout.LayoutParams(dp(48),dp(48),Gravity.TOP|Gravity.LEFT);iconLayout.leftMargin=dp(12);iconLayout.topMargin=dp(100);parent.addView(launcher,iconLayout);
         launcher.setContentDescription("Open PGRazor quick menu. Drag to reposition.");
         // The R launcher now toggles the compact quick menu; Settings there opens this panel full screen.
@@ -136,6 +147,20 @@ public final class Pad {
     private Bitmap decodeMapIcon(String name){
         try(java.io.InputStream in=activity.getAssets().open("pgrazor/map-icons/"+name)){return BitmapFactory.decodeStream(in);}
         catch(java.io.IOException|RuntimeException ignored){return null;}
+    }
+    /** English species name for a dex id from the bundled table (read once); falls back to #id. */
+    private String shinySpeciesName(int id){
+        if(!shinySpeciesNamesLoaded){shinySpeciesNamesLoaded=true;shinySpeciesNames=loadShinySpeciesNames();}
+        if(shinySpeciesNames!=null){String name=shinySpeciesNames.optString(Integer.toString(id),"");if(!name.isEmpty())return name;}
+        return "#"+id;
+    }
+    /** Parse the bundled id->name table once; any missing/oversize/malformed file leaves #id fallbacks. */
+    private org.json.JSONObject loadShinySpeciesNames(){
+        try(java.io.InputStream in=activity.getAssets().open("pgrazor/map-icons/pokemon-names.json")){
+            java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream();byte[] buffer=new byte[8192];int count;
+            while((count=in.read(buffer))!=-1){if(out.size()+count>2*1024*1024)throw new java.io.IOException("Oversize name table");out.write(buffer,0,count);}
+            return new org.json.JSONObject(new String(out.toByteArray(),"UTF-8"));
+        }catch(java.io.IOException|org.json.JSONException|RuntimeException ignored){return null;}
     }
     private final class VgpToggle extends View {
         private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -198,7 +223,7 @@ public final class Pad {
         if(launcher==null||launcher.getWidth()==0||parent.getWidth()==0)return;
         int percent=Control.uiScalePercent();if(appliedUiScale==percent)return;
         appliedUiScale=percent;float scale=percent/100f;
-        for(View view:new View[]{launcher,joystickOverlay,cooldownTimer,vgpToggle,vgpActivity,vgpMarker,transferToggle}){
+        for(View view:new View[]{launcher,joystickOverlay,cooldownTimer,vgpToggle,vgpActivity,vgpMarker,transferToggle,shinyScannerPill}){
             if(view==null)continue;
             float fx=view.getX()/Math.max(1,parent.getWidth()-OverlayDrag.visualWidth(view));
             float fy=view.getY()/Math.max(1,parent.getHeight()-OverlayDrag.visualHeight(view));
@@ -208,6 +233,7 @@ public final class Pad {
         }
         if(cooldownDrag!=null)cooldownDrag.refreshBounds();if(vgpDrag!=null)vgpDrag.refreshBounds();
         if(transferDrag!=null)transferDrag.refreshBounds();
+        if(shinyScannerDrag!=null)shinyScannerDrag.refreshBounds();
         if(encounterBerry!=null)encounterBerry.applyUiScale(scale);
         if(quickMenu!=null)quickMenu.applyScale(scale);
     }
@@ -219,6 +245,18 @@ public final class Pad {
         if(vgpActivity!=null){vgpActivity.setVisibility(Control.vgpOverlayVisible()&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);vgpActivity.setText("VGP  |  "+Control.vgpStatus());vgpActivity.setTextColor(ink());vgpActivity.setBackground(rounded(surface(),10));}
         if(vgpMarker!=null){boolean show=Control.vgpTargetVisible()&&!settings.isVisible();vgpMarker.setVisibility(show?View.VISIBLE:View.GONE);if(show){vgpMarker.setX(Control.vgpTargetX()*parent.getWidth()-dp(19)*vgpMarker.getScaleX());vgpMarker.setY(Control.vgpTargetY()*parent.getHeight()-dp(36)-dp(46)*vgpMarker.getScaleY());vgpMarker.invalidate();}}
         if(transferToggle!=null){transferToggle.setVisibility(Control.transferOverlayVisible()&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);transferToggle.setContentDescription(transferToggleDescription());transferToggle.invalidate();}
+        // Map-only pill: hidden in settings and the quick menu; shows the latest shiny or a concise status.
+        if(shinyScannerPill!=null){
+            boolean show=Control.shinyScannerOverlayVisible()&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing());
+            shinyScannerPill.setVisibility(show?View.VISIBLE:View.GONE);
+            if(show){
+                String label;
+                if(Control.shinyScannerResultVisible())label="✨ "+shinySpeciesName(Control.shinyScannerSpecies())+"  ·  CP "+Control.shinyScannerCp();
+                else label="Shiny Scanner  |  "+Control.shinyScannerStatus();
+                shinyScannerPill.setText(label);shinyScannerPill.setContentDescription(label);
+                shinyScannerPill.setTextColor(ink());shinyScannerPill.setBackground(rounded(surface(),10));
+            }
+        }
 
         if(cooldownTimer!=null){cooldownTimer.setVisibility(Control.cooldownOverlay()?View.VISIBLE:View.GONE);cooldownTimer.setText("☰  "+Cooldown.label());cooldownTimer.setTextColor(Cooldown.remaining()>0?Color.rgb(255,186,95):accent());}
         if (lastEnabled != Control.engine.enabled) { lastEnabled = Control.engine.enabled; stick.invalidate(); }
@@ -344,9 +382,9 @@ public final class Pad {
         if (closed) return;
         closed = true;if(stopRouteDialog!=null)stopRouteDialog.dismiss(); stick.release(true); Control.suspendForBackground(); handler.removeCallbacks(tick);
         if(quickMenu!=null){quickMenu.destroy();quickMenu=null;}
-        if(cooldownDrag!=null){cooldownDrag.detach();cooldownDrag=null;}if(vgpDrag!=null){vgpDrag.detach();vgpDrag=null;}if(transferDrag!=null){transferDrag.detach();transferDrag=null;}
+        if(cooldownDrag!=null){cooldownDrag.detach();cooldownDrag=null;}if(vgpDrag!=null){vgpDrag.detach();vgpDrag=null;}if(transferDrag!=null){transferDrag.detach();transferDrag=null;}if(shinyScannerDrag!=null){shinyScannerDrag.detach();shinyScannerDrag=null;}
         settings.close();
-        parent.removeView(settings.view());parent.removeView(launcher);parent.removeView(joystickOverlay);if(encounterBerry!=null){encounterBerry.close();parent.removeView(encounterBerry);}if(cooldownTimer!=null)parent.removeView(cooldownTimer);if(vgpToggle!=null)parent.removeView(vgpToggle);if(vgpActivity!=null)parent.removeView(vgpActivity);if(vgpMarker!=null)parent.removeView(vgpMarker);if(transferToggle!=null)parent.removeView(transferToggle);
+        parent.removeView(settings.view());parent.removeView(launcher);parent.removeView(joystickOverlay);if(encounterBerry!=null){encounterBerry.close();parent.removeView(encounterBerry);}if(cooldownTimer!=null)parent.removeView(cooldownTimer);if(vgpToggle!=null)parent.removeView(vgpToggle);if(vgpActivity!=null)parent.removeView(vgpActivity);if(vgpMarker!=null)parent.removeView(vgpMarker);if(transferToggle!=null)parent.removeView(transferToggle);if(shinyScannerPill!=null)parent.removeView(shinyScannerPill);
         settings.view().setOnApplyWindowInsetsListener(null);
         Control.event("panel-closed", "Runtime suspended on activity change; desiredEnabled=" + Control.desiredEnabled() + "; movement stopped");
     }

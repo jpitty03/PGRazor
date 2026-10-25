@@ -407,7 +407,10 @@ function stopQuickSummary() {
 }
 function ballUnavailable(reason) {
     if (disposed || !control) return;
-    try { Java.performNow(() => control.setQuickBallReady(false,'Unavailable: '+String(reason).slice(0,180))); }
+    try { Java.performNow(() => {
+        control.setQuickBallReady(false,'Unavailable: '+String(reason).slice(0,180));
+        control.setShinyScannerReady(false,'Unavailable: '+String(reason).slice(0,180));
+    }); }
     catch (error) { bootLog('quick-ball-status-error: '+error); }
 }
 function restoreBallLifecycleHooks() {
@@ -475,6 +478,9 @@ function scheduleQuickBall() {
                     if(event.kind==='encounter-position'){event.playerLatitude=control.latitude();event.playerLongitude=control.longitude();event.spawnBooster=control.spawnBooster();}
                     control.event('quick-ball',JSON.stringify(event));
                     if(event.kind==='cooldown-encounter')control.setCooldownEncounter(event.source);
+                    if(!disposed && event.kind==='shiny-ready')control.setShinyScannerReady(!!event.available,event.reason||'Ready');
+                    if(!disposed && event.kind==='shiny-status')control.setShinyScannerStatus(event.message||'');
+                    if(!disposed && event.kind==='shiny-found')control.shinyScannerFound(String(event.encounterId),event.species,event.cp,event.latitude,event.longitude);
                     if(!disposed && !quickBallFailed && event.kind==='metadata-ready') {
                         quickBallNativeReady=true;
                         control.setQuickBallReady(true,'Ready: 20x catch and break-free animation');
@@ -565,7 +571,8 @@ function heartbeat() {
                 if(quickBall.setThrowOptions)quickBall.setThrowOptions(control.throwGrade(),control.throwCurve(),control.throwAllowed());
                 if(quickBall.setArThrowOptions)quickBall.setArThrowOptions(control.throwAr(),control.throwAllowed()&&control.throwArReady());
                 if(quickBall.setMapTapOptions)quickBall.setMapTapOptions(control.mapTapMode(),control.mapTapEpoch(),control.mapTapAllowed());
-                if(quickBall.setIvDisplayOptions)quickBall.setIvDisplayOptions(control.ivCatchEnabled(),control.ivOwnedEnabled(),control.ivDisplayAllowed());}
+                if(quickBall.setIvDisplayOptions)quickBall.setIvDisplayOptions(control.ivCatchEnabled(),control.ivOwnedEnabled(),control.ivDisplayAllowed());
+                if(quickBall.setShinyScannerOptions)quickBall.setShinyScannerOptions(control.shinyScannerEnabled(),control.shinyScannerAllowed(),control.latitude(),control.longitude());}
             catch(error) {
                 quickBallFailed=true;ballUnavailable(error);
                 try {requestBallStop();} catch(_) {}

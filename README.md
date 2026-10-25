@@ -32,6 +32,7 @@ The Android package identity stays compatible with the game. An official-store i
 | Inventory | Optional IV/level on Pokémon details; transfer newly caught Pokémon below 90% IV; configurable item limits |
 | Keep rules | Legendary/mythical/Ultra Beasts, shiny, event/costume, background, **XXS**, **XXL**, searchable custom species keep list, and a persistent Keep All overlay; favorites and eggs always kept |
 | Virtual Go Plus | Nearby wild catches with red balls, nearby stop spins, optional notifications, target marker and activity status |
+| Shiny scanner (unreleased) | Check nearby wild encounters from the map, with a status overlay and latest shiny result; pauses while VGP is active |
 | Eggs | Unlimited incubator only; shortest- or longest-distance priority |
 | LivePokeMap | Remote Pokémon, stops, gyms, raids, and stations; requires a LivePokeMap subscription |
 | Battles | Rocket quick/charged attacks, charged minigame and shields; raid/gym/Dynamax attacks, Max attacks and dodging |

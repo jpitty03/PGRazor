@@ -1,6 +1,6 @@
 
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
-const source=fs.readFileSync(path.join(__dirname,'../diagnostics/quick-ball.js'),'utf8');
+const source=require('./script-bundle.cjs')('quick-ball.js');
 const BALL='Niantic.Holoholo.Encounter.Pokeball',CAP='Niantic.Holoholo.Encounter.EncounterCaptureState',RESP='Holoholo.Rpc.CatchPokemonOutProto',EN=RESP+'.Types.Status',AN='UnityEngine.Animator',OB='UnityEngine.Object',SYNC='UnityEngine.UnitySynchronizationContext';
 const NAMEPLATE='Niantic.Holoholo.Encounter.EncounterNameplate',PK='Holoholo.Rpc.PokemonProto',MAPPK='Niantic.Holoholo.Map.IMapPokemon',LEVELS='Niantic.Holoholo.GameMasterDataExt_PlayerLevelSettings',UITEXT='UnityEngine.UI.Text';
 const WILDMAP='Niantic.Holoholo.Map.WildMapPokemon',WILDPROTO='Holoholo.Rpc.WildPokemonProto',ENCOUNTEROUT='Holoholo.Rpc.EncounterOutProto',TAPPABLE='Holoholo.Rpc.TappableEncounterProto';

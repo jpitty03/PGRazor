@@ -302,7 +302,32 @@ function prepare(module,api,domain){
     colorGet:method(shadow,'get_effectColor','UnityEngine.Color',[],false,null),colorSet:method(shadow,'set_effectColor','System.Void',['UnityEngine.Color'],false,null),
     distanceGet:method(shadow,'get_effectDistance','UnityEngine.Vector2',[],false,null),distanceSet:method(shadow,'set_effectDistance','System.Void',['UnityEngine.Vector2'],false,null)};
   });
-  return{module,api,classes,fields,fieldMeta,methods,success,outcomes,trace,throws,arThrows,mapTap,iv,ivText,ivOwned,ivOutline,caller:module.base.add(0xad691d0)};
+  // Map-only shiny scanner metadata (read-only; never hooked for capture). Reuses
+  // iv's validated encounter-response field map and adds the species field, the
+  // VisibleOnMap/IsShinyPokemon getters, FindObjectsOfType and the map request.
+  // Unavailable here disables ONLY the scanner.
+  const shinyScanner=part(()=>{
+   if(!iv.available)throw Error('scanner-iv-metadata');if(!api.class_get_methods)throw Error('scanner-export:class_get_methods');
+   const request=method(need(WILDMAP),'SendEncounterRequest',n=>n.includes('<Niantic.Holoholo.Map.PokemonEncounterResponse>'),[],false,null);
+   const iter=Memory.alloc(8);iter.writePointer(ptr(0));let findAll=null;
+   for(let i=0;;i++){if(i>=LIMITS.traceMethods)throw Error('scanner-method-limit');const m=api.class_get_methods(classes['UnityEngine.Object'],iter);if(m.isNull())break;
+    if(text(api.method_get_name(m))!=='FindObjectsOfType'||api.method_is_generic(m)||api.method_get_param_count(m)!==1||typeName(api,api.method_get_param(m,0))!=='System.Type'||typeName(api,api.method_get_return_type(m))!=='UnityEngine.Object[]')continue;
+    if(findAll)throw Error('scanner-find-all-duplicate');findAll=m;}
+   if(!findAll)throw Error('scanner-find-all');
+   const typeExport=module.findExportByName('il2cpp_type_get_object');if(!typeExport)throw Error('scanner-type-object');
+   const statusType=ENCOUNTEROUT+'.Types.Status',status=check(need(ENCOUNTEROUT),'Status',statusType,0x1c);
+   const statusClass=api.class_from_type(api.field_get_type(status)),statusAlign=Memory.alloc(4);
+   if(statusClass.isNull()||!api.class_is_enum(statusClass)||typeName(api,api.class_enum_basetype(statusClass))!=='System.Int32'||api.class_value_size(statusClass,statusAlign)!==4||statusAlign.readU32()!==4)throw Error('scanner-status-abi');
+   const successField=api.class_get_field_from_name(statusClass,Memory.allocUtf8String('EncounterSuccess'));
+   if(successField.isNull()||!api.field_get_parent(successField).equals(statusClass)||(api.field_get_flags(successField)&0x8050)!==0x8050||typeName(api,api.field_get_type(successField))!==statusType)throw Error('scanner-status-success');
+   const successValue=Memory.alloc(4);api.field_static_get_value(successField,successValue);
+   return{request,findAll,typeObject:new NativeFunction(typeExport,'pointer',['pointer'],{scheduling:'exclusive'}),
+    status,success:successValue.readS32(),
+    species:check(need(PK),'pokemonId_','System.Int32',0x28),
+    visible:method(need(WILDMAP),'get_VisibleOnMap','System.Boolean',[],false,null),
+    shiny:method(need(PK),'get_IsShinyPokemon','System.Boolean',[],false,null)};
+  });
+  return{module,api,classes,fields,fieldMeta,methods,success,outcomes,trace,throws,arThrows,mapTap,iv,ivText,ivOwned,ivOutline,shinyScanner,caller:module.base.add(0xad691d0)};
  }finally{if(owned&&!owned.isNull())api.thread_detach(owned);}
 }
 function event(s,kind,fields){if(s.queue.length>=LIMITS.queue){fault(s,Error('queue-limit'));return false;}let time=null;try{time=s.now();}catch(_){}s.queue.push(Object.assign({kind,boottimeMs:time},fields||{}));return true;}
@@ -538,6 +563,9 @@ function install(s,p){
   // Optional IV work must not bypass restoration of an owned animation speed.
   // In particular, a clock failure must still reach the stop/restore path below.
   try{ivTick();}catch(e){fault(s,e);}
+  // Read-only shiny scanner on the verified Unity thread. Fully isolated: a scanner
+  // fault (or clock failure) must never disable the quick-catch speed path or IV.
+  if(s.shiny){let sn=null;try{sn=s.now();}catch(_){}try{s.shiny.tick(sn);}catch(_){}}
   const a=s.attempt;if(!a)return;if(s.stopping||s.allowedUntil===0){restore(s.stopping?'stop':'off',false);return;}
   let now;try{now=s.now();}catch(e){fault(s,e);restore('clock-failed',true);return;}
   if(now>=s.allowedUntil||now>=a.deadline)restore(now>=a.deadline?'timeout':'lease-expired',false);
@@ -737,6 +765,10 @@ function install(s,p){
   outcomes:p.outcomes.available?{available:true,values:p.outcomes.values}:{available:false,reason:p.outcomes.reason},
   trace:t.available?{available:true,stateInfo:{valueSize:36,align:4,offsets:INFO_FIELDS.map((_,i)=>0x10+i*4)},identity:part(t.identity),name:part(t.name),params:part(t.params),
    limits:{ms:LIMITS.traceMs,ticks:LIMITS.traceTicks,events:LIMITS.traceEvents}}:{available:false,reason:t.reason}});
+ // Extracted shiny scanner (bundled before this file). Absent when quick-ball runs
+ // standalone; its own faults never reach the speed/IV paths.
+ const F=root.PGRazorFeatures;
+ if(F&&typeof F.shinyScanner==='function'){try{s.shiny=F.shinyScanner({s,p,event,Interceptor,unity,exact,hold,target,invoke,api,Memory,ptr,alive,bool,field,LIMITS});s.shiny.install();}catch(e){s.shiny=null;event(s,'shiny-ready',{available:false,reason:String(e).slice(0,140)});}}
 }
 function start(options){
  if(!options||options.enabled!==true)return Promise.resolve({status:'disabled'});if(running)return Promise.resolve({status:'already-running'});
@@ -751,7 +783,7 @@ function start(options){
    }
    if(s.stopping&&s.attempt&&!s.cleanupReported){s.cleanupReported=true;event(s,'cleanup-pending',{reason:s.reason||'stop',pending:true});}
    // Outcome identity and trace handles, like an attempt, wait for a Unity-thread release.
-   flush(s);if(s.stopping&&!s.attempt&&!s.trace&&!s.seen.length&&!s.ivRecords.catch&&!s.ivOwnedRecords.length&&!s.busy&&s.inflight===0){finish();return;}
+   flush(s);if(s.stopping&&!s.attempt&&!s.trace&&!s.seen.length&&!s.ivRecords.catch&&!s.ivOwnedRecords.length&&!(s.shiny&&s.shiny.hasRoots())&&!s.busy&&s.inflight===0){finish();return;}
   }catch(e){fault(s,e);}
   s.timer=setTimeout(poll,s.ready?LIMITS.pollMs:1000);
  }
@@ -770,6 +802,10 @@ function setThrowOptions(grade,curve,allowed){const s=running;if(!s||!s.active||
 function setIvDisplayOptions(catchEnabled,ownedEnabled,allowed){const s=running;if(!s||!s.active||!s.ready||s.stopping)return false;
  if(s.ivCatch!==(catchEnabled===true)||s.ivOwned!==(ownedEnabled===true)||allowed!==true)s.ivNext=0;
  s.ivCatch=catchEnabled===true;s.ivOwned=ownedEnabled===true;s.ivUntil=allowed===true?s.now()+LIMITS.leaseMs:0;return true;}
+// Shiny scanner lease; the coordinator folds the map-visible AND VGP-off guard
+// into `allowed`. Delegates to the extracted module and never faults quick catch.
+function setShinyScannerOptions(enabled,allowed,latitude,longitude){const s=running;if(!s||!s.active||!s.ready||s.stopping||!s.shiny)return false;
+ try{return s.shiny.setOptions(enabled,allowed,latitude,longitude);}catch(_){return false;}}
 function stop(){const s=running;if(!s)return Promise.resolve({status:'idle'});s.allowedUntil=0;s.stopping=true;return s.promise;}
-const api=Object.freeze({start,setAllowed,setThrowOptions,setArThrowOptions,setMapTapOptions,setIvDisplayOptions,stop});root.PGRazorQuickBall=api;return api;
+const api=Object.freeze({start,setAllowed,setThrowOptions,setArThrowOptions,setMapTapOptions,setIvDisplayOptions,setShinyScannerOptions,stop});root.PGRazorQuickBall=api;return api;
 })(globalThis);

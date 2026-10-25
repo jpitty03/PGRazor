@@ -98,5 +98,15 @@ async function main(){
  assert.equal(status.features.Summary.stopCount,1);assert.equal(status.features.Ball.stopCount,1);
  status.features.Ball.resolveStop();await pending;assert(done);
  console.log('PASS: quick-ball default OFF, metadata readiness, immediate revoke, shared lifecycle coexistence, isolated failure, awaited native restoration, and whitelisted outcome forwarding');
+ const scanner=fixture(), forwarded=[];
+ scanner.control.setShinyScannerReady=(...a)=>forwarded.push(['ready',...a]);
+ scanner.control.setShinyScannerStatus=(...a)=>forwarded.push(['status',...a]);
+ scanner.control.shinyScannerFound=(...a)=>forwarded.push(['found',...a]);
+ scanner.init();scanner.fire();scanner.ready();
+ const scanEvent=scanner.features.Ball.options.onEvent;
+ scanEvent({kind:'shiny-ready',available:true});
+ scanEvent({kind:'shiny-status',message:'Scanning'});
+ scanEvent({kind:'shiny-found',encounterId:'14219003938633576998',species:597,cp:61,latitude:42.65,longitude:23.34});
+ assert.deepEqual(forwarded,[['ready',true,'Ready'],['status','Scanning'],['found','14219003938633576998',597,61,42.65,23.34]],'Ball module scanner events reach Java controls');
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});
