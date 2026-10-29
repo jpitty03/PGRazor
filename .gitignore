@@ -37,4 +37,6 @@ Thumbs.db
 /website/test-results/
 /website/playwright-report/
 *.txt
+!**/CMakeLists.txt
 *.gpx
+!/pgrazor/research/README.txt

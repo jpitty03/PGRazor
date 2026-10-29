@@ -23,7 +23,7 @@ final class AccountProfiles {
     private static volatile boolean initialized, verified, available, switching, restarting, deleting;
     private static volatile long generation;
     private static volatile String message = "Waiting for game account";
-    private static volatile String command = "";
+    private static final AccountCommandState commands = new AccountCommandState();
     private static String observed = "";
 
     static synchronized void init(Application app) {
@@ -36,7 +36,8 @@ final class AccountProfiles {
         finally { StrictMode.setThreadPolicy(policy); }
     }
     static boolean allowed(){return !initialized || verified && !switching && !restarting;}
-    static String command(){return command;}
+    static String command(){return commands.current();}
+    static String[] commandSnapshot(){return commands.snapshot();}
     static String status(){return message;}
     static String currentId(){return startupId;}
     static AccountProfileStore store(){return store;}
@@ -45,13 +46,13 @@ final class AccountProfiles {
     static boolean canResetSignIn(){return store!=null&&available&&!verified&&!switching&&!restarting&&!deleting;}
     static void resetSignIn(){
         if(!canResetSignIn())return;
-        switching=true;command="reset-login:"+java.util.UUID.randomUUID();message="Restoring sign-in choices...";
-        final String request=command;
-        main.postDelayed(()->{if(request.equals(command)&&!restarting)logoutFailed();},20000);
+        switching=true;commands.issue("reset-login:"+java.util.UUID.randomUUID());message="Restoring sign-in choices...";
+        final String request=commands.current();
+        main.postDelayed(()->{if(request.equals(commands.current())&&!restarting)logoutFailed();},20000);
     }
     static void signInResetComplete(){main.post(()->{
-        if(!command.startsWith("reset-login:"))return;
-        command="";message="Reopening date-of-birth screen";
+        if(!commands.current().startsWith("reset-login:"))return;
+        commands.clear();message="Reopening date-of-birth screen";
         io.execute(()->{try{flush();main.post(AccountProfiles::restart);}catch(IOException error){main.post(()->fail("Close and reopen the game to finish resetting sign-in."));}});
     });}
     static File file(Context context,String name){
@@ -106,14 +107,14 @@ final class AccountProfiles {
                 try{
                     if(store.pendingId().isEmpty()){logoutFailed();return;}
                     flush();store.activatePending();
-                    main.post(()->{command="";message="Opening sign-in";restart();});
+                    main.post(()->{commands.clear();message="Opening sign-in";restart();});
                 }catch(Exception error){logoutFailed();}
             });
         });
     }
     static void sessionSaved(){main.post(()->{
-        if(!switching||restarting||!command.startsWith("save-session:"))return;
-        command="";message="Restoring saved session...";
+        if(!switching||restarting||!commands.current().startsWith("save-session:"))return;
+        commands.clear();message="Restoring saved session...";
         io.execute(()->{try{flush();main.post(()->restart(true));}catch(IOException error){logoutFailed();}});
     });}
     static void switchTo(Activity activity,String id) {
@@ -125,15 +126,15 @@ final class AccountProfiles {
             try{
                 flush();store.prepareSwitch(id);
                 main.post(()->{
-                    command="save-session:"+java.util.UUID.randomUUID();message="Saving sign-in...";
-                    final String request=command;
-                    main.postDelayed(()->{if(request.equals(command)&&!restarting)logoutFailed();},20000);
+                    commands.issue("save-session:"+java.util.UUID.randomUUID());message="Saving sign-in...";
+                    final String request=commands.current();
+                    main.postDelayed(()->{if(request.equals(commands.current())&&!restarting)logoutFailed();},20000);
                 });
             }catch(Exception error){logoutFailed();}
         });
     }
     static void logoutFailed(){main.post(()->{
-        command=""; observed="";
+        commands.clear(); observed="";
         io.execute(()->{
             try{if(store!=null)store.cancelPending();main.post(()->{
                 switching=false;message="Sign-out did not finish. Return to the map to retry, or sign in if prompted.";

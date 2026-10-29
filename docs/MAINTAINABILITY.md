@@ -1,5 +1,9 @@
 # Maintainability review
 
+Current ownership after the compiled production cutover: native hosts and compiled Java/ART bridges replace the production JavaScript factories described in the historical review below. Add production behavior to its native host/leaf contract, preserve typed transport and Unity-thread ownership, and exercise the actual native boundary fixtures. Frida scripts and bundle composition remain only for explicitly selected research probes. Neutral JSON metadata declarations feed native schema generators, so production generation does not depend on retired JavaScript. Source archives require either tracked source or the explicit audited `--include-working-tree` allowlist; ignored inputs, credentials and diagnostic evidence remain excluded.
+
+The dated review and counts below describe earlier work, not the current production architecture. See [ARCHITECTURE.md](ARCHITECTURE.md) and [BUILDING.md](BUILDING.md) for current ownership and build selection.
+
 Reviewed after v0.1.2, October 2026. Two Claude reviews covered Java/UI and runtime/build tooling; the coordinator verified findings and implemented the first cleanup. This is a structural review, not a security audit or proof of native runtime compatibility.
 
 ## Findings and first cleanup

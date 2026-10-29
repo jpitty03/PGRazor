@@ -79,8 +79,11 @@ Enjoying PGRazor? You can support development on [Ko-fi](https://ko-fi.com/pgraz
 
 ## Build and contribute
 
+Development production builds use compiled native/Java gameplay and stripped native libraries. Frida is retained only for explicitly selected research builds; see [research tools](pgrazor/research/README.txt). Native metadata comes from validated JSON schemas, and production packaging rejects PGRazor JavaScript and Frida assets. This is unreleased branch work; published releases retain their own verification status.
+
 - [Build, signing, release CI, and installation](docs/BUILDING.md)
 - [Architecture and compatibility](docs/ARCHITECTURE.md)
+- [Native migration verification and history](docs/NATIVE_MIGRATION.md)
 - [Maintainability review and refactoring priorities](docs/MAINTAINABILITY.md)
 - [Contributing and checks](CONTRIBUTING.md)
 - [Third-party notices](THIRD_PARTY.md)

@@ -115,12 +115,22 @@ double monotonic_ms(void) {
             try{console.log('[pgrazor-camera-probe] '+JSON.stringify(event));}catch(_){}
         if(typeof state.onEvent==='function')try{state.onEvent(event);}catch(_){}
     }
+    function executable(module,address,size) {
+        if(!address || address.isNull() || !address.and(3).isNull() || address.compare(module.base)<0 || address.add(size).compare(module.base.add(module.size))>0)throw Error('invalid-code-range');
+        const range=Process.findRangeByAddress(address);
+        if(!range || range.protection.indexOf('r')<0 || !(range.protection.includes('x')||(typeof PGRazorGuestCode==='function'&&PGRazorGuestCode(module,address,size,range))) || address.add(size).compare(range.base.add(range.size))<=0===false)throw Error('code-not-rx');
+    }
     function discover(module,api,domain,sampleCamera,continuous) {
         let owned=null;
         try {
             if(api.thread_current().isNull()) {
                 owned=api.thread_attach(domain);
                 if(owned.isNull())throw Error('IL2CPP thread attachment returned null');
+            }
+            if(root.PGRazorNativeCorePath) {
+                if(!root.PGRazorNativeCameraMetadata || typeof root.PGRazorNativeCameraMetadata.discover!=='function')
+                    throw Error('native-camera-metadata-missing');
+                return root.PGRazorNativeCameraMetadata.discover({host:{Memory,NativeFunction,Process,module,api,domain,sampleCamera,continuous,ptr,executable}});
             }
             const count=Memory.alloc(8);count.writeU64(0);
             const assemblies=api.domain_get_assemblies(domain,count),total=count.readU64();
@@ -291,6 +301,15 @@ double monotonic_ms(void) {
                 setTimeout(()=>{emit(state,'finished',result);resolve(result);},0);
             };
             function observe(module,found) {
+                state.nativeSampler=null;
+                if(state.continuous&&root.PGRazorNativeCorePath){
+                    try{
+                        if(!root.PGRazorNativeCameraSampler)throw Error('native-camera-sampler-missing');
+                        state.nativeSampler=root.PGRazorNativeCameraSampler.create({state,found,module,Memory,NativeFunction,ptr});
+                        if(!state.nativeSampler)throw Error('native-camera-sampler-unavailable');
+                        emit(state,'native-camera-sampler-ready',{backend:'native'});
+                    }catch(error){state.finish({status:'unavailable',reason:'native-camera-sampler-install:'+String(error)});return;}
+                }
                 function clock() {
                     let now;
                     try{now=state.clock();}catch(error){state.sampleError='boot-clock-read-failed';return null;}
@@ -369,9 +388,14 @@ double monotonic_ms(void) {
                         stage=label+':value-read';return value.readS32();
                     }
                     try {
-                        current();
                         if(state.sampleStartedAt===null)state.sampleStartedAt=now;
                         state.lastSampleAt=now;
+                        if(state.nativeSampler){
+                            stage='native-camera-sample';
+                            record=state.nativeSampler.sample(tid,rigReceiver,returnedCamera,250);
+                            if(record&&!record.unavailable){state.sampleCount++;record.sampleIndex=state.sampleCount;}
+                        }else{
+                        current();
                         let naturalCamera=null;
                         if(state.continuous) {
                             const rig=retain(rigReceiver,s.rig,false,'MainCameraRig');
@@ -423,6 +447,7 @@ double monotonic_ms(void) {
                         record={sampleIndex:state.sampleCount,timeMs:now,tid,cameraId,x:values.x,y:values.y,z:values.z,yawDegrees};
                         if(state.continuous)Object.assign(record,{mapVisible:true},mapFacts);
                         if(!state.continuous && state.sampleCount>=LIMITS.samples)state.sampleDone=true;
+                        }
                     }catch(error){
                         if(state.continuous && error && typeof error.cameraUnavailable==='string')
                             record=Object.assign({unavailable:true,reason:error.cameraUnavailable,timeMs:now,tid},error.fields||{});

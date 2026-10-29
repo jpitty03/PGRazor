@@ -113,6 +113,7 @@ public class AccountProfiles {
  public static boolean allowed(){return true;}
  public static java.io.File file(android.app.Application app,String name){return new java.io.File(app.getFilesDir(),name);}
  public static String command(){return "";}
+ public static String[] commandSnapshot(){return new String[]{"", "0"};}
  public static void identity(String id,String name){}
  public static void support(boolean ready){}
  public static void sessionEnded(){}
@@ -181,7 +182,7 @@ class ControlJavaTests(unittest.TestCase):
             sources.extend([ROOT / 'test/ControlQuickSummaryTest.java',ROOT / 'test/ControlQuickBallTest.java',
                             ROOT / 'test/ControlQuickBallOutcomeTest.java',ROOT / 'test/ControlSettingsTest.java',
                             ROOT / 'test/VgpControllerTest.java',ROOT / 'test/CooldownTest.java',
-                            ROOT / 'test/ControlSettingsReloadTest.java'])
+                            ROOT / 'test/ControlSettingsReloadTest.java',ROOT / 'test/ControlItemCatalogTest.java'])
             classes = work / 'classes'
             sdk = Path(os.environ.get('ANDROID_HOME', str(Path(os.environ['LOCALAPPDATA']) / 'Android/Sdk')))
             json_sources = sorted((sdk / 'sources').glob('android-*/org/json'), reverse=True)
@@ -217,6 +218,9 @@ class ControlJavaTests(unittest.TestCase):
                                     capture_output=True, text=True, timeout=15)
             self.assertEqual(tested.returncode, 0, tested.stdout + tested.stderr)
             self.assertIn('PASS cooldown', tested.stdout)
+            tested = subprocess.run([str(runtime), '-cp', str(classes), 'dev.pgrazor.ControlItemCatalogTest'],
+                                    capture_output=True, text=True, timeout=15)
+            self.assertEqual(tested.returncode, 0, tested.stdout + tested.stderr)
             for phase in ('save','load'):
                 tested=subprocess.run([str(runtime),'-cp',str(classes),'dev.pgrazor.ControlSettingsTest',phase,str(work)],capture_output=True,text=True,timeout=15)
                 self.assertEqual(tested.returncode,0,tested.stdout+tested.stderr)

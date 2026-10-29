@@ -396,6 +396,7 @@ final class SettingsPanel {
     }
 
     private void showItemSettings(){
+        Control.requestItemCatalog();
         LinearLayout form=new LinearLayout(activity);form.setOrientation(LinearLayout.VERTICAL);form.setPadding(dp(16),dp(8),dp(16),dp(8));
         CheckBox enabled=new CheckBox(activity);enabled.setText("Enable automatic item transfer");enabled.setChecked(Control.itemTransferEnabled());form.addView(enabled);
         TextView explanation=new TextView(activity);explanation.setText("Check items to trim and set the maximum to keep. Saving applies to your current bag and future items. A limit of 0 removes all of that item. Unchecked items are kept.");form.addView(explanation);
@@ -411,7 +412,7 @@ final class SettingsPanel {
         }};populate.run();
         TextView status=new TextView(activity);status.setText(Control.itemStatus());form.addView(status);
         AlertDialog dialog=new AlertDialog.Builder(dialogContext()).setTitle("Auto-transfer inventory items").setView(form).setNegativeButton("Cancel",null).setPositiveButton("Save & apply",null).create();
-        final Runnable[] poll=new Runnable[1];poll[0]=()->{if(!dialog.isShowing())return;populate.run();status.setText(Control.itemStatus());handler.postDelayed(poll[0],1000);};
+        final Runnable[] poll=new Runnable[1];poll[0]=()->{if(!dialog.isShowing())return;Control.requestItemCatalog();populate.run();status.setText(Control.itemStatus());handler.postDelayed(poll[0],1000);};
         itemDialogs.add(dialog);
         dialog.setOnDismissListener(d->{handler.removeCallbacks(poll[0]);itemDialogs.remove(dialog);});dialog.show();styleTree(form);handler.post(poll[0]);
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{StringBuilder rules=new StringBuilder(),all=new StringBuilder();for(java.util.Map.Entry<Integer,EditText> e:inputs.entrySet()){int cap;try{cap=Integer.parseInt(e.getValue().getText().toString().trim());if(cap<0||cap>100000)throw new NumberFormatException();}catch(NumberFormatException invalid){e.getValue().setError("Enter 0 to 100000");return;}String rule=e.getKey()+":"+cap+";";all.append(rule);if(boxes.get(e.getKey()).isChecked())rules.append(rule);}
@@ -491,6 +492,7 @@ final class SettingsPanel {
     }
 
     private void refreshBuddy() {
+        if(buddyChoices.length>0&&buddyChoices[0].isShown())Control.requestBerryCatalog();
         buddyStatus.setText(Control.buddyStatus());
         for(int i=0;i<BERRY_IDS.length;i++){int id=BERRY_IDS[i],count=Control.berryCount(id);RadioButton b=buddyChoices[i];b.setText(BERRY_NAMES[i]+(id==0?"":" ("+count+")"));b.setChecked(Control.buddyBerry()==id);boolean ready=id==0||(count>0&&Control.buddyAvailable());b.setEnabled(ready);b.setAlpha(ready?1f:0.4f);}
     }

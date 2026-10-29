@@ -1,27 +1,17 @@
 {
   "embedded-agent.js": [
+    "runtime/compiled-google-signin.js",
+    "runtime/compiled-location.js",
     "runtime/location.js",
     "runtime/translated.js",
+    "runtime/native-core.js",
+    "runtime/native-transport.js",
     "embedded-agent.js"
   ],
-  "quick-close.js": [
-    "diagnostics/catch-presentation-bridge.js",
-    "runtime/berry-policy.js",
-    "runtime/features/incubation.js",
-    "runtime/features/buddy.js",
-    "runtime/features/gifts.js",
-    "runtime/features/spawn.js",
-    "runtime/features/berries.js",
-    "runtime/features/battles.js",
-    "runtime/features/rocketMinigame.js",
-    "runtime/features/rocket.js",
-    "runtime/features/itemValues.js",
-    "runtime/features/items.js",
-    "runtime/features/nativePromise.js",
-    "runtime/features/vgp.js",
-    "runtime/features/routes.js",
-    "runtime/features/adventureSync.js",
-      "runtime/features/accounts.js",
-    "diagnostics/quick-close.js"
+  "camera-probe.js": [
+    "runtime/native-core.js",
+    "runtime/native-camera-metadata.js",
+    "runtime/native-camera-sampler.js",
+    "diagnostics/camera-probe.js"
   ]
 }

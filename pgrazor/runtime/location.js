@@ -1,6 +1,12 @@
 // Game-facing GPS adapter. Creation is inert: delivery installation must run on the main thread.
 // Dependencies are supplied by the bootstrap; this module owns its hooks and retained manager.
 globalThis.PGRazorLocation = Object.freeze({create({Java, control, isDisposed, bootLog}) {
+    if(globalThis.PGRazorNativeCorePath){
+        if(!globalThis.PGRazorCompiledLocation)throw Error('compiled-location-adapter-missing');
+        const adapter=globalThis.PGRazorCompiledLocation.create({Java,control,isDisposed,bootLog});
+        if(!adapter)throw Error('compiled-location-adapter-unavailable');
+        return adapter;
+    }
     const permissionHooks = [];
     let locationDelivery = null;
     function installLocationPermissionGates() {

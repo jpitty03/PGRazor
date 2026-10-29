@@ -3,8 +3,10 @@
 PGRazor has three layers:
 
 1. Java controls (`src/dev/pgrazor`) own settings, the menu, overlays, lifecycle, location state, and notifications.
-2. `embedded-agent.js` owns startup, feature coordination, and shutdown. `runtime/location.js` owns the game-facing GPS adapter; both use the pinned Frida Java bridge.
-3. `diagnostics/*.js` validate IL2CPP metadata before enabling version-specific behavior. Unity-thread work and short foreground/map leases gate gameplay operations.
+2. Compiled Java/ART bridges own game lifecycle, permission and location integration. `NativeRuntimeTransport` exchanges typed settings and events with native feature52.
+3. The C++ runtime manager70 drives native hosts60–71 and catch-wait58 on the verified Unity thread. Native metadata, observers and short foreground/map leases gate gameplay operations.
+
+Normal production packaging includes no Frida runtime or PGRazor JavaScript assets. Explicit `--research-runtime` builds retain the embedded agent and the dependencies required by supported survey, scene, interaction and camera probes. Research scripts are outside the production runtime.
 
 `nonroot.py` injects the controls and runtime into a user-supplied original game package. `release_apk.py` assembles the supported ARM64 package set into a single signed APK. Game files are inputs, not repository source. Device monitoring and historical investigations are maintained outside the repository.
 
@@ -30,41 +32,41 @@ Paths below are relative to `pgrazor/`.
 | --- | --- |
 | Settings and feature policy | `src/dev/pgrazor/Control.java`: persisted state, readiness gates, public static bridge API |
 | Settings persistence | `SettingsWriter.java`: ordered, coalesced snapshot writes and explicit flush/failure reporting |
-| Accounts | `AccountProfileStore.java`: atomic identity index and storage namespaces; `AccountProfiles.java`: identity verification and switching; `AccountsDialog.java`: chooser; `AccountRestartActivity.java`: private process restart; `AccountSessionTransaction.java`: auth snapshot and replay journal; `AccountSessionVault.java`: Android Keystore vault; `runtime/features/accounts.js`: validated game identity/flush bridge |
+| Accounts | `AccountProfileStore.java`: identity index and storage namespaces; `AccountProfiles.java`: identity verification and switching; `AccountsDialog.java`: chooser; `AccountRestartActivity.java`: process restart; `AccountSessionTransaction.java`: replay journal; `AccountSessionVault.java`: Android Keystore vault; native `account_host.cpp`: game identity/flush bridge |
 | Runtime policy and outcomes | `VgpController.java`, `CatchOutcomeController.java`: VGP guards/markers/notifications and queued catch toasts |
 | Menu and overlays | `Pad.java`: attachment, lifecycle, launcher, joystick and overlays; `SettingsPanel.java`: named settings section builders/binders and dialogs; `SettingsUi.java`: shared palette/styling |
 | Map UI and movement | `WorldMapDialog.java`, `MapProjection.java`, `AutoWalkPlanner.java`, `MotionEngine.java`: viewport, gestures, selection, routes and movement |
 | Map tiles and nearby points | `MapTileSource.java`, `MapTileCache.java`, `MapPoiLayer.java`: bounded tile fetching/cache, POI drawing, hit testing and details |
 | Live feed | `LiveFeedClient.java`, `LiveFeedData.java`, `LiveFeedFilters.java`, `LiveFeedDialog.java`: service, data, filtering, UI |
-| Bootstrap | `BootstrapProvider.java`, `embedded-agent.js`: asset extraction, bridge startup, feature scheduling and revocation |
-| GPS | `runtime/location.js`: permission gates, location delivery, retained manager and hook cleanup |
-| Native contracts and coordination | `diagnostics/quick-close.js`, `quick-ball.js`, `quick-summary.js`: metadata validation, catch/spin coordination, animation and presentation |
-| Native feature state | `runtime/features/`: berries, buddy, gifts, incubation, items, battles, Rocket/minigame, spawn and VGP factories |
-| Packaging | `build.py`, `nonroot.py`, `script_bundle.py`, `release_apk.py`: controls, injection, script composition, signed APK |
+| Bootstrap | `BootstrapProvider.java`, `NativeRuntimeBootstrap.java`, native `runtime_bootstrap.cpp` and `runtime_host.cpp`: compiled startup, Unity scheduling and revocation |
+| GPS | `GameLocationDelivery.java`, `GameLocationPermissions.java`, `NativeLocationGetters.java` and `art/`: compiled location delivery and ART getter hooks |
+| Native contracts and coordination | `native/`: metadata validation, hook ownership, rooted managed state, catch/spin coordination, animation and presentation |
+| Native feature state | Native hosts: Routes60, shared61, quickball62, encounter63, camera64, inventory65, combat66, spin67, account68, interaction69, manager70 and spawn71; catch-wait58 |
+| Packaging | `build.py`, `native_build.py`, `art_build.py`, `dex_bridges.py`, `nonroot.py`, `release_apk.py`: compiled controls, native/ART libraries, DEX rewriting and signed APK |
 
-`diagnostics/` contains production native features as well as probes. The directory name does not mean those files are disposable.
+`diagnostics/` and the remaining script composer serve explicitly selected research builds. Retired production JavaScript factories and transitional adapters do not define production ownership.
 
 Account namespaces are captured once at process startup. The first profile uses existing files in place; later profiles use `pgrazor-accounts-v1/profiles/<UUID>` and suffixed SharedPreferences. Location, cooldown, settings, saved places, overlay positions, map/feed preferences and GPX routes are scoped. LivePokeMap's encrypted service login stays global. Only a SHA-256 of the game's own PlayerService identity binds a profile; the display label can contain the trainer name. No game passwords or provider tokens are copied into the profile store.
 
 Switching pauses automation and movement, flushes outgoing writes, records a pending target, then calls the game's logout wrapper. A successful logout Future plus disconnected state, or confirmed cleared live provider and cached login selection after the wrapper returns, permits target selection. An unexported activity in `:pgrazor_restart` verifies and terminates the outgoing main process before reopening the launcher. This prevents stale callbacks from writing into another account's namespace. The incoming process supplies its staged stationary location for login; gameplay automation stays gated until PlayerService identity matches. A mismatched login selects the actual identity's profile and restarts again. Interrupted requests are cancelled at startup; failed persistence keeps automation paused and preserves existing files. Account index mutations after startup run on a serial executor. Device tests must verify login and switching in both directions, not just identity readiness.
 
-## Script modules and lifecycle
+## Compiled runtime and research lifecycle
 
-`runtime/bundles.json` declares ordered sources for packaged script assets. `script_bundle.py` joins their bytes with statement separators at build time. Asset names remain unchanged; there is no runtime module loader or additional startup I/O. The agent receipt hashes the complete packaged bundle. Tests use the same manifest through `test/script-bundle.cjs`.
+Production startup loads the compiled core and ART libraries, prepares the Java bridges and typed transport, and arms native gameplay. The rewritten render bridge supplies an attached Unity-thread boundary. The manager configures each host and publishes readiness/error telemetry; callbacks retain native owner, lease and GC-root checks. Build audits reject Frida and JavaScript assets in production packages.
 
-Feature source files register factories without accessing the game. The validated `quick-close` installation calls each factory with explicit metadata, shared native helpers, and the session state. Each factory owns its feature state and exposes tick/coordination methods. Hooks still join the session's listener list; GC handles still use the shared ownership registry. The existing verified Unity-thread tick order and stop/drain protocol remain centralized. Lazy inventory access avoids capturing state before its original initialization point.
+Native schema generators consume neutral JSON declarations rather than retired gameplay scripts. Preserve schema checks when updating game metadata: a successful mock or build cannot establish compatibility with a new game binary.
 
-`runtime/features/itemValues.js` owns shared argument/boxed-value helpers; `nativePromise.js` owns promise inspection. `runtime/berry-policy.js` separates preference parsing from native hooks. Direct feature fixtures load factories from the same manifest instead of extracting comment-delimited regions. Build reports include `script_bundles` with the composed-byte hash and each contributing source hash.
+Research `runtime/bundles.json` and `script_bundle.py` compose the retained probe dependencies deterministically. Research uses its pinned Frida bridge and Gadget provisioning; those dependencies must remain available while the probes use them. Production receipts and research bundle receipts describe separate selections.
 
-The location module's `create({Java, control, isDisposed, bootLog})` is inert. Bootstrap calls `installPermissions()` early inside `Java.perform`, then `installDelivery()` on the Android main thread. Moving game location class initialization to the Gadget thread previously stalled startup. Delivery hooks private JNI lifecycle dispatchers, not virtual `onStart`/`onStop` or `notifyLocationUpdate`, which previously crashed on ART. `stop()` releases the retained manager, removes callbacks, and restores owned hooks. Permission gates affect only game-facing queries; actual Android grants stay unchanged.
+Research location delivery retains its main-thread initialization and owned cleanup. Production uses compiled Java lifecycle dispatch and ART getters. Permission gates affect game-facing queries; actual Android grants remain unchanged. ART hook publication and GC-root ownership require their dedicated native fixtures and device checks.
 
-Keep `Control` public static methods stable when extracting implementation classes: they are the bridge API used by the agent. Persisted keys, settings/state paths, signing identity, and runtime asset paths also require deliberate migrations.
+Keep `Control` public static methods stable when extracting implementation classes: compiled transport and research callers share that API. Persisted keys, settings/state paths, signing identity, and runtime asset paths require deliberate migrations.
 
 ## In-game Routes
 
 `GameRoutesController` owns discovery selection, bounded runs and movement ownership. `GameRoutesDialog` is the quick-menu entry. This is separate from GPX and Pokestop Autowalk: each native Route has its own start, progress and reward lifecycle. A movement endpoint alone does not count as completion.
 
-`runtime/features/routes.js` owns validated service capture, rooted Route definitions and one-shot native commands. `quick-close.js` supplies the verified Unity-thread tick and shared cleanup. Commands remain in the Java mailbox until acknowledged; revocation cancels pending native commands without replay. The translated bridge carries the same contract on MuMu. Unknown/stale state, game pauses, backgrounding and manual movement stop automation. Reward completion is latched from the matching native server-response callback and paired with the completion command sequence, because the game clears its current Route before periodic polling can observe the reward flag. Only the reward and rating screens opened by that automation are dismissed; no rating is submitted.
+Native Routes host60 composes validated service capture, rooted Route definitions, discovery, one-shot commands, result observers and tracking. Typed transport52 carries settings/commands and outcomes; manager70 supplies Unity-thread pulses. Revocation cancels pending commands without replay. Unknown/stale state, game pauses, backgrounding and manual movement stop automation. Reward completion is latched from the matching server-response callback and paired with the completion sequence, because the game clears its current Route before polling can observe the reward flag. Only reward and rating screens opened by that automation are dismissed; no rating is submitted.
 
 Route tracking also queries Unity's OS location-service availability. While a fresh synthetic-location lease is active, only this nested Route tracking query recognizes the synthetic provider. Android grants are unchanged; network, breadcrumb freshness and path checks remain active. The native icall is resolved by its exact name and validated against `libunity.so`; managed wrapper instruction bytes must not be used to validate that separate native function.
 

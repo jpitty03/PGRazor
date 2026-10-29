@@ -22,6 +22,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class Control {
     private static Application hostApplication;
     public static String accountCommand(){return AccountProfiles.command();}
+    public static String[] accountCommandSnapshot(){return AccountProfiles.commandSnapshot();}
     public static boolean accountManagementAllowed(){return foreground && backendReady && connected();}
     public static void accountIdentity(String id,String name){AccountProfiles.identity(id,name);}
     public static void setAccountsReady(boolean ready){AccountProfiles.support(ready);}
@@ -294,6 +295,16 @@ public final class Control {
     public static String itemCatalog(){return itemCatalog;}
     public static String itemStatus(){return itemStatus;}
     public static boolean itemAccessAllowed(){return itemTransferReady&&quickSummaryReady()&&hostLive();}
+    private static volatile long itemCatalogUntil,berryCatalogUntil;
+    public static void requestItemCatalog(){itemCatalogUntil=SystemClock.elapsedRealtime()+5000;}
+    public static void requestBerryCatalog(){berryCatalogUntil=SystemClock.elapsedRealtime()+5000;}
+    /** 0: idle, 1: five berry counts only, 2: explicit inventory settings catalog. */
+    public static int itemCatalogMode(){
+        if(!hostLive())return 0;
+        long now=SystemClock.elapsedRealtime();
+        if(now<itemCatalogUntil)return 2;
+        return now<berryCatalogUntil||encounterBerryVisible()?1:0;
+    }
     public static void setItemReady(boolean ready,String status){itemTransferReady=ready;itemStatus=status;}
     public static void setItemStatus(String status){itemStatus=status==null?"":status;}
     public static void setItemCatalog(String value){

@@ -15,6 +15,8 @@ def run(*args, **kwargs):
 
 
 def main():
+    run(sys.executable, '-B', ROOT / 'tools/native_routes_schema.py', '--check')
+    run(sys.executable, '-B', ROOT / 'tools/native_gift_schema.py', '--check')
     run(sys.executable, '-B', PROJECT / 'build.py', '--test-only')
     run(sys.executable, '-B', '-m', 'unittest', 'discover', '-s', PROJECT / 'test', '-p', 'test_*.py')
     for path in sorted((PROJECT / 'test').glob('*-test.cjs')):
@@ -24,7 +26,7 @@ def main():
                  *sorted((PROJECT / 'diagnostics').glob('*.js')),
                  *sorted((PROJECT / 'runtime').rglob('*.js'))]:
         run('node', '--check', path)
-    # Parse the exact bytes shipped, including separators and source order.
+    # Parse retained research bundles; production has no JavaScript assets.
     for name in json.loads((PROJECT / 'runtime/bundles.json').read_text(encoding='utf-8')):
         run('node', '--check', input=bundle(PROJECT, name))
 

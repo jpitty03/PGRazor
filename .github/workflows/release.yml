@@ -16,6 +16,9 @@ jobs:
   build:
     runs-on: windows-latest
     timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
     env:
       PGRAZOR_BUILD_TOOLS: 36.0.0
       PGRAZOR_ANDROID_PLATFORM: android-36
@@ -39,7 +42,32 @@ jobs:
           packages: platform-tools
           log-accepted-android-sdk-licenses: false
       - name: Install Android SDK
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "sources;android-36"
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "sources;android-36" "ndk;27.3.13750724" "ndk;29.0.14206865"
+      - name: Install native build tools
+        run: python -m pip install "cmake==4.4.4" "ninja==1.13.2"
+      - name: Configure pinned native prerequisites
+        run: |
+          $sdkRoot = $env:ANDROID_SDK_ROOT
+          if (!$sdkRoot) { $sdkRoot = $env:ANDROID_HOME }
+          if (!$sdkRoot) { throw 'Android SDK root was not configured' }
+          $gameplayNdk = Join-Path $sdkRoot 'ndk/27.3.13750724'
+          $artNdk = Join-Path $sdkRoot 'ndk/29.0.14206865'
+          foreach ($ndkPath in @($gameplayNdk, $artNdk)) {
+            if (!(Test-Path -LiteralPath (Join-Path $ndkPath 'source.properties'))) { throw "Missing pinned NDK: $ndkPath" }
+          }
+          $nativeDeps = Join-Path $env:RUNNER_TEMP 'pgrazor-native-deps'
+          Add-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8 -Value @(
+            "ANDROID_SDK_ROOT=$sdkRoot",
+            "ANDROID_NDK_HOME=$gameplayNdk",
+            "PGRAZOR_ART_NDK=$artNdk",
+            "PGRAZOR_NATIVE_DEPS=$nativeDeps"
+          )
+      - name: Prepare and verify pinned native sources
+        run: |
+          python -B tools/prepare_native.py --download
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -B pgrazor/art_build.py --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Validate release tag
         shell: pwsh
         env:
@@ -61,7 +89,7 @@ jobs:
         env:
           PGRAZOR_VERSION: ${{ inputs.tag }}
           GITHUB_TOKEN: ${{ github.token }}
-        run: python -B pgrazor/nonroot.py --apk pgrazor/input/game.apkm --download-runtime --camera-steering --interaction-probe --quick-ball --quick-close --google-browser-login
+        run: python -B pgrazor/nonroot.py --apk pgrazor/input/game.apkm --google-browser-login
       - name: Produce single installable APK
         shell: pwsh
         run: |

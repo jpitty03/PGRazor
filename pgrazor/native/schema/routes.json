@@ -1,0 +1,425 @@
+{
+  "version": 1,
+  "classes": [
+    {
+      "key": "tracking",
+      "namespace": "Niantic.Holoholo.Routes",
+      "name": "RoutesLocationService",
+      "canonical": "Niantic.Holoholo.Routes.RoutesLocationService"
+    },
+    {
+      "key": "consumption",
+      "namespace": "Niantic.Holoholo.Routes",
+      "name": "RouteConsumptionService",
+      "canonical": "Niantic.Holoholo.Routes.RouteConsumptionService"
+    },
+    {
+      "key": "routes",
+      "namespace": "Niantic.Holoholo.Routes",
+      "name": "RoutesService",
+      "canonical": "Niantic.Holoholo.Routes.RoutesService"
+    },
+    {
+      "key": "nearby",
+      "namespace": "Niantic.Holoholo.Routes",
+      "name": "NearbyRoutesInfo",
+      "canonical": "Niantic.Holoholo.Routes.NearbyRoutesInfo"
+    },
+    {
+      "key": "startData",
+      "namespace": "Niantic.Holoholo.Routes",
+      "name": "RoutesConsumptionStartData",
+      "canonical": "Niantic.Holoholo.Routes.RoutesConsumptionStartData"
+    },
+    {
+      "key": "shared",
+      "namespace": "Holoholo.Rpc",
+      "name": "SharedRouteProto",
+      "canonical": "Holoholo.Rpc.SharedRouteProto"
+    },
+    {
+      "key": "anchor",
+      "namespace": "Holoholo.Rpc",
+      "name": "RoutePoiAnchor",
+      "canonical": "Holoholo.Rpc.RoutePoiAnchor"
+    },
+    {
+      "key": "waypoint",
+      "namespace": "Holoholo.Rpc",
+      "name": "RouteWaypointProto",
+      "canonical": "Holoholo.Rpc.RouteWaypointProto"
+    },
+    {
+      "key": "play",
+      "namespace": "Holoholo.Rpc",
+      "name": "RoutePlayProto",
+      "canonical": "Holoholo.Rpc.RoutePlayProto"
+    },
+    {
+      "key": "progress",
+      "namespace": "Holoholo.Rpc",
+      "name": "ProgressRouteOutProto",
+      "canonical": "Holoholo.Rpc.ProgressRouteOutProto"
+    },
+    {
+      "key": "gui",
+      "namespace": "Niantic.Holoholo.NUI",
+      "name": "GuiController",
+      "canonical": "Niantic.Holoholo.NUI.GuiController"
+    },
+    {
+      "key": "rewardGui",
+      "namespace": "Niantic.Holoholo.Routes",
+      "name": "RouteCompletionGuiController",
+      "canonical": "Niantic.Holoholo.Routes.RouteCompletionGuiController"
+    },
+    {
+      "key": "ratingGui",
+      "namespace": "Niantic.Holoholo.Routes",
+      "name": "RouteRatingGuiController",
+      "canonical": "Niantic.Holoholo.Routes.RouteRatingGuiController"
+    },
+    {
+      "key": "playerStats",
+      "namespace": "Holoholo.Rpc",
+      "name": "PlayerRouteStats",
+      "canonical": "Holoholo.Rpc.PlayerRouteStats"
+    },
+    {
+      "key": "bool",
+      "namespace": "System",
+      "name": "Boolean",
+      "canonical": "System.Boolean"
+    }
+  ],
+  "fields": [
+    {
+      "owner": "progress",
+      "name": "Status",
+      "offset": 20,
+      "kind": 3,
+      "type": null,
+      "size": 4
+    },
+    {
+      "owner": "gui",
+      "name": "currentState",
+      "offset": 112,
+      "kind": 3,
+      "type": null,
+      "size": 4
+    },
+    {
+      "owner": "routes",
+      "name": "didn",
+      "offset": 528,
+      "kind": 1,
+      "type": null,
+      "size": 0
+    },
+    {
+      "owner": "routes",
+      "name": "dica",
+      "offset": 128,
+      "kind": 1,
+      "type": null,
+      "size": 0
+    },
+    {
+      "owner": "nearby",
+      "name": "<Routes>k__BackingField",
+      "offset": 16,
+      "kind": 1,
+      "type": null,
+      "size": 0
+    },
+    {
+      "owner": "startData",
+      "name": "PublishedRouteProto",
+      "offset": 16,
+      "kind": 1,
+      "type": null,
+      "size": 0
+    },
+    {
+      "owner": "startData",
+      "name": "Reversed",
+      "offset": 24,
+      "kind": 2,
+      "type": "System.Boolean",
+      "size": 1
+    },
+    {
+      "owner": "anchor",
+      "name": "Anchor",
+      "offset": 16,
+      "kind": 1,
+      "type": null,
+      "size": 0
+    },
+    {
+      "owner": "shared",
+      "name": "StartPoi",
+      "offset": 168,
+      "kind": 1,
+      "type": null,
+      "size": 0
+    },
+    {
+      "owner": "shared",
+      "name": "EndPoi",
+      "offset": 176,
+      "kind": 1,
+      "type": null,
+      "size": 0
+    },
+    {
+      "owner": "shared",
+      "name": "Id",
+      "offset": 16,
+      "kind": 1,
+      "type": "System.String",
+      "size": 0
+    },
+    {
+      "owner": "shared",
+      "name": "Waypoints",
+      "offset": 24,
+      "kind": 1,
+      "type": null,
+      "size": 0
+    },
+    {
+      "owner": "shared",
+      "name": "Name",
+      "offset": 40,
+      "kind": 1,
+      "type": "System.String",
+      "size": 0
+    },
+    {
+      "owner": "shared",
+      "name": "Reversible",
+      "offset": 72,
+      "kind": 2,
+      "type": "System.Boolean",
+      "size": 1
+    },
+    {
+      "owner": "shared",
+      "name": "RouteDistanceMeters",
+      "offset": 88,
+      "kind": 2,
+      "type": "System.Int64",
+      "size": 8
+    },
+    {
+      "owner": "shared",
+      "name": "PlayerStats",
+      "offset": 144,
+      "kind": 1,
+      "type": null,
+      "size": 0
+    },
+    {
+      "owner": "waypoint",
+      "name": "LatDegrees",
+      "offset": 24,
+      "kind": 2,
+      "type": "System.Double",
+      "size": 8
+    },
+    {
+      "owner": "waypoint",
+      "name": "LngDegrees",
+      "offset": 32,
+      "kind": 2,
+      "type": "System.Double",
+      "size": 8
+    },
+    {
+      "owner": "play",
+      "name": "Route",
+      "offset": 16,
+      "kind": 1,
+      "type": null,
+      "size": 0
+    },
+    {
+      "owner": "play",
+      "name": "CompletedWalk",
+      "offset": 60,
+      "kind": 2,
+      "type": "System.Boolean",
+      "size": 1
+    },
+    {
+      "owner": "play",
+      "name": "Paused",
+      "offset": 61,
+      "kind": 2,
+      "type": "System.Boolean",
+      "size": 1
+    },
+    {
+      "owner": "play",
+      "name": "AcquiredReward",
+      "offset": 62,
+      "kind": 2,
+      "type": "System.Boolean",
+      "size": 1
+    },
+    {
+      "owner": "play",
+      "name": "TravelInReverse",
+      "offset": 112,
+      "kind": 2,
+      "type": "System.Boolean",
+      "size": 1
+    },
+    {
+      "owner": "playerStats",
+      "name": "CooldownFinishMs",
+      "offset": 24,
+      "kind": 2,
+      "type": "System.Int64",
+      "size": 8
+    }
+  ],
+  "methods": [
+    {
+      "key": "trackingStatus",
+      "owner": "tracking",
+      "name": "CheckTrackingErrorStatus",
+      "return": null,
+      "params": []
+    },
+    {
+      "key": "trackingWaypoint",
+      "owner": "tracking",
+      "name": "bjfz",
+      "return": "System.Void",
+      "params": [
+        "Holoholo.Rpc.RouteWaypointProto"
+      ]
+    },
+    {
+      "key": "dismissGui",
+      "owner": "gui",
+      "name": "Dismiss",
+      "return": "System.Void",
+      "params": []
+    },
+    {
+      "key": "isConsuming",
+      "owner": "consumption",
+      "name": "get_IsConsumingRoute",
+      "return": "System.Boolean",
+      "params": []
+    },
+    {
+      "key": "isCompleting",
+      "owner": "consumption",
+      "name": "get_IsCompletingRoute",
+      "return": "System.Boolean",
+      "params": []
+    },
+    {
+      "key": "hasStarted",
+      "owner": "consumption",
+      "name": "get_RouteHasStarted",
+      "return": "System.Boolean",
+      "params": []
+    },
+    {
+      "key": "inRangeOfEnd",
+      "owner": "consumption",
+      "name": "get_InRangeOfEnd",
+      "return": "System.Boolean",
+      "params": []
+    },
+    {
+      "key": "inRangeToResume",
+      "owner": "consumption",
+      "name": "get_InRangeToResume",
+      "return": "System.Boolean",
+      "params": []
+    },
+    {
+      "key": "isPaused",
+      "owner": "consumption",
+      "name": "get_IsRoutePaused",
+      "return": "System.Boolean",
+      "params": []
+    },
+    {
+      "key": "enabledForPlayer",
+      "owner": "consumption",
+      "name": "get_RouteConsumptionEnabledForPlayer",
+      "return": "System.Boolean",
+      "params": []
+    },
+    {
+      "key": "flagInitialized",
+      "owner": "consumption",
+      "name": "get_FeatureFlagInitialized",
+      "return": "System.Boolean",
+      "params": []
+    },
+    {
+      "key": "currentRoute",
+      "owner": "consumption",
+      "name": "get_CurrentRoute",
+      "return": "Holoholo.Rpc.RoutePlayProto",
+      "params": []
+    },
+    {
+      "key": "start",
+      "owner": "consumption",
+      "name": "StartRoute",
+      "return": "System.Void",
+      "params": [
+        "Niantic.Holoholo.Routes.RoutesConsumptionStartData"
+      ]
+    },
+    {
+      "key": "complete",
+      "owner": "consumption",
+      "name": "CompleteRouteButtonClick",
+      "return": "System.Void",
+      "params": []
+    },
+    {
+      "key": "confirmComplete",
+      "owner": "consumption",
+      "name": "bizv",
+      "return": "System.Void",
+      "params": []
+    },
+    {
+      "key": "completionResponse",
+      "owner": "consumption",
+      "name": "bjan",
+      "return": "System.Void",
+      "params": [
+        "Holoholo.Rpc.ProgressRouteOutProto"
+      ]
+    },
+    {
+      "key": "pause",
+      "owner": "consumption",
+      "name": "PauseRoute",
+      "return": "Niantic.Promises.IPromise",
+      "params": [
+        "System.Boolean"
+      ]
+    },
+    {
+      "key": "requestNearby",
+      "owner": "routes",
+      "name": "RequestNearbyRoutes",
+      "return": null,
+      "params": []
+    }
+  ]
+}

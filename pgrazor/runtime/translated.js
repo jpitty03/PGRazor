@@ -1,10 +1,17 @@
 // Private, per-process mailbox between the host Java runtime and translated ARM hooks.
 // No socket, external controller, root requirement, or persisted activation state.
 (function(root){
- const readers='accountCommand accountManagementAllowed adventureSyncDismissAllowed gameRoutesAllowed gameRoutesCommand active autoIncubate autoTransferAllowed battleOptions battlesAllowed berriesAllowed buddyAllowed buddyBerry buddySamplingRequested cameraSteeringRequested desiredEnabled effectiveBerryPriority giftOptions giftsAllowed incubateLongest incubatorAllowed interactionDiagnosticsReady itemAccessAllowed itemRules itemTransferEnabled ivCatchEnabled ivDisplayAllowed ivOwnedEnabled latitude longitude mapPoiAllowed mapTapAllowed mapTapEpoch mapTapMode quickBallAllowed quickSpinAllowed quickSummaryAllowed rocketAllowed rocketOptions spawnAllowed spawnBooster throwAllowed throwAlwaysHit throwAlwaysHitReady throwAr throwArReady throwCurve throwGrade transferKeepAll transferKeepSpecies transferProtect vgpAllowed vgpEnabled vgpMapVisible vgpOptions'.split(' ');
+ const readers='accountCommand accountManagementAllowed adventureSyncDismissAllowed gameRoutesAllowed gameRoutesCommand active autoIncubate autoTransferAllowed battleOptions battlesAllowed berriesAllowed buddyAllowed buddyBerry buddySamplingRequested cameraSteeringRequested desiredEnabled effectiveBerryPriority giftOptions giftsAllowed incubateLongest incubatorAllowed interactionDiagnosticsReady itemAccessAllowed itemCatalogMode itemRules itemTransferEnabled ivCatchEnabled ivDisplayAllowed ivOwnedEnabled latitude longitude mapPoiAllowed mapTapAllowed mapTapEpoch mapTapMode quickBallAllowed quickSpinAllowed quickSummaryAllowed rocketAllowed rocketOptions spawnAllowed spawnBooster throwAllowed throwAlwaysHit throwAlwaysHitReady throwAr throwArReady throwCurve throwGrade transferKeepAll transferKeepSpecies transferProtect vgpAllowed vgpEnabled vgpMapVisible vgpOptions'.split(' ');
  const pulses='takeCameraSampleRequest takeInteractionStopRequest takeInteractionTraceRequest'.split(' ');
  const actions='accountIdentity setAccountsReady accountSessionEnded accountLogoutComplete accountLogoutFailed accountSignInResetComplete accountSessionSaved setGameRoutesReady setGameRoutesSnapshot gameRoutesAction applyMapTap cameraDiagnostic configureCameraDiagnostics configureCameraSteering configureInteractionDiagnostics configureQuickBall configureQuickSummary cooldownAction embedded event interactionDiagnostic invalidateCameraHeading quickBallOutcome setAutoTransferReady setBattleStatus setBattlesReady setBerryReady setBuddyReady setBuddyStatus setCameraDiagnosticRunning setCooldownEncounter setEncounterBerry setGiftStatus setGiftsReady setIncubatorReady setIncubatorStatus setInteractionDiagnosticRunning setItemCatalog setItemReady setItemStatus setIvOwnedReady setMapPoiSnapshot setMapTapReady setQuickBallReady setQuickSpinReady setQuickSummaryReady setRocketReady setRocketStatus setSpawnRange setSpawnReady setThrowArReady setThrowAlwaysHitReady setThrowReady setVgpReady setVgpStatus setVgpTarget transferResult updateCameraHeadingAt vgpResult'.split(' ');
  const guarded=name=>name==='active'||name==='vgpEnabled'||name.endsWith('Allowed')||name.endsWith('Requested');
+ // Keep the command and its decimal token in one atomic Java read. Generic
+ // object stringification would collapse String[] and lose this pair's shape.
+ readers.push('accountCommandSnapshot');
+ function snapshot(value){
+  if(!value||typeof value!=='object'||value.length!==2||value[0]==null||value[1]==null)throw Error('Invalid account command snapshot');
+  return [String(value[0]),String(value[1])];
+ }
  function host({io,control,session,now=Date.now}){
   let ack=0,fault='',stopped=false;const counts=Object.fromEntries(pulses.map(n=>[n,0]));
   function tick(){if(stopped)return;try{
@@ -16,7 +23,7 @@
     ack=packet.seq;
     for(const [name,args]of packet.calls)control[name](...args);
    }
-   const values={};for(const name of readers){const v=control[name]();values[name]=typeof v==='object'&&v!==null?String(v):v;}
+   const values={};for(const name of readers){const v=control[name]();values[name]=name==='accountCommandSnapshot'?snapshot(v):typeof v==='object'&&v!==null?String(v):v;}
    for(const name of pulses)if(control[name]())counts[name]++;
    io.write('state',{session,at:now(),ack,values,pulses:counts,fault});
   }catch(e){fault=String(e);try{io.write('state',{session,at:now(),ack,values:{},pulses:counts,fault});}catch(_){}control.event('translated-bridge-error',fault);stopped=true;}}
@@ -26,7 +33,7 @@
   let state=null,seq=0,pending=null,queue=[],stopped=false;const consumed={};
   const fresh=()=>!stopped&&state&&!state.fault&&now()-state.at>=0&&now()-state.at<=500;
   const control={renewLease(){},disconnect(){},connect(){}};
-  for(const name of readers)control[name]=()=>{if(!fresh()){if(guarded(name))return false;throw Error('Translated control snapshot unavailable');}return state.values[name];};
+  for(const name of readers)control[name]=()=>{if(!fresh()){if(guarded(name))return false;const error=Error('Translated control snapshot unavailable');error.code='PGRAZOR_TRANSLATED_SNAPSHOT_UNAVAILABLE';throw error;}return name==='accountCommandSnapshot'?snapshot(state.values[name]):state.values[name];};
   for(const name of pulses)control[name]=()=>{if(!fresh())return false;const count=state.pulses[name]||0;if(count>(consumed[name]||0)){consumed[name]=count;return true;}return false;};
   for(const name of actions)control[name]=(...args)=>{if(stopped)return;if(queue.length>=2048)throw Error('Translated event queue full');queue.push([name,args]);};
   function tick(){if(stopped)return false;const next=io.read('state');if(next&&next.session===session)state=next;

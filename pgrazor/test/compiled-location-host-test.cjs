@@ -1,0 +1,17 @@
+const assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs');
+const source=fs.readFileSync(__dirname+'/../runtime/location.js','utf8');
+const deps={Java:{use(){throw Error('Legacy must remain inert');}},control:{},isDisposed:()=>false,bootLog:()=>{}};
+const sentinel={installPermissions(){},installDelivery(){},stop(){}};
+let calls=0;
+const c={};vm.runInNewContext(source,c);
+c.PGRazorNativeCorePath='selected';
+assert.throws(()=>c.PGRazorLocation.create(deps),/adapter-missing/);
+c.PGRazorCompiledLocation={create(d){calls++;for(const key of Object.keys(deps))assert.equal(d[key],deps[key]);return sentinel;}};
+assert.equal(c.PGRazorLocation.create(deps),sentinel);assert.equal(calls,1);
+c.PGRazorCompiledLocation={create(){return null;}};
+assert.throws(()=>c.PGRazorLocation.create(deps),/adapter-unavailable/);
+c.PGRazorCompiledLocation={create(){throw Error('broken helper');}};
+assert.throws(()=>c.PGRazorLocation.create(deps),/broken helper/);
+c.PGRazorNativeCorePath='';
+const legacy=c.PGRazorLocation.create(deps);assert.equal(typeof legacy.installDelivery,'function');assert.notEqual(legacy,sentinel);
+console.log('PASS compiled location selection: dynamic pilot gate, identical dependencies, no selected fallback, inert legacy retained');

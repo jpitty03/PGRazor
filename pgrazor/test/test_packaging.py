@@ -2,6 +2,7 @@ import hashlib
 import importlib.util
 import contextlib
 import io
+import os
 import json
 import shutil
 from pathlib import Path
@@ -27,393 +28,42 @@ class PackageTests(unittest.TestCase):
         signing_patch=patch.object(nonroot.build,"signing_args",return_value=["--ks","test-only-unused.jks"])
         signing_patch.start();self.addCleanup(signing_patch.stop)
 
-    def test_quick_close_cli_and_invalid_modes(self):
-        with patch.object(nonroot,'package',return_value=({'outputs':[]},ROOT)) as package, \
-             patch.object(nonroot,'probe') as install, patch.object(nonroot,'command') as command, \
-             contextlib.redirect_stdout(io.StringIO()):
-            nonroot.main(['--apk','game.apkm','--quick-close','--quick-ball','--camera-steering','--skip-build'])
-            self.assertTrue(package.call_args.kwargs['quick_close'])
-            self.assertNotIn('quick_summary',package.call_args.kwargs)
-            install.assert_not_called(); command.assert_not_called()
-        with patch.object(nonroot,'validated_build') as build, contextlib.redirect_stderr(io.StringIO()):
-            for extra in (['--quick-summary'],['--panel-only'],['--il2cpp-survey'],['--scene-probe'],['--camera-sample']):
-                with self.assertRaises(SystemExit):
-                    nonroot.main(['--apk','game.apkm','--quick-close']+extra)
-            for options in ({'quick_summary':True},{'panel_only':True},{'game_runtime_abi':'x86_64'},{'il2cpp_survey':True}):
-                with self.assertRaises(ValueError): nonroot.package(Path('unused.apk'),quick_close=True,**options)
-            build.assert_not_called()
+    def test_research_cli_is_explicit_and_never_installs(self):
+        for flag in ('--il2cpp-survey','--scene-probe','--scene-observe','--camera-sample'):
+            with self.subTest(flag=flag), patch.object(nonroot,'package',return_value=({'outputs':[]},ROOT)) as package, patch.object(nonroot,'probe') as install, contextlib.redirect_stdout(io.StringIO()):
+                nonroot.main(['--apk','game.apkm','--research-runtime',flag,'--skip-build'])
+                self.assertTrue(package.call_args.kwargs['research_runtime'])
+                install.assert_not_called()
 
-    def test_quick_summary_cli_accepts_supported_combinations_without_installing(self):
-        for extra in ([],['--camera-steering'],['--interaction-probe'],['--camera-steering','--interaction-probe'],['--camera-steering','--camera-probe']):
-            with patch.object(nonroot,'package',return_value=({'outputs':[]},ROOT)) as package, \
-                 patch.object(nonroot,'probe') as install, patch.object(nonroot,'command') as command, \
-                 contextlib.redirect_stdout(io.StringIO()):
-                nonroot.main(['--apk','game.apkm','--quick-summary','--skip-build']+extra)
-            self.assertTrue(package.call_args.kwargs['quick_summary'])
-            self.assertEqual(package.call_args.kwargs.get('camera_steering',False),'--camera-steering' in extra)
-            self.assertEqual(package.call_args.kwargs.get('interaction_probe',False),'--interaction-probe' in extra)
-            install.assert_not_called(); command.assert_not_called()
+    def test_retired_summary_and_research_catch_cli_reject(self):
+        with patch.object(nonroot,'package') as package, contextlib.redirect_stderr(io.StringIO()):
+            for flags in (['--quick-summary'],['--research-runtime','--quick-summary'],
+                          ['--research-runtime','--quick-close'],['--research-runtime','--quick-ball'],
+                          ['--research-runtime','--panel-only']):
+                with self.subTest(flags=flags), self.assertRaises(SystemExit):
+                    nonroot.main(['--apk','game.apkm','--skip-build',*flags])
+            package.assert_not_called()
 
-    def test_quick_summary_rejects_incompatible_cli_before_build(self):
-        with patch.object(nonroot,'package') as package, patch.object(nonroot,'command') as command, \
-             contextlib.redirect_stderr(io.StringIO()):
-            for flag in ['--panel-only','--il2cpp-survey','--scene-probe','--scene-observe','--camera-probe','--camera-sample']:
-                with self.assertRaises(SystemExit):
-                    nonroot.main(['--apk','game.apk','--quick-summary',flag])
-            for args in (['--apk','game.apk','--runtime-abi','x86_64'], ['--build-probe','--abi','x86_64']):
-                with self.assertRaisesRegex(ValueError,'--quick-summary requires'):
-                    nonroot.main(args+['--quick-summary'])
-        package.assert_not_called(); command.assert_not_called(); self.cleanup.assert_not_called()
+    def test_emulator_runtime_is_explicit_and_never_installs(self):
+        with patch.object(nonroot,'package',return_value=({'outputs':[]},ROOT)) as package, patch.object(nonroot,'probe') as install, contextlib.redirect_stdout(io.StringIO()):
+            nonroot.main(['--apk','game.apkm','--runtime-abi','x86_64','--skip-build'])
+        self.assertEqual(package.call_args.kwargs['game_runtime_abi'],'x86_64')
+        install.assert_not_called()
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            nonroot.main(['--probe','--runtime-abi','x86_64'])
 
-    def test_quick_summary_api_rejects_incompatible_modes_before_outputs(self):
-        with patch.object(nonroot,'validated_build') as validated, patch.object(nonroot,'input_apks') as inputs:
-            for kwargs in ({'panel_only':True}, {'game_runtime_abi':'x86_64'}, {'preview':True,'probe_abi':'x86_64'}, {'preview':True}):
-                with self.assertRaisesRegex(ValueError,'--quick-summary requires'):
-                    nonroot.package(Path('unused.apk'),quick_summary=True,**kwargs)
-            for flag in ['il2cpp_survey','scene_probe','scene_observe','camera_probe','camera_sample']:
-                with self.assertRaisesRegex(ValueError,'cannot be combined'):
-                    nonroot.package(Path('unused.apk'),quick_summary=True,**{flag:True})
-        validated.assert_not_called(); inputs.assert_not_called()
-
-    def test_quick_summary_x64_probe_stops_after_readonly_architecture_check(self):
-        android=Mock(); android.shell.return_value='x86_64\n'
-        monitor=Mock(); monitor.select_device.return_value=android
-        with patch.dict(sys.modules,{'monitor':monitor}), patch.object(nonroot,'package') as package, \
-             patch.object(nonroot,'probe') as install, patch.object(nonroot,'command') as command:
-            with self.assertRaisesRegex(ValueError,'--quick-summary requires'):
-                nonroot.main(['--probe','--quick-summary'])
-        package.assert_not_called(); install.assert_not_called(); command.assert_not_called()
-        android.call.assert_not_called()
-        android.shell.assert_called_once_with('getprop','ro.product.cpu.abi')
-
-    def test_quick_ball_cli_accepts_supported_combinations_without_installing(self):
-        for extra in (['--quick-summary','--camera-steering','--interaction-probe'],[],['--camera-steering'],['--interaction-probe'],['--camera-steering','--interaction-probe'],['--camera-steering','--camera-probe']):
-            with patch.object(nonroot,'package',return_value=({'outputs':[]},ROOT)) as package, \
-                 patch.object(nonroot,'probe') as install, patch.object(nonroot,'command') as command, \
-                 contextlib.redirect_stdout(io.StringIO()):
-                nonroot.main(['--apk','game.apkm','--quick-ball','--skip-build']+extra)
-            self.assertTrue(package.call_args.kwargs['quick_ball'])
-            self.assertEqual(package.call_args.kwargs.get('camera_steering',False),'--camera-steering' in extra)
-            self.assertEqual(package.call_args.kwargs.get('interaction_probe',False),'--interaction-probe' in extra)
-            install.assert_not_called(); command.assert_not_called()
-
-    def test_quick_ball_rejects_incompatible_cli_before_build(self):
-        with patch.object(nonroot,'package') as package, patch.object(nonroot,'command') as command, \
-             contextlib.redirect_stderr(io.StringIO()):
-            for flag in ['--panel-only','--il2cpp-survey','--scene-probe','--scene-observe','--camera-probe','--camera-sample']:
-                with self.assertRaises(SystemExit):
-                    nonroot.main(['--apk','game.apk','--quick-ball',flag])
-            for args in (['--apk','game.apk','--runtime-abi','x86_64'], ['--build-probe','--abi','x86_64']):
-                with self.assertRaisesRegex(ValueError,'--quick-ball requires'):
-                    nonroot.main(args+['--quick-ball'])
-        package.assert_not_called(); command.assert_not_called(); self.cleanup.assert_not_called()
-
-    def test_quick_ball_api_rejects_incompatible_modes_before_outputs(self):
-        with patch.object(nonroot,'validated_build') as validated, patch.object(nonroot,'input_apks') as inputs:
-            for kwargs in ({'panel_only':True}, {'game_runtime_abi':'x86_64'}, {'preview':True,'probe_abi':'x86_64'}, {'preview':True}):
-                with self.assertRaisesRegex(ValueError,'--quick-ball requires'):
-                    nonroot.package(Path('unused.apk'),quick_ball=True,**kwargs)
-            for flag in ['il2cpp_survey','scene_probe','scene_observe','camera_probe','camera_sample']:
-                with self.assertRaisesRegex(ValueError,'cannot be combined'):
-                    nonroot.package(Path('unused.apk'),quick_ball=True,**{flag:True})
-        validated.assert_not_called(); inputs.assert_not_called()
-
-    def test_quick_ball_x64_probe_stops_after_readonly_architecture_check(self):
-        android=Mock(); android.shell.return_value='x86_64\n'
-        monitor=Mock(); monitor.select_device.return_value=android
-        with patch.dict(sys.modules,{'monitor':monitor}), patch.object(nonroot,'package') as package, \
-             patch.object(nonroot,'probe') as install, patch.object(nonroot,'command') as command:
-            with self.assertRaisesRegex(ValueError,'--quick-ball requires'):
-                nonroot.main(['--probe','--quick-ball'])
-        package.assert_not_called(); install.assert_not_called(); command.assert_not_called()
-        android.call.assert_not_called()
-        android.shell.assert_called_once_with('getprop','ro.product.cpu.abi')
-
-    def test_interaction_cli_allows_alone_or_camera_steering_without_installing(self):
-        for extra in ([],['--camera-steering'],['--camera-steering','--camera-probe']):
-            with patch.object(nonroot,'package',return_value=({'outputs':[]},ROOT)) as package, \
-                 patch.object(nonroot,'probe') as install, patch.object(nonroot,'command') as command, \
-                 contextlib.redirect_stdout(io.StringIO()):
-                nonroot.main(['--apk','game.apkm','--interaction-probe','--skip-build']+extra)
-            self.assertTrue(package.call_args.kwargs['interaction_probe'])
-            self.assertEqual(package.call_args.kwargs.get('camera_steering',False),bool(extra))
-            install.assert_not_called(); command.assert_not_called()
-
-    def test_interaction_rejects_incompatible_cli_before_build(self):
-        with patch.object(nonroot,'package') as package, patch.object(nonroot,'command') as command, \
-             contextlib.redirect_stderr(io.StringIO()):
-            for flag in ['--panel-only','--il2cpp-survey','--scene-probe','--scene-observe','--camera-probe','--camera-sample']:
-                with self.assertRaises(SystemExit):
-                    nonroot.main(['--apk','game.apk','--interaction-probe',flag])
-            for args in (['--apk','game.apk','--runtime-abi','x86_64'], ['--build-probe','--abi','x86_64']):
-                with self.assertRaisesRegex(ValueError,'--interaction-probe requires'):
-                    nonroot.main(args+['--interaction-probe'])
-        package.assert_not_called(); command.assert_not_called(); self.cleanup.assert_not_called()
-
-    def test_interaction_api_rejects_incompatible_modes_before_outputs(self):
-        with patch.object(nonroot,'validated_build') as validated, patch.object(nonroot,'input_apks') as inputs:
-            for kwargs in ({'panel_only':True}, {'game_runtime_abi':'x86_64'}, {'preview':True,'probe_abi':'x86_64'}, {'preview':True}):
-                with self.assertRaisesRegex(ValueError,'--interaction-probe requires'):
-                    nonroot.package(Path('unused.apk'),interaction_probe=True,**kwargs)
-            for flag in ['il2cpp_survey','scene_probe','scene_observe','camera_probe','camera_sample']:
-                with self.assertRaisesRegex(ValueError,'cannot be combined'):
-                    nonroot.package(Path('unused.apk'),interaction_probe=True,**{flag:True})
-        validated.assert_not_called(); inputs.assert_not_called()
-
-    def test_interaction_x64_probe_stops_after_readonly_architecture_check(self):
-        android=Mock(); android.shell.return_value='x86_64\n'
-        monitor=Mock(); monitor.select_device.return_value=android
-        with patch.dict(sys.modules,{'monitor':monitor}), patch.object(nonroot,'package') as package, \
-             patch.object(nonroot,'probe') as install, patch.object(nonroot,'command') as command:
-            with self.assertRaisesRegex(ValueError,'--interaction-probe requires'):
-                nonroot.main(['--probe','--interaction-probe'])
-        package.assert_not_called(); install.assert_not_called(); command.assert_not_called()
-        android.call.assert_not_called()
-        android.shell.assert_called_once_with('getprop','ro.product.cpu.abi')
-
-    def test_scene_observation_cli_is_opt_in_and_accepts_explicit_probe(self):
-        for extra in ([],['--scene-probe']):
-            with patch.object(nonroot,'package',return_value=({'outputs':[]},ROOT)) as package, \
-                 patch.object(nonroot,'probe') as install, patch.object(nonroot,'command') as command, \
-                 contextlib.redirect_stdout(io.StringIO()):
-                nonroot.main(['--apk','game.apkm','--scene-observe','--skip-build']+extra)
-            self.assertTrue(package.call_args.kwargs['scene_observe'])
-            self.assertEqual(package.call_args.kwargs.get('scene_probe',False),bool(extra))
-            install.assert_not_called(); command.assert_not_called()
-
-    def test_scene_observation_rejects_invalid_cli_before_build(self):
-        with patch.object(nonroot,'package') as package, patch.object(nonroot,'command') as command, \
-             contextlib.redirect_stderr(io.StringIO()):
-            for flag in ['--panel-only','--il2cpp-survey','--camera-probe','--camera-sample','--camera-steering']:
-                with self.assertRaises(SystemExit):
-                    nonroot.main(['--apk','game.apk','--scene-observe',flag])
-            for args in (['--apk','game.apk','--runtime-abi','x86_64'], ['--build-probe','--abi','x86_64']):
-                with self.assertRaisesRegex(ValueError,'--scene-probe requires'):
-                    nonroot.main(args+['--scene-observe'])
-        package.assert_not_called(); command.assert_not_called(); self.cleanup.assert_not_called()
-
-    def test_scene_observation_api_rejects_incompatible_modes_before_outputs(self):
-        with patch.object(nonroot,'validated_build') as validated, patch.object(nonroot,'input_apks') as inputs:
-            for kwargs in ({'panel_only':True}, {'game_runtime_abi':'x86_64'}, {'preview':True,'probe_abi':'x86_64'}, {'preview':True}):
-                with self.assertRaisesRegex(ValueError,'--scene-probe requires'):
-                    nonroot.package(Path('unused.apk'),scene_observe=True,**kwargs)
-            for flag in ['il2cpp_survey','camera_probe','camera_sample','camera_steering']:
-                with self.assertRaisesRegex(ValueError,'cannot be combined'):
-                    nonroot.package(Path('unused.apk'),scene_observe=True,**{flag:True})
-        validated.assert_not_called(); inputs.assert_not_called()
-
-    def test_scene_opt_in_is_forwarded_without_installing(self):
-        with patch.object(nonroot,'package',return_value=({'outputs':[]},ROOT)) as package, \
-             patch.object(nonroot,'probe') as install, patch.object(nonroot,'command') as command, \
-             contextlib.redirect_stdout(io.StringIO()):
-            nonroot.main(['--apk','game.apkm','--scene-probe','--skip-build'])
-        self.assertTrue(package.call_args.kwargs['scene_probe'])
-        self.assertNotIn('scene_observe',package.call_args.kwargs)
-        self.assertNotIn('camera_probe',package.call_args.kwargs)
-        install.assert_not_called(); command.assert_not_called()
-
-    def test_scene_rejects_other_diagnostics_and_invalid_cli_before_build(self):
-        with patch.object(nonroot,'package') as package, patch.object(nonroot,'command') as command, \
-             contextlib.redirect_stderr(io.StringIO()):
-            for flag in ['--panel-only','--il2cpp-survey','--camera-probe','--camera-sample','--camera-steering']:
-                with self.assertRaises(SystemExit):
-                    nonroot.main(['--apk','game.apk','--scene-probe',flag])
-            for args in (['--apk','game.apk','--runtime-abi','x86_64'], ['--build-probe','--abi','x86_64']):
-                with self.assertRaisesRegex(ValueError,'--scene-probe requires'):
-                    nonroot.main(args+['--scene-probe'])
-        package.assert_not_called(); command.assert_not_called()
-
-    def test_scene_api_rejects_incompatible_modes_before_outputs(self):
-        with patch.object(nonroot,'validated_build') as validated, patch.object(nonroot,'input_apks') as inputs:
-            for kwargs in ({'panel_only':True}, {'game_runtime_abi':'x86_64'}, {'preview':True,'probe_abi':'x86_64'}, {'preview':True}):
-                with self.assertRaisesRegex(ValueError,'--scene-probe requires'):
-                    nonroot.package(Path('unused.apk'),scene_probe=True,**kwargs)
-            for flag in ['il2cpp_survey','camera_probe','camera_sample','camera_steering']:
-                with self.assertRaisesRegex(ValueError,'cannot be combined'):
-                    nonroot.package(Path('unused.apk'),scene_probe=True,**{flag:True})
-        validated.assert_not_called(); inputs.assert_not_called()
-
-    def test_scene_x64_probe_stops_after_readonly_architecture_check(self):
-        android=Mock(); android.shell.return_value='x86_64\n'
-        monitor=Mock(); monitor.select_device.return_value=android
-        with patch.dict(sys.modules,{'monitor':monitor}), patch.object(nonroot,'package') as package, \
-             patch.object(nonroot,'probe') as install, patch.object(nonroot,'command') as command:
-            with self.assertRaisesRegex(ValueError,'--scene-probe requires'):
-                nonroot.main(['--probe','--scene-probe'])
-        package.assert_not_called(); install.assert_not_called(); command.assert_not_called()
-        android.call.assert_not_called()
-        android.shell.assert_called_once_with('getprop','ro.product.cpu.abi')
-
-    def test_camera_steering_cli_is_opt_in_and_accepts_explicit_probe(self):
-        for extra in ([],['--camera-probe']):
-            with patch.object(nonroot,'package',return_value=({'outputs':[]},ROOT)) as package, \
-                 patch.object(nonroot,'probe') as install, patch.object(nonroot,'command') as command, \
-                 contextlib.redirect_stdout(io.StringIO()):
-                nonroot.main(['--apk','game.apkm','--camera-steering','--skip-build']+extra)
-            self.assertTrue(package.call_args.kwargs['camera_steering'])
-            self.assertNotIn('camera_sample',package.call_args.kwargs)
-            self.assertEqual(package.call_args.kwargs.get('camera_probe',False),bool(extra))
-            install.assert_not_called(); command.assert_not_called()
-
-    def test_camera_steering_rejects_incompatible_cli_before_build(self):
-        with patch.object(nonroot,'package') as package, patch.object(nonroot,'command') as command, \
-             contextlib.redirect_stderr(io.StringIO()):
-            for extra in (['--panel-only'],['--il2cpp-survey'],['--camera-sample']):
-                with self.assertRaises(SystemExit):
-                    nonroot.main(['--apk','game.apk','--camera-steering']+extra)
-            for args in (['--apk','game.apk','--runtime-abi','x86_64'], ['--build-probe','--abi','x86_64']):
-                with self.assertRaisesRegex(ValueError,'--camera-probe requires'):
-                    nonroot.main(args+['--camera-steering'])
-        package.assert_not_called(); command.assert_not_called()
-
-    def test_camera_steering_api_rejects_incompatible_modes_before_outputs(self):
-        with patch.object(nonroot,'validated_build') as validated, patch.object(nonroot,'input_apks') as inputs:
-            for kwargs in ({'panel_only':True}, {'game_runtime_abi':'x86_64'}, {'preview':True,'probe_abi':'x86_64'}, {'preview':True}):
-                with self.assertRaisesRegex(ValueError,'--camera-probe requires'):
-                    nonroot.package(Path('unused.apk'),camera_steering=True,**kwargs)
-            for kwargs in ({'il2cpp_survey':True},{'camera_sample':True}):
-                with self.assertRaisesRegex(ValueError,'cannot be combined'):
-                    nonroot.package(Path('unused.apk'),camera_steering=True,**kwargs)
-        validated.assert_not_called(); inputs.assert_not_called()
-
-    def test_camera_sampling_cli_is_opt_in_and_accepts_explicit_probe(self):
-        for extra in ([],['--camera-probe']):
-            with patch.object(nonroot,'package',return_value=({'outputs':[]},ROOT)) as package, \
-                 patch.object(nonroot,'probe') as install, patch.object(nonroot,'command') as command, \
-                 contextlib.redirect_stdout(io.StringIO()):
-                nonroot.main(['--apk','game.apkm','--camera-sample','--skip-build']+extra)
-            self.assertTrue(package.call_args.kwargs['camera_sample'])
-            self.assertEqual(package.call_args.kwargs.get('camera_probe',False),bool(extra))
-            install.assert_not_called(); command.assert_not_called()
-
-    def test_camera_sampling_rejects_incompatible_cli_before_build(self):
-        with patch.object(nonroot,'package') as package, patch.object(nonroot,'command') as command, \
-             contextlib.redirect_stderr(io.StringIO()):
-            for extra in (['--panel-only'],['--il2cpp-survey']):
-                with self.assertRaises(SystemExit):
-                    nonroot.main(['--apk','game.apk','--camera-sample']+extra)
-            for args in (['--apk','game.apk','--runtime-abi','x86_64'], ['--build-probe','--abi','x86_64']):
-                with self.assertRaisesRegex(ValueError,'--camera-probe requires'):
-                    nonroot.main(args+['--camera-sample'])
-        package.assert_not_called(); command.assert_not_called()
-
-    def test_camera_sampling_api_rejects_incompatible_modes_before_outputs(self):
-        with patch.object(nonroot,'validated_build') as validated, patch.object(nonroot,'input_apks') as inputs:
-            for kwargs in ({'panel_only':True}, {'game_runtime_abi':'x86_64'}, {'preview':True,'probe_abi':'x86_64'}, {'preview':True}):
-                with self.assertRaisesRegex(ValueError,'--camera-probe requires'):
-                    nonroot.package(Path('unused.apk'),camera_sample=True,**kwargs)
-            with self.assertRaisesRegex(ValueError,'cannot be combined'):
-                nonroot.package(Path('unused.apk'),camera_sample=True,il2cpp_survey=True)
-        validated.assert_not_called(); inputs.assert_not_called()
-
-    def test_camera_opt_in_is_forwarded_without_installing(self):
-        with patch.object(nonroot,'package',return_value=({'outputs':[]},ROOT)) as package, \
-             patch.object(nonroot,'probe') as install, patch.object(nonroot,'command') as command, \
-             contextlib.redirect_stdout(io.StringIO()):
-            nonroot.main(['--apk','game.apkm','--camera-probe','--skip-build'])
-        self.assertTrue(package.call_args.kwargs['camera_probe'])
-        self.assertNotIn('camera_sample',package.call_args.kwargs)
-        self.assertNotIn('camera_steering',package.call_args.kwargs)
-        self.assertNotIn('il2cpp_survey',package.call_args.kwargs)
-        install.assert_not_called(); command.assert_not_called()
-
-    def test_camera_rejects_incompatible_cli_before_build(self):
-        with patch.object(nonroot,'package') as package, patch.object(nonroot,'command') as command, \
-             contextlib.redirect_stderr(io.StringIO()):
-            for extra in (['--panel-only'],['--il2cpp-survey']):
-                with self.assertRaises(SystemExit):
-                    nonroot.main(['--apk','game.apk','--camera-probe']+extra)
-            for args in (['--apk','game.apk','--runtime-abi','x86_64'], ['--build-probe','--abi','x86_64']):
-                with self.assertRaisesRegex(ValueError,'--camera-probe requires'):
-                    nonroot.main(args+['--camera-probe'])
-        package.assert_not_called(); command.assert_not_called()
-
-    def test_camera_direct_api_rejects_before_build_or_outputs(self):
-        with patch.object(nonroot,'validated_build') as validated, patch.object(nonroot,'input_apks') as inputs:
-            for kwargs in ({'panel_only':True}, {'game_runtime_abi':'x86_64'}, {'preview':True,'probe_abi':'x86_64'}, {'preview':True}):
-                with self.assertRaisesRegex(ValueError,'--camera-probe requires'):
-                    nonroot.package(Path('unused.apk'),camera_probe=True,**kwargs)
-            with self.assertRaisesRegex(ValueError,'cannot be combined'):
-                nonroot.package(Path('unused.apk'),camera_probe=True,il2cpp_survey=True)
-        validated.assert_not_called(); inputs.assert_not_called()
-
-    def test_camera_x64_probe_stops_after_readonly_architecture_check(self):
-        android=Mock(); android.shell.return_value='x86_64\n'
-        monitor=Mock(); monitor.select_device.return_value=android
-        with patch.dict(sys.modules,{'monitor':monitor}), patch.object(nonroot,'package') as package, \
-             patch.object(nonroot,'probe') as install, patch.object(nonroot,'command') as command:
-            with self.assertRaisesRegex(ValueError,'--camera-probe requires'):
-                nonroot.main(['--probe','--camera-probe'])
-        package.assert_not_called(); install.assert_not_called(); command.assert_not_called()
-        android.call.assert_not_called()
-        android.shell.assert_called_once_with('getprop','ro.product.cpu.abi')
-
-    def test_survey_opt_in_is_forwarded_without_installing(self):
-        with patch.object(nonroot,'package',return_value=({'outputs':[]},ROOT)) as package, \
-             patch.object(nonroot,'probe') as install, patch.object(nonroot,'command') as command, \
-             contextlib.redirect_stdout(io.StringIO()):
-            nonroot.main(['--apk','game.apkm','--il2cpp-survey','--skip-build'])
-        self.assertTrue(package.call_args.kwargs['il2cpp_survey'])
-        install.assert_not_called(); command.assert_not_called()
-
-    def test_survey_rejects_incompatible_cli_before_build(self):
-        with patch.object(nonroot,'package') as package, patch.object(nonroot,'command') as command, \
-             contextlib.redirect_stderr(io.StringIO()):
-            with self.assertRaises(SystemExit):
-                nonroot.main(['--apk','game.apk','--panel-only','--il2cpp-survey'])
-            for args in (['--apk','game.apk','--runtime-abi','x86_64'], ['--build-probe','--abi','x86_64']):
-                with self.assertRaisesRegex(ValueError,'native arm64-v8a'):
-                    nonroot.main(args+['--il2cpp-survey'])
-        package.assert_not_called(); command.assert_not_called()
-
-    def test_survey_direct_api_rejects_before_build_or_outputs(self):
-        with patch.object(nonroot,'validated_build') as validated, patch.object(nonroot,'input_apks') as inputs:
-            for kwargs in ({'panel_only':True}, {'game_runtime_abi':'x86_64'}, {'preview':True,'probe_abi':'x86_64'}, {'preview':True}):
-                with self.assertRaisesRegex(ValueError,'native arm64-v8a'):
-                    nonroot.package(Path('unused.apk'),il2cpp_survey=True,**kwargs)
-        validated.assert_not_called(); inputs.assert_not_called()
-
-    def test_survey_x64_probe_stops_after_readonly_architecture_check(self):
-        android=Mock(); android.shell.return_value='x86_64\n'
-        monitor=Mock(); monitor.select_device.return_value=android
-        with patch.dict(sys.modules,{'monitor':monitor}), patch.object(nonroot,'package') as package, \
-             patch.object(nonroot,'probe') as install, patch.object(nonroot,'command') as command:
-            with self.assertRaisesRegex(ValueError,'native arm64-v8a'):
-                nonroot.main(['--probe','--il2cpp-survey'])
-        package.assert_not_called(); install.assert_not_called(); command.assert_not_called()
-        android.call.assert_not_called()
-        android.shell.assert_called_once_with('getprop','ro.product.cpu.abi')
-
-    def test_diagnostic_assets_mode_and_receipt_are_strictly_opt_in(self):
-        # Exercise actual ZIP rewriting and receipt hashes; SDK commands are
-        # fixture copies so this neither builds, installs nor accesses a device.
+    def test_research_zip_preserves_game_and_bundles_only_retained_probes(self):
         with tempfile.TemporaryDirectory(dir=ROOT/'build') as temp:
-            work=Path(temp); (work/'diagnostics').mkdir(); (work/'vendor').mkdir()
-            source=work/'game.apk'; dex=work/'module.dex'; dex.write_bytes(b'dex\nfixture')
+            work=Path(temp);source=work/'game.apk';dex=work/'module.dex'
+            dex.write_bytes(b'dex fixture')
             with zipfile.ZipFile(source,'w') as archive:
                 archive.writestr('AndroidManifest.xml',b'manifest')
                 archive.writestr('classes.dex',b'original-game-dex')
-            survey=work/'diagnostics/il2cpp-survey.js'; survey.write_bytes(b'// diagnostic fixture\n')
-            camera=work/'diagnostics/camera-probe.js'; camera.write_bytes(b'// camera diagnostic fixture\n')
-            scene=work/'diagnostics/scene-probe.js'; scene.write_bytes(b'// scene metadata fixture\n')
-            interaction=work/'diagnostics/interaction-probe.js'; interaction.write_bytes(b'// interaction metadata fixture\n')
-            summary=work/'diagnostics/quick-summary.js'; summary.write_bytes(b'// summary feature fixture\n')
-            presentation=work/'diagnostics/catch-presentation-bridge.js'; presentation.write_bytes(b'// presentation bridge fixture\n')
-            close=work/'diagnostics/quick-close.js'; close.write_bytes(b'// summary close fixture\n')
-            ball=work/'diagnostics/quick-ball.js'; ball.write_bytes(b'// ball feature fixture\n')
-            agent=work/'embedded-agent.js'; agent.write_bytes(b'// embedded fixture\n')
-            (work/'runtime').mkdir()
-            shutil.copyfile(ROOT/'runtime/bundles.json', work/'runtime/bundles.json')
-            (work/'runtime/location.js').write_bytes(b'// location fixture\n')
-            (work/'runtime/translated.js').write_bytes(b'// translated fixture\n')
-            for part in json.loads((ROOT/'runtime/bundles.json').read_text())['quick-close.js']:
-                if part.startswith('runtime/'):
-                    fixture=work/part; fixture.parent.mkdir(parents=True,exist_ok=True)
-                    fixture.write_bytes(('// fixture '+part+'\n').encode())
-            bridge=work/'bridge.js'; bridge.write_bytes(b'// bridge fixture\n')
-            gadget=work/'gadget.so'; gadget.write_bytes(b'gadget fixture')
-            for name in ['NOTICE.txt','COPYING.frida-tools','bridge-provenance.json']:
-                (work/'vendor'/name).write_text('fixture',encoding='utf-8')
+            for name in ('runtime','diagnostics','vendor'):
+                shutil.copytree(ROOT/name,work/name)
+            shutil.copyfile(ROOT/'embedded-agent.js',work/'embedded-agent.js')
+            bridge=work/'bridge.js';bridge.write_bytes(b'// bridge fixture')
+            gadget=work/'gadget.so';gadget.write_bytes(b'gadget fixture')
             info={'package':'com.nianticlabs.pokemongo','split':None,
                   'providers':[{'name':axml.PROVIDER,'exported':False}]}
             def sdk_fixture(*args,**kwargs):
@@ -426,94 +76,29 @@ class PackageTests(unittest.TestCase):
             with patch.object(nonroot,'ROOT',work), patch.object(nonroot,'validated_build',return_value=dex), \
                  patch.object(nonroot,'inspect_set',return_value=(info['package'],source,[(source,info)],{'arm64-v8a'})), \
                  patch.object(nonroot,'command',side_effect=sdk_fixture), \
-                 patch.object(runtime_assets,'gadget',return_value=(gadget,{'abi':'arm64-v8a'})), \
+                 patch.object(runtime_assets,'gadget',return_value=(gadget,{'abi':'fixture'})), \
                  patch.object(runtime_assets,'java_bridge',return_value=bridge), \
                  patch.object(axml,'inspect_manifest',return_value=info), \
                  patch.object(axml,'patch_manifest',side_effect=lambda data:data), \
                  patch.object(axml,'add_account_restart_activity',side_effect=lambda data:data), \
                  contextlib.redirect_stdout(io.StringIO()):
-                cases=[{}]+[{name:True} for name in ('il2cpp_survey','camera_probe','camera_sample','camera_steering','scene_probe','scene_observe','interaction_probe','quick_summary','quick_ball')]
-                cases.append({'camera_steering':True,'interaction_probe':True})
-                cases.extend([{'quick_close':True},{'quick_close':True,'quick_ball':True,'camera_steering':True,'interaction_probe':True}])
-                cases.extend([{'quick_ball':True,'quick_summary':True,'camera_steering':True,'interaction_probe':True},{'quick_ball':True,'camera_steering':True},{'quick_ball':True,'interaction_probe':True},{'quick_summary':True,'camera_steering':True},{'quick_summary':True,'interaction_probe':True},
-                    {'quick_summary':True,'camera_steering':True,'interaction_probe':True}])
-                for options in cases:
-                    camera_enabled=any(options.get(name,False) for name in ('camera_probe','camera_sample','camera_steering'))
-                    scene_enabled=any(options.get(name,False) for name in ('scene_probe','scene_observe'))
-                    report,folder=nonroot.package(source,**options)
-                    self.assertEqual(json.loads((folder/'report.json').read_text()),report)
-                    with zipfile.ZipFile(report['outputs'][0]['file']) as archive:
-                        mode=json.loads(archive.read('assets/pgrazor/mode.json'))
-                        bundled=archive.read('assets/pgrazor/embedded-agent.js')
-                        self.assertEqual(bundled,b'// location fixture\n\n;\n// translated fixture\n\n;\n// embedded fixture\n')
-                        self.assertEqual(report['agent_sha256'],hashlib.sha256(bundled).hexdigest())
-                        for name,receipt in report['script_bundles'].items():
-                            self.assertEqual(receipt['sha256'],hashlib.sha256(archive.read('assets/pgrazor/'+name)).hexdigest())
-                            self.assertEqual([part['path'] for part in receipt['sources']],
-                                             json.loads((work/'runtime/bundles.json').read_text())[name])
-                            for part in receipt['sources']:
-                                self.assertEqual(part['sha256'],runtime_assets.sha256(work/part['path']))
-                        self.assertEqual(mode['preferredAbi'],'')
-                        self.assertEqual(mode['runtimeAbis'],['arm64-v8a','x86_64'])
-                        for abi in mode['runtimeAbis']:
-                            self.assertEqual(archive.read('assets/pgrazor/'+abi+'/libfrida-gadget.so'),b'gadget fixture')
-                        self.assertEqual(mode.get('il2cppSurvey',False),options.get('il2cpp_survey',False))
-                        self.assertEqual(mode.get('cameraProbe',False),camera_enabled)
-                        self.assertEqual(mode.get('cameraSample',False),options.get('camera_sample',False))
-                        self.assertEqual(mode.get('cameraSteering',False),options.get('camera_steering',False))
-                        self.assertEqual(mode.get('sceneProbe',False),scene_enabled)
-                        self.assertEqual(mode.get('sceneObserve',False),options.get('scene_observe',False))
-                        self.assertEqual(mode.get('interactionProbe',False),options.get('interaction_probe',False))
-                        self.assertEqual(mode.get('quickSummary',False),bool(options.get('quick_summary') or options.get('quick_close')))
-                        self.assertEqual(mode.get('quickClose',False),options.get('quick_close',False))
-                        self.assertEqual(mode.get('quickBall',False),options.get('quick_ball',False))
-                        self.assertEqual('assets/pgrazor/il2cpp-survey.js' in archive.namelist(),options.get('il2cpp_survey',False))
-                        self.assertEqual('assets/pgrazor/camera-probe.js' in archive.namelist(),camera_enabled)
-                        self.assertEqual('assets/pgrazor/scene-probe.js' in archive.namelist(),scene_enabled)
-                        self.assertEqual('assets/pgrazor/interaction-probe.js' in archive.namelist(),options.get('interaction_probe',False))
-                        self.assertEqual('assets/pgrazor/quick-summary.js' in archive.namelist(),bool(options.get('quick_summary') or options.get('quick_close')))
-                        self.assertEqual('assets/pgrazor/quick-close.js' in archive.namelist(),options.get('quick_close',False))
-                        self.assertEqual('assets/pgrazor/quick-ball.js' in archive.namelist(),options.get('quick_ball',False))
-                        self.assertEqual(archive.read('classes.dex'),b'original-game-dex')
-                        if options:
-                            expected_diagnostics={}
-                            if options.get('il2cpp_survey'): expected_diagnostics['il2cpp_survey']=survey
-                            if camera_enabled: expected_diagnostics['camera_probe']=camera
-                            if scene_enabled: expected_diagnostics['scene_probe']=scene
-                            if options.get('interaction_probe'): expected_diagnostics['interaction_probe']=interaction
-                            if options.get('quick_summary'): expected_diagnostics['quick_summary']=summary
-                            if options.get('quick_close'):
-                                expected_diagnostics['quick_summary']=close
-                                self.assertEqual(report['diagnostics']['quick_summary']['behavior'],'normal-summary-and-details-dismiss')
-                            if options.get('quick_ball'): expected_diagnostics['quick_ball']=ball
-                            self.assertEqual(set(report['diagnostics']),set(expected_diagnostics))
-                            for key,expected in expected_diagnostics.items():
-                                diagnostic=report['diagnostics'][key]
-                                if key=='camera_probe':
-                                    self.assertEqual(diagnostic['sampling'],options.get('camera_sample',False))
-                                    self.assertEqual(diagnostic['steering'],options.get('camera_steering',False))
-                                if key=='scene_probe': self.assertEqual(diagnostic['observe_runtime'],options.get('scene_observe',False))
-                                if key=='interaction_probe': self.assertEqual(diagnostic['startup_mode'],'metadata-only')
-                                if key in ('quick_summary','quick_ball'):
-                                    self.assertEqual(diagnostic['startup_mode'],'metadata-validation')
-                                    self.assertIs(diagnostic['acceleration_default'],False)
-                                expected_bytes=expected.read_bytes()
-                                if key=='quick_summary' and options.get('quick_close'):
-                                    expected_bytes=b'\n;\n'.join((work/part).read_bytes() for part in json.loads((work/'runtime/bundles.json').read_text())['quick-close.js'])
-                                self.assertEqual(diagnostic['sha256'],hashlib.sha256(expected_bytes).hexdigest())
-                                self.assertEqual(diagnostic['source'],str(expected))
-                                self.assertEqual(archive.read(diagnostic['asset']),expected_bytes)
-                        else:
-                            self.assertNotIn('diagnostics',report)
+                for options in ({},{'il2cpp_survey':True},{'scene_probe':True},
+                                {'scene_observe':True},{'camera_sample':True},{'interaction_probe':True}):
+                    with self.subTest(options=options):
+                        report,folder=nonroot.package(source,research_runtime=True,**options)
+                        self.assertEqual(report['mode'],'research-runtime')
+                        with zipfile.ZipFile(report['outputs'][0]['file']) as archive:
+                            names=set(archive.namelist())
+                            mode=json.loads(archive.read('assets/pgrazor/mode.json'))
+                            self.assertTrue(mode['gadget'])
+                            self.assertFalse(mode.get('compiledGameplay',False))
+                            self.assertEqual(archive.read('classes.dex'),b'original-game-dex')
+                            self.assertIn('assets/pgrazor/embedded-agent.js',names)
+                            self.assertIn('assets/pgrazor/java-bridge.js',names)
+                            self.assertFalse(any(name.endswith(('/quick-close.js','/quick-ball.js','/quick-summary.js')) for name in names))
+                            for name,receipt in report['script_bundles'].items():
+                                self.assertEqual(receipt['sha256'],hashlib.sha256(archive.read('assets/pgrazor/'+name)).hexdigest())
             self.assertEqual(runtime_assets.sha256(source),original_hash)
-
-    def test_emulator_runtime_is_explicit_and_never_installs(self):
-        with patch.object(nonroot,'package',return_value=({'outputs':[]},ROOT)) as package, patch.object(nonroot,'probe') as install, contextlib.redirect_stdout(io.StringIO()):
-            nonroot.main(['--apk','game.apkm','--runtime-abi','x86_64','--skip-build'])
-        self.assertEqual(package.call_args.kwargs['game_runtime_abi'],'x86_64')
-        install.assert_not_called()
-        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
-            nonroot.main(['--probe','--runtime-abi','x86_64'])
 
     def test_clean_game_baseline_rejects_both_observed_modified_signers(self):
         nonroot.require_clean_game_certificate([nonroot.NIANTIC_CERT_SHA256])
@@ -599,8 +184,8 @@ class PackageTests(unittest.TestCase):
         with patch.object(nonroot,'package',return_value=(report,ROOT)) as package, \
              patch.object(nonroot,'probe') as install, patch.object(nonroot,'command') as command, \
              contextlib.redirect_stdout(io.StringIO()):
-            nonroot.main(['--build-probe','--abi','arm64-v8a','--skip-build'])
-        package.assert_called_once_with(ROOT/'build/pgrazor-preview.apk',panel_only=False,download=False,preview=True,probe_abi='arm64-v8a')
+            nonroot.main(['--build-probe','--research-runtime','--abi','arm64-v8a','--skip-build'])
+        package.assert_called_once_with(ROOT/'build/pgrazor-preview.apk',panel_only=False,download=False,preview=True,probe_abi='arm64-v8a',research_runtime=True)
         install.assert_not_called(); command.assert_not_called()
 
     def test_phone_build_requires_explicit_architecture(self):
@@ -614,7 +199,7 @@ class PackageTests(unittest.TestCase):
         monitor=Mock(); monitor.select_device.return_value=android
         report={'outputs':[{'file':'phone-preview.apk'}]}
         with patch.dict(sys.modules,{'monitor':monitor}), patch.object(nonroot,'package',return_value=(report,ROOT)) as package, patch.object(nonroot,'probe') as probe:
-            nonroot.main(['--probe','--serial','PHONE123','--skip-build'])
+            nonroot.main(['--probe','--research-runtime','--serial','PHONE123','--skip-build'])
         monitor.select_device.assert_called_once_with(monitor.find_adb.return_value,'PHONE123')
         self.assertEqual(package.call_args.kwargs['probe_abi'],'arm64-v8a')
         probe.assert_called_once_with(report,ROOT,android,0)
@@ -623,7 +208,7 @@ class PackageTests(unittest.TestCase):
         monitor=Mock(); monitor.select_device.side_effect=RuntimeError('not online')
         with patch.dict(sys.modules,{'monitor':monitor}), patch.object(nonroot,'package') as package, patch.object(nonroot,'command') as command:
             with self.assertRaisesRegex(RuntimeError,'PHONE123'):
-                nonroot.main(['--probe','--serial','PHONE123'])
+                nonroot.main(['--probe','--research-runtime','--serial','PHONE123'])
         package.assert_not_called(); command.assert_not_called()
 
 class CleanupIntegrationTests(unittest.TestCase):
@@ -651,7 +236,7 @@ class CleanupIntegrationTests(unittest.TestCase):
              patch.object(nonroot,'package',return_value=(report,ROOT)) as package, \
              patch.object(nonroot,'cleanup_generated_builds') as cleanup, patch.object(nonroot,'probe') as probe:
             calls.attach_mock(package,'package');calls.attach_mock(cleanup,'cleanup');calls.attach_mock(probe,'probe')
-            nonroot.main(['--probe','--serial','PHONE123','--skip-build'])
+            nonroot.main(['--probe','--research-runtime','--serial','PHONE123','--skip-build'])
         self.assertEqual([call[0] for call in calls.mock_calls],['package','cleanup','probe'])
 
     def test_failed_package_does_not_clean(self):

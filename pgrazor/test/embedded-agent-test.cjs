@@ -29,6 +29,12 @@ assert.equal(f.context.rpc.exports.init('early',{bridgePath:'fixture',startupLog
 assert.equal(f.methods.getLatitude.implementation,null,'init must return before Java work');
 assert.equal(f.scheduled.length,1); f.scheduled[0]();
 assert(f.events.some(e=>e[0]==='embedded-ready')); assert(f.timer());
+assert.match(f.events.find(e=>e[0]==='embedded-ready')[1],/^Frida Java Location getters installed;/);
+const compiledLocation=fixture();
+compiledLocation.context.rpc.exports.init('early',{compiledLocationGetters:true});compiledLocation.scheduled[0]();
+assert.match(compiledLocation.events.find(e=>e[0]==='embedded-ready')[1],/^Compiled ART Location getters initialized;/);
+for(const method of Object.values(compiledLocation.methods))assert.equal(method.implementation,null);
+compiledLocation.context.rpc.exports.dispose();
 assert.equal(f.timeouts.size,0,'Default build must not schedule metadata calls');
 const original={getLatitude:12.5,getLongitude:45.25,getSpeed:2,getBearing:30};
 for(const name of Object.keys(f.methods)) assert.equal(f.methods[name].implementation.call(original),original[name]);

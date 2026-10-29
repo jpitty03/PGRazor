@@ -5,6 +5,7 @@ const io={read:n=>storage[n],write:(n,v)=>storage[n]=JSON.parse(JSON.stringify(v
 const control=Object.fromEntries(bridge.readers.map(n=>[n,()=>true]));
 for(const n of bridge.actions)control[n]=(...args)=>calls.push([n,args]);
 for(const n of ['takeCameraSampleRequest','takeInteractionStopRequest','takeInteractionTraceRequest'])control[n]=()=>{const v=pulse;pulse=false;return v;};
+control.accountCommandSnapshot=()=>['','0'];
 const host=bridge.host({io,control,session:'one',now:()=>time}),client=bridge.client({io,session:'one',now:()=>time});
 assert.equal(client.control.active(),false);
 host.tick();assert.equal(client.tick(),true);assert.equal(client.control.active(),true);
@@ -23,6 +24,7 @@ console.log('Translated mailbox tests passed');
  const api=Object.fromEntries(bridge.readers.map(n=>[n,()=>true]));
  for(const n of bridge.actions)api[n]=()=>{};
  for(const n of ['takeCameraSampleRequest','takeInteractionStopRequest','takeInteractionTraceRequest'])api[n]=()=>false;
+ api.accountCommandSnapshot=()=>['','0'];
  api.gameRoutesCommand=()=>JSON.stringify({seq:7,action:'complete',id:'route-a'});
  api.setGameRoutesSnapshot=value=>received.push(value);
  const h=bridge.host({io:channel,control:api,session:'routes',now:()=>clock});
@@ -46,3 +48,35 @@ assert.equal(scope.PGRazorGuestCode(mod,new Pointer(760),16,range),false);
 assert.equal(scope.PGRazorGuestCode(mod,new Pointer(512),32,{...range,protection:'rw-'}),false);
 assert.equal(scope.PGRazorGuestCode(mod,new Pointer(512),32,{...range,file:{path:'/other'}}),false);
 console.log('Guest executable segment tests passed');
+
+// Account command tokens survive the Java-array mailbox without numeric coercion.
+{
+ const data={},channel={read:n=>data[n],write:(n,v)=>data[n]=JSON.parse(JSON.stringify(v))};
+ const api=Object.fromEntries(bridge.readers.map(n=>[n,()=>true]));
+ for(const n of bridge.actions)api[n]=()=>{};
+ for(const n of ['takeCameraSampleRequest','takeInteractionStopRequest','takeInteractionTraceRequest'])api[n]=()=>false;
+ let reads=0;
+ api.accountCommandSnapshot=()=>{reads++;return {0:'save-session:example',1:'9223372036854775807',length:2};};
+ const h=bridge.host({io:channel,control:api,session:'accounts',now:()=>1000});
+ const c=bridge.client({io:channel,session:'accounts',now:()=>1000});
+ h.tick();c.tick();assert.equal(reads,1);
+ assert.deepEqual(Array.from(c.control.accountCommandSnapshot()),['save-session:example','9223372036854775807']);
+ c.control.accountCommandSnapshot()[0]='changed';
+ assert.equal(c.control.accountCommandSnapshot()[0],'save-session:example');
+ api.accountCommandSnapshot=()=>['','0'];h.tick();c.tick();
+ assert.deepEqual(Array.from(c.control.accountCommandSnapshot()),['','0']);
+ api.accountCommandSnapshot=()=>null;h.tick();c.tick();
+ assert.equal(c.control.accountManagementAllowed(),false);
+ assert.throws(()=>c.control.accountCommandSnapshot());
+}
+console.log('Translated atomic account command tests passed');
+// Every control method used directly by the shared heartbeat must exist on the
+// translated proxy too. This guards future Android-only additions from silently
+// breaking the emulator heartbeat, as accountCommandSnapshot once did.
+{
+ const agent=fs.readFileSync('pgrazor/embedded-agent.js','utf8');
+ const heartbeat=agent.slice(agent.indexOf('function heartbeat()'),agent.indexOf('function start()'));
+ const available=new Set([...bridge.readers,...bridge.actions,'renewLease','takeCameraSampleRequest','takeInteractionStopRequest','takeInteractionTraceRequest']);
+ for(const match of heartbeat.matchAll(/control\.([A-Za-z0-9_]+)\s*\(/g))assert.ok(available.has(match[1]),'Missing translated heartbeat control: '+match[1]);
+}
+console.log('Shared heartbeat mailbox coverage passed');

@@ -1,12 +1,18 @@
 ﻿const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const source=fs.readFileSync('pgrazor/embedded-agent.js','utf8');
-const body=source.slice(source.indexOf('                // Observe only the value'),source.indexOf('                control.connect();'));
+const start=source.indexOf('                if(!bootParameters.compiledLocationGetters){');
+const end=source.indexOf('                control.connect();',start);
+assert.ok(start>=0&&end>start);
+const body=source.slice(start,end);
 let enabled=false,ready=true;const fixes=[],methods={},hooks=[];
 let current=null;
 for(const key of ['getLatitude','getLongitude','getSpeed','getBearing'])methods[key]={call:o=>{assert.equal(current,key,'must not call a different hooked getter');return o[key]}};
 const Location=Object.fromEntries(Object.entries(methods).map(([k,m])=>[k,{overload:()=>m}]));
 const control={desiredEnabled:()=>enabled,active:()=>enabled&&ready,observeRealCoordinate:(...p)=>fixes.push(p),latitude:()=>1,longitude:()=>2,speed:()=>3,bearing:()=>4};
-vm.runInNewContext(body,{Location,control,hooks});
+vm.runInNewContext(body,{Java:{use:name=>{assert.equal(name,'android.location.Location');return Location}},locationControl:control,hooks,bootParameters:{},bootLog:()=>{}});
+const nativeHooks=[],nativeLogs=[];
+vm.runInNewContext(body,{Java:{use:()=>{throw Error('compiled Location must not install Frida hooks')}},locationControl:control,hooks:nativeHooks,bootParameters:{compiledLocationGetters:true},bootLog:x=>nativeLogs.push(x)});
+assert.equal(nativeHooks.length,0);assert.deepEqual(nativeLogs,['location-native-owned']);
 for(const [key,m]of Object.entries(methods)){const hook=m.implementation;m.implementation=function(){const prev=current;current=key;try{return hook.call(this)}finally{current=prev}};}
 const device={getLatitude:45.1,getLongitude:-73.2,getSpeed:7,getBearing:8};
 for(const [key,m]of Object.entries(methods))assert.equal(m.implementation.call(device),device[key]);

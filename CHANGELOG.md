@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Stop periodic full inventory scans when auto-discard is disabled. Item settings request counts while visible, and berry controls query only berry stock; unchanged catalogs are no longer republished.
+- Fix the native VGP pilot pausing after an unsent request is refused during a routine settings refresh. Restrictive settings still stop requests; uncertain outcomes remain paused.
+
 ## v0.1.6
 
 [Full release notes](docs/releases/v0.1.6.md)
