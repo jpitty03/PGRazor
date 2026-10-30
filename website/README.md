@@ -31,8 +31,12 @@ The Vite base path is `/PGRazor/`. Keep image links base-aware when adding scree
 ## Screenshots and artwork
 
 - `public/logo.svg`: original PGRazor branding, shared with `pgrazor/branding/pgrazor.svg`.
-- `public/images/main-menu.png`: existing app settings screenshot from `docs/images/`.
+- `public/images/main-menu.png`: canonical app settings screenshot, also referenced by the repository README.
 - `public/images/encounter.png`: real encounter capture showing the IV/level, transfer and berry overlays.
 - `public/images/world-map.png`: October 2026 MuMu capture of the app's world map. OpenStreetMap attribution is visible in the capture.
 
 Screenshots are representative; enabled options and layout depend on your settings and build. Do not publish account names, email addresses, tokens, or private locations in new captures. Game artwork is not covered by the source MIT license; see the repository's [third-party notices](../THIRD_PARTY.md). Map data is © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright).
+
+## Cooldown guidance
+
+The Cooldown section uses original text and an HTML table, with a reference link to the community chart. It is guidance, not a published server contract. The listed values match the reference chart used by the app; the app interpolates between distances and rounds up to whole minutes. Review action exceptions when updating the guide. No competitor artwork is bundled. The stable download remains separate from the experimental prerelease link.

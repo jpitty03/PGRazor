@@ -21,7 +21,7 @@ The Android package identity stays compatible with the game. An official-store i
 
 ## Main menu
 
-<p align="center"><img src="docs/images/main-menu.png" width="320" alt="PGRazor dark-theme main settings menu with feature sections and Discord footer"></p>
+<p align="center"><img src="website/public/images/main-menu.png" width="320" alt="PGRazor dark-theme main settings menu with feature sections and Discord footer"></p>
 
 ## Features
 
@@ -43,7 +43,9 @@ Features listed here include unreleased changes on `main`; check your release no
 
 **Accounts:** Open **Quick Menu → Switch account** or **Settings → Accounts** to manage profiles. Delete removes an inactive profile and its saved sign-in, settings, location, favorites and routes from this device; it does not delete the Pokémon GO account. Switch away before deleting the current profile. Switching stops movement and automation, saves the outgoing account, and restarts the game with the selected account's remembered session. Sign in once per account to establish a saved session; expired or revoked sessions may require sign-in again. Sessions are encrypted on-device using Android Keystore, excluded from settings exports and Android backups, and never include saved passwords. The signed-in game identity determines the profile, including when you choose a different account at login. Existing settings become the first profile; new profiles start with defaults. LivePokeMap authentication remains shared, while its filters are per profile. Settings export/import applies to the current profile and does not export the account list. If sign-in choices are missing while signed out, **Accounts → Reset sign-in choices** restarts the game and asks for your date of birth again. Enter your own date of birth; the game controls which providers are available.
 
-**Quick menu:** Map, speed presets (0, 9.3, 16, 30 km/h), Autowalk, In-game Routes, Feeds, Favorites, Teleport, Switch account, and Settings. Favorites shares the map's saved places. Autowalk builds a route through up to 50 nearby loaded stops and gyms, with optional looping. Routes use direct segments between locations. Zero speed pauses travel; selecting another speed resumes the current route. Backgrounding stops routes rather than resuming movement automatically.
+**Quick menu:** Map, speed presets (0, 9.3, 16, 30 km/h), Autowalk, In-game Routes, Feeds, Favorites, Teleport, Switch account, Events, and Settings. Favorites shares the map's saved places. Autowalk builds a route through up to 50 nearby loaded stops and gyms, with optional looping. Routes use direct segments between locations. Zero speed pauses travel; selecting another speed resumes the current route. Backgrounding stops routes rather than resuming movement automatically.
+
+**Events:** Open **Quick Menu > Events > Halloween 2026** to enable **Open boxes and skip encounters**. It opens visible boxes and collects rewards, skipping its Pokemon encounter screens without catching. It does not filter for candy-only boxes.
 
 **Transfer protection:** Open **Transfer on catch > Custom Keep List** to keep selected species (including all forms) from manual and VGP catches. Enable the transfer overlay for a quick **Keep All** toggle. Turning Keep All off restores your existing rules; it does not enable auto-transfer if its main setting is off. The list and toggle state are saved across restarts.
 
@@ -71,7 +73,7 @@ The world map layers show locations currently loaded by the game near your avata
 
 These are experimental client modifications. Server outcomes are not guaranteed. The AR+ option and local spawn-range changes do not prove server-side bonuses. Cooldown is a local estimate. Do not interpret a successful build as device validation.
 
-**Settings backup:** Open **Settings ? Export / import settings** to save a JSON file outside the app and restore it after reinstalling or on another phone. It includes feature preferences, speed, favorites, map layers, Feed filters/presets, and overlay positions. Login tokens, current location, cooldown history, and active routes are excluded. Import leaves VGP off. Ordinary updates signed with the same PGRazor key already preserve app data.
+**Settings backup:** Open **Settings > Export / import settings** to save a JSON file outside the app and restore it after reinstalling or on another phone. It includes feature preferences, speed, favorites, map layers, Feed filters/presets, and overlay positions. Login tokens, current location, cooldown history, and active routes are excluded. Import leaves VGP off. Ordinary updates signed with the same PGRazor key already preserve app data.
 
 Join the [PGRazor Discord community](https://discord.gg/9QqfkDSQX3). You can also open it from the settings footer.
 
@@ -100,7 +102,10 @@ Source CI runs device-free checks and compiles the Android controls. Its downloa
 .github/workflows/       Source CI and APK release workflow
 docs/                    Build and architecture guides
 pgrazor/src/      Android UI and control bridge
-pgrazor/diagnostics/  Version-specific native hooks
+pgrazor/native/       Compiled gameplay runtime and native tests
+pgrazor/art/          Compiled Android runtime bridges
+pgrazor/runtime/      Optional research adapters
+pgrazor/diagnostics/  Version-specific research probes
 pgrazor/test/     Regression tests
 pgrazor/vendor/   Pinned bridge, provenance, and licenses
 tools/                   Checks, source packaging, release CI setup

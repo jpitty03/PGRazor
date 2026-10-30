@@ -19,7 +19,7 @@ export default function Hero() {
           </h1>
           <p className="hero__lead">
             Location controls, faster catches, and optional automation for Pokémon GO.
-            Built for Android, with no root required.
+            One APK for ARM64 Android and the MuMu emulator, with no root required.
           </p>
           <div className="hero__actions">
             <a className="btn btn--primary" href={links.releasesLatest}>

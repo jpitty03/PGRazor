@@ -5,7 +5,7 @@ export default function GetStarted() {
   return (
     <section className="section" id="get-started" aria-labelledby="get-started-heading">
       <div className="section__head">
-        <p className="section__num">03 / Get started</p>
+        <p className="section__num">04 / Get started</p>
         <h2 id="get-started-heading" className="section__title">
           Three steps to your first session.
         </h2>
@@ -33,6 +33,14 @@ export default function GetStarted() {
           Join the Discord
         </a>
       </div>
+
+      <p className="cta__experimental">
+        <span className="cta__badge">Experimental</span>
+        Want the Events update early? The{' '}
+        <a href={links.releasesExperimental}>v0.1.7 experimental prerelease</a> adds the
+        Halloween box opener and the native runtime. It passed automated checks and MuMu
+        testing, but hasn’t been retested on a physical phone — expect rough edges.
+      </p>
 
       <div className="faq">
         <h3 className="faq__heading">Good to know</h3>

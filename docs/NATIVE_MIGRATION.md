@@ -371,7 +371,7 @@ release gate, with local evidence retained. This is not a verified Android build
 
 
 
-MuMu cold startup reached the map. Native PokÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©Stop camera transitions measured
+MuMu cold startup reached the map. Native PokéStop camera transitions measured
 
 40 ms in each direction, replacing the observed 600/700 ms transitions. Native
 
@@ -383,7 +383,7 @@ remain unverified by that attempt. No rollback is warranted by this result.
 
 
 
-### Batches 6ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“7 observations (2026-10-27)
+### Batches 6â€“7 observations (2026-10-27)
 
 
 
@@ -583,7 +583,7 @@ findings separately. MuMu cold startup reached the populated map and reported
 
 native battle readiness. The user verified Dynamax and gym automation, including
 
-manual PokÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©mon switching during a gym battle. A grunt Rocket battle also passed
+manual Pokémon switching during a gym battle. A grunt Rocket battle also passed
 
 as a regression check of the existing Rocket controller. Raids and physical
 
@@ -743,11 +743,11 @@ for the shared observers and other unmigrated features.
 
 Feature 23 moves `ReleasePokemon` execution and its pending-request lifecycle
 
-into C++. The executor rechecks the caught ID and the bag's current PokÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©mon,
+into C++. The executor rechecks the caught ID and the bag's current Pokémon,
 
 repeats the native keep-policy decision, and checks the current authorization
 
-after its final managed-object lookup. It retains the bag, PokÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©mon and promise
+after its final managed-object lookup. It retains the bag, Pokémon and promise
 
 until completion or shutdown and prevents a captured ID from being submitted
 
@@ -771,7 +771,7 @@ Both architectures build, and the actual-library harness, adapter/integration
 
 checks and full repository checks pass. Tests include synchronous completion,
 
-stale callback tickets, protected PokÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©mon, identity mismatch, duplicate requests,
+stale callback tickets, protected Pokémon, identity mismatch, duplicate requests,
 
 shutdown during the final lookup, and disabling/re-enabling during preparation.
 
@@ -809,7 +809,7 @@ migration of summary and details-screen orchestration.
 
 The native call is synchronous and retains no managed objects. It checks the
 
-view, response, PokÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©mon and delegate classes, active state, successful catch,
+view, response, Pokémon and delegate classes, active state, successful catch,
 
 delegate target and exact 64-bit caught ID. Completion uses an owner-thread
 
@@ -1480,14 +1480,14 @@ overnight06 and user-tested batch46 remain preserved rollback builds. Final
 package installation, retention and handoff remain coordinator work; no commit,
 push or public release is claimed here.
 
-### Final installed local artifact ? 2026-10-29 21:46 UTC
+### Final installed local artifact - 2026-10-29 21:46 UTC
 
 `native-cutover-verified/PGRazor.apk` (run `20261029-144048-be59e7c8`, SHA256 `cf229832cc078f18e50e3de8c723507d85793f1331bfce780f2e8f7e37f0766b`) is now installed on research MuMu16416, PID61867. Cold start, populated map, Pumpkaboo encounter with IV label, and return to map passed. All12 manager consumers reached ready. Final native fixture214201-352050 passed and matches the packaged x64 core. The APK audit confirms zero Frida/PGRazor-JS assets and stripped core/ART libraries with only the intended factory/JNI exports. Temporary diagnostic code is removed. See `.artifacts/native-migration/FINAL_NATIVE_CUTOVER_HANDOFF.txt` for exact verification provenance, remaining live limits, rollback and tomorrow checklist. Physical Android remains untested; the earlier intermittent missing-IV observation is retained rather than declared resolved.
 
 Repository retirement audit correction (after final APK delivery):
 The shipped APK is compiled-only, but repository retirement is NOT complete. No tracked source files have been deleted. Prior cleanup totals describe ignored generated APK outputs only. Legacy production packaging and JS adapters/tests remain; the release workflow still selects the legacy path. Routes/gift native schema generators consume legacy JS literals and must be detached before deleting those scripts. Research runtime dependencies and license/provenance notices must be audited separately. The source archive currently lists only tracked files and omits untracked native migration files, so it is not a complete distributable source package in this working tree. See .artifacts/native-migration/repository-retirement-audit.json. The final installed APK/hash is unchanged. This audit supersedes any implication that the entire repository was buttoned up.
 
-### Repository cleanup and compiled default ? 2026-10-29
+### Repository cleanup and compiled default - 2026-10-29
 
 
 Cleanup completed 2026-10-29 22:28 UTC (supersedes repository-retirement correction above).
