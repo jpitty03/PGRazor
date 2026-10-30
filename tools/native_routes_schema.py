@@ -126,7 +126,10 @@ def main():
         expected = render(source)
         classes, _, fields, methods = parse(source)
         if args.check:
-            if not OUTPUT.is_file() or OUTPUT.read_bytes() != expected.encode('utf-8'):
+            # Compare as text so a CRLF checkout (core.autocrlf on a fresh
+            # Windows clone) of the LF header is not a spurious mismatch;
+            # read_text normalizes line endings, like the gift generator.
+            if not OUTPUT.is_file() or OUTPUT.read_text(encoding='utf-8') != expected:
                 print('Routes schema mismatch: run python -B tools/native_routes_schema.py', file=sys.stderr)
                 return 1
         else:

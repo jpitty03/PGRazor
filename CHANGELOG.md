@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## v0.1.7-experimental.1
+
+[Full release notes](docs/releases/v0.1.7-experimental.1.md)
+
+- Add an Events screen and a Halloween toggle to open visible boxes and skip encounter screens.
+- Rewrite the gameplay runtime in compiled native C++ and Java.
+- Fix buddy berry feeding on MuMu and Routes pausing during location updates.
 - Stop periodic full inventory scans when auto-discard is disabled. Item settings request counts while visible, and berry controls query only berry stock; unchanged catalogs are no longer republished.
 - Fix the native VGP pilot pausing after an unsent request is refused during a routine settings refresh. Restrictive settings still stop requests; uncertain outcomes remain paused.
 

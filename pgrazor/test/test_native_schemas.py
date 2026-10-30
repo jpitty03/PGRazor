@@ -3,8 +3,10 @@ import copy
 import hashlib
 import importlib.util
 import json
+import tempfile
 from pathlib import Path
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -40,14 +42,16 @@ class NativeSchemaTests(unittest.TestCase):
         self.assertEqual(list(indices.values()), list(range(15)))
         output = ROUTES.render(source)
         self.assertEqual(body_digest(output), 'cc9a188632484c13438cf59cb4794a2167ca6b8b3b04f19c7b22641be6307af0')
-        self.assertEqual(output.encode(), ROUTES.OUTPUT.read_bytes())
+        # read_text normalizes line endings so a CRLF checkout of the LF
+        # header still matches; raw bytes would differ under core.autocrlf.
+        self.assertEqual(output, ROUTES.OUTPUT.read_text(encoding='utf-8'))
 
     def test_gifts_exact_pre_retirement_tables(self):
         values = GIFTS.parse(json.dumps(self.gifts))
         self.assertEqual((len(values['GIFT_TYPES']), len(values['GIFT_CODE'])), (11, 36))
         output = GIFTS.render(values)
         self.assertEqual(body_digest(output), 'd0c7c14fabc4d1b06e4c42952f2f6c0acfcf57c0d30dc21fdfa56590df1d9c89')
-        self.assertEqual(output.encode(), GIFTS.OUTPUT.read_bytes())
+        self.assertEqual(output, GIFTS.OUTPUT.read_text(encoding='utf-8'))
 
     def test_production_inputs_are_neutral_json(self):
         for module in (ROUTES, GIFTS):
@@ -107,6 +111,27 @@ class NativeSchemaTests(unittest.TestCase):
                 mutate(value)
                 with self.assertRaises(ValueError):
                     GIFTS.parse(json.dumps(value))
+
+    def test_check_tolerates_crlf_checkout(self):
+        # Regression: a fresh Windows checkout under core.autocrlf materializes
+        # the checked-in LF headers with CRLF (no eol=lf pin for *.h). The
+        # generators' --check must still match so CI does not report a spurious
+        # schema mismatch (observed as a Routes failure on Windows runners).
+        cases = (
+            (ROUTES, ROUTES.render(json.dumps(self.routes))),
+            (GIFTS, GIFTS.render(GIFTS.parse(json.dumps(self.gifts)))),
+        )
+        for module, generated in cases:
+            with self.subTest(module=module.__name__):
+                with tempfile.TemporaryDirectory() as tmp:
+                    header = Path(tmp) / 'header.h'
+                    header.write_bytes(generated.replace('\n', '\r\n').encode('utf-8'))
+                    with mock.patch.object(module, 'OUTPUT', header), \
+                         mock.patch('sys.argv', [module.__name__, '--check']), \
+                         mock.patch('sys.stdout'), mock.patch('sys.stderr'):
+                        # main() returns 0 (routes) or None (gifts) on a match
+                        # and must not signal a mismatch for the CRLF header.
+                        self.assertIn(module.main(), (0, None))
 
     def test_duplicate_json_keys_rejected(self):
         for module, value in ((ROUTES, self.routes), (GIFTS, self.gifts)):
