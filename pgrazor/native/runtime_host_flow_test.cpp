@@ -74,6 +74,20 @@ TABLE(flow_encounter_api,flow_encounter) TABLE(flow_interaction_api,flow_interac
 #define pgrazor_runtime_host_api flow_manager_api
 #include "runtime_host.cpp"
 
+// Collector is another gameplay boundary spy. The real transport still supplies
+// its OFF gate; this orchestration fixture must never start box interactions.
+static unsigned flow_collector_ticks=0,flow_collector_locations=0;
+static std::atomic<unsigned> flow_collector_stops{0};
+void pgr_event_collector_location(double lat,double lng,uint64_t at){
+ assert((std::isfinite(lat)&&std::isfinite(lng)&&at)||(!std::isfinite(lat)&&!std::isfinite(lng)&&!at));
+ ++flow_collector_locations;
+}
+int pgr_event_collector_tick(bool enabled,uint64_t tid){
+ assert(!enabled&&tid==uint64_t(gettid()));++flow_collector_ticks;return 0;
+}
+void pgr_event_collector_stop(){++flow_collector_stops;}
+PgrEventCollectorState pgr_event_collector_state(){return {};}
+
 namespace test70 {
 const PgrRuntimeHostApi *manager=nullptr;
 const PgrCatchWaitApi *real_wait=nullptr;
@@ -175,7 +189,7 @@ void setup_spies(){
  flow_interaction.sample=[](PgrInteractionHostSample*s){*s={};s->configured=spy[69].ready;s->installed_target_mask=forwarding_mask;s->in_flight=spy[69].owned;s->status=spy[69].stopped?PGR_IH_STATUS_STOPPED:PGR_IH_STATUS_SCHEDULED;return 0;};
 }
 unsigned observed_events=0,shortened_events=0;bool state63=false,state69=false;
-void exchange(bool allowed){static uint64_t seq=0;std::vector<uint8_t> frame(180,0),out(65536);auto put=[&](size_t off,uint32_t v){memcpy(frame.data()+off,&v,4);};put(0,PGR_TRANSPORT_SNAPSHOT_MAGIC);put(4,1);put(8,frame.size());++seq;memcpy(frame.data()+16,&seq,8);frame[32+25]=allowed;uint32_t length=0;assert(flow_transport.exchange(frame.data(),frame.size(),out.data(),out.size(),&length)==0);
+void exchange(bool allowed){static uint64_t seq=0;std::vector<uint8_t> frame(PGR_TRANSPORT_SNAPSHOT_FIXED+PGR_TRANSPORT_STRINGS*sizeof(uint32_t),0),out(65536);auto put=[&](size_t off,uint32_t v){memcpy(frame.data()+off,&v,4);};put(PGR_TRANSPORT_OFF_MAGIC,PGR_TRANSPORT_SNAPSHOT_MAGIC);put(PGR_TRANSPORT_OFF_VERSION,PGR_TRANSPORT_FRAME_VERSION);put(PGR_TRANSPORT_OFF_FRAME_SIZE,frame.size());++seq;memcpy(frame.data()+PGR_TRANSPORT_OFF_SEQ,&seq,8);frame[PGR_TRANSPORT_OFF_BOOLS+25]=allowed;uint32_t length=0;assert(flow_transport.exchange(frame.data(),frame.size(),out.data(),out.size(),&length)==0);
  auto read=[&](size_t off){uint32_t v;memcpy(&v,out.data()+off,4);return v;};size_t at=32;for(unsigned i=0;i<read(12);++i){unsigned op=read(at),ns=read(at+4),nt=read(at+8);at+=12+8*ns;std::vector<std::string> strings;for(unsigned n=0;n<nt;++n){uint32_t len=read(at);at+=4;strings.emplace_back(reinterpret_cast<char*>(out.data()+at),len);at+=len;}if(op==19&&strings.size()==2&&strings[0]=="native-runtime"){state63|=strings[1].find("\"feature\":63")!=std::string::npos;state69|=strings[1].find("\"feature\":69")!=std::string::npos;}if(op==19&&strings.size()==2&&strings[0]=="quick-catch-wait"){observed_events+=strings[1].find("wait-observed")!=std::string::npos;shortened_events+=strings[1].find("wait-shortened")!=std::string::npos;}}assert(at==length);
 }
 }
@@ -184,11 +198,12 @@ int main(int argc,char **argv){using namespace test70;assert(argc==2);void *lib=
 #define LOAD(VAR,TYPE,ID,VER) VAR=*static_cast<const TYPE*>(core->query_feature(ID,VER));
  LOAD(flow_scheduler,PgrUnitySchedulerApi,48,2) LOAD(flow_transport,PgrRuntimeTransportApi,52,1) LOAD(flow_boot,PgrBootApi,54,1) LOAD(flow_metadata,PgrMetaApi,47,1)
 #undef LOAD
+ assert(flow_transport.sample&&flow_transport.get_bool&&flow_transport.get_double&&flow_transport.emit);
  real_wait=static_cast<const PgrCatchWaitApi*>(core->query_feature(58,1));assert(real_wait);flow_wait=*real_wait;flow_wait.install=install_wait;setup_spies();manager=static_cast<const PgrRuntimeHostApi*>(flow_manager_api(1));
  PgrRuntimeHostConfig config{1,sizeof(config),1,0};assert(manager->configure(&config)==1);setup_universe();assert(manager->configure(&config)==1);
  PgrRuntimeTransportConfig tc{1,sizeof(tc),1000,256,10000,65536,0,0};assert(flow_transport.install(&tc)==0);config.exclusive_owner=0;assert(manager->configure(&config)==-1);PgrUnitySchedulerSnapshot before{};flow_scheduler.snapshot(&before);assert(!before.installed);config.exclusive_owner=1;
  assert(manager->configure(&config)==1);exchange(true);const int configured=manager->configure(&config);fprintf(stderr,"manager70 configure after fresh52 rc=%d\n",configured);assert(configured==0&&manager->configure(&config)==0);auto initial=snapshot();assert(initial.installed&&initial.generation&&initial.owner_tid==owner_tid&&!initial.pulses);exchange(true);
- order.clear();run_original();auto first=snapshot();assert(first.pulses==1&&first.hosts[1].state==PGR_RTH_WAITING&&first.hosts[0].state==PGR_RTH_FAILED&&first.hosts[0].error==-77);assert(spy[68].ticks==1&&spy[68].configs==1&&first.hosts[8].state!=PGR_RTH_FAILED);assert(first.pending_mask==0);assert(spy[63].configs==0&&encounter_installs==0);assert(interaction_schedules==1&&forwarding_mask==PGR_IH_SHARED_MASK_49);assert(spy[65].configs==0&&spy[67].configs==0);
+ order.clear();run_original();auto first=snapshot();assert(flow_collector_ticks==1&&flow_collector_locations==1);assert(first.pulses==1&&first.hosts[1].state==PGR_RTH_WAITING&&first.hosts[0].state==PGR_RTH_FAILED&&first.hosts[0].error==-77);assert(spy[68].ticks==1&&spy[68].configs==1&&first.hosts[8].state!=PGR_RTH_FAILED);assert(first.pending_mask==0);assert(spy[63].configs==0&&encounter_installs==0);assert(interaction_schedules==1&&forwarding_mask==PGR_IH_SHARED_MASK_49);assert(spy[65].configs==0&&spy[67].configs==0);
  const std::vector<unsigned> first_order={0,62,71,640,64,66,68,69};assert(order==first_order);
  // Real58 shortening and event52 serialization happen after real native policy.
  invoke_wait=true;order.clear();run_original();assert(std::fabs(universe::cw::duration()-0.1f)<1e-6);exchange(false);assert(observed_events==1&&shortened_events==1);invoke_wait=false;order.clear();run_original();invoke_wait=true;order.clear();run_original();assert(universe::cw::duration()==5.0f);invoke_wait=false;
@@ -204,6 +219,6 @@ int main(int argc,char **argv){using namespace test70;assert(argc==2);void *lib=
  reenter_tick=true;order.clear();run_original();assert(snapshot().pulses==count+1);assert(originals>snapshot().pulses);
  combat_failed=true;order.clear();run_original();assert(snapshot().hosts[6].state==PGR_RTH_FAILED&&spy[66].configs==1&&spy[66].stops>0);order.clear();run_original();assert(spy[66].owned==0&&spy[62].stops==0);
  // Foreign stop joins from a running child without a manager lock/deadlock.
- stop_inside=true;stop_order.clear();order.clear();run_original();const std::vector<unsigned> stopping_order={61,62,63,65,67,71,64,66,68,69};assert(stop_order.size()>=stopping_order.size()&&std::equal(stopping_order.begin(),stopping_order.end(),stop_order.begin()));assert(snapshot().stopping&&flow_scheduler.valid(initial.generation)==1);order.clear();run_original();auto stopped=snapshot();for(unsigned id:{61u,62u,63u,64u,65u,66u,67u,68u,69u,71u})assert(spy[id].stopped&&spy[id].owned==0);assert(spy[60].ticks==0&&spy[60].configs==1);assert(universe::cw::roots.empty()&&universe::cw::makes==universe::cw::frees);assert(manager->stop()==0);
+ stop_inside=true;stop_order.clear();order.clear();run_original();const std::vector<unsigned> stopping_order={61,62,63,65,67,71,64,66,68,69};assert(stop_order.size()>=stopping_order.size()&&std::equal(stopping_order.begin(),stopping_order.end(),stop_order.begin()));assert(snapshot().stopping&&flow_scheduler.valid(initial.generation)==1);order.clear();run_original();auto stopped=snapshot();for(unsigned id:{61u,62u,63u,64u,65u,66u,67u,68u,69u,71u})assert(spy[id].stopped&&spy[id].owned==0);assert(spy[60].ticks==0&&spy[60].configs==1);assert(universe::cw::roots.empty()&&universe::cw::makes==universe::cw::frees);assert(manager->stop()==0);assert(flow_collector_stops==1&&flow_collector_ticks==flow_collector_locations);
  puts("PASS70 unchanged manager + real54/47/48/Dobby/52/58: explicit install, post-original order, owner/exception/reentry gates, real wait policy/events, positive and partial68 BUSY retries, isolated terminal failure, foreign stop and owner cleanup; gameplay hosts are native spies");return 0;
 }

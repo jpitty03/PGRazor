@@ -194,6 +194,7 @@ bool g_gcnew_long_error = false;
 
 double g_fake_now_ms = 100000.0;
 bool g_clock_throws = false;
+bool g_getter_from_clock = false;
 uint64_t g_fake_tid = 0;
 
 using MainCameraGetterFn=void *(*)(void*,const void*);
@@ -212,6 +213,7 @@ __attribute__((noinline,optnone)) void *fixture_get_main_camera(void *rig,const 
 }
 void call_getter(){MainCameraGetterFn volatile fn=&fixture_get_main_camera;g_last_return=fn(&g_rig,g_expected_info);}
 double test_clock_fn(void *) {
+  if(g_getter_from_clock){g_getter_from_clock=false;call_getter();}
   if (g_clock_throws) {
     throw std::runtime_error("Synthetic clock read failure");
   }
@@ -832,49 +834,54 @@ int main(int argc, char **argv) {
    auto v=sample();fprintf(stderr,"bounded64 samples=%u active=%u roots=%zu attempts=%u matches=%u reason=%s failure=%s\n",v.sample_count,v.active,g_handles.size(),v.sample_attempts,v.matches,v.reason,v.failure_message);assert(v.sample_count==20&&!v.active&&g_handles.empty());
    puts("PASS compiled64 source+real48 bounded diagnostics driven by real48 post-original subscribers,20-sample limit and balanced roots");return 0;
   }
+  auto natural_getter=[&](){run_execute();call_getter();api->tick(gettid());};
   if(transport_mode){
    uint64_t seq=0;unsigned heading_actions=0,telemetry_actions=0;auto frame=[&](bool enabled){std::vector<uint8_t> bytes(180,0);auto set=[&](size_t at,uint32_t v){memcpy(bytes.data()+at,&v,4);};set(0,PGR_TRANSPORT_SNAPSHOT_MAGIC);set(4,1);set(8,bytes.size());++seq;memcpy(bytes.data()+16,&seq,8);bytes[32+10]=enabled;uint32_t length=0;std::vector<uint8_t> output(65536);assert(transport->exchange(bytes.data(),bytes.size(),output.data(),output.size(),&length)==0);
     auto read=[&](size_t at){uint32_t v;memcpy(&v,output.data()+at,4);return v;};size_t at=32;for(unsigned n=0;n<read(12);++n){uint32_t op=read(at),ns=read(at+4),nt=read(at+8);at+=12+8*ns;heading_actions+=op==57;telemetry_actions+=op==19;for(unsigned j=0;j<nt;++j){uint32_t size=read(at);at+=4+size;}}assert(at==length);
    };
-   frame(true);for(unsigned i=0;i<4;++i){renew();run_execute();}assert(sample().sample_count==1);assert(g_handles.empty());
-   for(unsigned i=0;i<130;++i){renew();run_execute();frame(true);}assert(sample().sample_count==131&&heading_actions>=130&&telemetry_actions>10&&sample().queued_events==0&&drain_all(api).empty());
+   frame(true);for(unsigned i=0;i<3;++i){renew();run_execute();}renew();natural_getter();assert(sample().sample_count==1);assert(g_handles.empty());
+   for(unsigned i=0;i<130;++i){renew();natural_getter();frame(true);}assert(sample().sample_count==131&&heading_actions>=130&&telemetry_actions>10&&sample().queued_events==0&&drain_all(api).empty());
    // OFF snapshot and stale snapshot never renew a continuous camera lease.
-   frame(false);g_fake_now_ms+=300;run_execute();unsigned samples=sample().sample_count;assert(samples==131);
-   frame(true);renew();run_execute();assert(sample().sample_count==samples+1);samples++;
-   usleep(1100000);renew();run_execute();assert(sample().sample_count==samples&&g_handles.empty());
+   frame(false);g_fake_now_ms+=300;natural_getter();unsigned samples=sample().sample_count;assert(samples==131);
+   frame(true);renew();natural_getter();assert(sample().sample_count==samples+1);samples++;
+   usleep(1100000);renew();natural_getter();assert(sample().sample_count==samples&&g_handles.empty());
    // A newer52 snapshot arriving during41 allocation invalidates publication.
-   frame(true);bool changed=false;g_on_invoke=[&](){if(!changed){changed=true;frame(false);}};renew();run_execute();g_on_invoke=nullptr;assert(changed&&sample().sample_count==samples);
+   frame(true);bool changed=false;g_on_invoke=[&](){if(!changed){changed=true;frame(false);}};renew();natural_getter();g_on_invoke=nullptr;assert(changed&&sample().sample_count==samples);
    // Queue saturation is terminal and never permits an unreported heading.
    frame(true);PgrRuntimeTransportString message{"fill",4};int fill=0;while(transport->emit(21,nullptr,0,&message,1)==0)++fill;assert(fill>0);
-   renew();run_execute();api->tick(gettid());assert(sample().stopping&&g_handles.empty());
+   renew();natural_getter();api->tick(gettid());assert(sample().stopping&&g_handles.empty());
    puts("PASS64 actual52 sustained131 headings/no adapter queue, coherent settings, OFF/stale gates, mid-sample snapshot revocation, queue backpressure stop");return 0;
   }
   // No fabricated manual or subscriber pulse authorizes continuous sampling.
   PgrUnityPulse invalid{g_generation+1,1,gettid(),0};api->on_unity_begin(nullptr,&invalid);api->on_unity_end(nullptr,&invalid);assert(sample().matches==0);
-  for(int i=0;i<3;++i){renew();run_execute();}assert(sample().sample_count==0);
-  int before=g_invokes;call_getter();assert(g_invokes==before&&g_last_return==&g_camera);
+  // Warmup and subsequent getter calls inside original ExecuteTasks never sample.
+  for(int i=0;i<4;++i){renew();run_execute();}assert(sample().sample_count==0);
+  int before=g_invokes;
   unsigned pinned_checks=0;g_on_invoke=[&](){unsigned pinned=0;for(auto &h:g_pinned)pinned+=h.second!=0;assert(pinned>=2);++pinned_checks;};
-  renew();run_execute();assert(sample().sample_count==1&&pinned_checks&&g_handles.empty()&&g_last_return==&g_camera);g_on_invoke=nullptr;
-  // Post-original callbacks cannot manufacture API3 executing proof.
-  before=g_invokes;PgrUnityPulse valid{g_generation,10,gettid(),0};api->on_unity_begin(nullptr,&valid);call_getter();api->on_unity_end(nullptr,&valid);assert(g_invokes==before);
+  renew();natural_getter();assert(sample().sample_count==1&&pinned_checks&&g_handles.empty()&&g_last_return==&g_camera);g_on_invoke=nullptr;
+  // Even a naturally nested getter during this host's subscriber clock work
+  // forwards the original without calling managed camera methods.
+  before=g_invokes;g_getter_from_clock=true;run_execute();assert(!g_getter_from_clock&&g_invokes==before);
   // Foreign/detached getter calls preserve the original and do no managed sampling.
   before=g_invokes;std::thread foreign([](){call_getter();});foreign.join();assert(g_invokes==before);
-  g_thread_attached=false;renew();run_execute();g_thread_attached=true;assert(g_invokes==before);
+  g_thread_attached=false;renew();natural_getter();g_thread_attached=true;assert(g_invokes==before);
   // A relocating fixture updates all rooted camera references during41 work.
   bool moved=false;g_on_invoke=[&](){if(!moved){moved=true;for(auto &entry:g_handles)if(entry.second==&g_camera)entry.second=&g_camera2;}};
-  renew();run_execute();assert(moved&&g_last_return==&g_camera2&&g_handles.empty());g_on_invoke=nullptr;
+  renew();natural_getter();assert(moved&&g_last_return==&g_camera2&&g_handles.empty());g_on_invoke=nullptr;
   // Original exceptions propagate exactly; pinned receiver root unwinds.
-  g_getter_throws=true;renew();bool threw=false;try{run_execute();}catch(const std::runtime_error&e){threw=std::strcmp(e.what(),"original-getter")==0;}g_getter_throws=false;assert(threw&&g_handles.empty());
+  g_getter_throws=true;renew();bool threw=false;try{call_getter();}catch(const std::runtime_error&e){threw=std::strcmp(e.what(),"original-getter")==0;}g_getter_throws=false;assert(threw&&g_handles.empty());
   // Revoke during41 managed work: no late sample is published.
   const unsigned count=sample().sample_count;bool revoked_once=false;g_on_invoke=[&](){if(!revoked_once){revoked_once=true;assert(g_scheduler->revoke(g_generation)==0);}};
-  renew();run_execute();assert(sample().sample_count==count&&g_handles.empty());g_on_invoke=nullptr;g_generation=g_scheduler->activate();assert(g_generation);
+  renew();natural_getter();assert(sample().sample_count==count&&g_handles.empty());g_on_invoke=nullptr;g_generation=g_scheduler->activate();assert(g_generation);
+  // A new active generation needs a fresh validated owner pulse before sampling.
+  before=g_invokes;call_getter();assert(g_invokes==before);
   // Foreign-thread stop during synchronous managed work returns promptly (join
   // would deadlock if64 still held its old recursive mutex across41).
   bool stopped_once=false;g_on_invoke=[&](){if(!stopped_once){stopped_once=true;std::thread stopper([&](){assert(api->stop("foreign-stop")==0);});stopper.join();}};
-  renew();run_execute();g_on_invoke=nullptr;api->tick(gettid());assert(stopped_once&&!sample().active&&g_handles.empty());
+  renew();natural_getter();g_on_invoke=nullptr;api->tick(gettid());assert(stopped_once&&!sample().active&&g_handles.empty());
   unsigned original_calls=g_getter_calls;call_getter();assert(g_getter_calls==original_calls+1&&sample().hook_installed);
   assert(api->start(&opts)==PGR_CH_ERR_RESTART_REQUIRED);assert(g_handles.empty());
-  puts("PASS actual64 ABI+compiled64 source+real41 +real48 API3/Dobby: gate, pinned roots, relocation refresh, original exception, revoke, foreign stop, permanent passthrough");
+  puts("PASS actual64 ABI+compiled64 source+real41 +real48 API3/Dobby: idle Unity getter boundary, in-ExecuteTasks/subscriber exclusion, generation and attachment gates, pinned roots, relocation refresh, original exception, revoke, foreign stop, permanent passthrough");
   if(argc==2)for(const char *mode:{"bounded","transport"}){pid_t child=fork();assert(child>=0);if(!child){execl(argv[0],argv[0],argv[1],mode,static_cast<char*>(nullptr));_exit(127);}int status=0;assert(waitpid(child,&status,0)==child&&WIFEXITED(status)&&WEXITSTATUS(status)==0);}
   return 0;
 }

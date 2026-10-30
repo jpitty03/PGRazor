@@ -44,6 +44,7 @@ struct Box      { void *klass; union { uint8_t b; int32_t i; float f; } v; };
 
 // ---- scenario knobs / observations (per-process; fork resets them) ---------------
 static bool    g_has = true, g_cooldown = false, g_sync_result = false, g_slow_quantity = false;
+static bool    g_missing_stats = false, g_stats_exception = false;
 static int g_quantity_action=0, g_rpc_roots=0;
 static bool g_clear_rpc_root=false, g_fail_promise=false, g_bad_free=false;
 static int32_t g_count = 5, g_result_val = 1;
@@ -120,7 +121,10 @@ static void *runtime_invoke(void *method, void *obj, void **params, void **exc) 
     if (method == &m_quantity) { if (g_slow_quantity) { timespec t{0, 10000000}; nanosleep(&t, nullptr); }
                                  g_box.klass = &c_int; g_box.v.i = g_count;               return &g_box; }
     if (method == &m_pokemon)  return &g_proto;
-    if (method == &m_stats)    return &g_observed;
+    if (method == &m_stats) {
+        if (g_stats_exception) { *exc = &g_observed; return nullptr; }
+        return g_missing_stats ? nullptr : &g_observed;
+    }
     if (method == &m_feed) {
         int32_t item = params ? *static_cast<int32_t *>(params[0]) : 0;
         int32_t count = params ? *static_cast<int32_t *>(params[1]) : 0;
@@ -296,6 +300,33 @@ static int scenario(int which) {
         g_api->tick(701,2500,tid); if(snap().feed_request_serial!=1) return 2;
         g_api->clear(tid); return g_roots||g_bad_free?3:0;
     }
+    case 14: { // Buddy identity arrives before hunger; recover without toggling Off.
+        g_missing_stats = true;
+        g_api->tick(701,2500,tid);
+        auto waiting = snap();
+        if (waiting.status != PGR_BUDDY_STATUS_WAIT_HUNGER || waiting.fault_serial) return 1;
+        if (waiting.feed_request_serial || g_feed_target_calls || g_roots != 1) return 2;
+        g_missing_stats = false;
+        g_sync_result = true;
+        // Use the real production poll clock and preserve the same buddy ID and
+        // berry setting. An OFF/ON repoll would hide the blocked-state regression.
+        timespec delay{5,100000000};
+        if (nanosleep(&delay,nullptr) != 0) return 3;
+        g_api->tick(701,2500,tid);
+        if (snap().feed_request_serial != 1 || g_feed_target_calls != 1) return 4;
+        g_api->tick(701,2500,tid);
+        if (snap().status != PGR_BUDDY_STATUS_BERRY_FED || snap().result_serial != 1) return 5;
+        g_api->clear(tid);
+        return g_roots || snap().owned_roots || g_bad_free ? 6 : 0;
+    }
+    case 15: { // Managed getter exceptions remain faults, not missing-data waits.
+        g_stats_exception = true;
+        g_api->tick(701,2500,tid);
+        if (snap().status != PGR_BUDDY_STATUS_ERROR || snap().fault_serial != 1) return 1;
+        if (snap().feed_request_serial || g_feed_target_calls) return 2;
+        g_api->clear(tid);
+        return g_roots || snap().owned_roots || g_bad_free ? 3 : 0;
+    }
     default: return 0;
     }
 }
@@ -323,7 +354,7 @@ int main(int argc, char **argv) {
     bad = c; bad.result_address = bad.feed_address;
     if (g_api->install(&bad) != PGR_BUDDY_ERR_DUP_HOOK) { std::puts("FAIL dup"); return 5; }
 
-    const int cases = 14;
+    const int cases = 16;
     for (int i = 0; i < cases; ++i) {
         pid_t pid = fork();
         if (pid == 0) _exit(scenario(i));          // fresh process -> clean module/hook state
@@ -337,6 +368,7 @@ int main(int argc, char **argv) {
     std::puts("PASS native buddy feeding: sync result, hunger re-arm, stock 0 no feed, manual-feed "
               "ambiguity, result failure no retry, in-flight no duplicate, lease expiry mid-getter "
               "no feed, off-thread clear no free + stop/root balance with preserved pending, "
-              "wrong-thread no-op, config validation");
+              "wrong-thread no-op, config validation, delayed hunger snapshot recovery without "
+              "setting changes, managed hunger exception remains fail-closed");
     return 0;
 }

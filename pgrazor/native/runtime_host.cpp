@@ -1,4 +1,5 @@
 #include "runtime_host.h"
+#include "events/event_collector.h"
 #include "runtime_bootstrap.h"
 #include "runtime_transport.h"
 #include "unity_scheduler.h"
@@ -160,6 +161,32 @@ void pulse(void*,const PgrUnityPulse *p){
  if(pulse_busy.test_and_set(std::memory_order_acquire))return;
  struct Clear{~Clear(){pulse_busy.clear(std::memory_order_release);}} clear;
  ++pulses;const uint64_t time=clock_ms();if(!time){fault=-8;stopping=true;}
+ {
+  const auto tr=as<PgrRuntimeTransportApi>(pgrazor_runtime_transport_api(1));
+  PgrRuntimeTransportSample before{},after{};int enabled=0,has_lat=0,has_lng=0;
+  double lat=NAN,lng=NAN;
+  const bool fresh=!stopping.load()&&!tr->sample(&before)&&before.snapshot_fresh&&!before.fault&&
+   !tr->get_bool(39,&enabled)&&!tr->get_double(0,&lat,&has_lat)&&!tr->get_double(1,&lng,&has_lng)&&has_lat&&has_lng&&
+   !tr->sample(&after)&&after.snapshot_fresh&&!after.fault&&
+   before.snapshot_seq==after.snapshot_seq&&before.generation==after.generation;
+  pgr_event_collector_location(fresh?lat:NAN,fresh?lng:NAN,fresh?time:0);
+  pgr_event_collector_tick(fresh&&enabled==1,owner.load());
+  static uint64_t report_at=0;
+  if(time>=report_at){
+   report_at=time+2000;
+   const auto s=pgr_event_collector_state();char json[1024];
+   std::snprintf(json,sizeof(json),"{\"available\":%s,\"error\":%d,\"enabled\":%d,\"inflight\":%d,\"timedOut\":%d,\"attempted\":%llu,\"completed\":%llu,\"failed\":%llu,\"skippedEncounters\":%llu,\"candy\":%llu,\"rareCandy\":%llu}",
+    s.ready&&!s.error&&!stopping.load()?"true":"false",s.error,s.enabled,s.inflight,s.timed_out,
+    (unsigned long long)s.attempted,(unsigned long long)s.completed,(unsigned long long)s.failed,
+    (unsigned long long)s.skipped_encounters,(unsigned long long)s.candy,(unsigned long long)s.rare_candy);
+   const size_t used=std::strlen(json);
+   if(used&&used<sizeof(json))std::snprintf(json+used-1,sizeof(json)-used+1,
+    ",\"updates\":%llu,\"ownerUpdates\":%llu,\"scans\":%llu,\"sessionActive\":%d,\"reason\":%d,\"listCount\":%d,\"boxes\":%d,\"visibleCandidates\":%d,\"expired\":%d,\"zeroExpiry\":%d,\"nearestMeters\":%.1f,\"pendingEncounters\":%d,\"staleEncounters\":%d}",
+    (unsigned long long)s.update_calls,(unsigned long long)s.owner_updates,(unsigned long long)s.scan_calls,s.session_active,s.pump_reason,s.list_count,s.matched_box_count,s.visible_count,s.expired_count,s.zero_expiry_count,s.nearest_meters,s.pending_encounters,s.stale_encounters);
+   const char channel[]="event-boxes";PgrRuntimeTransportString strings[]={{channel,sizeof(channel)-1},{json,uint32_t(std::strlen(json))}};
+   tr->emit(19,nullptr,0,strings,2);
+  }
+ }
  // Dependency order is stable; interaction observers follow their hook owners.
  for(unsigned i:{1u,2u,3u,0u,5u,7u,10u,11u,4u,6u,8u,9u}){
   if(scheduler->valid(p->generation)!=1)return;auto &s=slots[i];
@@ -204,7 +231,9 @@ int configure(const PgrRuntimeHostConfig *c){
  if(stopping.load())return -5;const int rc=scheduler->install(&scheduler_config);if(rc){fault=rc;return rc;}
  installed.store(true,std::memory_order_release);const uint64_t gen=scheduler->activate();if(!gen){fault=-7;return -7;}generation=gen;return 0;
 }
-int stop(){if(stopping.exchange(true,std::memory_order_acq_rel))return 0;for(unsigned i:{1u,2u,3u,0u,5u,7u,10u,11u,4u,6u,8u,9u})stop_host(i);return 0;}
+int stop(){if(stopping.exchange(true,std::memory_order_acq_rel))return 0;
+ pgr_event_collector_stop();
+for(unsigned i:{1u,2u,3u,0u,5u,7u,10u,11u,4u,6u,8u,9u})stop_host(i);return 0;}
 int sample(PgrRuntimeHostSample *out){if(!out)return -1;*out={};out->version=1;out->size=sizeof(*out);out->installed=installed;out->stopping=stopping;out->fault=fault;out->pending_mask=pending_mask;out->owner_tid=owner;out->generation=generation;out->pulses=pulses;
  for(unsigned i=0;i<12;++i){const auto state=pending_mask&(1u<<i)?PGR_RTH_PENDING:slots[i].state.load();out->hosts[i]={i<10?60+i:i==10?58u:71u,state,slots[i].error.load(),slots[i].caps.load(),slots[i].owned.load(),0};if(state==PGR_RTH_READY)out->ready_mask|=1u<<i;}return 0;}
 const PgrRuntimeHostApi api{1,sizeof(api),configure,stop,sample};

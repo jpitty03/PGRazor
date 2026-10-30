@@ -28,6 +28,8 @@ def main(argv=None):
         if not re.fullmatch(r'[a-z][a-z0-9_]*', name):
             parser.error('Invalid test stem: ' + name)
         source = root / 'native' / (name + '_test.cpp')
+        if name in ('event_collector',):
+            source = root / 'native/events' / (name + '_test.cpp')
         if not source.is_file():
             parser.error('No harness source: ' + str(source))
         sources.append(source)
@@ -73,6 +75,10 @@ def main(argv=None):
             entry = {'source': str(source.relative_to(root)), 'source_sha256': native_build.sha256(source)}
             receipt['tests'].append(entry)
             extra_flags = []
+            if source.stem in ('event_collector_test',):
+                vendor = native_build.ensure_dobby(root, download=False)
+                extra_flags = ['-fexceptions', '-I'+str(vendor/'include'), '-llog']
+                entry['included_source_sha256'] = native_build.sha256(source.with_name(source.stem.removesuffix('_test')+'.cpp'))
             if source.stem == 'runtime_host_flow_test':
                 extra_flags = ['-llog']
             if source.stem == 'code_patch_boundary_test':

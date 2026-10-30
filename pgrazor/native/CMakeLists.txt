@@ -139,6 +139,9 @@ add_library(pgrazor_core SHARED
   vgp_controller.cpp
   jni_core.cpp)
 
+target_sources(pgrazor_core PRIVATE events/event_collector.cpp)
+set_source_files_properties(events/event_collector.cpp PROPERTIES COMPILE_OPTIONS "-fexceptions")
+
 target_include_directories(pgrazor_core PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${DOBBY_SOURCE_DIR}/include)

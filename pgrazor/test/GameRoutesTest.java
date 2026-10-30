@@ -37,10 +37,33 @@ public final class GameRoutesTest {
         malformedSnapshotKept();
         cooldownBlocksSelection();
         manualTakeoverCancels();
+        cameraInvalidationPreservesArrival();
         lostHostLeaseStops();
         refusesOverActiveRoute();
         asyncTimeoutStops();
         System.out.println("PASS: game-routes lifecycle, reversal, cooldown, malformed, takeover, host, active, timeout");
+    }
+
+    /** Full lifecycle with a reversed selection, one bounded completion and no double counting. */
+    private static void cameraInvalidationPreservesArrival() throws Exception {
+        MotionEngine engine = new MotionEngine();
+        engine.position(0, 0);
+        GameRoutesController c = new GameRoutesController(engine, () -> 0L, () -> 0L);
+        c.setReady(true); c.acceptSnapshot(snap(null)); c.start(1);
+        long arrivedToken = engine.routeGeneration();
+        check(!engine.walking && engine.routeProgress().visited == 1, "Start waypoint already reached");
+        engine.stopManualMotion();
+        c.tick(true);
+        JSONObject command = lastCommand(c);
+        check(c.running() && command != null && "start".equals(command.optString("action")), "Camera invalidation at arrival permits start");
+        for (int i = 0; i < 3; i++) { engine.stopManualMotion(); c.tick(true); }
+        check(c.running() && engine.routeGeneration() == arrivedToken, "Camera invalidation while waiting preserves route ownership");
+        c.acceptSnapshot(snap(STARTED)); c.tick(true);
+        check(c.running() && engine.walking, "Server confirmation begins traversal");
+        long walkingToken = engine.routeGeneration(); engine.stopManualMotion(); c.tick(true);
+        check(c.running() && engine.walking && engine.routeGeneration() == walkingToken, "Camera invalidation preserves active traversal");
+        engine.stop(); c.tick(true);
+        check(!c.running(), "Explicit stop still revokes route ownership");
     }
 
     /** Full lifecycle with a reversed selection, one bounded completion and no double counting. */

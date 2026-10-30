@@ -59,6 +59,16 @@ public final class ControlQuickBallTest {
         Control.configureQuickBall(true); Control.setQuickBallReady(true,"Ready"); Control.setQuickBallEnabled(true);
         Control.embedded("Restarting adapter");
         check(!Control.quickBallReady() && Control.quickBallEnabled(),"Adapter initialization retains choice with readiness off");
+        Control.engine.position(0,0);
+        Control.engine.walkRoute(new double[][]{{0,0}});
+        long arrivedToken=Control.engine.routeGeneration();
+        Control.invalidateCameraHeading("Camera not visible");
+        Control.cameraSteeringStatus();
+        check(Control.engine.routeGeneration()==arrivedToken && Control.engine.routeProgress().visited==1,
+            "Real Control camera invalidation preserves completed route ownership");
+        Control.engine.input(1,0);Control.engine.enabled=true;
+        Control.invalidateCameraHeading("Camera not visible");
+        check(Control.engine.metersPerSecond()==0,"Real Control camera invalidation stops manual velocity");
         System.out.println("PASS: real Control ball default/readiness/lifecycle/lease gates, movement preservation, and logs");
     }
 }

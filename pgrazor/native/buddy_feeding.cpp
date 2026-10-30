@@ -428,6 +428,13 @@ void orchestrate(int32_t berry, uint64_t now, uint64_t deadline) {
 
         void *stats = invoke(g_cfg.m_stats, gc_target(g_st.service_handle), nullptr, &err);
         if (err) goto fail;
+        // Hunger data can arrive after the buddy identity during map startup.
+        // A null snapshot is not a failed feed or managed exception. Latching
+        // blocked here would permanently suppress this already-known hungry
+        // buddy even when a later poll obtains valid stats.
+        if (stats == nullptr) {
+            set_status(PGR_BUDDY_STATUS_WAIT_HUNGER); return;
+        }
         stats_h.set(stats, &err); if (err) goto fail;
         if (!exact(stats_h.target(), g_cfg.class_observed)) {
             set_status(PGR_BUDDY_STATUS_WAIT_HUNGER); return;

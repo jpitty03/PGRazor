@@ -60,6 +60,11 @@ public class MotionTest {
         near(meters(0,0,e.latitude,e.longitude),.25,1e-5,"Near-antipodal step respects speed");
     }
     static void testInterruption() {
+        MotionEngine manual=at(0,0); manual.enabled=true; manual.input(1,0); manual.step(.25);
+        long manualGeneration=manual.routeGeneration(); double manualLon=manual.longitude;
+        manual.stopManualMotion(); manual.step(.25);
+        check(manual.metersPerSecond()==0 && manual.longitude==manualLon && manual.routeGeneration()==manualGeneration,
+            "Camera stop clears manual velocity without fabricating a takeover");
         MotionEngine e=at(0,0);e.walkTo(1,0);e.step(.25);e.pause();
         double lat=e.latitude,lon=e.longitude;e.step(.25);
         check(!e.walking&&!e.enabled&&lat==e.latitude&&lon==e.longitude,"Pause cancels route and movement");

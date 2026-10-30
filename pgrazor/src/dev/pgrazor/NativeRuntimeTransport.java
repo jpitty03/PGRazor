@@ -32,9 +32,9 @@ public final class NativeRuntimeTransport {
     private static final int MAX_BYTES = 1048576, MAX_CALLS = 128;
 
     // Wire constants, compiled identically in runtime_transport.h.
-    private static final int MAGIC_SNAPSHOT = 0x53524750, MAGIC_EVENTS = 0x45524750, FRAME_VERSION = 1, FLAG_INERT = 1;
+    private static final int MAGIC_SNAPSHOT = 0x53524750, MAGIC_EVENTS = 0x45524750, FRAME_VERSION = 4, FLAG_INERT = 1;
     private static final int OFF_MAGIC = 0, OFF_VERSION = 4, OFF_FRAME_SIZE = 8, OFF_FLAGS = 12, OFF_SEQ = 16,
-        OFF_WALL = 24, OFF_BOOLS = 32, OFF_INTS = 72, OFF_DOUBLES = 112, OFF_PULSES = 128, OFF_STRINGS = 152;
+        OFF_WALL = 24, OFF_BOOLS = 32, OFF_INTS = 80, OFF_DOUBLES = 120, OFF_PULSES = 136, OFF_STRINGS = 160;
     private static final int EVENT_HEADER = 32, ACTION_COUNT = 59;
 
     // Legacy translated.js reader order, split by compiled type group. Indices here equal the native field ids.
@@ -46,7 +46,7 @@ public final class NativeRuntimeTransport {
         "ivDisplayAllowed", "ivOwnedEnabled", "mapPoiAllowed", "mapTapAllowed", "quickBallAllowed",
         "quickSpinAllowed", "quickSummaryAllowed", "rocketAllowed", "spawnAllowed", "spawnBooster",
         "throwAllowed", "throwAlwaysHit", "throwAlwaysHitReady", "throwAr", "throwArReady", "throwCurve",
-        "transferKeepAll", "vgpAllowed", "vgpEnabled", "vgpMapVisible"
+        "transferKeepAll", "vgpAllowed", "vgpEnabled", "vgpMapVisible", "eventBoxesAllowed"
     };
     private static final String[] INT_READERS = {
         "battleOptions", "buddyBerry", "giftOptions", "itemCatalogMode", "mapTapEpoch", "mapTapMode",

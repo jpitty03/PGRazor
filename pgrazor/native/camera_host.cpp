@@ -145,6 +145,7 @@ struct HostState {
   uint32_t threads_count = 0;
   ThreadEntry threads[PGR_CH_THREADS_MAX] = {};
   uint64_t owner_tid = 0;
+  uint64_t observed_generation = 0;
 
   uint32_t sample_count = 0;
   uint32_t sample_attempts = 0;
@@ -527,7 +528,10 @@ void emit_transport_heading(double yaw_degrees, int32_t camera_id,
       map_visible ? 1 : 0,
       static_cast<int64_t>(std::floor(time_ms)),
   };
-  if(!revoked()&&transport_current()&&remaining_lease_ms(fallback_now_ms()))transport_result(rt->emit(kActionUpdateCameraHeadingAt, scalars, 4, nullptr, 0));
+  if(!revoked()&&transport_current()&&remaining_lease_ms(fallback_now_ms())){
+    int rc=rt->emit(kActionUpdateCameraHeadingAt, scalars, 4, nullptr, 0);
+    transport_result(rc);
+  }
 }
 
 void sync_transport_demand(double now) {
@@ -1102,7 +1106,7 @@ const char *map_sampler_fault_reason(uint32_t code) {
   }
 }
 
-uint64_t executing_generation(uint64_t tid);
+uint64_t idle_getter_generation(uint64_t tid);
 void execute_sample_locked(uint64_t tid, void *rig_receiver,
                            void *returned_camera, bool is_continuous_call) {
   if (!g_state.active || !g_state.ready || !g_state.sample_camera ||
@@ -1116,9 +1120,8 @@ void execute_sample_locked(uint64_t tid, void *rig_receiver,
 
   uint32_t active_depth = total_active_depth();
   if (g_state.continuous) {
-    // API48/3 proves this getter is inside the real original ExecuteTasks;
-    // post-original subscriber phases never create that proof themselves.
-    if(!executing_generation(tid))return;
+    // Observe the natural getter between ExecuteTasks calls on its proven owner.
+    if(!idle_getter_generation(tid))return;
     if (g_state.in_subscriber_pulse) return;
     if (g_state.owner_tid != tid || !rig_receiver) return;
   } else {
@@ -1153,7 +1156,8 @@ void execute_sample_locked(uint64_t tid, void *rig_receiver,
                                                 std::memory_order_acq_rel)) {
     return;
   }
-  const uint64_t sample_generation=g_state.continuous?executing_generation(tid):0;
+  const uint64_t sample_generation=g_state.continuous?idle_getter_generation(tid):0;
+  if(g_state.continuous&&!sample_generation){g_state.sampling.store(0,std::memory_order_release);return;}
   g_state.sampling_tid = tid;
   g_state.sample_attempts++;
   if (!g_state.has_sample_started) {
@@ -1186,7 +1190,7 @@ void execute_sample_locked(uint64_t tid, void *rig_receiver,
       double sample_time =
           (g_state.cfg.clock_fn != nullptr) ? now : out.time_ms;
 
-      if(revoked()||!transport_current()||!remaining_lease_ms(fallback_now_ms())||executing_generation(tid)!=sample_generation){g_state.sampling.store(0,std::memory_order_release);g_state.latest_sample.valid=false;return;}
+      if(revoked()||!transport_current()||!remaining_lease_ms(fallback_now_ms())||idle_getter_generation(tid)!=sample_generation){g_state.sampling.store(0,std::memory_order_release);g_state.latest_sample.valid=false;return;}
       if (rc == PGR_CS_SAMPLE && out.status == PGR_CS_SAMPLE) {
         if (!revoked() && g_state.active &&
             g_state.sample_error[0] == '\0') {
@@ -1282,7 +1286,7 @@ void execute_sample_locked(uint64_t tid, void *rig_receiver,
     copy_str(prev, sizeof(prev), stage);
     snprintf(stage, sizeof(stage), "%s:thread-check", prev);
     if (!g_state.active || revoked() ||
-        (g_state.continuous&&(!transport_current()||!remaining_lease_ms(fallback_now_ms())||executing_generation(tid)!=sample_generation)) ||
+        (g_state.continuous&&(!transport_current()||!remaining_lease_ms(fallback_now_ms())||idle_getter_generation(tid)!=sample_generation)) ||
         g_state.sample_error[0] != '\0') {
       probe_reason = "sampling-cancelled";
       return false;
@@ -1621,7 +1625,7 @@ void execute_sample_locked(uint64_t tid, void *rig_receiver,
 #endif
   }
 
-  if (g_state.sample_error[0] == '\0' && !revoked() && g_state.active && (!g_state.continuous||(transport_current()&&remaining_lease_ms(fallback_now_ms())&&executing_generation(tid)==sample_generation))) {
+  if (g_state.sample_error[0] == '\0' && !revoked() && g_state.active && (!g_state.continuous||(transport_current()&&remaining_lease_ms(fallback_now_ms())&&idle_getter_generation(tid)==sample_generation))) {
     if (unavail_reason != nullptr) {
       if (g_state.continuous) {
         g_state.latest_sample.valid = false;
@@ -1659,21 +1663,34 @@ void execute_sample_locked(uint64_t tid, void *rig_receiver,
   }
 }
 
-uint64_t executing_generation(uint64_t tid) {
+uint64_t idle_getter_generation(uint64_t tid) {
  const PgrUnitySchedulerApi3 *scheduler=nullptr;
 #if !defined(PGR_CAMERA_HOST_STANDALONE_TEST)
  scheduler=static_cast<const PgrUnitySchedulerApi3*>(pgrazor_unity_scheduler_api(3));
 #else
  auto core=resolve_native_api();if(core&&core->query_feature)scheduler=static_cast<const PgrUnitySchedulerApi3*>(core->query_feature(48,3));
 #endif
- return scheduler&&scheduler->version==3&&scheduler->size==sizeof(*scheduler)&&scheduler->executing_generation?scheduler->executing_generation(tid):0;
+ // Only an actually observed getter on the proven attached Unity owner may
+ // sample. ExecuteTasks and this host's subscriber work are excluded, matching
+ // the original camera boundary; a prior validated pulse binds the generation.
+ if(!scheduler||scheduler->version!=3||scheduler->size!=sizeof(*scheduler)||
+    !scheduler->snapshot||!scheduler->valid||!scheduler->executing_generation||
+    !tid||tid!=current_tid()||tid!=g_state.owner_tid||g_state.in_subscriber_pulse||
+    total_active_depth()!=0||scheduler->executing_generation(tid)!=0)return 0;
+ auto thread=reinterpret_cast<Il2CppThreadCurrentFn>(g_state.cfg.thread_current);
+ if(!thread||!thread())return 0;
+ PgrUnitySchedulerSnapshot snapshot{};
+ if(scheduler->snapshot(&snapshot)!=PGR_US_OK||!snapshot.installed||snapshot.poisoned||
+    snapshot.owner_tid<=0||uint64_t(snapshot.owner_tid)!=tid||!snapshot.generation||
+    snapshot.generation!=g_state.observed_generation||scheduler->valid(snapshot.generation)!=1)return 0;
+ return snapshot.generation;
 }
 void *hook_get_main_camera(void *rig,const void *method_info) {
   MainCameraGetterFn original=g_state.orig_getter.load(std::memory_order_acquire);
   if(!original)__builtin_trap();
   StateGuard state_guard;
   if(!state_guard.entered)return original(rig,method_info);
-  const uint64_t tid=current_tid(), generation=executing_generation(tid);
+  const uint64_t tid=current_tid(), generation=idle_getter_generation(tid);
   const bool eligible=g_state.active&&g_state.ready&&g_state.continuous&&!revoked()&&
     !g_state.sampling.load()&&!g_state.sample_error[0]&&!g_state.overflow&&!tls_getter_depth&&
     !g_state.in_subscriber_pulse&&generation&&g_state.matches>=PGR_CH_MIN_MATCHES&&
@@ -1688,7 +1705,7 @@ void *hook_get_main_camera(void *rig,const void *method_info) {
   roots.self=make(rig,1);if(!roots.self)return original(rig,method_info);
   void *returned=original(get(roots.self),method_info);
   if(returned){roots.camera=make(returned,1);if(!roots.camera)return returned;}
-  if(!revoked()&&executing_generation(tid)==generation)execute_sample_locked(tid,get(roots.self),roots.camera?get(roots.camera):nullptr,true);
+  if(!revoked()&&idle_getter_generation(tid)==generation)execute_sample_locked(tid,get(roots.self),roots.camera?get(roots.camera):nullptr,true);
   // Both objects stay pinned across41 allocation and cleanup; the original
   // receiver and MethodInfo were forwarded exactly once, including exceptions.
   return roots.camera?get(roots.camera):returned;
@@ -2101,6 +2118,7 @@ void reset_session_state(double now, bool clear_events) {
   g_state.threads_count = 0;
   memset(g_state.threads, 0, sizeof(g_state.threads));
   g_state.owner_tid = 0;
+  g_state.observed_generation = 0;
 
   g_state.sample_count = 0;
   g_state.sample_attempts = 0;
@@ -2401,6 +2419,7 @@ void api_on_unity_begin(void *ctx, const PgrUnityPulse *pulse) {
   (void)ctx;
   StateGuard guard;if(!guard.entered)return;
   if(!valid_pulse(pulse))return;
+  g_state.observed_generation=pulse->generation;
   struct SubscriberGuard{bool previous;SubscriberGuard():previous(g_state.in_subscriber_pulse){g_state.in_subscriber_pulse=true;}~SubscriberGuard(){g_state.in_subscriber_pulse=previous;}} subscriber_guard;
   uint64_t tid =
       (pulse != nullptr && pulse->tid > 0)
@@ -2450,6 +2469,7 @@ void api_on_unity_end(void *ctx, const PgrUnityPulse *pulse) {
     }
     sync_transport_demand(now);
     poll_and_maintain(now, false);
+
   }
 }
 

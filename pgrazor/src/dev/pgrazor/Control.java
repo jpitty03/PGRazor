@@ -21,6 +21,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /** Module interface shared by the standalone preview and an instrumented host. */
 public final class Control {
     private static Application hostApplication;
+    public static boolean eventBoxesAllowed() {
+        Application app=hostApplication;
+        return app!=null && hostLive() && active() && !catchScreenVisible()
+            && dev.pgrazor.events.EventSettings.boxCollectorEnabled(app);
+    }
     public static String accountCommand(){return AccountProfiles.command();}
     public static String[] accountCommandSnapshot(){return AccountProfiles.commandSnapshot();}
     public static boolean accountManagementAllowed(){return foreground && backendReady && connected();}
@@ -637,7 +642,7 @@ public final class Control {
             if (cameraRelative()) stopManualMotion();
         }
     }
-    private static void stopManualMotion() { synchronized (engine) { if (!engine.walking) engine.stop(); } }
+    private static void stopManualMotion() { engine.stopManualMotion(); }
     static long beginCameraGesture() {
         synchronized (cameraHeading) {
             return cameraSteeringRequested() ? cameraHeading.beginGesture(SystemClock.elapsedRealtime()) : -1;
@@ -1033,6 +1038,12 @@ public final class Control {
         if(writer!=null) writer.flush(timeoutMillis);
     }
     public static void event(String kind, String detail) {
+        if("event-boxes".equals(kind)) {
+            boolean available=false;
+            try { available=new org.json.JSONObject(detail).optBoolean("available",false); }
+            catch(Exception ignored) {}
+            dev.pgrazor.events.EventSettings.publishBoxCollectorCapability(available);
+        }
         synchronized (logLock) {
             String line = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.US).format(new Date()) + " [" + kind + "] " + detail;
             Log.i("PGRazor", line);

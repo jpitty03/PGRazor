@@ -42,11 +42,11 @@ enum PgrRuntimeTransportInfo {
   PGR_TRANSPORT_API_VERSION     = 1,
   PGR_TRANSPORT_CONFIG_VERSION  = 1,
   PGR_TRANSPORT_SAMPLE_VERSION  = 1,
-  PGR_TRANSPORT_FRAME_VERSION   = 1,
+  PGR_TRANSPORT_FRAME_VERSION   = 4,
 
-  // Compiled schema cardinalities (exact legacy translated.js order). 39+10+2+5 scalar strings = 56 scalar
-  // readers; accountCommandSnapshot adds its String[2] pair for 57 readers total; 3 pulses; 59 actions.
-  PGR_TRANSPORT_BOOLS           = 39,
+  // Version 4 removes the experimental scan gate; scalar offsets remain unchanged.
+  // 40+10+2+5 scalar readers plus accountCommandSnapshot; 3 pulses; 59 actions.
+  PGR_TRANSPORT_BOOLS           = 40,
   PGR_TRANSPORT_INTS            = 10,
   PGR_TRANSPORT_DOUBLES         = 2,
   PGR_TRANSPORT_STRINGS         = 7,   // 5 scalar strings + accountCommandSnapshot[0] + accountCommandSnapshot[1]
@@ -83,12 +83,12 @@ enum PgrRuntimeTransportLayout {
   PGR_TRANSPORT_OFF_FLAGS      = 12,
   PGR_TRANSPORT_OFF_SEQ        = 16,   // u64
   PGR_TRANSPORT_OFF_WALL_MS    = 24,   // u64 System.currentTimeMillis() (telemetry; native uses its own clock)
-  PGR_TRANSPORT_OFF_BOOLS      = 32,   // u8[39] (0/1)
-  PGR_TRANSPORT_OFF_INTS       = 72,   // i32[10]  (32 + 39 -> pad to 72)
-  PGR_TRANSPORT_OFF_DOUBLES    = 112,  // f64[2]  (lat, lon; NaN == "null" coord)
-  PGR_TRANSPORT_OFF_PULSES     = 128,  // u64[3]  monotonic pulse counts
-  PGR_TRANSPORT_OFF_STRINGS    = 152,  // string heap: 7 * (u32 len + len UTF-8 bytes), in reader order
-  PGR_TRANSPORT_SNAPSHOT_FIXED = 152,
+  PGR_TRANSPORT_OFF_BOOLS      = 32,   // u8[40] +8 zero padding (0/1)
+  PGR_TRANSPORT_OFF_INTS       = 80,   // i32[10]
+  PGR_TRANSPORT_OFF_DOUBLES    = 120,  // f64[2]  (lat, lon; NaN == "null" coord)
+  PGR_TRANSPORT_OFF_PULSES     = 136,  // u64[3]  monotonic pulse counts
+  PGR_TRANSPORT_OFF_STRINGS    = 160,  // string heap: 7 * (u32 len + len UTF-8 bytes), in reader order
+  PGR_TRANSPORT_SNAPSHOT_FIXED = 160,
   // Event frame header is also 32 bytes: magic,version,frame_size,count,base_seq(u64),generation(u64).
   PGR_TRANSPORT_EVENT_HEADER   = 32
 };

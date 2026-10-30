@@ -19,6 +19,7 @@ def control_shell():
     source = (ROOT / 'src/dev/pgrazor/Control.java').read_text(encoding='utf-8')
     mailbox = (ROOT / 'src/dev/pgrazor/RuntimeMailbox.java').read_text(encoding='utf-8')
     specs = re.findall(r'^\s*"(\w+):([^":]*):([^":]+)"', mailbox, re.M)
+    specs.append(('eventBoxesAllowed', '', 'boolean'))
     methods = []
     for name, params, expected_result in specs:
         actual = re.search(r'public static\s+(?:synchronized\s+)?([\w\[\]]+)\s+' + name + r'\(([^)]*)\)', source)

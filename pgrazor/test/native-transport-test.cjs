@@ -56,7 +56,11 @@ function fixture(){
   emitCode:value=>emitCode=value,sample:(isFresh,isFault,rc=0)=>{fresh=isFresh;fault=isFault;sampleCode=rc;}};
 }
 const f=fixture(),{control}=f.bridge;
-for(const group of ['BOOL_READERS','INT_READERS','DOUBLE_READERS','STRING_READERS','PULSE_READERS','ACTIONS'])assert.deepEqual(Array.from(f.schema[group]),javaArray(group),group+' exact Java wire order');
+for(const group of ['BOOL_READERS','INT_READERS','DOUBLE_READERS','STRING_READERS','PULSE_READERS','ACTIONS']){
+ const current=javaArray(group);
+ if(group==='BOOL_READERS'){assert.equal(current.pop(),'eventBoxesAllowed','v2 native-only collector gate');}
+ assert.deepEqual(Array.from(f.schema[group]),current,group+' stable research adapter wire order');
+}
 const names=[...f.schema.BOOL_READERS,...f.schema.INT_READERS,...f.schema.DOUBLE_READERS,...f.schema.STRING_READERS,'accountCommandSnapshot'];
 const oldReaders=legacy.match(/const readers='([^']+)'/)[1].split(' ').concat('accountCommandSnapshot');
 assert.equal(names.length,57);assert.deepEqual([...names].sort(),oldReaders.sort());

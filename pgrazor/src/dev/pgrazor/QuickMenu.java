@@ -32,7 +32,7 @@ public final class QuickMenu {
         void onSettings();
     }
 
-    static final int MAP = 0, WALK = 1, AUTOWALK = 2, FEEDS = 3, FAVORITES = 4, TELEPORT = 5, ACCOUNTS = 6, SETTINGS = 7;
+    static final int MAP = 0, WALK = 1, AUTOWALK = 2, FEEDS = 3, FAVORITES = 4, TELEPORT = 5, ACCOUNTS = 6, SETTINGS = 7, EVENTS = 8;
 
     private final Activity activity;
     private final Listener listener;
@@ -62,6 +62,7 @@ public final class QuickMenu {
         card.addView(row(FAVORITES, "Favorites", true, listener::onFavorites));
         card.addView(row(TELEPORT, "Teleport", true, listener::onTeleport));
         card.addView(row(ACCOUNTS, "Switch account", true, listener::onAccounts));
+        card.addView(row(EVENTS, "Events", true, () -> dev.pgrazor.events.EventPanel.showSelector(activity, Control.darkTheme())));
         card.addView(row(SETTINGS, "Settings", true, listener::onSettings));
         root.addView(card, new FrameLayout.LayoutParams(dp(196), -2));
 
@@ -147,6 +148,15 @@ public final class QuickMenu {
             float scale = Math.min(getWidth(), getHeight()) / 24f; canvas.save(); canvas.scale(scale, scale);
             paint.setColor(disabled ? muted() : ink()); paint.setStrokeCap(Paint.Cap.ROUND); paint.setStrokeJoin(Paint.Join.ROUND);
             switch (kind) {
+                case EVENTS: {
+                    paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(1.8f);
+                    canvas.drawRoundRect(4, 5, 20, 21, 2, 2, paint);
+                    canvas.drawLine(4, 10, 20, 10, paint);
+                    canvas.drawLine(8, 3, 8, 7, paint); canvas.drawLine(16, 3, 16, 7, paint);
+                    canvas.drawLine(8, 14, 10, 14, paint); canvas.drawLine(14, 14, 16, 14, paint);
+                    canvas.drawLine(8, 18, 10, 18, paint);
+                    break;
+                }
                 case MAP: {
                     paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(1.8f);
                     Path m = new Path(); m.moveTo(4, 6); m.lineTo(10, 4); m.lineTo(16, 6); m.lineTo(20, 4);

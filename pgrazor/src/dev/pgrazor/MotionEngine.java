@@ -102,6 +102,8 @@ public final class MotionEngine {
     }
     private void clearRoute() { plannedRoute=false;routeGeneration++;walking=false; route=new double[0][]; remainingLegMeters=new double[0]; visitedStops=0; looping=false; }
     public synchronized void stop() { clearRoute(); east = north = 0; }
+    /** Camera invalidation stops manual velocity without cancelling a walk or its arrival ownership. */
+    public synchronized void stopManualMotion() { east = north = 0; }
     public synchronized void pause() { enabled = false; stop(); }
     public synchronized double metersPerSecond() {
         return enabled ? speedKmh / 3.6 * (walking ? 1 : Math.hypot(east, north)) : 0;
