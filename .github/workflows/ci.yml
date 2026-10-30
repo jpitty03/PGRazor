@@ -31,6 +31,8 @@ jobs:
       - name: Install Android SDK
         shell: pwsh
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "sources;android-36"
+      - name: Prepare pinned DEX test dependencies
+        run: python -c "import sys; sys.path.insert(0, 'pgrazor'); import dex_bridges; dex_bridges.dependencies(download=True)"
       - run: python -B tools/check.py
       - name: Compile Android controls (not a playable game build)
         run: python -B pgrazor/build.py
