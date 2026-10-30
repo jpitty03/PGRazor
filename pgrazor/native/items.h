@@ -335,6 +335,11 @@ typedef struct pgrazor_items_api_v1 {
  */
 const void *pgrazor_items_api(uint32_t version);
 
+// Internal host seam: advances only after a successful full pass with no recyclable
+// candidate and no pending RPC. Unlike catalog_serial, empty unchanged polls count.
+uint64_t pgrazor_items_cleanup_serial();
+// Internal host force_poll bit 8 invalidates a retained large inventory snapshot.
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif

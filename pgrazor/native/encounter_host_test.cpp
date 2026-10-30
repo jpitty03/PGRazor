@@ -128,8 +128,8 @@ static std::vector<uint8_t> wire_out(1100000);
 static void put32(std::vector<uint8_t>& b,size_t at,uint32_t v){memcpy(b.data()+at,&v,4);}
 static void exchange(const std::vector<uint8_t>& b={}){uint32_t n=0;assert(wire->exchange(b.empty()?nullptr:b.data(),b.size(),wire_out.data(),wire_out.size(),&n)==0);assert(n>=32);}
 static void snapshot_wire(bool active,bool berries,bool map,const char *priority="701,705",const char *keep=""){
- static uint64_t seq;std::vector<uint8_t>b(180+strlen(priority)+strlen(keep));put32(b,0,PGR_TRANSPORT_SNAPSHOT_MAGIC);put32(b,4,1);put32(b,8,b.size());++seq;memcpy(b.data()+16,&seq,8);b[35]=active;b[39]=berries;b[53]=map;b[37]=1;put32(b,104,63);size_t at=152;
- for(unsigned i=0;i<7;++i){const char *v=i==2?priority:i==4?keep:"";uint32_t n=strlen(v);put32(b,at,n);at+=4;memcpy(b.data()+at,v,n);at+=n;}exchange(b);
+ static uint64_t seq;std::vector<uint8_t>b(PGR_TRANSPORT_SNAPSHOT_FIXED+PGR_TRANSPORT_STRINGS*4+strlen(priority)+strlen(keep));put32(b,0,PGR_TRANSPORT_SNAPSHOT_MAGIC);put32(b,PGR_TRANSPORT_OFF_VERSION,PGR_TRANSPORT_FRAME_VERSION);put32(b,8,b.size());++seq;memcpy(b.data()+16,&seq,8);b[35]=active;b[39]=berries;b[53]=map;b[37]=1;put32(b,PGR_TRANSPORT_OFF_INTS+8*4,63);size_t at=PGR_TRANSPORT_OFF_STRINGS;
+ for(unsigned i=0;i<PGR_TRANSPORT_STRINGS;++i){const char *v=i==2?priority:i==4?keep:"";uint32_t n=strlen(v);put32(b,at,n);at+=4;memcpy(b.data()+at,v,n);at+=n;}exchange(b);
 }
 static void install_wire(){wire=static_cast<const PgrRuntimeTransportApi*>(core->query_feature(52,1));assert(wire);PgrRuntimeTransportConfig c{1,sizeof(c),1000,256,1048576,1048576,0,0};assert(wire->install(&c)==0);}
 static std::string map_snapshot;
@@ -170,7 +170,7 @@ static int vgp_case(){
  // Native52 polling path must enforce the same restrictive generation boundary.
  snapshot_wire(true,false,false);
  // Manual branch above tests pending cancellation; polling branch is driven directly by real52 snapshot.
- auto make_vgp_frame=[&](int mask){static uint64_t seq=10;std::vector<uint8_t> f(180);put32(f,0,PGR_TRANSPORT_SNAPSHOT_MAGIC);put32(f,4,1);put32(f,8,f.size());++seq;memcpy(f.data()+16,&seq,8);f[35]=1;f[68]=1;f[69]=1;put32(f,108,mask);exchange(f);};
+ auto make_vgp_frame=[&](int mask){static uint64_t seq=10;std::vector<uint8_t> f(PGR_TRANSPORT_SNAPSHOT_FIXED+PGR_TRANSPORT_STRINGS*4);put32(f,0,PGR_TRANSPORT_SNAPSHOT_MAGIC);put32(f,PGR_TRANSPORT_OFF_VERSION,PGR_TRANSPORT_FRAME_VERSION);put32(f,8,f.size());++seq;memcpy(f.data()+16,&seq,8);f[35]=1;f[68]=1;f[69]=1;put32(f,PGR_TRANSPORT_OFF_INTS+9*4,mask);exchange(f);};
  make_vgp_frame(3);assert(host->tick(gettid())==0);generation=u::api->generation();
  make_vgp_frame(2);assert(host->tick(gettid())==0);assert(u::api->generation()>generation);
  exchange();

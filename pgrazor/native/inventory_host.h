@@ -38,4 +38,11 @@ static_assert(sizeof(PgrInventoryHostConfig)==32,"config");
 static_assert(sizeof(PgrInventoryHostOptions)==64,"options");
 static_assert(sizeof(PgrInventoryHostSample)==48,"sample");
 static_assert(sizeof(PgrInventoryHostApi)==96,"API");
+// Separate v2 table preserves the exact v1 layout. Tickets coalesce safely: a
+// subsequent successful empty pass satisfies all earlier cleanup requests.
+struct PgrInventoryCleanupApi {
+ uint32_t version,size;
+ uint64_t (*request)(); // Unity owner thread only; zero means unavailable; otherwise an opaque completion ticket
+ int (*pending)(uint64_t); // 1 pending, 0 complete or unavailable
+};
 extern "C" const void *pgrazor_inventory_host_api(uint32_t);

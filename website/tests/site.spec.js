@@ -82,7 +82,7 @@ test('cooldown trigger and safe groups expand', async ({ page }) => {
 test('experimental prerelease link is present and distinct from the stable download', async ({ page }) => {
   await page.goto('./');
   const experimental = page.locator(
-    'a[href="https://github.com/jpitty03/PGRazor/releases/tag/v0.1.7-experimental.1"]'
+    'a[href="https://github.com/jpitty03/PGRazor/releases/tag/v0.1.7-experimental.2"]'
   );
   await expect(experimental).toHaveCount(1);
   await expect(experimental).toBeVisible();

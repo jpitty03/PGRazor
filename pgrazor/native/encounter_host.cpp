@@ -142,6 +142,7 @@ static uint64_t g_last_map_poi_ms = 0;
 static uint64_t g_vgp_epoch = 1;
 static uint64_t g_transfer_epoch = 1;
 static uint64_t g_vgp_cleanup_until_ms = 0;
+static uint64_t g_vgp_cleanup_ticket = 0;
 static int32_t g_last_vgp_status = -1;
 static char g_last_berry_prio_str[128] = {};
 static char g_last_keep_species_str[10000] = {};
@@ -990,6 +991,10 @@ static void tick_vgp_controller(uint64_t tid, uint64_t now_ms, uint64_t lease_ms
   in.allowed_ms = (g_opts.vgp_allowed && g_opts.vgp_enabled && lease_ms > 0)
                       ? lease_ms
                       : 0;
+  const auto *cleanup = static_cast<const PgrInventoryCleanupApi *>(pgrazor_inventory_host_api(2));
+  if (!g_opts.item_transfer_enabled || !g_opts.item_access_allowed ||
+      !cleanup || !cleanup->pending || !cleanup->pending(g_vgp_cleanup_ticket))
+    g_vgp_cleanup_until_ms = 0;
   in.cleanup_ms = g_vgp_cleanup_until_ms>now_ms ? g_vgp_cleanup_until_ms-now_ms : 0;
   if(in.cleanup_ms>20000)in.cleanup_ms=20000;
   in.generation = g_vgc->generation();
@@ -1053,8 +1058,10 @@ static void tick_vgp_controller(uint64_t tid, uint64_t now_ms, uint64_t lease_ms
 
   }
   if (out.flags & PGR_VGC_EV_ITEM_CLEANUP) {
-    g_vgp_cleanup_until_ms = now_ms + 20000ULL;
-    notify_inventory_poll();
+    const auto *cleanup = static_cast<const PgrInventoryCleanupApi *>(pgrazor_inventory_host_api(2));
+    g_vgp_cleanup_ticket = g_opts.item_transfer_enabled && g_opts.item_access_allowed &&
+        cleanup && cleanup->request ? cleanup->request() : 0;
+    g_vgp_cleanup_until_ms = g_vgp_cleanup_ticket ? now_ms + 20000ULL : 0;
   }
   if (out.flags & PGR_VGC_EV_TRANSFER_CANCEL) {
     clear_active_vgp_transfer();

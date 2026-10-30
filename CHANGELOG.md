@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## v0.1.7-experimental.2
+
+[Full release notes](docs/releases/v0.1.7-experimental.2.md)
+
+- Fix Rocket, Gym, Raid, and Dynamax battle automation observing natural game callbacks.
+- Resume VGP after confirmed inventory cleanup; query selected item counts and process large cleanup batches incrementally.
+- Allow other boxes to collect after a missing encounter-animation callback while preserving late-screen suppression.
+
+- Keep nearby autowalk's default at 50 stops while allowing counts up to all currently loaded unique PokéStops and Gyms. The displayed maximum follows nearby availability; leaving the count blank selects All.
+
 ## v0.1.7-experimental.1
 
 [Full release notes](docs/releases/v0.1.7-experimental.1.md)

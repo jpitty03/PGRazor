@@ -20,8 +20,30 @@ void *gc_new(void *obj,int){if(!obj)return nullptr;handles[++next_root]=obj;retu
 void *gc_get(void *root){auto i=handles.find(reinterpret_cast<uintptr_t>(root));return i==handles.end()?nullptr:i->second;}
 void gc_free(void *root){assert(handles.erase(reinterpret_cast<uintptr_t>(root))==1);}
 void *object_class(void *obj){return obj?static_cast<Object*>(obj)->klass:nullptr;}void *unbox(void *o){return static_cast<Object*>(o)->bytes;}
-void *invoke(void *method,void*,void**,void **exc){*exc=nullptr;++calls;if(method==&handle_tokens[H_IL_FIND_M])return nullptr;assert(false&&"unexpected managed mutation");return nullptr;}
-void field_get(void*,void*,void *out){*static_cast<void**>(out)=nullptr;}void field_set(void*,void*,void*){assert(false);}
+Object item_service{},item_bag{},item_list{},item_row{},item_expiry{},item_callback{},item_prediction{},item_proto{},item_response{},item_box{};
+bool item_world=false;int item_count=0,item_quantity=50,item_recycles=0,item_lists=0,item_gets=0;
+void *invoke(void *method,void*,void**,void **exc){
+ *exc=nullptr;++calls;if(method==&handle_tokens[H_IL_FIND_M])return nullptr;
+ if(item_world){
+  if(method==&handle_tokens[H_IT_LIST_M]){++item_lists;return &item_list;}
+  if(method==&handle_tokens[H_IT_COUNT_M]||method==&handle_tokens[H_IT_QUANTITY_M]){int v=method==&handle_tokens[H_IT_COUNT_M]?item_count:item_quantity;memcpy(item_box.bytes,&v,4);return &item_box;}
+  if(method==&handle_tokens[H_IT_GET_M]){++item_gets;return &item_row;}
+  if(method==&handle_tokens[H_IT_EXPIRING_M])return &item_expiry;
+  if(method==&handle_tokens[H_IT_RECYCLE_M]){++item_recycles;return nullptr;}
+  if(method==&handle_tokens[H_IT_PROTO_M])return &item_proto;
+ }
+ assert(false&&"unexpected managed mutation");return nullptr;
+}
+void field_get(void*,void *field,void *out){
+ if(item_world){
+  if(field==&handle_tokens[H_IT_BAG]||field==&handle_tokens[H_IT_CB_BAG]){*static_cast<void**>(out)=&item_bag;return;}
+  if(field==&handle_tokens[H_IT_PREDICTION]){*static_cast<void**>(out)=&item_prediction;return;}
+  if(field==&handle_tokens[H_IT_RECYCLABLE]){*static_cast<uint8_t*>(out)=1;return;}
+  int v=field==&handle_tokens[H_IT_ID]||field==&handle_tokens[H_IT_PROTO_ID]?701:field==&handle_tokens[H_IT_STATUS]?1:item_quantity;
+  *static_cast<int*>(out)=v;return;
+ }
+ *static_cast<void**>(out)=nullptr;
+}void field_set(void*,void*,void*){assert(false);}
 void static_get(void*,void *out){*static_cast<void**>(out)=nullptr;}
 void *type(void *p){return p;}void *type_obj(void*){return &map_type;}void class_init(void*){}void *reflection(void*,void*){return nullptr;}
 void *virtual_method(void*,void *m){return m;}int string_length(void*){return 0;}const uint16_t *string_chars(void*){return nullptr;}
@@ -36,19 +58,22 @@ __attribute__((noinline)) void feed_result(void*,void*,void*){PAD;++original_cal
 }
 int inventory_run(int argc,char **argv){
  assert(argc==2);void *lib=dlopen(argv[1],RTLD_NOW|RTLD_LOCAL);if(!lib)puts(dlerror());assert(lib);auto get=reinterpret_cast<const void*(*)(uint32_t)>(dlsym(lib,"pgrazor_native_api"));assert(get);
- auto core=static_cast<const pgrazor_native_api_v2*>(get(2));auto api=static_cast<const PgrInventoryHostApi*>(core->query_feature(65,1));assert(api&&api->size==96&&!core->query_feature(65,2));
+ auto core=static_cast<const pgrazor_native_api_v2*>(get(2));auto api=static_cast<const PgrInventoryHostApi*>(core->query_feature(65,1));assert(api&&api->size==96&&!core->query_feature(65,3));
+ auto cleanup=static_cast<const PgrInventoryCleanupApi*>(core->query_feature(65,2));
+ assert(cleanup&&cleanup->version==2&&cleanup->size==sizeof(*cleanup));
+ assert(cleanup->request()==0&&!cleanup->pending(1));
  PgrSharedMetadataOutput md{};md.version=2;md.size=sizeof(md);for(unsigned i=0;i<kClassCount;++i)md.classes[i]=&class_tokens[i];for(unsigned i=0;i<kOptClassCount;++i)md.opt_classes[i]=&class_tokens[i+7];
  for(unsigned i=0;i<PGR_OPT_HANDLE_COUNT;++i)md.opt_handles[i]=&handle_tokens[i];
  md.optional[OPT_ITEMS]=md.optional[OPT_ITEMS_LOOKUP]=md.optional[OPT_BUDDY]=md.optional[OPT_INCUBATOR]=1;
  md.opt_handles[H_IT_INIT_CODE]=reinterpret_cast<void*>(init);md.opt_handles[H_IT_LIST_CODE]=reinterpret_cast<void*>(list);md.opt_handles[H_IT_RECYCLE_CODE]=reinterpret_cast<void*>(recycle);
  md.opt_handles[H_IT_RESULT_CODE]=reinterpret_cast<void*>(result);md.opt_handles[H_IT_ERROR_CODE]=reinterpret_cast<void*>(error);md.opt_handles[H_BD_M_FEED_CODE]=reinterpret_cast<void*>(feed);md.opt_handles[H_BD_M_RESULT_CODE]=reinterpret_cast<void*>(feed_result);
- md.methods[5]=&class_tokens[159];md.opt_ints[I_INC_UNLIMITED]=901;md.opt_ints[I_INC_SPECIAL]=1;
+ md.methods[5]=&class_tokens[159];md.opt_ints[I_ITEMS_SUCCESS]=1;md.opt_ints[I_INC_UNLIMITED]=901;md.opt_ints[I_INC_SPECIAL]=1;
  PgrInventoryRuntime rt{};
  rt.boot.runtime_invoke=reinterpret_cast<void*>(invoke);rt.boot.thread_current=reinterpret_cast<void*>(thread_current);rt.boot.gchandle_new=reinterpret_cast<void*>(gc_new);rt.boot.gchandle_get_target=reinterpret_cast<void*>(gc_get);rt.boot.gchandle_free=reinterpret_cast<void*>(gc_free);
  rt.boot.object_get_class=reinterpret_cast<void*>(object_class);rt.boot.object_unbox=reinterpret_cast<void*>(unbox);rt.boot.field_get_value=reinterpret_cast<void*>(field_get);rt.boot.field_set_value=reinterpret_cast<void*>(field_set);rt.boot.field_static_get_value=reinterpret_cast<void*>(static_get);rt.boot.string_chars=reinterpret_cast<void*>(string_chars);
  rt.string_length=reinterpret_cast<void*>(string_length);rt.object_get_virtual_method=reinterpret_cast<void*>(virtual_method);rt.class_get_type=reinterpret_cast<void*>(type);rt.type_get_object=reinterpret_cast<void*>(type_obj);rt.runtime_class_init=reinterpret_cast<void*>(class_init);rt.method_get_object=reinterpret_cast<void*>(reflection);
  PgrInventoryHostConfig cfg{1,sizeof(cfg),0,0,&md,&rt};auto bad=cfg;bad.flags=2;assert(api->configure(&bad)==-2);assert(api->configure(&cfg)==0);
- PgrInventoryHostOptions p{};p.version=1;p.size=sizeof(p);p.lease_ms=1500;p.item_rules="701:10;705:20";assert(api->update(&p)==0);
+ PgrInventoryHostOptions p{};p.version=1;p.size=sizeof(p);p.lease_ms=1500;p.item_rules="701:10;705:20";assert(api->update(&p)==0);assert(cleanup->request()==0&&!cleanup->pending(1));
  assert(api->tick(gettid()+1)==-5);assert(api->tick(gettid())==0);assert(api->tick(gettid())==0);assert(api->tick(gettid())==0);
  PgrInventoryHostSample s{};assert(api->sample(&s)==0);assert((s.capabilities&7)==7&&!s.ready&&s.roots==0);assert(calls==0);
  // Real7 Dobby-installed leaf sites still chain their manual originals exactly once.
@@ -60,6 +85,32 @@ int inventory_run(int argc,char **argv){
  // WAIT_MAP is specifically the zero-lease path, not an absent-map diagnostic.
  auto invalid=p;invalid.lease_ms=2501;assert(api->update(&invalid)==-2);assert(api->tick(gettid())==0);
  bool waiting=false;PgrInventoryHostEvent e{};while(api->next_event(&e)==0)if(strstr(e.json,"Waiting for the map"))waiting=true;assert(waiting);
+ // Actual65 cleanup tickets drive actual14, including unchanged empty passes and pending RPCs.
+ item_world=true;item_service.klass=const_cast<void*>(md.opt_classes[OC_ISERVICE]);item_bag.klass=const_cast<void*>(md.opt_classes[OC_IBAG]);
+ item_row.klass=const_cast<void*>(md.opt_handles[H_IT_DK]);item_callback.klass=const_cast<void*>(md.opt_handles[H_IT_CB]);
+ item_box.klass=const_cast<void*>(md.opt_classes[OC_INT]);item_response.klass=const_cast<void*>(md.opt_classes[OC_IRESPONSE]);
+ p.incubator_enabled=p.incubator_allowed=0;p.item_enabled=p.item_allowed=1;p.lease_ms=2500;
+ assert(api->update(&p)==0);
+ decltype(&list) volatile list_call=&list;list_call(&item_service,nullptr,0,nullptr,nullptr,nullptr,nullptr);
+ item_quantity=0;auto empty=cleanup->request();assert(empty&&cleanup->pending(empty));
+ assert(api->tick(gettid())==0);assert(!cleanup->pending(empty)&&item_lists==0&&!item_recycles);
+ // A second unchanged empty pass must independently satisfy its new ticket.
+ auto empty_again=cleanup->request();assert(empty_again>empty&&cleanup->pending(empty_again));
+ assert(api->tick(gettid())==0);assert(!cleanup->pending(empty_again)&&item_lists==0);
+ uint64_t foreign_ticket=99;std::thread request_foreign([&]{foreign_ticket=cleanup->request();});request_foreign.join();assert(foreign_ticket==0);
+ item_count=1;item_quantity=50;auto delayed=cleanup->request();assert(delayed&&api->tick(gettid())==0);
+ assert(item_recycles==1&&cleanup->pending(delayed));
+ for(int i=0;i<4;++i){assert(api->tick(gettid())==0);assert(cleanup->pending(delayed)&&item_recycles==1);}
+ decltype(&result) volatile result_call=&result;item_quantity=10;result_call(&item_callback,&item_response,nullptr);
+ api->request_item_poll();assert(api->tick(gettid())==0);assert(!cleanup->pending(delayed)&&item_recycles==1);
+ // Automatic no-work cleanup checks only selected counts, regardless of total inventory size.
+ item_count=257;int lists_before=item_lists,gets_before=item_gets;auto large=cleanup->request();
+ assert(large&&cleanup->pending(large));assert(api->tick(gettid())==0);
+ assert(!cleanup->pending(large)&&item_gets==gets_before&&item_lists==lists_before&&item_recycles==1);
+ // The explicit inventory settings catalog still enumerates the full bag.
+ p.item_catalog=2;assert(api->update(&p)==0);api->request_item_poll();
+ for(int frame=0;frame<300&&item_gets-gets_before<257;++frame){int before=item_gets;assert(api->tick(gettid())==0);assert(item_gets-before<=64);}
+ assert(item_gets-gets_before==257&&item_lists-lists_before==1);
  std::thread foreign([&]{assert(api->stop()==0);assert(api->tick(gettid())==-5);});foreign.join();assert(api->tick(gettid())==0);assert(api->sample(&s)==0&&s.stopping&&!s.roots);assert(handles.empty());
  puts("PASS actual65 + real14/12/9 installs/manual originals/disabled gates/native incubation missing-map/invalid policy/foreign stop/root cleanup. Synthetic56 metadata; social flow covered in child process.");return 0;
 }

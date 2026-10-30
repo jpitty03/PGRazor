@@ -63,6 +63,7 @@ static bool    g_sync_result = false, g_bad_free = false;
 static int32_t g_result_status = 1;     // success literal == 1
 static int32_t g_current = 50;          // live GetItemCount for the over-cap item
 static int     g_roots = 0, g_recycle_calls = 0, g_delegates = 0;
+static int32_t g_last_recycle_id = 0, g_last_recycle_amount = 0;
 static int     g_quantity_action = 0;   // 0 none, 1 reentrant clear, 2 reentrant disable, 3 new-epoch tick
 static int g_bag_allocations = 0, g_cancel_bag_allocation = 0;
 static bool g_cancel_service_allocation = false;
@@ -83,9 +84,10 @@ static Resp  g_response{&c_response, 1};
 static Box   g_box;
 
 // Fake inventory: a recyclable over-cap item (101) and a small recyclable item (202).
-static Data g_inv[2] = { {&c_data, 101, 50, 1}, {&c_data, 202, 5, 1} };
+static Data g_inv[512] = { {&c_data, 101, 50, 1}, {&c_data, 202, 5, 1} };
 static int32_t g_list_count = 2;
 static int g_list_calls = 0, g_get_calls = 0, g_quantity_calls = 0;
+static int32_t g_quantity_ids[4096]{};
 
 // ---- fake il2cpp primitives ------------------------------------------------------
 static void *obj_class(void *o) { return o ? *static_cast<void **>(o) : nullptr; }
@@ -130,7 +132,8 @@ __attribute__((noinline)) void *target_list(void *self, void *p0, int32_t p1, vo
     PGR_NOP8(); (void)self; (void)p0; (void)p1; (void)p2; (void)p3; (void)p4; (void)method; return &g_list;
 }
 __attribute__((noinline)) void *target_recycle(void *self, void *data, int32_t count, void *expiry, void *method) {
-    PGR_NOP8(); ++g_recycle_calls; (void)self; (void)data; (void)count; (void)expiry; (void)method; return &g_promise;
+    PGR_NOP8(); ++g_recycle_calls; g_last_recycle_id = data ? static_cast<Data*>(data)->id : 0;
+    g_last_recycle_amount = count; (void)self; (void)expiry; (void)method; return &g_promise;
 }
 __attribute__((noinline)) void target_result(void *self, void *resp, void *method) {
     PGR_NOP8(); (void)self; (void)resp; (void)method;
@@ -171,9 +174,10 @@ static void *runtime_invoke(void *method, void *obj, void **params, void **exc) 
     if (method == &m_get) {
         ++g_get_calls;
         int32_t i = params ? *static_cast<int32_t *>(params[0]) : 0;
-        return (i >= 0 && i < 2) ? static_cast<void *>(&g_inv[i]) : nullptr;
+        return (i >= 0 && i < g_list_count) ? static_cast<void *>(&g_inv[i]) : nullptr;
     }
     if (method == &m_quantity) {
+        if (g_quantity_calls < 4096) g_quantity_ids[g_quantity_calls] = params ? *static_cast<int32_t*>(params[0]) : 0;
         ++g_quantity_calls;
         if (g_quantity_action) {
             int a = g_quantity_action; g_quantity_action = 0;
@@ -281,7 +285,7 @@ static int scenario(int which) {
     case 1: { // live-quantity recheck: list says 50 but the bag already has <= cap -> no recycle
         g_sync_result = true; g_current = 8;               // GetItemCount(101) == 8 <= cap 10
         pgrazor_items_rules_v1 r = make_rules(true, 1);
-        g_api->tick(&r, 0, 2500, tid); pump_events();
+        g_api->tick(&r, 2, 2500, tid); pump_events();
         if (ev_req != 0 || g_recycle_calls != 0) return 1;
         pgrazor_items_sample_v1 s = snap();
         if (s.has_candidate != 1) return 2;                // candidate found, but recycle declined
@@ -443,7 +447,7 @@ static int scenario(int which) {
     case 15: { // cancellation from the final pending-bag allocation must precede the RPC
         g_cancel_bag_allocation = 2; // enumeration bag, then pending bag
         auto r = make_rules(true, 1);
-        g_api->tick(&r, 0, 2500, tid); pump_events();
+        g_api->tick(&r, 2, 2500, tid); pump_events();
         if (g_bag_allocations != 2) return 1;
         if (g_recycle_calls || ev_req || ev_con) return 2;
         if (g_roots || g_bad_free) return 3;
@@ -494,6 +498,160 @@ static int scenario(int which) {
         if (snap().catalog_serial != first.catalog_serial) return 2;
         return 0;
     }
+    case 20: { // large catalog: bounded slices, one managed list, no per-frame restart
+        auto r = make_rules(true, 1); g_list_count = 257;
+        for (int i = 0; i < g_list_count; ++i) g_inv[i] = Data{&c_data, 1000+i, 5, 1};
+        for (int frame = 0; frame < 300 && g_get_calls < 257; ++frame) {
+            int before = g_get_calls;
+            g_api->tick(&r, 2, 2500, tid);
+            if (g_get_calls-before > 64 || g_list_calls != 1 || g_recycle_calls) return 1;
+        }
+        if (g_get_calls != 257 || snap().catalog_serial == 0 || g_roots != 3) return 2;
+        g_api->clear(tid); if (g_roots || g_bad_free) return 3;
+        return 0;
+    }
+    case 21:
+    case 23: { // delayed success/rejection resumes the large snapshot without a second list
+        auto r = make_rules(true, 1); g_list_count = 257;
+        for (int i = 0; i < g_list_count; ++i) g_inv[i] = Data{&c_data, 1000+i, 5, 1};
+        g_inv[0] = Data{&c_data, 101, 50, 1};
+        g_api->tick(&r, 0, 2500, tid);
+        if (g_list_calls != 1 || g_recycle_calls != 1 || g_get_calls != 1) return 1;
+        for (int frame = 0; frame < 5; ++frame) g_api->tick(&r, 1, 2500, tid);
+        if (g_list_calls != 1 || g_recycle_calls != 1 || g_get_calls != 1) return 2;
+        g_response.status = which == 23 ? 7 : 1;
+        call_result(&g_callback, &g_response, &m_result); pump_events();
+        if (which == 21 ? ev_con != 1 : ev_err != 1) return 3;
+        for (int frame = 0; frame < 300 && g_get_calls < 257; ++frame) {
+            int before = g_get_calls; g_api->tick(&r, 0, 2500, tid);
+            if (g_get_calls-before > 64 || g_list_calls != 1 || g_recycle_calls != 1) return 4;
+        }
+        if (g_get_calls != 257 || !snap().catalog_serial || g_roots != 3) return 5;
+        g_api->clear(tid); if (g_roots || g_bad_free) return 6;
+        return 0;
+    }
+    case 22: { // interrupted large scan restarts when cap generation changes
+        auto r = make_rules(true, 1); g_list_count = 257;
+        for (int i = 0; i < g_list_count; ++i) g_inv[i] = Data{&c_data, 1000+i, 5, 1};
+        g_api->tick(&r, 2, 2500, tid);
+        ++r.generation;
+        g_api->tick(&r, 3, 2500, tid);
+        if (g_list_calls != 2 || g_get_calls < 2 || g_get_calls > 128 || g_recycle_calls) return 1;
+        g_api->clear(tid); if (g_roots || g_bad_free) return 2;
+        return 0;
+    }
+    case 24: { // a changing managed list count invalidates the retained cursor safely
+        auto r = make_rules(true, 1); g_list_count = 257;
+        for (int i = 0; i < g_list_count; ++i) g_inv[i] = Data{&c_data, 1000+i, 5, 1};
+        g_api->tick(&r, 2, 2500, tid);int gets=g_get_calls;
+        --g_list_count;g_api->tick(&r, 2, 2500, tid);
+        if(g_get_calls!=gets||g_list_calls!=1||g_roots!=3)return 1;
+        g_api->tick(&r, 2, 2500, tid);if(g_list_calls!=2||g_get_calls<=gets)return 2;
+        g_api->clear(tid);if(g_roots||g_bad_free)return 3;return 0;
+    }
+    case 25: { // a replacement bag invalidates the list even with the same service
+        auto r = make_rules(true, 1); g_list_count = 257;
+        for (int i = 0; i < g_list_count; ++i) g_inv[i] = Data{&c_data, 1000+i, 5, 1};
+        g_api->tick(&r, 2, 2500, tid);Obj replacement{&c_bag};g_service.bag=&replacement;
+        g_api->tick(&r, 2, 2500, tid);if(g_list_calls!=2||g_recycle_calls)return 1;
+        g_api->clear(tid);if(g_roots||g_bad_free)return 2;return 0;
+    }
+    case 26: { // 128 excess types: full amounts, serial matched results, one bounded list pass
+        auto r = make_rules(true, 1); r.count = 128; g_list_count = 257;
+        g_sync_result = false; g_current = 50;
+        for (int i = 0; i < g_list_count; ++i) g_inv[i] = Data{&c_data, 1000+i, 5, 1};
+        for (int i = 0; i < 128; ++i) {
+            const int index = 2*i;
+            g_inv[index].count = 50;
+            r.entries[i].id = g_inv[index].id; r.entries[i].cap = 10;
+        }
+        int removed = 0;
+        for (int frame = 0; frame < 600 && !snap().catalog_serial; ++frame) {
+            int gets_before = g_get_calls, requests_before = ev_req;
+            g_api->tick(&r, 0, 2500, tid); pump_events();
+            if (g_get_calls-gets_before > 64 || g_list_calls != 1 ||
+                ev_req-requests_before > 1 || g_recycle_calls != ev_req) return 1;
+            if (ev_req != requests_before) {
+                int expected_index = 2*(ev_req-1);
+                if (expected_index >= 256 || last_req_id != g_inv[expected_index].id ||
+                    last_req_amount != 40 || last_req_keep != 10 ||
+                    g_last_recycle_id != last_req_id || g_last_recycle_amount != 40) return 2;
+                // A further frame before the response must neither scan nor issue another RPC.
+                int scans = g_get_calls;
+                g_api->tick(&r, 0, 2500, tid); pump_events();
+                if (ev_req != requests_before+1 || ev_con != requests_before ||
+                    g_get_calls != scans || g_recycle_calls != ev_req) return 3;
+                g_itemproto.item = last_req_id; g_response.status = 1;
+                g_inv[expected_index].count = 10;
+                call_result(&g_callback, &g_response, &m_result); pump_events();
+                if (ev_con != ev_req || last_con_id != last_req_id || last_con_amount != 40) return 4;
+                removed += last_con_amount;
+            }
+        }
+        if (ev_req != 128 || ev_con != 128 || ev_err || removed != 5120 ||
+            g_recycle_calls != 128 || g_list_calls != 1 || g_get_calls != 257 ||
+            snap().catalog_count != 257 || g_roots != 3) return 5;
+        for (int i = 0; i < 128; ++i) if (g_inv[2*i].count != 10) return 6;
+        g_api->clear(tid); if (g_roots || g_bad_free || snap().owned_roots) return 7;
+        return 0;
+    }
+    case 27: { // no selected rules: no quantity queries, descriptor list, or UI catalog
+        auto r=make_rules(true,1);r.count=0;
+        g_api->tick(&r,1,2500,tid);
+        if(g_quantity_calls||g_list_calls||g_get_calls||snap().catalog_serial||g_recycle_calls)return 1;
+        g_api->clear(tid);if(g_roots||g_bad_free)return 2;return 0;
+    }
+    case 28: { // selected below-cap ID never scans unselected bag types; explicit UI still does
+        auto r=make_rules(true,1);g_current=8;g_list_count=257;
+        for(int i=0;i<257;++i)g_inv[i]=Data{&c_data,1000+i,5,1};
+        g_api->tick(&r,0,2500,tid);
+        if(g_quantity_calls!=1||g_quantity_ids[0]!=101||g_list_calls||g_get_calls||snap().catalog_serial)return 1;
+        r.enabled=0;++r.generation;
+        for(int frame=0;frame<300&&!snap().catalog_serial;++frame)g_api->tick(&r,3,2500,tid);
+        if(g_list_calls!=1||g_get_calls!=257||snap().catalog_count!=257||g_quantity_calls!=1)return 2;
+        g_api->clear(tid);if(g_roots||g_bad_free)return 3;return 0;
+    }
+    case 29: { // many selected rules are bounded, pause off lease, and restart on new generation
+        auto r=make_rules(true,1);r.count=200;g_current=8;
+        for(int i=0;i<200;++i){r.entries[i].id=1000+i;r.entries[i].cap=10;}
+        g_api->tick(&r,0,2500,tid);int first=g_quantity_calls;
+        if(first<1||first>64||g_list_calls||g_get_calls)return 1;
+        g_api->tick(&r,0,0,tid);if(g_quantity_calls!=first)return 2;
+        ++r.generation;for(int i=0;i<200;++i)r.entries[i].id=2000+i;
+        g_api->tick(&r,0,2500,tid);
+        if(g_quantity_ids[first]!=2000)return 3;
+        for(int frame=0;frame<300&&g_quantity_calls-first<200;++frame){
+            int before=g_quantity_calls;g_api->tick(&r,0,2500,tid);
+            if(g_quantity_calls-before>64)return 4;
+        }
+        if(g_quantity_calls-first!=200||g_list_calls||g_get_calls||snap().catalog_serial||g_recycle_calls)return 5;
+        for(int i=0;i<200;++i)if(g_quantity_ids[first+i]!=2000+i)return 6;
+        g_api->clear(tid);if(g_roots||g_bad_free)return 7;return 0;
+    }
+    case 30: { // a fresh cleanup ticket rechecks already visited selected IDs
+        auto r=make_rules(true,1);r.count=200;g_current=8;
+        for(int i=0;i<200;++i){r.entries[i].id=1000+i;r.entries[i].cap=10;}
+        g_api->tick(&r,0,2500,tid);int before=g_quantity_calls;
+        g_api->tick(&r,9,2500,tid);
+        if(g_quantity_calls<=before||g_quantity_ids[before]!=1000||g_list_calls)return 1;
+        r.enabled=0;g_api->tick(&r,1,2500,tid);
+        if(g_roots!=3||g_list_calls||g_get_calls)return 2;
+        g_api->clear(tid);if(g_roots||g_bad_free)return 3;return 0;
+    }
+    case 31:
+    case 32: { // explicit berry overlay remains fresh with automatic selected/no-rule cleanup
+        auto r=make_rules(true,1);if(which==32)r.count=0;g_current=8;
+        g_api->tick(&r,5,2500,tid);
+        const int expected=which==32?5:6;const int berry_ids[]={701,703,705,706,707};
+        if(g_quantity_calls!=expected||g_list_calls||g_get_calls||g_recycle_calls)return 1;
+        for(int i=0;i<5;++i)if(g_quantity_ids[i]!=berry_ids[i])return 2;
+        if(which==31&&g_quantity_ids[5]!=101)return 3;
+        if(snap().catalog_count!=5||!snap().catalog_serial)return 4;
+        // An ordinary forced cleanup does not repeat the explicitly requested overlay reads.
+        g_api->tick(&r,1,2500,tid);
+        if(g_quantity_calls!=expected+(which==31?1:0)||g_list_calls||g_get_calls)return 5;
+        g_api->clear(tid);if(g_roots||g_bad_free)return 6;return 0;
+    }
     default: return 0;
     }
 }
@@ -523,7 +681,7 @@ int main(int argc, char **argv) {
     bad = c; bad.result_address = bad.error_address;
     if (g_api->install(&bad) != PGR_ITEMS_ERR_DUP_HOOK) { std::puts("FAIL dup"); return 5; }
 
-    const int cases = 20;
+    const int cases = 33;
     for (int i = 0; i < cases; ++i) {
         if (i == 14 && !slow) continue;
         pid_t pid = fork();

@@ -171,7 +171,10 @@ thread_local unsigned natural_result_depth=0;
 // resolves cay.bfvr (0xa4b6d4c), which tailcalls bfwa at0xa4b6d70.
 // Therefore response-stack lifetime alone cannot authorize suppression.
 struct OwnedEncounter {uintptr_t service=0,controller=0,encounter=0;uint64_t id=0,created=0;bool stale=false;};
-OwnedEncounter owned_encounters[1]{};
+// Missing animation callbacks must not hold the dispatch slot forever. Keep
+// their exact ownership quarantined separately, with a hard bound on GC roots.
+constexpr unsigned kOwnedEncounterLimit=128;
+OwnedEncounter owned_encounters[kOwnedEncounterLimit]{};
 PgrEventCollectorState counters{};
 std::mutex state_mutex,location_mutex;
 struct Location {double lat=0,lng=0;uint64_t at=0;} location;
@@ -181,7 +184,11 @@ bool owner_thread(){return owner.load()==uint64_t(gettid())&&binding.runtime.thr
 void release(uintptr_t &h){if(h){root_free(h);h=0;}}
 uintptr_t pin(void *p){if(!p||!root_new||!root_get)return 0;uintptr_t h=root_new(p,1);if(h&&root_get(h)!=p){root_free(h);return 0;}return h;}
 void remember(uint64_t id,uint64_t until){seen[seen_cursor++%128]={id,until};}
-bool seen_before(uint64_t id,uint64_t now){for(const auto &s:seen)if(s.id==id&&s.until>now)return true;return false;}
+bool seen_before(uint64_t id,uint64_t now){
+  // Quarantined IDs must survive rotation/expiry of the ordinary seen cache.
+  for(const auto &r:owned_encounters)if(r.id==id)return true;
+  for(const auto &s:seen)if(s.id==id&&s.until>now)return true;return false;
+}
 void clear_attempt(){release(controller_root);release(service_root);active_id=0;dispatched_ms=0;ambiguous=false;}
 void clear_owned(OwnedEncounter &r){release(r.service);release(r.controller);release(r.encounter);r={};}
 void revoke_owned(void *target,uint64_t id){
@@ -384,8 +391,12 @@ void pump(bool enabled,uint64_t n,bool diagnose){
     // This preserves late response suppression and prevents a retry stampede.
     reason(13);return;
   }
-  unsigned pending_count=0;for(auto &r:owned_encounters)if(r.id)++pending_count;
-  if(pending_count>=1){reason(17);return;}
+  unsigned pending_count=0;bool awaiting_animation=false;
+  for(const auto &r:owned_encounters)if(r.id){++pending_count;if(!r.stale)awaiting_animation=true;}
+  // Serialize normal animations, but let unrelated boxes progress after a lost
+  // callback. Never evict exact ownership just to make space: at the hard bound
+  // pause until a callback or explicit manual intent releases a record.
+  if(awaiting_animation||pending_count>=kOwnedEncounterLimit){reason(17);return;}
   if(!enabled){reason(1);return;}
   if(stopped.load()){reason(2);return;}
   if(n>enable_until_ms.load()){reason(3);return;}

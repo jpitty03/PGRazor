@@ -12,8 +12,8 @@ import java.util.List;
  * reads coordinates and never moves the avatar.
  */
 public final class AutoWalkPlanner {
-    /** Nearby POI planning stays bounded independently of imported GPX routes. */
-    public static final int MAX_STOPS = 50;
+    /** Safety ceiling shared with the route engine; the UI maximum is the loaded POI count. */
+    public static final int MAX_STOPS = MotionEngine.MAX_ROUTE_STOPS;
     private static final double EARTH_RADIUS_METERS = 6371008.8;
     /** POIs within this many metres of one already kept are treated as the same stop. */
     static final double DEDUPE_METERS = 1.0;

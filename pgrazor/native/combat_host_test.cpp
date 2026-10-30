@@ -680,11 +680,11 @@ void execute(){void *exc=nullptr;assert(!call_invoke(&g_execute_token,nullptr,nu
 const PgrRuntimeTransportApi *g_transport=nullptr;
 uint64_t g_snapshot_sequence=0;
 void settings(bool battle,bool rocket,bool adjacent){
-    uint8_t frame[180]{};auto u32=[&](size_t o,uint32_t v){memcpy(frame+o,&v,4);};
-    u32(0,PGR_TRANSPORT_SNAPSHOT_MAGIC);u32(4,1);u32(8,sizeof(frame));
+    uint8_t frame[PGR_TRANSPORT_SNAPSHOT_FIXED + 4 * PGR_TRANSPORT_STRINGS]{};auto u32=[&](size_t o,uint32_t v){memcpy(frame+o,&v,4);};
+    u32(0,PGR_TRANSPORT_SNAPSHOT_MAGIC);u32(4,PGR_TRANSPORT_FRAME_VERSION);u32(8,sizeof(frame));
     ++g_snapshot_sequence;memcpy(frame+16,&g_snapshot_sequence,8);
     frame[32+3]=1;frame[32+6]=battle;frame[32+26]=rocket;frame[32+7]=adjacent;frame[32+27]=adjacent;
-    u32(72,1023);u32(72+6*4,7);uint8_t out[65536];uint32_t used=0;
+    u32(PGR_TRANSPORT_OFF_INTS,1023);u32(PGR_TRANSPORT_OFF_INTS+6*4,7);uint8_t out[65536];uint32_t used=0;
     assert(g_transport->exchange(frame,sizeof(frame),out,sizeof(out),&used)==0);
 }
 struct DrainedEvent {
@@ -1112,8 +1112,13 @@ int main(int argc, char **argv) {
         sc.verify_metadata=verify_scheduler;sc.expected_owner_tid=tid;sc.exclusive_owner=1;sc.subscriber_count=1;sc.subscribers[0].end=host->on_unity_pulse;
         assert(scheduler->install(&sc)==0);const auto generation=scheduler->activate();assert(generation);
         call_target_bt_sc0_enter(&g_raid_scope,nullptr,nullptr,nullptr);
-        assert(host->sample(&s)==0&&!s.battle_scope_active&&g_live_gc_handles==0); // outside ExecuteTasks original-only
-        g_execute_mode=1;execute();assert(g_raid_fast_invokes==1);assert(host->sample(&s)==0&&s.battle_scope_active);
+        call_target_bt_enable(&g_raid_gesture,nullptr);
+        // Natural lifecycle callbacks occur outside ExecuteTasks on the same
+        // Unity owner. Capture state now, but leave attacks to the next pulse.
+        assert(scheduler->executing_generation(tid)==0);
+        assert(host->sample(&s)==0&&s.battle_scope_active&&g_live_gc_handles>0);
+        assert(g_raid_fast_invokes==0);
+        g_execute_mode=0;execute();assert(g_raid_fast_invokes==1);assert(host->sample(&s)==0&&s.battle_scope_active);
         g_execute_mode=2;execute();settings(false,false,true);
         g_execute_mode=1;execute();assert(g_raid_fast_invokes==1); // adjacent7 cannot authorize
         g_execute_mode=2;execute();g_execute_mode=3;execute();assert(host->sample(&s)==0&&!s.mini_active&&g_rk_fast_invokes==0);

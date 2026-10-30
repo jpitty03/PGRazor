@@ -228,18 +228,21 @@ bool observation_allowed(uint64_t *out_tid) {
     const uint64_t tid   = self_tid();
     if (owner == 0 || tid != owner || !thread_attached()) return false;
 
-    // Feature 48 API 3 context gate: once the Unity scheduler is installed,
-    // require either `executing_generation(tid) != 0` or an active
-    // post-original `combat_host::tick` frame (`g_in_tick`, during which leaf actions
-    // invoke `legacyFast`/`legacyCharge`/`ShieldUiClicked`).
-    if (!g_in_tick.load(std::memory_order_acquire)) {
+    // Game lifecycle/UI callbacks also run outside ExecuteTasks. Capture them on
+    // the proven attached Unity owner while the scheduler generation is live;
+    // automated actions still run from the scheduled tick. Requiring an active
+    // ExecuteTasks frame here silently loses normal battle entry/UI callbacks.
+    {
         const auto *sched3 = api_table<PgrUnitySchedulerApi3>(pgrazor_unity_scheduler_api(3));
         if (sched3 && sched3->version == 3 && sched3->size >= sizeof(PgrUnitySchedulerApi3) &&
-            sched3->snapshot && sched3->executing_generation) {
+            sched3->snapshot && sched3->valid) {
             PgrUnitySchedulerSnapshot snap{};
-            if (sched3->snapshot(&snap) == PGR_US_OK &&
-                snap.installed != 0) {
-                if (sched3->executing_generation(tid) == 0) {
+            if (sched3->snapshot(&snap) != PGR_US_OK) return false;
+            if (snap.installed != 0) {
+                // Snapshot owner is zero until the scheduler's first completed
+                // pulse; the host has already proven its owner during setup.
+                if (snap.poisoned || (snap.owner_tid && snap.owner_tid != static_cast<int32_t>(tid)) ||
+                    !snap.generation || !sched3->valid(snap.generation)) {
                     return false;
                 }
             }

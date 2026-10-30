@@ -38,7 +38,7 @@ import android.os.Looper;
 public final class AutoWalkDialog {
     private AutoWalkDialog() {}
 
-    /** Nearby POI planning keeps its own 1–50 bound, independent of the engine's larger GPX cap. */
+    /** Safety ceiling; the selectable maximum follows the loaded nearby locations. */
     private static final int NEARBY_LIMIT = AutoWalkPlanner.MAX_STOPS;
 
     /**
@@ -78,14 +78,16 @@ public final class AutoWalkDialog {
         countRow.setOrientation(LinearLayout.HORIZONTAL);
         countRow.setGravity(Gravity.CENTER_VERTICAL);
         countRow.setPadding(0, dp(activity, 10), 0, 0);
-        countRow.addView(label(ctx, "Stops (1–" + NEARBY_LIMIT + "):", 15),
+        TextView countLabel = label(ctx, "Stops (loading):", 15);
+        countRow.addView(countLabel,
             new LinearLayout.LayoutParams(0, -2, 1));
         EditText countField = new EditText(ctx);
         countField.setInputType(InputType.TYPE_CLASS_NUMBER);
-        countField.setFilters(new InputFilter[]{new InputFilter.LengthFilter(2)});
-        countField.setText(String.valueOf(NEARBY_LIMIT));
+        countField.setFilters(new InputFilter[]{new InputFilter.LengthFilter(String.valueOf(NEARBY_LIMIT).length())});
+        countField.setHint("All");
+        countField.setText("50");
         countField.setSingleLine(true);
-        countField.setContentDescription("Number of stops to visit, 1 to " + NEARBY_LIMIT);
+        countField.setContentDescription("Number of stops to visit; leave blank for all nearby locations");
         countRow.addView(countField, new LinearLayout.LayoutParams(dp(activity, 72), -2));
         layout.addView(countRow);
 
@@ -115,7 +117,7 @@ public final class AutoWalkDialog {
             .setPositiveButton("Start", null)
             .create();
 
-        Controller controller = new Controller(activity, dialog, descr, countRow, countField, loop,
+        Controller controller = new Controller(activity, dialog, descr, countLabel, countRow, countField, loop,
             status, gpxInfo, running, importBtn, savedBtn, nearbyBtn, saveGpx);
         DialogLifecycle.bind(activity,dialog,controller::close);
         dialog.setOnShowListener(d -> controller.attach());
@@ -127,7 +129,7 @@ public final class AutoWalkDialog {
     private static final class Controller {
         private final Activity activity;
         private final AlertDialog dialog;
-        private final TextView descr, status, gpxInfo, running;
+        private final TextView descr, countLabel, status, gpxInfo, running;
         private final LinearLayout countRow;
         private final EditText countField;
         private final CheckBox loop;
@@ -138,11 +140,11 @@ public final class AutoWalkDialog {
         private int selectedCount;
         private boolean closed;
 
-        Controller(Activity activity, AlertDialog dialog, TextView descr, LinearLayout countRow, EditText countField,
+        Controller(Activity activity, AlertDialog dialog, TextView descr, TextView countLabel, LinearLayout countRow, EditText countField,
                    CheckBox loop, TextView status, TextView gpxInfo, TextView running,
                    Button importBtn, Button savedBtn, Button nearbyBtn, Button saveGpx) {
             this.activity = activity; this.dialog = dialog; this.descr = descr; this.countRow = countRow;
-            this.countField = countField; this.loop = loop; this.status = status; this.gpxInfo = gpxInfo;
+            this.countLabel = countLabel; this.countField = countField; this.loop = loop; this.status = status; this.gpxInfo = gpxInfo;
             this.saveGpx=saveGpx;this.running = running; this.importBtn = importBtn; this.savedBtn = savedBtn; this.nearbyBtn = nearbyBtn;
         }
 
@@ -218,6 +220,7 @@ public final class AutoWalkDialog {
             }
             String snapshot = Control.mapPoiSnapshot();
             boolean canStart = false;
+            countLabel.setText("Stops (loading):");
             String message;
             if (snapshot.isEmpty()) {
                 message = "Waiting for nearby game locations…";
@@ -227,12 +230,14 @@ public final class AutoWalkDialog {
                     message = "Nearby locations are unavailable right now.";
                 } else {
                     int unique = AutoWalkPlanner.filter(points).length;
+                    int maximum = Math.min(unique, NEARBY_LIMIT);
+                    countLabel.setText(maximum == 0 ? "Stops (none nearby):" : "Stops (1–" + maximum + "; blank = all):");
                     if (unique == 0) {
                         message = "No nearby locations loaded yet. Move around in-game to load some.";
                     } else {
-                        int requested=NEARBY_LIMIT;
+                        int requested=maximum;
                         try{requested=Integer.parseInt(countField.getText().toString().trim());}catch(NumberFormatException ignored){}
-                        int selected=Math.min(Math.max(1,requested),unique);
+                        int selected=Math.min(Math.max(1,requested),maximum);
                         message = selected+" stops in route ("+unique+" nearby).";
                         canStart = true;
                     }
@@ -254,16 +259,17 @@ public final class AutoWalkDialog {
             if (closed) return;
             if (!Control.canEnable()) { toast("Location adapter is not ready."); return; }
             if (selectedGpx != null) { startGpx(); return; }
-            int count;
-            String text = countField.getText().toString().trim();
-            if (text.isEmpty()) count = NEARBY_LIMIT;
-            else try { count = Integer.parseInt(text); }
-            catch (NumberFormatException e) { countField.setError("Enter 1–" + NEARBY_LIMIT); return; }
-            if (count < 1 || count > NEARBY_LIMIT) { countField.setError("Enter 1–" + NEARBY_LIMIT); return; }
-
             String snapshot = Control.mapPoiSnapshot();
             double[][] points = snapshot.isEmpty() ? null : parse(snapshot);
             if (points == null) { toast("Nearby locations are unavailable right now."); return; }
+            int maximum = Math.min(AutoWalkPlanner.filter(points).length, NEARBY_LIMIT);
+            if (maximum == 0) { toast("No nearby locations are loaded yet. Move around in-game, then try again."); return; }
+            int count;
+            String text = countField.getText().toString().trim();
+            if (text.isEmpty()) count = maximum;
+            else try { count = Integer.parseInt(text); }
+            catch (NumberFormatException e) { countField.setError("Enter 1–" + maximum + ", or leave blank for all"); return; }
+            if (count < 1 || count > maximum) { countField.setError("Enter 1–" + maximum + ", or leave blank for all"); return; }
 
             AutoWalkPlanner.Plan plan;
             try { plan = AutoWalkPlanner.plan(Control.engine.latitude, Control.engine.longitude, points, count); }

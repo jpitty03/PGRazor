@@ -91,6 +91,7 @@ std::atomic<ErrorFn>       g_orig_error{nullptr};
 // --- telemetry (pull-only; any thread; never frees) -------------------------------
 std::atomic<uint64_t> g_bag_ready_serial{0};
 std::atomic<uint64_t> g_catalog_serial{0};
+std::atomic<uint64_t> g_cleanup_serial{0};
 std::atomic<uint64_t> g_fault_serial{0};
 std::atomic<uint64_t> g_events_lost{0};
 std::atomic<uint32_t> g_has_candidate{0};
@@ -134,6 +135,13 @@ struct State {
     void    *filter_handles[3] = {nullptr, nullptr, nullptr}; // durable roots [0],[1] (([2] null)
     bool     have_filters = false;
     Pending  pending;
+    void *scan_bag_handle = nullptr;
+    void *scan_handle = nullptr; // large-list snapshot, owner-thread durable root
+    int32_t scan_count = 0, scan_cursor = 0;
+    uint64_t scan_generation = 0, scan_epoch = 0;
+    void *probe_bag = nullptr;
+    uint32_t probe_cursor = 0;
+    uint64_t probe_generation = 0, probe_epoch = 0;
     uint64_t next_ms = 0;
     bool     have_generation = false;
     uint64_t rules_generation = 0;
@@ -310,6 +318,9 @@ void refresh_root_count() {
     if (g_st.service_handle) ++n;
     for (int i = 0; i < 3; ++i) if (g_st.filter_handles[i]) ++n;
     if (g_st.pending.bag_handle) ++n;
+    if (g_st.scan_handle) ++n;
+    if (g_st.scan_bag_handle) ++n;
+    if (g_st.probe_bag) ++n;
     g_root_count.store(n, std::memory_order_release);
     g_service_atomic.store(g_st.service_handle, std::memory_order_release);
 }
@@ -329,7 +340,20 @@ void clear_pending(bool quarantine) {
     g_st.pending.active = false;
     gc_free(h);
 }
+void release_probe() {
+    void *bag = g_st.probe_bag; g_st.probe_bag = nullptr;
+    g_st.probe_cursor = 0; gc_free(bag); refresh_root_count();
+}
+void release_scan() {
+    release_probe();
+    void *h = g_st.scan_handle; g_st.scan_handle = nullptr;
+    void *bag = g_st.scan_bag_handle; g_st.scan_bag_handle = nullptr;
+    g_st.scan_count = g_st.scan_cursor = 0;
+    gc_free(h); gc_free(bag);
+    refresh_root_count();
+}
 void release_roots() {
+    release_scan();
     void *service = g_st.service_handle; g_st.service_handle = nullptr;
     release_filters();
     gc_free(service);
@@ -420,7 +444,7 @@ void do_lookup(uint64_t now) {
         if (g_st.service_handle) {
             bool same = gc_target(g_st.service_handle) == service;
             void *old = g_st.service_handle; g_st.service_handle = nullptr; gc_free(old);
-            if (!same) release_filters();
+            if (!same) { release_filters(); release_scan(); }
         }
         g_st.service_handle = gc_new(service);
         if (g_st.service_handle == nullptr) { err = true; goto lerr; }
@@ -493,6 +517,8 @@ void enumerate_and_recycle(uint64_t now, uint64_t deadline) {
     Root list_h, candidate_h, expiry_h, row_h, bag_h;
     int32_t cand_id = 0, cand_cap = 0;
     bool have_candidate = false;
+    bool partial = false;
+    int32_t scan_start = 0;
 
     // The service lives behind a durable root, so re-target it (never cache the raw pointer) before
     // every instance call. The bag is read off the service and gets its OWN temporary root so it
@@ -502,26 +528,48 @@ void enumerate_and_recycle(uint64_t now, uint64_t deadline) {
     void *bag0 = read_ref(service, g_cfg.f_bag);
     if (!exact(bag0, g_cfg.class_bag)) return;             // bag not ready (soft return, JS parity)
     bag_h.set(bag0, &err); if (err) goto fail;
-
-    void *f0, *f1, *f2;
-    f0 = g_st.filter_handles[0] ? gc_target(g_st.filter_handles[0]) : nullptr;
-    f1 = g_st.filter_handles[1] ? gc_target(g_st.filter_handles[1]) : nullptr;
-    f2 = g_st.filter_handles[2] ? gc_target(g_st.filter_handles[2]) : nullptr;
-    int32_t zero; zero = 0;
-    void *lp[5]; lp[0] = f0; lp[1] = &zero; lp[2] = f1; lp[3] = f2; lp[4] = nullptr;
-    g_st.invoking = true;
-    void *list; list = invoke(g_cfg.m_list, gc_target(g_st.service_handle), lp, &err);
-    g_st.invoking = false;
-    if (err) goto fail;
-    list_h.set(list, &err); if (err) goto fail;
+    if (g_st.scan_handle && gc_target(g_st.scan_bag_handle) != bag_h.target())
+        release_scan();
 
     int32_t count;
-    if (!invoke_int(g_cfg.m_count, list_h.target(), nullptr, &count, &err)) goto fail;
-    if (count < 0 || static_cast<uint32_t>(count) > kMaxList) { err = true; goto fail; }
+    if (g_st.scan_handle) {
+        list_h.set(gc_target(g_st.scan_handle), &err); if (err) goto fail;
+        if (!invoke_int(g_cfg.m_count, list_h.target(), nullptr, &count, &err)) goto fail;
+        if (count != g_st.scan_count) { // mutable view changed; never continue with shifted indexes
+            release_scan(); g_st.next_ms = 0; return;
+        }
+        scan_start = g_st.scan_cursor;
+    } else {
+        void *f0 = g_st.filter_handles[0] ? gc_target(g_st.filter_handles[0]) : nullptr;
+        void *f1 = g_st.filter_handles[1] ? gc_target(g_st.filter_handles[1]) : nullptr;
+        void *f2 = g_st.filter_handles[2] ? gc_target(g_st.filter_handles[2]) : nullptr;
+        int32_t zero = 0;
+        void *lp[5] = {f0, &zero, f1, f2, nullptr};
+        g_st.invoking = true;
+        void *list = invoke(g_cfg.m_list, gc_target(g_st.service_handle), lp, &err);
+        g_st.invoking = false;
+        if (err) goto fail;
+        list_h.set(list, &err); if (err) goto fail;
+        if (!invoke_int(g_cfg.m_count, list_h.target(), nullptr, &count, &err)) goto fail;
+        if (count < 0 || static_cast<uint32_t>(count) > kMaxList) { err = true; goto fail; }
+        for (uint32_t i = 0; i < g_rows_n; ++i) g_rows[i].count = 0;
+        if (count > 64) {
+            g_st.scan_handle = gc_new(list_h.target());
+            g_st.scan_bag_handle = gc_new(bag_h.target());
+            if (!g_st.scan_handle || !g_st.scan_bag_handle) { err = true; goto fail; }
+            g_st.scan_count = count; g_st.scan_cursor = 0;
+            g_st.scan_generation = g_snapshot.generation; g_st.scan_epoch = g_snapshot.epoch;
+            refresh_root_count();
+        }
+    }
 
-    for (uint32_t i = 0; i < g_rows_n; ++i) g_rows[i].count = 0; // JS zeroes then overwrites
-
-    for (int32_t i = 0; i < count; ++i) {
+    for (int32_t i = scan_start; i < count; ++i) {
+        if (g_st.scan_handle) {
+            const uint64_t t = boottime_ms();
+            if (i - scan_start >= 64 || g_revoke || !t || t >= deadline ||
+                (i > scan_start && t - now >= 4)) break;
+            g_st.scan_cursor = i + 1;
+        }
         int32_t idx = i;
         void *gp[1] = { &idx };
         void *data = invoke(g_cfg.m_get, list_h.target(), gp, &err);
@@ -541,13 +589,21 @@ void enumerate_and_recycle(uint64_t now, uint64_t deadline) {
             if (rule_cap(id, &cap) && qty > cap && !item_paused(id)) {
                 candidate_h.set(d, &err); if (err) goto fail;
                 cand_id = id; cand_cap = cap; have_candidate = true;
+                if (g_st.scan_handle) { g_st.scan_cursor = i; break; }
             }
         }
     }
 
-    publish_catalog();
+    partial = g_st.scan_handle && g_st.scan_cursor < g_st.scan_count;
+    if (!partial) { release_scan(); publish_catalog(); }
+    else g_st.next_ms = 0; // continue next frame, with no repeated managed list enumeration
+    refresh_root_count();
 
-    if (!have_candidate || !g_snapshot.enabled) { set_has_candidate(false); return; }
+    if (!have_candidate || !g_snapshot.enabled) {
+        set_has_candidate(false);
+        if (!partial) g_cleanup_serial.fetch_add(1, std::memory_order_release);
+        return;
+    }
     set_has_candidate(true);
     if (now >= deadline) return;                           // !itemPermitted (residual lease gone)
 
@@ -557,7 +613,10 @@ void enumerate_and_recycle(uint64_t now, uint64_t deadline) {
         void *qp[1] = { &idv };
         if (!invoke_int(g_cfg.m_quantity, bag_h.target(), qp, &current, &err)) goto fail;
     }
-    if (current <= cand_cap || current > kMaxQty) return;  // stale-list guard: trust live quantity
+    if (current <= cand_cap || current > kMaxQty) {
+        if (g_st.scan_handle) ++g_st.scan_cursor;
+        return; // stale-list guard: trust live quantity
+    }
 
     void *expiry;
     expiry = invoke(g_cfg.m_expiring, gc_target(g_st.service_handle), nullptr, &err);
@@ -613,6 +672,7 @@ void enumerate_and_recycle(uint64_t now, uint64_t deadline) {
     emit_request(cand_id, amount, cand_cap);
     if (g_revoke || g_st.fail_closed) { g_st.invoking = false; clear_pending(false); refresh_root_count(); return; }
     {
+        if (g_st.scan_handle) ++g_st.scan_cursor; // commit cursor only when actually issuing
         int32_t amt = amount;
         void *rp[3] = { data_obj, &amt, expiry_obj };
         invoke(g_cfg.m_recycle, bag_obj, rp, &err); // recycle/result/error hooks fire here
@@ -625,6 +685,7 @@ void enumerate_and_recycle(uint64_t now, uint64_t deadline) {
     return;
 
 fail:
+    release_scan();
     g_st.invoking = false;
     {
         int32_t pid = 0, pamt = 0;
@@ -664,10 +725,66 @@ void refresh_berries(uint64_t now, uint64_t deadline) {
     publish_catalog();
 }
 
+// Automatic no-work detection reads only user-selected quantities. A descriptor is
+// still obtained through the existing list path when an actual excess is found.
+// 0 complete/no excess, 1 excess, 2 incomplete/unavailable.
+int probe_selected(uint64_t now, uint64_t deadline) {
+    Root bag; bool err = false;
+    void *service = gc_target(g_st.service_handle);
+    if (!exact(service, g_cfg.class_service)) return 2;
+    void *b = read_ref(service, g_cfg.f_bag);
+    if (!exact(b, g_cfg.class_bag)) return 2;
+    bag.set(b, &err); if (err) goto fail;
+    if (g_st.probe_bag && (gc_target(g_st.probe_bag) != bag.target() ||
+        g_st.probe_generation != g_snapshot.generation || g_st.probe_epoch != g_snapshot.epoch))
+        release_probe();
+    if (!g_st.probe_bag) {
+        g_st.probe_bag = gc_new(bag.target()); if (!g_st.probe_bag) goto fail;
+        g_st.probe_generation = g_snapshot.generation; g_st.probe_epoch = g_snapshot.epoch;
+        refresh_root_count();
+    }
+    {
+        uint32_t processed = 0;
+        while (g_st.probe_cursor < g_snapshot.count) {
+            uint64_t t = boottime_ms();
+            if (g_revoke || !t || t >= deadline || processed >= 64 ||
+                (processed && t - now >= 4)) { g_st.next_ms = 0; return 2; }
+            const auto entry = g_snapshot.entries[g_st.probe_cursor];
+            ++processed;
+            if (entry.id <= 0 || item_paused(entry.id)) { ++g_st.probe_cursor; continue; }
+            int32_t quantity = 0, id = entry.id; void *args[] = {&id};
+            if (!invoke_int(g_cfg.m_quantity, bag.target(), args, &quantity, &err) ||
+                quantity < 0 || quantity > kMaxQty) goto fail;
+            // A revoked/expired observation cannot finish or advance a cleanup pass.
+            t = boottime_ms();
+            if (g_revoke || !t || t >= deadline) { g_st.next_ms = 0; return 2; }
+            if (read_ref(gc_target(g_st.service_handle), g_cfg.f_bag) != bag.target()) {
+                release_probe(); g_st.next_ms = 0; return 2;
+            }
+            ++g_st.probe_cursor;
+            if (quantity > entry.cap) { release_probe(); return 1; }
+        }
+    }
+    release_probe();
+    { const uint64_t t = boottime_ms();
+      if (g_revoke || !t || t >= deadline) { g_st.next_ms = 0; return 2; } }
+    set_has_candidate(false);
+    g_cleanup_serial.fetch_add(1, std::memory_order_release);
+    return 0;
+fail:
+    release_probe(); note_fault(); emit_error(PGR_ITEMS_REASON_NATIVE, 0, 0);
+    g_st.next_ms = now + kBackoffMs; return 2;
+}
+
 // --- orchestration pass (Unity thread) --------------------------------------------
 void orchestrate(uint64_t now, uint64_t deadline, uint32_t force_poll) {
     if (now == 0) return;                                  // no clock
     if (force_poll & 1u) g_st.next_ms = 0;
+    if (force_poll & 8u) release_scan(); // also resets selected probe for the new cleanup ticket
+    if (!g_snapshot.enabled) release_probe();
+    if (g_st.scan_handle && ((!g_snapshot.enabled && !(force_poll & 2u)) ||
+        g_st.scan_generation != g_snapshot.generation || g_st.scan_epoch != g_snapshot.epoch))
+        release_scan();
 
     // A config generation change clears ONLY the definite-rejection blocked set (JS:
     // itemConfig+':'+itemEnabled change). The uncertain quarantine (quar[]) is deliberately left
@@ -693,16 +810,30 @@ void orchestrate(uint64_t now, uint64_t deadline, uint32_t force_poll) {
 
     if (now >= deadline || now < g_st.next_ms) return;
     g_st.next_ms = now + kPollMs;
-    const bool full = g_snapshot.enabled || (force_poll & 2u);
+    const bool explicit_catalog = (force_poll & 2u) != 0;
+    if (explicit_catalog) release_probe();
+    // The berry overlay explicitly requests these five IDs independently of cleanup.
+    if (force_poll & 4u) {
+        if (!g_st.service_handle && g_cfg.has_lookup) do_lookup(now);
+        if (g_st.service_handle) refresh_berries(now, deadline);
+    }
+    if (!explicit_catalog && g_snapshot.enabled && !g_snapshot.count) {
+        release_scan();
+        const uint64_t t = boottime_ms();
+        if (g_revoke || !t || t >= deadline) { g_st.next_ms = 0; return; }
+        set_has_candidate(false);
+        g_cleanup_serial.fetch_add(1, std::memory_order_release); return;
+    }
+    const bool full = g_snapshot.enabled || explicit_catalog;
     if (!g_st.service_handle || (full && !g_st.have_filters)) {
         if (g_cfg.has_lookup) do_lookup(now);
         if (!g_st.service_handle || (full && !g_st.have_filters)) return;
     }
     if (!full) {
         set_has_candidate(false);
-        if (force_poll & 4u) refresh_berries(now, deadline);
         return;
     }
+    if (!explicit_catalog && !g_st.scan_handle && probe_selected(now, deadline) != 1) return;
     enumerate_and_recycle(now, deadline);
 }
 
@@ -718,6 +849,7 @@ void capture_service(void *o) {
     if (g_st.service_handle) {
         void *old = g_st.service_handle; g_st.service_handle = nullptr; gc_free(old);
         release_filters();
+        release_scan();
     }
     g_st.service_handle = gc_new(o);
     g_st.next_ms = 0;                                      // force an immediate re-poll
@@ -729,6 +861,7 @@ void capture_filters(void *p0, void *p2, void *p3) {
     if (g_st.invoking || g_stopping.load(std::memory_order_acquire)) return;
     uint64_t unity = g_unity_tid.load(std::memory_order_acquire);
     if (unity == 0 || current_tid() != unity) return;
+    release_scan();
     release_filters();
     g_st.filter_handles[0] = p0 ? gc_new(p0) : nullptr;
     g_st.filter_handles[1] = p2 ? gc_new(p2) : nullptr;
@@ -818,7 +951,7 @@ void hook_result(void *self, void *response, void *method) {
     if (consume && !g_stopping.load(std::memory_order_acquire) &&
         g_st.pending.active && g_st.pending.gen == gen) {
         int32_t id = g_st.pending.id, amount = g_st.pending.amount;
-        g_st.next_ms = boottime_ms() + kSettleMs;
+        g_st.next_ms = g_st.scan_handle ? 0 : boottime_ms() + kSettleMs;
         if (!ok) { clear_pending(false); blocked_add(id); emit_error(PGR_ITEMS_REASON_REJECTED, id, amount); }
         else { clear_pending(false); emit_confirm(id, amount); }
         refresh_root_count();
@@ -841,7 +974,7 @@ void hook_error(void *self, void *str, void *method) {
     if (consume && !g_stopping.load(std::memory_order_acquire) &&
         g_st.pending.active && g_st.pending.gen == gen) {
         int32_t id = g_st.pending.id, amount = g_st.pending.amount;
-        g_st.next_ms = boottime_ms() + kSettleMs;
+        g_st.next_ms = g_st.scan_handle ? 0 : boottime_ms() + kSettleMs;
         clear_pending(false);                              // definite game error -> settings-scoped
         blocked_add(id);
         emit_error(PGR_ITEMS_REASON_REJECTED, id, amount);
@@ -1068,4 +1201,8 @@ const pgrazor_items_api_v1 g_api = {
 const void *pgrazor_items_api(uint32_t version) {
     if (version != PGRAZOR_ITEMS_API_VERSION) return nullptr;
     return &g_api;
+}
+
+extern "C" uint64_t pgrazor_items_cleanup_serial() {
+    return g_cleanup_serial.load(std::memory_order_acquire);
 }

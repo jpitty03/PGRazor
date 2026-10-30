@@ -21,7 +21,7 @@
 namespace {
 using namespace pgr_shared_meta;
 std::mutex config_lock,policy_lock,event_lock;
-std::atomic<bool> configured{false},stopping{false},busy{false},force_poll{false};
+std::atomic<bool> configured{false},stopping{false},busy{false},force_poll{false},cleanup_poll{false};
 std::atomic<uint32_t> caps{0},faults{0},roots{0};std::atomic<uint64_t> owner{0},ticks{0};
 PgrSharedMetadataOutput md{};PgrInventoryRuntime rt{};bool binding=false;std::atomic<bool> installed{false};uint32_t flags=0;
 bool permission_seen=false;
@@ -292,7 +292,7 @@ int tick(uint64_t tid){
  if(!stopping.load())poll_policy();PgrInventoryHostOptions p{};pgrazor_items_rules_v1 local_rules{};uint64_t expires=0;
  {std::lock_guard<std::mutex> lock(policy_lock);p=policy;local_rules=rules;expires=deadline;}
  uint64_t time=clock_ms();uint64_t lease=time&&time<expires&&!stopping.load()&&count>=3?expires-time:0;
- if(caps.load()&PGR_IH_ITEMS){if(stopping.load())items()->clear(tid);else if(!(faults.load()&PGR_IH_ITEMS)){uint32_t force=(force_poll.exchange(false)?1:0)|(p.item_catalog==2?2:p.item_catalog==1?4:0);if(items()->tick(&local_rules,force,p.item_allowed?lease:0,tid)){faults.fetch_or(PGR_IH_ITEMS);items()->clear(tid);}}}
+ if(caps.load()&PGR_IH_ITEMS){if(stopping.load())items()->clear(tid);else if(!(faults.load()&PGR_IH_ITEMS)){uint32_t force=(force_poll.exchange(false)?1:0)|(cleanup_poll.exchange(false)?9:0)|(p.item_catalog==2?2:p.item_catalog==1?4:0);if(items()->tick(&local_rules,force,p.item_allowed?lease:0,tid)){faults.fetch_or(PGR_IH_ITEMS);items()->clear(tid);}}}
  int32_t berry=(p.buddy_berry==701||p.buddy_berry==703||p.buddy_berry==705||p.buddy_berry==706||p.buddy_berry==707)?p.buddy_berry:0;
  if(caps.load()&PGR_IH_BUDDY){if(stopping.load())buddy()->clear(tid);else if(!(faults.load()&PGR_IH_BUDDY)&&buddy()->tick(berry,p.buddy_allowed?lease:0,tid)){faults.fetch_or(PGR_IH_BUDDY);buddy()->clear(tid);}}
  if(caps.load()&PGR_IH_INCUBATION){if(stopping.load())inc()->clear(tid);else if(!(faults.load()&PGR_IH_INCUBATION)&&inc()->tick(p.incubator_enabled,p.incubator_longest,p.incubator_allowed?lease:0,tid)){faults.fetch_or(PGR_IH_INCUBATION);inc()->clear(tid);}}
@@ -311,6 +311,21 @@ int sample(PgrInventoryHostSample *s){if(!s)return -2;refresh_roots();*s={1,size
 int next_event(PgrInventoryHostEvent *out){if(!out)return -2;std::lock_guard<std::mutex> lock(event_lock);if(!event_count)return 1;*out={};out->version=1;out->size=sizeof(*out);out->sequence=++event_seq;auto &s=event_queue[event_head];memcpy(out->json,s.c_str(),s.size()+1);s.clear();event_head=(event_head+1)%64;--event_count;return 0;}
 void request_item_poll(){force_poll.store(true);}void *acquire_item_service(){return (caps.load()&PGR_IH_ITEMS)&&!stopping.load()&&owner.load()==uint64_t(gettid())?items()->service_acquire():nullptr;}
 void on_pulse(void*,const PgrUnityPulse *pulse){auto api=static_cast<const PgrUnitySchedulerApi*>(pgrazor_unity_scheduler_api(2));if(pulse&&api&&api->valid(pulse->generation)==1)tick(pulse->tid);}
+bool cleanup_available(){
+ if(!configured.load()||!installed.load()||stopping.load()||!(caps.load()&PGR_IH_ITEMS)||(faults.load()&PGR_IH_ITEMS))return false;
+ std::lock_guard<std::mutex> lock(policy_lock);
+ return policy.item_enabled&&policy.item_allowed&&deadline>clock_ms();
+}
+uint64_t request_cleanup(){
+ if(owner.load()!=uint64_t(gettid())||!cleanup_available())return 0;
+ uint64_t ticket=pgrazor_items_cleanup_serial()+1;
+ cleanup_poll.store(true);
+ return ticket;
+}
+int cleanup_pending(uint64_t ticket){
+ return ticket&&cleanup_available()&&pgrazor_items_cleanup_serial()<ticket?1:0;
+}
+const PgrInventoryCleanupApi cleanup_api{2,sizeof(PgrInventoryCleanupApi),request_cleanup,cleanup_pending};
 const PgrInventoryHostApi api{1,sizeof(PgrInventoryHostApi),configure,update,tick,stop,sample,next_event,request_item_poll,acquire_item_service,on_pulse,visibility_site,visibility};
 }
-extern "C" const void *pgrazor_inventory_host_api(uint32_t version){return version==1?&api:nullptr;}
+extern "C" const void *pgrazor_inventory_host_api(uint32_t version){return version==1?static_cast<const void*>(&api):version==2?static_cast<const void*>(&cleanup_api):nullptr;}

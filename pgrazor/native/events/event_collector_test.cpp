@@ -50,6 +50,7 @@ void *fake_invoke(const void *method,void *self,void **args,void **exc){
 void string(Obj &o,const char *s){put(o,0,static_cast<const void*>(&ck));int32_t n=int32_t(std::strlen(s));put(o,0x10,n);for(int32_t i=0;i<n;++i)put(o,0x14+i*2,uint16_t(s[i]));}
 void reset(){
  if(controller_root)clear_attempt();for(auto &r:owned_encounters)clear_owned(r);release(session_root);assert(live_roots==0);
+ handle_next=1;
  counters={};fail_root_object=nullptr;stopped.store(false);dispatching=false;ambiguous=false;result_depth=0;encounter_scope={};next_ms=0;seen_cursor=0;std::memset(seen,0,sizeof(seen));
  session={};list={};array={};controller={};manual_controller={};service={};response={};encounter={};visible={};key={};reward={};
  put(session,0,static_cast<const void*>(&cs));put(list,0,static_cast<const void*>(&cl));put(array,0,static_cast<const void*>(&ca));
@@ -141,6 +142,34 @@ int main(){
  inspect_owned_age(owned_encounters[0].created+31000);assert(counters.timed_out&&owned_encounters[0].stale);
  encounter_hook(queued_self,queued_target,queued_enc,nullptr);callback_queued=false;
  assert(encounters==0&&counters.skipped_encounters==1&&pgr_event_collector_state().pending_encounters==0&&live_roots==1);
+ // A lost animation no longer stalls unrelated boxes. Exact late ownership
+ // survives both the timeout and rotation/expiry of the ordinary dedupe cache.
+ reset();put(manual_controller,0xd0,uint64_t(99));
+ assert(retain_owned(ptr(service),ptr(manual_controller),ptr(encounter),99));
+ pump(true,now_ms(),true);assert(taps==0&&counters.pump_reason==17);
+ inspect_owned_age(owned_encounters[0].created+31000);
+ for(unsigned i=0;i<256;++i)remember(1000+i,now_ms()+1000);
+ assert(seen_before(99,now_ms()+7200000));
+ immediate=true;pump(true,now_ms(),true);
+ assert(taps==1&&counters.completed==1&&counters.skipped_encounters==1&&!active_id);
+ assert(pgr_event_collector_state().pending_encounters==1&&live_roots==4);
+ assert(pgr_event_collector_tick(false,uint64_t(gettid()))==0);
+ encounter_hook(ptr(service),ptr(manual_controller),ptr(encounter),nullptr);
+ assert(encounters==0&&counters.skipped_encounters==2&&live_roots==1);
+ // Bounded quarantine never evicts a delayed screen. Capacity pauses dispatch,
+ // then a real callback frees a slot and collection resumes without a restart.
+ reset();put(manual_controller,0xd0,uint64_t(99));
+ for(unsigned i=0;i<kOwnedEncounterLimit;++i)
+   assert(retain_owned(ptr(service),ptr(manual_controller),ptr(encounter),99+i*1000));
+ inspect_owned_age(now_ms()+31000);pump(true,now_ms(),true);
+ assert(taps==0&&counters.pump_reason==17&&live_roots==1+3*kOwnedEncounterLimit);
+ assert(!retain_owned(ptr(service),ptr(manual_controller),ptr(encounter),500));
+ encounter_hook(ptr(service),ptr(manual_controller),ptr(encounter),nullptr);
+ assert(encounters==0&&counters.skipped_encounters==1);
+ immediate=true;pump(true,now_ms(),true);
+ assert(taps==1&&counters.completed==1&&counters.skipped_encounters==2);
+ assert(pgr_event_collector_state().pending_encounters==kOwnedEncounterLimit-1);
+ assert(live_roots==1+3*(kOwnedEncounterLimit-1));
  // Unrelated delayed presentation cannot consume the exact pending record.
  reset();start();async_result=true;result_hook(ptr(service),ptr(controller),ptr(response),nullptr);
  encounter_hook(ptr(service),ptr(manual_controller),ptr(encounter),nullptr);assert(encounters==1&&pgr_event_collector_state().pending_encounters==1);

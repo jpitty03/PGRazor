@@ -109,7 +109,7 @@ public class AutoWalkTest {
 
     static void testPlannerCountAndValidation() {
         double[][] pts = {{0, 10 * DEG}, {0, 30 * DEG}, {0, 20 * DEG}}; // A(10m), B(30m), C(20m) east of origin
-        check(AutoWalkPlanner.MAX_STOPS == 50 && AutoWalkPlanner.MAX_STOPS <= MotionEngine.MAX_ROUTE_STOPS, "Nearby planner keeps its own bounded ceiling");
+        check(AutoWalkPlanner.MAX_STOPS == MotionEngine.MAX_ROUTE_STOPS, "Nearby planner supports the route engine capacity");
         rejects(() -> AutoWalkPlanner.plan(0, 0, pts, 0), "Rejects a zero stop count");
         rejects(() -> AutoWalkPlanner.plan(0, 0, pts, AutoWalkPlanner.MAX_STOPS + 1), "Rejects a count above the ceiling");
         rejects(() -> AutoWalkPlanner.plan(Double.NaN, 0, pts, 3), "Rejects a non-finite avatar position");
@@ -168,6 +168,13 @@ public class AutoWalkTest {
         testCoincidentLoopBounded();
         testCancellationClearsLoop();
         testPlannerCountAndValidation();
+        double[][] nearby = new double[512][2];
+        for (int i = 0; i < nearby.length; i++) nearby[i] = new double[]{0, (i + 1) * 2 * DEG};
+        AutoWalkPlanner.Plan all = AutoWalkPlanner.plan(0, 0, nearby, nearby.length);
+        check(all.selected() == nearby.length, "All 512 loaded POIs are included beyond the old 50 limit");
+        for (int i = 0; i < nearby.length; i++) near(all.route[i][1], nearby[i][1], 1e-12, "Every stop visited once in nearest order");
+        MotionEngine full = at(0, 0); full.walkRoute(all.route, false);
+        check(full.routeProgress().total == nearby.length, "Engine accepts the full nearby route");
         testPlannerNearestNeighbourDeterminism();
         testPlannerFilterAndDedupe();
         System.out.println("PASS: autowalk loop end and frame budget, zero-speed resume, bounded coincident/duplicate loops, "
