@@ -5,8 +5,8 @@ import org.json.*;
 
 /** Validation is completed before any settings are written. No credential stores are accepted. */
 public final class SettingsBackupRules {
-    public static final String[] SETTINGS=("uiScalePercent locationSpoofing darkTheme joystickVisible spawnBooster giftOptions vgpOverlay vgpStopOnCooldown vgpOptions buddyBerry autoIncubate incubateLongest cooldownOverlay autoBerry berryPriority encounterBerry battleOptions rocketOptions itemTransfer itemRules itemLimits quickSpin autoTransfer transferProtect transferKeepAll transferOverlay transferKeepSpecies autoDismiss throwAr curve grade mapTap ivCatch ivOwned").split(" ");
-    private static final Set<String> BOOLEANS=new HashSet<>(Arrays.asList(("locationSpoofing darkTheme joystickVisible spawnBooster vgpOverlay vgpStopOnCooldown autoIncubate incubateLongest cooldownOverlay encounterBerry itemTransfer quickSpin autoTransfer transferKeepAll transferOverlay autoDismiss throwAr curve ivCatch ivOwned").split(" ")));
+    public static final String[] SETTINGS=("uiScalePercent locationSpoofing darkTheme joystickVisible spawnBooster giftOptions vgpOverlay vgpStopOnCooldown vgpOptions buddyBerry autoIncubate incubateLongest cooldownOverlay autoBerry berryPriority encounterBerry battleOptions rocketOptions itemTransfer itemRules itemLimits quickSpin autoTransfer transferProtect transferKeepAll transferOverlay transferKeepSpecies autoDismiss throwAr curve grade mapTap ivCatch ivOwned smartCatchEnabled smartCatchBall smartCatchBerry smartCatchPremium smartCatchHighCp smartCatchHighLevel smartCatchGrade smartCatchCurve smartCatchCandySpecies").split(" ");
+    private static final Set<String> BOOLEANS=new HashSet<>(Arrays.asList(("locationSpoofing darkTheme joystickVisible spawnBooster vgpOverlay vgpStopOnCooldown autoIncubate incubateLongest cooldownOverlay encounterBerry itemTransfer quickSpin autoTransfer transferKeepAll transferOverlay autoDismiss throwAr curve ivCatch ivOwned smartCatchEnabled smartCatchPremium smartCatchCurve").split(" ")));
     private static void require(boolean yes,String message)throws JSONException{if(!yes)throw new JSONException(message);}
     private static double number(Object o,double min,double max,String label)throws JSONException{
         require(o instanceof Number,"Invalid "+label);double n=((Number)o).doubleValue();require(Double.isFinite(n)&&n>=min&&n<=max,"Invalid "+label);return n;
@@ -22,10 +22,16 @@ public final class SettingsBackupRules {
             if(BOOLEANS.contains(key)){require(value.equals("true")||value.equals("false"),"Invalid "+key);continue;}
             if(key.equals("itemRules")||key.equals("itemLimits")){itemRules(value);continue;}
             if(key.equals("transferKeepSpecies")){keepSpecies(value);continue;}
+            if(key.equals("smartCatchCandySpecies")){keepSpecies(value);require(value.isEmpty()||value.split(",").length<=200,"Too many candy species");continue;}
             if(key.equals("berryPriority")){try{BerryPriority.parse(value);}catch(IllegalArgumentException invalid){throw new JSONException("Invalid berry priorities");}continue;}
             int n;try{n=Integer.parseInt(value);}catch(NumberFormatException e){throw new JSONException("Invalid "+key);}
             if(key.equals("uiScalePercent")){require(n==25||n==50||n==75||n==100,"Invalid UI scale");continue;}
             if(key.equals("buddyBerry")||key.equals("autoBerry")){require(n==0||n==701||n==703||n==705||n==706||n==707,"Invalid berry");continue;}
+            if(key.equals("smartCatchBerry")){require(n==0||n==701||n==703||n==705||n==706||n==708,"Invalid smart catch berry");continue;}
+            if(key.equals("smartCatchBall")){require(n>=1&&n<=3,"Invalid smart catch ball");continue;}
+            if(key.equals("smartCatchHighCp")){require(n>=0&&n<=10000,"Invalid high CP threshold");continue;}
+            if(key.equals("smartCatchHighLevel")){require(n>=0&&n<=50,"Invalid high level threshold");continue;}
+            if(key.equals("smartCatchGrade")){require(n>=0&&n<=3,"Invalid smart catch throw grade");continue;}
             int max=key.equals("battleOptions")?1023:key.equals("transferProtect")?63:key.equals("grade")?3:key.equals("mapTap")?3:7;
             require(n>=0&&n<=max,"Invalid "+key);
         }

@@ -243,6 +243,7 @@ public final class Control {
     private static volatile long encounterBerrySeen;
     public static void setEncounterBerry(boolean active,boolean busy){encounterBerryActive=active;encounterBerryBusy=busy;encounterBerrySeen=SystemClock.elapsedRealtime();}
     public static boolean catchScreenVisible(){long age=SystemClock.elapsedRealtime()-encounterBerrySeen;return encounterBerryActive&&age>=0&&age<2000&&foreground&&quickSummaryReady();}
+    public static String smartCatchConfig(){return SmartCatchSettings.config();}
     public static boolean encounterBerryVisible(){return encounterBerryEnabled&&catchScreenVisible();}
     public static boolean encounterBerryBusy(){return encounterBerryBusy;}
     private static volatile boolean cooldownOverlay;
@@ -901,8 +902,10 @@ public final class Control {
             try { settingsWriter.flush(SETTINGS_FLUSH_MS); }
             catch(IOException pending) { event("settings-load-error","Pending save not flushed: "+pending); return; }
             StrictMode.ThreadPolicy policy=StrictMode.allowThreadDiskReads();
+            SmartCatchSettings.read(new Properties());
             try(FileInputStream in=settingsFile.openRead()) {
                 Properties p=new Properties(); p.load(in);
+                SmartCatchSettings.read(p);
                 desiredEnabled=Boolean.parseBoolean(p.getProperty("locationSpoofing","true"));
                 darkTheme=Boolean.parseBoolean(p.getProperty("darkTheme","true"));
                 try{uiScalePercent=Integer.parseInt(p.getProperty("uiScalePercent","100"));}catch(NumberFormatException invalid){uiScalePercent=100;}
@@ -990,7 +993,7 @@ public final class Control {
         }
     }
     // Capture current preferences under stateLock; serialization and AtomicFile IO run off the main thread.
-    private static void saveSettings() {
+    static void saveSettings() {
         synchronized(stateLock) {
             if(settingsFile==null)return;
             settingsWriter.submit(settingsSnapshot());
@@ -999,6 +1002,7 @@ public final class Control {
     /** Snapshot of every persisted preference; must be built while holding stateLock. */
     private static Properties settingsSnapshot() {
         Properties p=new Properties();
+        SmartCatchSettings.write(p);
         p.setProperty("locationSpoofing",String.valueOf(desiredEnabled));
         p.setProperty("darkTheme",String.valueOf(darkTheme));p.setProperty("uiScalePercent",String.valueOf(uiScalePercent));
         p.setProperty("joystickVisible",String.valueOf(joystickVisible));

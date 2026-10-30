@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add Smart Background Catcher with configurable balls, berries, throw quality, and species priorities. Continue catching while in-game menus are open and consider loaded spawns beyond the standard VGP distance limit, subject to server acceptance.
+- Fix Smart Catcher rejecting valid encounter responses with a native VGP error; preserve catch retries and automatic transfer behavior.
+
 - Restore wild-catch cooldown history by preserving native encounter types. Show zero cooldown when no actions are recorded.
 
 - Show the cooldown warning before every user teleport, including coordinates, Favorites, World Map destinations, feeds, hotspots, and in-game map-tap teleport controls.

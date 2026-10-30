@@ -8,10 +8,18 @@
 #include "vgp_maintenance.h"
 #include "vgp_marker.h"
 #include "items.h"
+#include "runtime_transport.h"
+#include "smart_catch.h"
+#include "smart_catch_binding.h"
 
 #include <atomic>
 #include <cstring>
 #include <mutex>
+#include <string>
+#include <cstdio>
+#include <vector>
+#include <map>
+#include <algorithm>
 #include <time.h>
 #include <unistd.h>
 
@@ -89,7 +97,30 @@ struct Pending {
   uint64_t deadline = 0;
   uint32_t key_len = 0;
   char key[PGR_VC_KEY_CAPACITY]{};
+  bool smart=false,berry_done=false;
+  uint32_t attempts=0;
+  uint64_t item_bag=0,next_throw=0;
+  std::string smart_config;
 } pend;
+int32_t smartEscapeStatus=-1;
+uint64_t smartPollAt=0;
+// Stable FIFO discovery order, without retaining managed objects between scans.
+std::map<std::string,uint64_t> smartArrival;
+uint64_t smartArrivalSerial=0;
+std::string smartConfig(){
+  const auto *t=static_cast<const PgrRuntimeTransportApi*>(pgrazor_runtime_transport_api(1));
+  char text[4096];uint32_t size=0;
+  if(!t||t->get_string(7,text,sizeof(text),&size)!=0||size>=sizeof(text))return {};
+  return std::string(text,size);
+}
+bool smartEnabled(const std::string &s){PgrSmartSettings options{};pgr_smart_parse_settings(s.data(),s.size(),&options);return options.enabled!=0;}
+void smartEvent(int ball,int berry,unsigned attempt){
+  const auto *t=static_cast<const PgrRuntimeTransportApi*>(pgrazor_runtime_transport_api(1));
+  char detail[128];int n=snprintf(detail,sizeof(detail),"ball=%d berry=%d attempt=%u",ball,berry,attempt);
+  const char name[]="smart-catch-request";
+  PgrRuntimeTransportString text[]={{name,sizeof(name)-1},{detail,uint32_t(n)}};
+  if(t)t->emit(19,nullptr,0,text,2);
+}
 
 struct Transfer {
   bool active = false;
@@ -182,6 +213,7 @@ void dropPending(PgrVgpControllerOut *o) {
   rootFree(pend.target);
   rootFree(pend.bag);
   rootFree(pend.reflection);
+  rootFree(pend.item_bag);
   pend = Pending{};
   if (o) o->flags |= PGR_VGC_EV_MARKER_HIDE;  // vgpDrop() hides the marker
 }
@@ -196,6 +228,7 @@ void clearTransfer(PgrVgpControllerOut *o, bool cancel) {
   xfer = Transfer{};
 }
 void freeAllRoots(PgrVgpControllerOut *o) {
+  smartArrival.clear();
   dropPending(o);
   clearTransfer(o, true);
   {
@@ -364,13 +397,58 @@ bool tickTransfer(const PgrVgpControllerTick *in, PgrVgpControllerOut *o, uint64
 }
 
 // ---- pending result ------------------------------------------------------------------------------
+bool smartMayAct(const PgrVgpControllerTick *in,bool stale){
+  if(stale||in->generation!=generationCounter.load()||stopped.load()||!(in->mask&1)||!remaining(in->lease_ms)||
+     !(in->flags&PGR_VGC_TF_MANUAL_READY)||
+     smartConfig()!=pend.smart_config||!alive(rootGet(pend.target)))return false;
+  std::lock_guard<std::mutex> lock(manualMutex);
+  return !manualTarget;
+}
+void smartWait(uint64_t now){
+  rootFree(pend.promise);rootFree(pend.reflection);
+  pend.phase=PGR_VGC_PH_SMART_WAIT;pend.berry_done=false;
+  pend.next_throw=now+1200+(now%601);pend.deadline=now+20000;
+}
+void tickSmartWait(const PgrVgpControllerTick *in,PgrVgpControllerOut *o,uint64_t now,bool stale){
+  if(!smartMayAct(in,stale)){retrySeen(in->owner,30000);dropPending(o);setStatus(o,PGR_VGC_ST_WAIT_READY);return;}
+  if(now<pend.next_throw){setStatus(o,PGR_VGC_ST_SMART_WAIT);return;}
+  PgrSmartDecision decision{};
+  int planned=pgr_smart_plan(rootGet(pend.target),rootGet(pend.item_bag),in->owner,&decision);
+  if(planned<0){pauseError(o,planned);return;}
+  if(planned==PGR_SMART_NO_BALLS){retrySeen(in->owner,30000);dropPending(o);setStatus(o,PGR_VGC_ST_SMART_OUT_BALLS);return;}
+  if(!decision.enabled||!smartMayAct(in,stale)||!armActions(in,in->lease_ms)){onRefused(o,in->owner,now);return;}
+  if(!pend.berry_done&&decision.berry){
+    uint64_t promise=0,reflection=0;
+    pgr_smart_set_admission_guard([](void *ctx){return smartMayAct(static_cast<const PgrVgpControllerTick*>(ctx),false);},const_cast<PgrVgpControllerTick*>(in));
+    int rc=pgr_smart_berry(rootGet(pend.target),rootGet(pend.item_bag),decision.berry,in->owner,remaining(in->lease_ms),&promise,&reflection);
+    pgr_smart_set_admission_guard(nullptr,nullptr);
+    if(rc<0){pauseError(o,rc);return;}
+    if(rc!=PGR_SMART_ISSUED){onRefused(o,in->owner,now);return;}
+    pend.promise=promise;pend.reflection=reflection;rootCount.fetch_add((promise?1:0)+(reflection?1:0));
+    smartEvent(0,decision.berry,pend.attempts+1);
+    pend.phase=PGR_VGC_PH_SMART_BERRY;pend.deadline=nowMs()+20000;setStatus(o,PGR_VGC_ST_SMART_BERRY);return;
+  }
+  const auto *selected=static_cast<const PgrVgpSmartActionsApi*>(pgrazor_vgp_actions_api(2));
+  if(!selected){pauseError(o,-40);return;}
+  PgrVgpActionsTarget req{PGR_VA_TARGET_VERSION,sizeof(req),in->epoch,in->owner,rootGet(pend.target)};
+  uintptr_t promise=0;
+  int rc=selected->capture_selected(&req,decision.ball,decision.grade,decision.curve?1:0,&promise);
+  if(rc<0){pauseError(o,rc);return;}
+  if(rc!=PGR_VA_ISSUED){onRefused(o,in->owner,now);return;}
+  pend.promise=promise;rootCount.fetch_add(1);++pend.attempts;
+  smartEvent(decision.ball,0,pend.attempts);
+  pend.phase=PGR_VGC_PH_CATCH;pend.deadline=nowMs()+20000;
+  o->flags|=PGR_VGC_EV_CATCH_ISSUED;setStatus(o,PGR_VGC_ST_CATCHING);
+}
 void tickPending(const PgrVgpControllerTick *in, PgrVgpControllerOut *o, uint64_t now, bool stale) {
   const uint64_t owner = in->owner;
   const bool allowed = in->mask && remaining(in->lease_ms) > 0;
   const bool actionsBlocked = stale;  // a stale generation blocks a NEW action, not the completion itself
 
+  if(pend.phase==PGR_VGC_PH_SMART_WAIT){tickSmartWait(in,o,now,stale);return;}
+  const bool berryPhase=pend.phase==PGR_VGC_PH_SMART_BERRY;
   PgrVgpResultsResult pr{};
-  int rc = RES->poll(rootGet(pend.promise), pend.phase, owner, &pr);
+  int rc = RES->poll(rootGet(pend.promise), berryPhase?PGR_VGC_PH_ENCOUNTER:pend.phase, owner, &pr);
   if (rc < 0) { pauseError(o, rc); return; }
   if (rc == PGR_VR_PENDING) {
     if (now > pend.deadline) {
@@ -391,6 +469,16 @@ void tickPending(const PgrVgpControllerTick *in, PgrVgpControllerOut *o, uint64_
   uint64_t value = pr.value_handle;
   if (value) rootCount.fetch_add(1);  // adopted as a counted root until freed/handed off
 
+  if(berryPhase){
+    int result=pgr_smart_berry_success(rootGet(value),owner);
+    rootFree(value);
+    if(result!=PGR_SMART_ISSUED){pauseError(o,result<0?result:-41);return;}
+    o->flags|=PGR_VGC_EV_SMART_BERRY;
+    rootFree(pend.promise);rootFree(pend.reflection);pend.berry_done=true;pend.phase=PGR_VGC_PH_SMART_WAIT;
+    // Wait for the following tick and recheck all permissions and stock before the throw.
+    setStatus(o,PGR_VGC_ST_SMART_WAIT);return;
+  }
+
   if (pend.phase == PGR_VGC_PH_ENCOUNTER) {
     void *targetObj = rootGet(pend.target);
     bool manualHit;
@@ -403,6 +491,14 @@ void tickPending(const PgrVgpControllerTick *in, PgrVgpControllerOut *o, uint64_
       dropPending(o);
       if (value) rootFree(value);
       return;
+    }
+    if(pend.smart){
+      int accepted=pgr_smart_encounter_success(rootGet(pend.target),rootGet(value),owner);
+      if(value)rootFree(value);
+      if(accepted<0){pauseError(o,accepted);return;}
+      if(!accepted){retrySeen(owner,60000);dropPending(o);setStatus(o,PGR_VGC_ST_REJECTED);return;}
+      if(!smartMayAct(in,stale)){onRefused(o,owner,now);return;}
+      smartWait(now);setStatus(o,PGR_VGC_ST_SMART_WAIT);return;
     }
     uint64_t svcRoot = reinterpret_cast<uint64_t>(ITM->service_acquire());  // OWNED gc handle
     if (!svcRoot) {
@@ -467,10 +563,15 @@ void tickPending(const PgrVgpControllerTick *in, PgrVgpControllerOut *o, uint64_
 
   // catch or spin result.
   const bool isCatch = pend.phase == PGR_VGC_PH_CATCH;
+  if(isCatch&&pend.smart&&pr.status_known&&pr.status==smartEscapeStatus&&pend.attempts<4&&smartMayAct(in,stale)){
+    if(value)rootFree(value);
+    smartWait(now);setStatus(o,PGR_VGC_ST_SMART_WAIT);return;
+  }
   int32_t catchStatus = (isCatch && pr.status_known) ? pr.status : 0;
   if (isCatch) {
     uint64_t delay = 30000;
     POL->catch_delay(pr.status_known ? pr.status : 0, &delay);
+    if(pend.smart&&pend.attempts>=4&&pr.status_known&&pr.status==smartEscapeStatus)delay=3600000;
     retrySeen(owner, delay);
   }
   const bool success = pr.success != 0;
@@ -521,6 +622,14 @@ void tickScan(const PgrVgpControllerTick *in, PgrVgpControllerOut *o, uint64_t n
   if (!allowed) { setStatus(o, PGR_VGC_ST_WAIT_READY); return; }
   if (stale) { setStatus(o, PGR_VGC_ST_NATIVE_UNAVAILABLE); return; }
   if (!(in->flags & PGR_VGC_TF_MANUAL_READY)) { setStatus(o, PGR_VGC_ST_INIT_SUPPORT); return; }
+  if(smartEnabled(smartConfig())){
+    // Menus may hide the map while its loaded spawns remain valid. A manual
+    // encounter still owns its target until the player returns to the map.
+    {std::lock_guard<std::mutex> lock(manualMutex);
+     if(manualTarget){setStatus(o,PGR_VGC_ST_WAIT_READY);return;}}
+    int bound=pgr_smart_ensure_bound(owner);
+    if(bound!=0){setStatus(o,PGR_VGC_ST_NATIVE_UNAVAILABLE);o->error=bound;return;}
+  }
   const int due = POL->due(owner);
   if (due < 0) { pauseError(o, due); return; }
   if (due != PGR_VP_YES) return;  // not due yet: keep the last status
@@ -528,7 +637,7 @@ void tickScan(const PgrVgpControllerTick *in, PgrVgpControllerOut *o, uint64_t n
     setStatus(o, PGR_VGC_ST_CLEAN_INV);
     return;
   }
-  const int armed = POL->arm(owner, 2500);
+  const int armed = POL->arm(owner, smartEnabled(smartConfig())?100:2500);
   if (armed < 0) { pauseError(o, armed); return; }
 
   uint64_t svcRoot = reinterpret_cast<uint64_t>(ITM->service_acquire());  // OWNED gc handle
@@ -555,7 +664,7 @@ void tickScan(const PgrVgpControllerTick *in, PgrVgpControllerOut *o, uint64_t n
   };
 
   uint32_t catchBlock = !(in->mask & 1)  ? PGR_VGC_ST_CATCH_DISABLED
-                        : balls < 1      ? PGR_VGC_ST_OUT_BALLS
+                        : balls < 1&&!smartEnabled(smartConfig()) ? PGR_VGC_ST_OUT_BALLS
                         : stored >= capacity ? PGR_VGC_ST_STORAGE_FULL
                                              : 0;
   const bool canCatch = catchBlock == 0;
@@ -580,7 +689,7 @@ void tickScan(const PgrVgpControllerTick *in, PgrVgpControllerOut *o, uint64_t n
   for (uint32_t a = 0; a < 2; a++) {
     const bool isCatch = actions[a] == PGR_VGC_PH_CATCH;
     if (isCatch ? !canCatch : !canSpin) continue;
-    const uint32_t kind = isCatch ? PGR_VD_KIND_CATCH : PGR_VD_KIND_SPIN;
+    const uint32_t kind = isCatch ? (smartEnabled(smartConfig())?PGR_VD_KIND_CATCH_LOADED:PGR_VD_KIND_CATCH) : PGR_VD_KIND_SPIN;
 
     PgrVgpDiscoveryEnumeration en{};
     int er = DSC->enumerate(kind, owner, remaining(in->lease_ms), &en);
@@ -589,13 +698,41 @@ void tickScan(const PgrVgpControllerTick *in, PgrVgpControllerOut *o, uint64_t n
     arrHandle = en.array_handle;  // OWNED
     rootCount.fetch_add(1);
 
-    for (uint32_t i = 0; i < en.count; i++) {
+    std::vector<uint32_t> indices;
+    if(isCatch&&smartEnabled(smartConfig())){
+      std::vector<std::pair<uint64_t,uint32_t>> ordered;
+      std::map<std::string,uint64_t> current;
+      // Bound bookkeeping and work per scan. Later candidates enter as earlier ones finish.
+      for(uint32_t i=0;i<en.count&&i<2048;++i){
+        uintptr_t h=0;int rc=DSC->at(rootGet(arrHandle),i,owner,remaining(in->lease_ms),&h);
+        if(rc<0){cleanup();pauseError(o,rc);return;}
+        if(!h)continue;rootCount.fetch_add(1);uint64_t candidate=h;
+        PgrVgpCandidateRequest q{PGR_VC_REQUEST_VERSION,sizeof(q)};
+        q.action=PGR_VC_ACTION_SMART_CATCH;q.owner_tid=owner;q.lease_ms=remaining(in->lease_ms);
+        q.lat=in->lat;q.lon=in->lon;q.target=rootGet(candidate);
+        PgrVgpCandidateResult r{};rc=CND->inspect(&q,&r);rootFree(candidate);
+        if(r.fort_handle){uint64_t f=r.fort_handle;rootCount.fetch_add(1);rootFree(f);}
+        if(rc<0){cleanup();pauseError(o,rc);return;}
+        if(rc!=PGR_VC_ELIGIBLE||r.key_len>=PGR_VC_KEY_CAPACITY)continue;
+        std::string key(r.key,r.key_len);auto prior=smartArrival.find(key);
+        uint64_t arrival=prior==smartArrival.end()?++smartArrivalSerial:prior->second;
+        if(current.emplace(key,arrival).second)ordered.emplace_back(arrival,i);
+      }
+      smartArrival.swap(current);std::sort(ordered.begin(),ordered.end());
+      for(const auto &entry:ordered)indices.push_back(entry.second);
+    }else{for(uint32_t i=0;i<en.count;++i)indices.push_back(i);}
+    for (uint32_t i : indices) {
       uintptr_t candH = 0;
       int ar = DSC->at(rootGet(arrHandle), i, owner, remaining(in->lease_ms), &candH);
       if (ar < 0) { cleanup(); pauseError(o, ar); return; }  // at() leaves *out_handle 0 on failure
       if (ar == 0 || !candH) continue;
       rootCount.fetch_add(1);
       uint64_t cand = candH;
+      if(isCatch&&smartEnabled(smartConfig())){
+        int fresh=pgr_smart_spawn_fresh(rootGet(cand),owner);
+        if(fresh<0){rootFree(cand);cleanup();pauseError(o,fresh);return;}
+        if(!fresh){rootFree(cand);continue;}
+      }
 
       void *manualObj = nullptr;
       if (isCatch) {
@@ -605,7 +742,7 @@ void tickScan(const PgrVgpControllerTick *in, PgrVgpControllerOut *o, uint64_t n
       PgrVgpCandidateRequest creq{};
       creq.version = PGR_VC_REQUEST_VERSION;
       creq.size = sizeof(creq);
-      creq.action = isCatch ? PGR_VC_ACTION_CATCH : PGR_VC_ACTION_SPIN;
+      creq.action = isCatch ? (smartEnabled(smartConfig())?PGR_VC_ACTION_SMART_CATCH:PGR_VC_ACTION_CATCH) : PGR_VC_ACTION_SPIN;
       creq.owner_tid = owner;
       creq.lease_ms = remaining(in->lease_ms);
       creq.lat = in->lat;
@@ -643,6 +780,10 @@ void tickScan(const PgrVgpControllerTick *in, PgrVgpControllerOut *o, uint64_t n
       pend.active = true;
       pend.phase = isCatch ? PGR_VGC_PH_ENCOUNTER : PGR_VGC_PH_SPIN;
       pend.target = cand;          // adopt (already counted)
+      if(isCatch){
+        pend.smart_config=smartConfig();pend.smart=smartEnabled(pend.smart_config);
+        if(pend.smart){pend.item_bag=rootNew(rootGet(itemBag));if(!pend.item_bag){if(fort)rootFree(fort);dropPending(o);cleanup();pauseError(o,-20);return;}}
+      }
       pend.bag = rootNew(rootGet(pokeBag));
       if (!pend.bag) { if (fort) rootFree(fort); dropPending(o); cleanup(); pauseError(o, -20); return; }
       pend.deadline = now + 20000;
@@ -804,7 +945,10 @@ int tick(const PgrVgpControllerTick *in, PgrVgpControllerOut *out) {
 
   tickMarker(in, out, now);
   if (tickTransfer(in, out, now)) { finalize(out); return PGR_VGC_OK; }
-  if (pend.active) { tickPending(in, out, now, stale); finalize(out); return PGR_VGC_OK; }
+  if (pend.active) {
+    if(!pend.smart||now>=smartPollAt){if(pend.smart)smartPollAt=now+100;tickPending(in,out,now,stale);}
+    finalize(out);return PGR_VGC_OK;
+  }
   tickScan(in, out, now, stale);
   finalize(out);
   return PGR_VGC_OK;
@@ -892,3 +1036,4 @@ const PgrVgpControllerApi api = {PGR_VGC_API_VERSION, sizeof(PgrVgpControllerApi
 extern "C" const void *pgrazor_vgp_controller_api(uint32_t version) {
   return version == PGR_VGC_API_VERSION ? &api : nullptr;
 }
+extern "C" void pgr_vgp_smart_escape_status(int32_t status){smartEscapeStatus=status;}

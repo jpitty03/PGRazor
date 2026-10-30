@@ -167,7 +167,8 @@ enum ActionKind { ACT_ENCOUNTER, ACT_CAPTURE, ACT_SPIN };
 // promise and transfers it via *out_handle. Frees every temporary root before returning. *out_handle is
 // written only on PGR_VA_ISSUED.
 int do_action(ActionKind kind, const PgrVgpActionsTarget *t, const PgrVgpActionsSpin *sp,
-              uint64_t epoch, uint64_t tid, uint64_t generation, uintptr_t *out_handle) {
+              uint64_t epoch, uint64_t tid, uint64_t generation, uintptr_t *out_handle,
+              const uint8_t *selected_throw) {
   void *target_obj = (kind == ACT_SPIN) ? sp->target : t->target;
   uintptr_t target_root = hold(target_obj);
   uintptr_t fort_root = 0, rpc_root = 0, request_root = 0, id_root = 0;
@@ -253,6 +254,7 @@ int do_action(ActionKind kind, const PgrVgpActionsTarget *t, const PgrVgpActions
       float grade = 1.0f;
       std::memcpy(ball + 0, &ball_id, 4);
       std::memcpy(ball + 4, &grade, 4);
+      if(selected_throw)std::memcpy(ball,selected_throw,sizeof(ball));
       void *params[2] = {ball, nullptr};
       promise = managed_invoke(g_cfg.m_capture, receiver, params, &exc);
     } else {
@@ -286,7 +288,7 @@ done:
 // Common prologue: validate installation / header, latch the owner, reject reentrancy, claim g_busy
 // under the gate, run do_action, release g_busy. need_mask selects catch vs spin.
 int run_action(ActionKind kind, const PgrVgpActionsTarget *t, const PgrVgpActionsSpin *sp,
-               uintptr_t *out_handle) {
+               uintptr_t *out_handle, const uint8_t *selected_throw=nullptr) {
   if (out_handle != nullptr) *out_handle = 0;
   if (!g_installed.load(std::memory_order_acquire)) return PGR_VA_ERR_NOT_INSTALLED;
   if (out_handle == nullptr) return PGR_VA_ERR_NULL_ARG;
@@ -322,7 +324,7 @@ int run_action(ActionKind kind, const PgrVgpActionsTarget *t, const PgrVgpAction
     generation = g_gen;
   }
 
-  int rc = do_action(kind, t, sp, epoch, tid, generation, out_handle);
+  int rc = do_action(kind, t, sp, epoch, tid, generation, out_handle,selected_throw);
 
   {
     std::lock_guard<std::mutex> lock(g_state_mutex);
@@ -452,6 +454,19 @@ const PgrVgpActionsApi kApiTable = {
 }  // namespace
 
 extern "C" const void *pgrazor_vgp_actions_api(uint32_t version) {
+  static const PgrVgpSmartActionsApi smart{2,sizeof(PgrVgpSmartActionsApi),pgr_vgp_capture_selected};
+  if(version==2)return &smart;
   if (version != PGR_VA_API_VERSION) return nullptr;
   return &kApiTable;
+}
+
+extern "C" int pgr_vgp_capture_selected(const PgrVgpActionsTarget *request,int item,int grade,int curve,uintptr_t *out_handle){
+  if(out_handle)*out_handle=0;
+  if(item<1||item>3||grade<0||grade>3||(curve!=0&&curve!=1))return PGR_VA_ERR_BAD_VERSION;
+  alignas(8) uint8_t ball[12]{};
+  // Same reticle ranges as the manual throw feature. Ratings are requested, not guaranteed outcomes.
+  const float radius=grade==3?0.1f:grade==2?0.4f:grade==1?0.8f:1.0f;
+  std::memcpy(ball,&item,4);std::memcpy(ball+4,&radius,4);
+  ball[8]=grade?1:0;ball[9]=curve?1:0;
+  return run_action(ACT_CAPTURE,request,nullptr,out_handle,ball);
 }

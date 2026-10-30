@@ -165,7 +165,7 @@ int inspect(const PgrVgpCandidateRequest *req, PgrVgpCandidateResult *out) {
   if (req->version != PGR_VC_REQUEST_VERSION) return PGR_VC_ERR_BAD_VERSION;
   if (req->size != sizeof(*req)) return PGR_VC_ERR_BAD_SIZE;
   if (!installed.load(std::memory_order_acquire)) return PGR_VC_ERR_NOT_INSTALLED;
-  if (req->action != PGR_VC_ACTION_CATCH && req->action != PGR_VC_ACTION_SPIN) return PGR_VC_ERR_BAD_ACTION;
+  if (req->action != PGR_VC_ACTION_CATCH && req->action != PGR_VC_ACTION_SPIN && req->action != PGR_VC_ACTION_SMART_CATCH) return PGR_VC_ERR_BAD_ACTION;
   if (!req->target) return PGR_VC_ERR_NULL_ARG;
   if (!req->owner_tid || req->owner_tid != static_cast<uint64_t>(gettid())) return PGR_VC_ERR_THREAD;
   if (!std::isfinite(req->lat) || !std::isfinite(req->lon) ||
@@ -183,7 +183,7 @@ int inspect(const PgrVgpCandidateRequest *req, PgrVgpCandidateResult *out) {
   struct BusyExit { ~BusyExit() { busy.store(false); } } exit;
 
   int err = 0;
-  const bool isCatch = req->action == PGR_VC_ACTION_CATCH;
+  const bool isCatch = req->action != PGR_VC_ACTION_SPIN;
 
   Root target, manual;
   if (!target.set(req->target)) return PGR_VC_ERR_GCHANDLE;
@@ -223,7 +223,7 @@ int inspect(const PgrVgpCandidateRequest *req, PgrVgpCandidateResult *out) {
       std::memcpy(&clon, static_cast<char *>(p) + 8, sizeof(double));
       if (!std::isfinite(clat) || !std::isfinite(clon) || std::fabs(clat)>90 || std::fabs(clon)>180) { out->reason=PGR_VC_REASON_OUT_OF_RANGE; return PGR_VC_NOT; }
       double dist = haversine(req->lat, req->lon, clat, clon);
-      if (!std::isfinite(dist) || dist > 40.0) { out->reason = PGR_VC_REASON_OUT_OF_RANGE; return PGR_VC_NOT; }
+      if (!std::isfinite(dist) || (req->action==PGR_VC_ACTION_CATCH && dist > 40.0)) { out->reason = PGR_VC_REASON_OUT_OF_RANGE; return PGR_VC_NOT; }
     }
     // EncounterId (non-virtual) -> UInt64; key = 'p'<decimal>.
     uint64_t id;

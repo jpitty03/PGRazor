@@ -450,7 +450,7 @@ int main(int argc, char **argv) {
   // 13. enumerate: bad kind, catch/spin success (owned array handle + count), owner/lease gate.
   reset();
   assert(api->enumerate(0, tid, 2000, &en) == PGR_VD_ERR_BAD_KIND);
-  assert(api->enumerate(3, tid, 2000, &en) == PGR_VD_ERR_BAD_KIND && en.array_handle == 0);
+  assert(api->enumerate(4, tid, 2000, &en) == PGR_VD_ERR_BAD_KIND && en.array_handle == 0);
   assert(api->enumerate(PGR_VD_KIND_CATCH, tid + 1, 2000, &en) == PGR_VD_SKIP);
   assert(api->enumerate(PGR_VD_KIND_CATCH, tid, 0, &en) == PGR_VD_SKIP);
   assert(g_handles.empty());

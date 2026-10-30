@@ -205,6 +205,16 @@ static_assert(sizeof(PgrVgpActionsApi) == 64,
 // under feature id 26 and answers only on an exact version match.
 const void *pgrazor_vgp_actions_api(uint32_t version);
 
+// Compiled smart-catch extension; same lease/epoch/owner gates as API1 capture.
+// Internal only: no changes to the versioned feature table used by existing clients.
+int pgr_vgp_capture_selected(const PgrVgpActionsTarget *request, int ball,
+                             int grade, int curve, uintptr_t *out_handle);
+struct PgrVgpSmartActionsApi {
+  uint32_t version,size;
+  int (*capture_selected)(const PgrVgpActionsTarget *,int,int,int,uintptr_t *);
+};
+static_assert(sizeof(PgrVgpSmartActionsApi)==16,"Smart capture API2 ABI");
+
 #ifdef __cplusplus
 }
 #endif

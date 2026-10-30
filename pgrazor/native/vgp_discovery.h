@@ -56,6 +56,7 @@ enum PgrVgpDiscoveryInfo {
   PGR_VD_ENUM_VERSION    = 1,
   PGR_VD_MAX_LEASE_MS    = 2500,  // residual foreground lease ceiling (JS vgpLease gate)
   PGR_VD_KIND_CATCH      = 1,     // enumerate wild map pokemon (VGP.wild)
+  PGR_VD_KIND_CATCH_LOADED = 3,   // smart catch: include loaded inactive map objects
   PGR_VD_KIND_SPIN       = 2,     // enumerate stop map objects (VGP.stop)
   PGR_VD_MAX_ARRAY       = 2048,  // strict element-count ceiling (JS 'vgp-map-count' guard)
   PGR_VD_ARRAY_DATA_OFF  = 32     // raw LP64 managed array data start (existing ABI: element[i] @ 32+i*8)

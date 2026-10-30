@@ -89,7 +89,10 @@ enum PgrVgpControllerStatusCode {
   PGR_VGC_ST_FULL_RECENT        = 25,   // "Waiting for recent targets to expire"
   PGR_VGC_ST_INIT_SUPPORT       = 26,   // "Initializing encounter support"
   PGR_VGC_ST_CATCH_DISABLED     = 27,   // "Pokemon catching disabled"
-  PGR_VGC_ST_NATIVE_UNAVAILABLE = 28    // "VGP native actions unavailable"
+  PGR_VGC_ST_NATIVE_UNAVAILABLE = 28,
+  PGR_VGC_ST_SMART_WAIT         = 29,
+  PGR_VGC_ST_SMART_BERRY        = 30,
+  PGR_VGC_ST_SMART_OUT_BALLS    = 31
 };
 
 // out.flags: edge-triggered events for THIS tick (OR-combined). event_serial bumps on any non-zero flags.
@@ -102,7 +105,8 @@ enum PgrVgpControllerEvent {
   PGR_VGC_EV_TRANSFER_READY = 32,   // 4 OWNED handles + caught_id + token handed off (adopt or free ALL)
   PGR_VGC_EV_MARKER_UPDATE  = 64,   // marker_x/marker_y/marker_visible are valid this tick
   PGR_VGC_EV_MARKER_HIDE    = 128,  // hide the marker this tick
-  PGR_VGC_EV_TRANSFER_CANCEL= 256   // release the shared JS transfer record for transfer_token
+  PGR_VGC_EV_TRANSFER_CANCEL= 256,
+  PGR_VGC_EV_SMART_BERRY    = 512   // confirmed successful smart berry use
 };
 
 // tick.flags: boolean host inputs for this tick.
@@ -120,7 +124,9 @@ enum PgrVgpControllerPhase {
   PGR_VGC_PH_CATCH         = 2,
   PGR_VGC_PH_SPIN          = 3,
   PGR_VGC_PH_INVENTORY_WAIT= 4,  // caught + transfer candidate, waiting for the inventory update
-  PGR_VGC_PH_HANDED_OFF    = 5   // the record is with the shared JS transfer executor
+  PGR_VGC_PH_HANDED_OFF    = 5,
+  PGR_VGC_PH_SMART_WAIT    = 6,
+  PGR_VGC_PH_SMART_BERRY   = 7
 };
 
 // transfer_feedback() state: the shared JS executor's progress for a handed-off record.
@@ -273,6 +279,8 @@ static_assert(sizeof(PgrVgpControllerApi) == 72,
 // Hidden getter. NOT exported by the version script; the coordinator registers it in query_feature under
 // feature id 33 and answers only on an exact version match.
 const void *pgrazor_vgp_controller_api(uint32_t version);
+// Called once by the metadata owner with the validated CatchEscape literal.
+void pgr_vgp_smart_escape_status(int32_t status);
 
 #ifdef __cplusplus
 }

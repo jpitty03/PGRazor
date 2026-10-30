@@ -56,6 +56,7 @@ enum PgrVgpCandidateInfo {
   PGR_VC_RESULT_VERSION = 1,
   PGR_VC_MAX_LEASE_MS   = 2500,  // residual foreground lease ceiling (JS vgpLease gate)
   PGR_VC_ACTION_CATCH   = 0,     // target == VGP wild map pokemon
+  PGR_VC_ACTION_SMART_CATCH = 2, // loaded visible wild; encounter determines usable range
   PGR_VC_ACTION_SPIN    = 1,     // target == VGP stop map object
   PGR_VC_MAX_FORT_UNITS = 256,   // accepted FortId length in UTF-16 code units (JS 1..256)
   PGR_VC_KEY_CAPACITY   = 1040   // out.key bytes: 1 prefix + <=1024 UTF-8 + NUL, rounded to 8
@@ -145,7 +146,7 @@ static_assert(sizeof(PgrVgpCandidateConfig) == 200,
 struct PgrVgpCandidateRequest {
   uint32_t version;    // == PGR_VC_REQUEST_VERSION
   uint32_t size;       // == sizeof(PgrVgpCandidateRequest)
-  uint32_t action;     // PGR_VC_ACTION_CATCH / PGR_VC_ACTION_SPIN
+  uint32_t action;     // normal catch, smart catch, or spin (PGR_VC_ACTION_*)
   uint32_t reserved;   // 0
   uint64_t owner_tid;  // proven Unity owner tid
   uint64_t lease_ms;   // residual foreground lease (ms)

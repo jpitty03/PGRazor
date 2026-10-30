@@ -279,6 +279,21 @@ int main(int argc, char **argv) {
 
   // 2c. spin: builds the FortSearch request (ctor + Id + coords) and invokes SendRpc with rpcId/0/10000/0.
   { reset_action_counters();
+    const auto *smart=static_cast<const PgrVgpSmartActionsApi*>(core->query_feature(26,2));
+    assert(smart&&smart->version==2&&smart->size==sizeof(*smart));
+    assert(api->update(PGR_VA_MASK_CATCH,2000,1,tid)==PGR_VA_OK);
+    PgrVgpActionsTarget r=make_target(&wild,1,tid);
+    assert(smart->capture_selected(&r,3,3,1,&h)==PGR_VA_ISSUED);
+    int item=0;float radius=0;std::memcpy(&item,g_ball,4);std::memcpy(&radius,g_ball+4,4);
+    assert(item==3&&radius==0.1f&&g_ball[8]==1&&g_ball[9]==1&&g_ball[10]==0&&g_ball[11]==0);
+    fake_gc_free(h);h=0;
+    assert(smart->capture_selected(&r,4,3,1,&h)<0&&h==0); // Never a Master Ball.
+    assert(smart->capture_selected(&r,2,4,1,&h)<0&&h==0);
+    assert(api->stop(tid)==PGR_VA_OK);
+    assert(smart->capture_selected(&r,2,3,1,&h)==PGR_VA_OK&&h==0);
+    assert(g_capture_calls==1&&take_sample().roots==0);
+  }
+  { reset_action_counters();
     assert(api->update(PGR_VA_MASK_SPIN, 2000, 1, tid) == PGR_VA_OK);
     PgrVgpActionsSpin r = make_spin(&stop, &fort, &rpc, 1, tid, 12.25, -45.75);
     h = 0;

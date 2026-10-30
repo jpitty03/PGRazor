@@ -965,7 +965,7 @@ static void pump_berry_events_and_resume(uint64_t tid, int stopping) {
 // VGP Controller Tick & Event Mapping
 // ============================================================================
 static const char *vgp_status_string(uint32_t code) {
-  static const char *const kStatuses[29] = {
+  static const char *const kStatuses[32] = {
     "Off","Waiting for game readiness","Waiting for inventory","Out of red Poke Balls",
     "Pokemon storage full","Item bag full","Waiting for Pokemon retry / new targets",
     "Nearby Pokemon outside 40m catch range","Watching nearby Pokemon and PokeStops","Catching nearby Pokemon",
@@ -973,8 +973,9 @@ static const char *vgp_status_string(uint32_t code) {
     "Request rejected","Response timed out; toggle VGP to resume","Paused: native VGP error","Checking auto-transfer",
     "Transferring caught Pokemon","Transferred","Transfer error","Kept: protected","Caught; transfer inventory update timed out",
     "Cleaning inventory","Waiting for recent targets to expire","Initializing encounter support",
-    "Pokemon catching disabled","VGP native actions unavailable"};
-  return code<29?kStatuses[code]:"Paused: invalid VGP status";
+    "Pokemon catching disabled","VGP native actions unavailable",
+    "Smart catch: waiting before throw","Smart catch: applying berry","Smart catch: no regular balls available"};
+  return code<32?kStatuses[code]:"Paused: invalid VGP status";
 }
 
 static void tick_vgp_controller(uint64_t tid, uint64_t now_ms, uint64_t lease_ms) {
@@ -1028,7 +1029,7 @@ static void tick_vgp_controller(uint64_t tid, uint64_t now_ms, uint64_t lease_ms
   if (static_cast<int32_t>(out.status) != g_last_vgp_status) {
     g_last_vgp_status = static_cast<int32_t>(out.status);
     const char *st = vgp_status_string(out.status);
-    emit_eventf("vgp-status", "{\"message\":\"%s\",\"code\":%u}", st, out.status);
+    emit_eventf("vgp-status", "{\"message\":\"%s\",\"code\":%u,\"error\":%d}", st, out.status,out.error);
     notify_vgp_status(st);
   }
 
@@ -1036,6 +1037,10 @@ static void tick_vgp_controller(uint64_t tid, uint64_t now_ms, uint64_t lease_ms
     emit_event("vgp-request", "{\"action\":\"catch\"}");
     emit_event("cooldown-action", "{\"action\":\"VGP ball throw\"}");
     notify_cooldown_action("VGP ball throw");
+  }
+  if(out.flags & PGR_VGC_EV_SMART_BERRY){
+    emit_event("cooldown-action","{\"action\":\"Smart catch berry\"}");
+    notify_cooldown_action("Smart catch berry");
   }
   if (out.flags & PGR_VGC_EV_SPIN_ISSUED) {
     emit_event("vgp-request", "{\"action\":\"spin\"}");
@@ -1609,6 +1614,7 @@ static int install_vgp_leaves(bool *out_has_marker) {
   vp_cfg.status_terminal[2] = -1;
   vp_cfg.status_terminal[3] = -1;
   vp_cfg.status_retry[0] = g_md.opt_ints[I_VGP_CS_ESCAPE];
+  pgr_vgp_smart_escape_status(g_md.opt_ints[I_VGP_CS_ESCAPE]);
   vp_cfg.status_retry[1] = g_md.opt_ints[I_VGP_CS_MISSED];
   vp_cfg.status_retry[2] = g_md.opt_ints[I_VGP_CS_ITEM_REPL];
   vp_cfg.status_retry[3] = -1;

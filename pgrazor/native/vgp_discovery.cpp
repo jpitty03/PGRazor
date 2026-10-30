@@ -18,6 +18,7 @@ PgrVgpDiscoveryConfig cfg{};
 std::mutex installMutex;
 std::atomic<bool> installed{false};
 std::atomic<bool> busy{false};
+std::atomic<void*> find_loaded{nullptr};
 
 using New      = uintptr_t (*)(void *, int);
 using Get      = void *(*)(uintptr_t);
@@ -284,7 +285,7 @@ int snapshot(void *svc, uint64_t owner, uint64_t lease_ms, PgrVgpDiscoverySnapsh
 int enumerate(uint32_t kind, uint64_t owner, uint64_t lease_ms, PgrVgpDiscoveryEnumeration *out) {
   if (!out) return PGR_VD_ERR_NULL_ARG;
   *out = {PGR_VD_ENUM_VERSION, uint32_t(sizeof(*out)), 0, 0, 0};
-  if (kind != PGR_VD_KIND_CATCH && kind != PGR_VD_KIND_SPIN) return PGR_VD_ERR_BAD_KIND;
+  if (kind != PGR_VD_KIND_CATCH && kind != PGR_VD_KIND_SPIN && kind != PGR_VD_KIND_CATCH_LOADED) return PGR_VD_ERR_BAD_KIND;
 
   uint64_t start, deadline;
   int g = gate(owner, lease_ms, &start, &deadline);
@@ -294,7 +295,7 @@ int enumerate(uint32_t kind, uint64_t owner, uint64_t lease_ms, PgrVgpDiscoveryE
   if (!bg.held) return PGR_VD_ERR_BUSY;
 
   int err = 0;
-  void *klass = (kind == PGR_VD_KIND_CATCH) ? cfg.class_wild : cfg.class_stop;
+  void *klass = (kind != PGR_VD_KIND_SPIN) ? cfg.class_wild : cfg.class_stop;
 
   Root elementType;
   if (!typeObject(klass, elementType, err)) return err;
@@ -303,8 +304,10 @@ int enumerate(uint32_t kind, uint64_t owner, uint64_t lease_ms, PgrVgpDiscoveryE
   {
     void *t = elementType.get();
     if (!t) return PGR_VD_ERR_GCHANDLE;
-    void *args[] = {t};
-    switch (call(cfg.m_find_all, nullptr, args, arrayObj, /*allowNull=*/true)) {
+    uint8_t include_inactive=1;void *args[] = {t,&include_inactive};
+    void *finder=kind==PGR_VD_KIND_CATCH_LOADED?find_loaded.load():cfg.m_find_all;
+    if(!finder)return PGR_VD_ERR_METADATA;
+    switch (call(finder, nullptr, args, arrayObj, /*allowNull=*/true)) {
       case CALL_THROW:    return PGR_VD_ERR_MANAGED;
       case CALL_GCHANDLE: return PGR_VD_ERR_GCHANDLE;
       case CALL_DEAD:     return PGR_VD_ERR_GCHANDLE;
@@ -372,3 +375,6 @@ const PgrVgpDiscoveryApi api = {
 extern "C" const void *pgrazor_vgp_discovery_api(uint32_t version) {
   return version == PGR_VD_API_VERSION ? &api : nullptr;
 }
+
+// Set only after exact static method signature validation on the Unity owner.
+extern "C" void pgr_vgp_discovery_loaded_method(void *method){find_loaded.store(method);}

@@ -32,7 +32,7 @@ public final class NativeRuntimeTransport {
     private static final int MAX_BYTES = 1048576, MAX_CALLS = 128;
 
     // Wire constants, compiled identically in runtime_transport.h.
-    private static final int MAGIC_SNAPSHOT = 0x53524750, MAGIC_EVENTS = 0x45524750, FRAME_VERSION = 4, FLAG_INERT = 1;
+    private static final int MAGIC_SNAPSHOT = 0x53524750, MAGIC_EVENTS = 0x45524750, FRAME_VERSION = 5, FLAG_INERT = 1;
     private static final int OFF_MAGIC = 0, OFF_VERSION = 4, OFF_FRAME_SIZE = 8, OFF_FLAGS = 12, OFF_SEQ = 16,
         OFF_WALL = 24, OFF_BOOLS = 32, OFF_INTS = 80, OFF_DOUBLES = 120, OFF_PULSES = 136, OFF_STRINGS = 160;
     private static final int EVENT_HEADER = 32, ACTION_COUNT = 59;
@@ -95,7 +95,7 @@ public final class NativeRuntimeTransport {
     private final Exchange exchange;
     private final Method[] boolReaders, intReaders, doubleReaders, stringReaders, pulseReaders, actions;
     private final Class<?>[][] actionParams;
-    private final Method snapshotReader, eventAction;
+    private final Method snapshotReader, smartCatchReader, eventAction;
     private final long[] pulseCounts = new long[PULSE_READERS.length];
     private ByteBuffer snapshotBuffer, eventBuffer;
     private long seq;
@@ -119,6 +119,7 @@ public final class NativeRuntimeTransport {
         stringReaders = resolveReaders(STRING_READERS, String.class);
         pulseReaders = resolveReaders(PULSE_READERS, boolean.class);
         snapshotReader = reader("accountCommandSnapshot", String[].class);
+        smartCatchReader = reader("smartCatchConfig", String.class);
         actions = new Method[ACTIONS.length];
         actionParams = new Class<?>[ACTIONS.length][];
         if (ACTIONS.length != ACTION_COUNT) throw invalid();
@@ -283,6 +284,7 @@ public final class NativeRuntimeTransport {
         Object pair = snapshotReader.invoke(null);
         if (!(pair instanceof String[]) || ((String[]) pair).length != 2) throw invalid();
         for (String part : (String[]) pair) { if (part == null) throw invalid(); putString(buffer, part); }
+        putString(buffer, smartCatchReader.invoke(null)); // slot 7; existing account indices stay stable
         int frameSize = buffer.position();
         buffer.putInt(OFF_MAGIC, MAGIC_SNAPSHOT);
         buffer.putInt(OFF_VERSION, FRAME_VERSION);

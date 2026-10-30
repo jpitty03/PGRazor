@@ -328,6 +328,17 @@ int main(int argc, char **argv) {
   assert(g_handles.empty());
 
   // Validate the candidate's own location before haversine: 360 degrees otherwise wraps to zero
+  // Smart mode may attempt loaded visible spawns beyond the legacy 40 m cutoff.
+  for(double latitude:{0.00045,0.00072,0.0018}){
+    reset();g_wild.lat=latitude;
+    auto r=make_request(PGR_VC_ACTION_SMART_CATCH,&g_wild,nullptr,0,0,tid,2000);
+    assert(api->inspect(&r,&out)==PGR_VC_ELIGIBLE&&g_handles.empty());
+    g_wild.visible=false;assert(api->inspect(&r,&out)==PGR_VC_NOT&&out.reason==PGR_VC_REASON_HIDDEN);
+    g_wild.visible=true;r.manual=&g_wild;assert(api->inspect(&r,&out)==PGR_VC_NOT&&out.reason==PGR_VC_REASON_MANUAL);
+    assert(g_handles.empty());
+  }
+
+  // Validate the candidate's own location before haversine: 360 degrees otherwise wraps to zero
   // distance. Nonfinite and out-of-domain coordinates are benign range rejections, never pauses.
   const double malformed[][2]={{NAN,0},{INFINITY,0},{-INFINITY,0},{0,NAN},{0,INFINITY},
     {90.0001,0},{-90.0001,0},{0,180.0001},{0,-180.0001},{360,0},{0,360}};
@@ -336,6 +347,8 @@ int main(int argc, char **argv) {
     PgrVgpCandidateRequest r=make_request(PGR_VC_ACTION_CATCH,&g_wild,nullptr,0,0,tid,2000);
     assert(api->inspect(&r,&out)==PGR_VC_NOT&&out.reason==PGR_VC_REASON_OUT_OF_RANGE);
     assert(out.eligible==0&&out.fort_handle==0&&g_handles.empty());
+    r.action=PGR_VC_ACTION_SMART_CATCH;
+    assert(api->inspect(&r,&out)==PGR_VC_NOT&&out.reason==PGR_VC_REASON_OUT_OF_RANGE&&g_handles.empty());
   }
 
   // 6. Spin eligible: fort handle transferred (owned), ASCII key, roots clean once the caller frees it.

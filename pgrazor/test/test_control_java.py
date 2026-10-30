@@ -124,6 +124,13 @@ public class AccountProfiles {
     'dev/pgrazor/Pad.java': '''package dev.pgrazor;
 public class Pad {public final android.app.Activity activity; public Pad(android.app.Activity a){activity=a;} public void close(){} public void confirmStopRoute(){} public void confirmMapTeleport(double lat,double lon,int mode,int epoch){}}''',
     'dev/pgrazor/LogActivity.java': 'package dev.pgrazor; public class LogActivity extends android.app.Activity {}',
+    'dev/pgrazor/SmartCatchSettings.java': '''package dev.pgrazor;
+public final class SmartCatchSettings {
+ private static final SmartCatchPreferences prefs=new SmartCatchPreferences();
+ public static String config(){return prefs.config();}
+ public static void read(java.util.Properties p){prefs.read(p);}
+ public static void write(java.util.Properties p){prefs.write(p);}
+}''',
     # Shells for collaborators whose real sources pull in Android UI/network far beyond Control's
     # narrow use of them. Control only references the members shelled here; policy is never exercised
     # through these, so they return inert values. BerryPriority/MapTapSequence/CooldownState compile
@@ -179,7 +186,7 @@ class ControlJavaTests(unittest.TestCase):
                 'Control.java', 'MotionEngine.java', 'LocationState.java', 'GameRoutesController.java',
                 'CameraHeadingState.java', 'CameraSteering.java',
                 'BerryPriority.java', 'MapTapSequence.java', 'CooldownState.java',
-                'VgpController.java', 'CatchOutcomeController.java', 'SettingsWriter.java'))
+                'VgpController.java', 'CatchOutcomeController.java', 'SettingsWriter.java', 'SmartCatchPreferences.java'))
             sources.extend([ROOT / 'test/ControlQuickSummaryTest.java',ROOT / 'test/ControlQuickBallTest.java',
                             ROOT / 'test/ControlQuickBallOutcomeTest.java',ROOT / 'test/ControlSettingsTest.java',
                             ROOT / 'test/VgpControllerTest.java',ROOT / 'test/CooldownTest.java',ROOT / 'test/ControlCooldownTest.java',

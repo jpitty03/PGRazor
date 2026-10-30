@@ -137,6 +137,8 @@ add_library(pgrazor_core SHARED
   vgp_maintenance.cpp
   vgp_aux.cpp
   vgp_controller.cpp
+  smart_catch.cpp
+  smart_catch_binding.cpp
   jni_core.cpp)
 
 target_sources(pgrazor_core PRIVATE events/event_collector.cpp)
