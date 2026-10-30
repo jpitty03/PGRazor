@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Restore wild-catch cooldown history by preserving native encounter types. Show zero cooldown when no actions are recorded.
+
+- Show the cooldown warning before every user teleport, including coordinates, Favorites, World Map destinations, feeds, hotspots, and in-game map-tap teleport controls.
+
+- Add 14 curated hotspots to the World Map and Quick Menu. Map choices select a waypoint; Quick Menu offers Walk or Teleport, and hotspot teleports show a destination cooldown estimate before confirmation.
+
+- Show a live blue current-location dot on the World Map independently of the red destination pin.
+
+- Add World Map place search for businesses, parks, landmarks, and addresses, biased toward the viewed map area. Selecting a result centers its destination pin; Walk and Teleport remain explicit actions. Search uses Photon/OpenStreetMap and results may be incomplete.
+
 ## v0.1.7-experimental.2
 
 [Full release notes](docs/releases/v0.1.7-experimental.2.md)

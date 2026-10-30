@@ -72,15 +72,17 @@ public final class WorldMapDialog {
         layout.setOrientation(LinearLayout.VERTICAL);
         int pad = dp(activity, 12);
         layout.setPadding(pad, pad, pad, pad);
-        TextView hint = label(ui, "Drag to pan. Pinch to zoom. Tap to select a destination.", 13);
+        TextView hint = label(ui, "Blue dot: you. Red pin: destination. Drag to pan; pinch to zoom.", 13);
         layout.addView(hint);
         TextView selected = label(ui, "", 15);
         selected.setPadding(0, dp(activity, 8), 0, dp(activity, 8));
         LinearLayout selectionRow = new LinearLayout(ui);
         selectionRow.setGravity(Gravity.CENTER_VERTICAL);
-        selectionRow.addView(selected, new LinearLayout.LayoutParams(0, -2, 1));
+        layout.addView(selected);
         Button saved = button(ui, "Saved places");
-        selectionRow.addView(saved, new LinearLayout.LayoutParams(dp(activity, route == null ? 116 : 100), dp(activity, 48)));
+        selectionRow.addView(saved, new LinearLayout.LayoutParams(0, dp(activity, 48), 1));
+        Button hotspots = button(ui, "Hotspots");
+        selectionRow.addView(hotspots, new LinearLayout.LayoutParams(0, dp(activity, 48), 1));
         Button routeMode = button(ui, "Route"); routeMode.setContentDescription("Open route builder");
         routeMode.setVisibility(route == null ? View.GONE : View.VISIBLE);
         selectionRow.addView(routeMode,new LinearLayout.LayoutParams(dp(activity, 64),dp(activity, 48)));
@@ -93,6 +95,19 @@ public final class WorldMapDialog {
         layout.addView(attribution);
         TextView status = label(ui, "Loading map…", 12);
         MapView map = new MapView(activity, latitude, longitude, selected, status);
+        final AlertDialog[] hotspotsDialog = {null}, cooldownDialog = {null};
+        hotspots.setOnClickListener(v -> {
+            if(hotspotsDialog[0]!=null && hotspotsDialog[0].isShowing())return;
+            hotspotsDialog[0]=HotspotsDialog.show(activity,spot->{map.select(spot.latitude,spot.longitude);});
+        });
+        Button search = button(ui, "Search places, parks or addresses");
+        layout.addView(search, new LinearLayout.LayoutParams(-1, dp(activity, 48)));
+        final AlertDialog[] searchDialog = {null};
+        search.setOnClickListener(v -> {
+            if(searchDialog[0]!=null && searchDialog[0].isShowing()) return;
+            searchDialog[0]=MapSearchDialog.show(activity, MapProjection.latitude(map.centerY),
+                MapProjection.longitude(map.centerX), (lat,lon) -> map.select(lat,lon));
+        });
         LinearLayout layers=new LinearLayout(ui);
         SharedPreferences preferences=AccountProfiles.preferences(activity,"pgrazor-map");
         String[] names={"Stops","Gyms","Raids"};
@@ -141,13 +156,17 @@ public final class WorldMapDialog {
             .setNegativeButton("Cancel", null).setPositiveButton("Teleport", null);
         if (walk != null) builder.setNeutralButton("Walk here", null);
         AlertDialog dialog = builder.create();
-        DialogLifecycle.bind(activity, dialog, () -> { if(routes!=null)routes.close(); places.close(); map.close(); });
+        DialogLifecycle.bind(activity, dialog, () -> { if(hotspotsDialog[0]!=null)hotspotsDialog[0].dismiss(); if(cooldownDialog[0]!=null)cooldownDialog[0].dismiss(); if(searchDialog[0]!=null)searchDialog[0].dismiss(); if(routes!=null)routes.close(); places.close(); map.close(); });
         dialog.setOnShowListener(d -> {
             MapTheme.fullScreen(dialog); MapTheme.style(layout); MapTheme.styleButtons(dialog);
             if(routes!=null)routes.attach(dialog);
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
                 if(routes!=null && routes.editing) { routes.start(); return; }
-                if (listener.onDestination(map.latitude, map.longitude)) dialog.dismiss();
+                if(cooldownDialog[0]!=null && cooldownDialog[0].isShowing())return;
+                cooldownDialog[0]=TeleportDialog.confirm(activity,map.latitude,map.longitude,(lat,lon)->{
+                    if(!listener.onDestination(lat,lon))return false;
+                    dialog.dismiss();return true;
+                });
             });
             if (walk != null) dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
                 if (walk.onDestination(map.latitude, map.longitude)) dialog.dismiss();
@@ -199,7 +218,7 @@ public final class WorldMapDialog {
             boolean big=draft.size()>LIMIT;
             mode.setText(editing ? "Map" : "Route");
             mode.setContentDescription(editing ? "Leave route builder without starting" : "Open route builder");
-            hint.setText(!editing ? "Drag to pan. Pinch to zoom. Tap to select a destination."
+            hint.setText(!editing ? "Blue dot: you. Red pin: destination. Tap to select; drag to pan."
                 : big ? "GPX route: "+draft.size()+" stops. Tap Start to walk it in order."
                 : "Route: "+draft.size()+"/"+LIMIT+" stops. Tap map, then Add stop.");
             add.setText(editing ? "Add stop" : "World"); add.setContentDescription(editing ? "Add selected destination as next route stop" : "Show world map");
@@ -448,6 +467,13 @@ public final class WorldMapDialog {
         private final ScaleGestureDetector pinch;
         private float downX, downY, previousX, previousY;
         private boolean dragged, multiTouch;
+        private final Runnable locationRefresh = new Runnable() {
+            public void run() {
+                if(closed) return;
+                invalidate(); // Refresh the live player marker without requesting new tiles.
+                postDelayed(this, 250);
+            }
+        };
 
         MapView(Activity activity, double latitude, double longitude, TextView selection, TextView status) {
             super(activity);
@@ -468,7 +494,7 @@ public final class WorldMapDialog {
                 public void setOpen(boolean open) { Control.setMapPoiOpen(open); }
                 public String read() { return Control.mapPoiSnapshot(); }
             }, this::invalidate);
-            setContentDescription("World map. Drag to pan, pinch to zoom, tap to select destination.");
+            setContentDescription("World map. Blue dot is your current location; red pin is the destination. Drag to pan, pinch to zoom, tap to select destination.");
             // Use the activity hardware renderer; tile I/O stays on the worker.
             pinch=new ScaleGestureDetector(activity,new ScaleGestureDetector.SimpleOnScaleGestureListener(){
                 public boolean onScaleBegin(ScaleGestureDetector detector){multiTouch=true;return true;}
@@ -557,6 +583,24 @@ public final class WorldMapDialog {
             paint.setColor(Color.rgb(197, 35, 52)); canvas.drawCircle(markerX, markerY, radius, paint);
             paint.setColor(Color.WHITE); canvas.drawCircle(markerX, markerY, radius / 3, paint);
             drawRoute(canvas,true);
+            drawCurrentLocation(canvas);
+        }
+
+        /** Independent of the destination: selecting or searching never changes this position. */
+        private void drawCurrentLocation(Canvas canvas) {
+            double lat=Control.engine.latitude,lon=Control.engine.longitude;
+            if(!Double.isFinite(lat)||!Double.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)return;
+            float x=projectX(lon),y=projectY(lat),radius=dp(getContext(),5);
+            if(x < -radius*3 || x > getWidth()+radius*3 || y < -radius*3 || y > getHeight()+radius*3)return;
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(0x403493fa);canvas.drawCircle(x,y,radius*2.5f,paint);
+            paint.setColor(Color.WHITE);canvas.drawCircle(x,y,radius+dp(getContext(),2),paint);
+            paint.setColor(0xff1674e8);canvas.drawCircle(x,y,radius,paint);
+        }
+
+        protected void onAttachedToWindow() {
+            super.onAttachedToWindow();
+            if(!closed){removeCallbacks(locationRefresh);post(locationRefresh);}
         }
 
         private boolean drawParent(Canvas canvas,MapTileSource.Tile tile,RectF bounds){
@@ -642,6 +686,7 @@ public final class WorldMapDialog {
         public boolean performClick() { super.performClick(); return true; }
 
         void close() {
+            removeCallbacks(locationRefresh);
             if (closed) return;
             closed = true;
             poiLayer.close();

@@ -275,7 +275,9 @@ void iv_notice(bool inventory,uint32_t notice,int32_t level,int32_t attack,int32
 int64_t double_bits(double value){int64_t b;std::memcpy(&b,&value,8);return b;}
 void drain_iv(){
  PgrIvDisplaySample s{};if(iv()->sample(&s))return;
- if(s.encounter_serial!=encounter_cursor){encounter_cursor=s.encounter_serial;event("cooldown-encounter","\"source\":\"native\"");string_action(30,"native");}
+ // Classification is published synchronously at begin_catch, before any throw action.
+ // A delayed sample must not overwrite the encounter host's subsequent scope-exit clear.
+ if(s.encounter_serial!=encounter_cursor)encounter_cursor=s.encounter_serial;
  if(s.position_serial!=position_cursor){position_cursor=s.position_serial;
   std::string context;
   if(flags&PGR_QBH_TRANSPORT){
@@ -371,7 +373,21 @@ int rewrite_submit(void *self,PgrThrowValue *value){
 }
 uint64_t begin_catch(void *self,void *pokemon,uint64_t tid,void **refreshed){
  if(stopping.load()||!has(PGR_QBH_IV)||(optional_faults.load()&PGR_QBH_IV)||!(sites.load()&PGR_QBH_NAMEPLATE)||tid!=owner.load()||!attached(tid))return 0;
- return iv()->begin_catch(self,pokemon,tid,refreshed);
+ // Read only runtime-owned class metadata before the leaf can invoke managed code/GC.
+ // Preserve the real map-Pokemon type, as the cooldown policy distinguishes wild and raid.
+ std::string source;
+ if(pokemon&&rt.object_get_class){
+  void *type_class=reinterpret_cast<void*(*)(void*)>(rt.object_get_class)(pokemon);
+  if(type_class==klass(C_WILDMAP))source="Niantic.Holoholo.Map.WildMapPokemon";
+  else if(type_class&&me.class_get_type&&me.type_get_name&&me.mem_free){
+   void *type=reinterpret_cast<void*(*)(void*)>(me.class_get_type)(type_class);
+   char *name=type?reinterpret_cast<char*(*)(void*)>(me.type_get_name)(type):nullptr;
+   if(name){if(strnlen(name,256)<256)source=name;reinterpret_cast<void(*)(void*)>(me.mem_free)(name);}
+  }
+ }
+ uint64_t token=iv()->begin_catch(self,pokemon,tid,refreshed);
+ if(token){event("cooldown-encounter","\"source\":"+quote(source.c_str()));string_action(30,source.c_str());}
+ return token;
 }
 int end_catch(uint64_t token,uint64_t tid){
  // Pairing is permitted after stop and shared-site revocation; the leaf owns frame roots.

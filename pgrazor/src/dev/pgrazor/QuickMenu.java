@@ -27,6 +27,7 @@ public final class QuickMenu {
         void onGameRoutes();
         void onFeeds();
         void onFavorites();
+        void onHotspots();
         void onTeleport();
         void onAccounts();
         void onSettings();
@@ -60,6 +61,7 @@ public final class QuickMenu {
         card.addView(row(AUTOWALK, "In-game Routes", true, listener::onGameRoutes));
         card.addView(row(FEEDS, "Feeds", true, listener::onFeeds));
         card.addView(row(FAVORITES, "Favorites", true, listener::onFavorites));
+        card.addView(row(MAP, "Hotspots", true, listener::onHotspots));
         card.addView(row(TELEPORT, "Teleport", true, listener::onTeleport));
         card.addView(row(ACCOUNTS, "Switch account", true, listener::onAccounts));
         card.addView(row(EVENTS, "Events", true, () -> dev.pgrazor.events.EventPanel.showSelector(activity, Control.darkTheme())));

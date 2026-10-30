@@ -122,7 +122,7 @@ public class AccountProfiles {
  public static void logoutFailed(){} static void signInResetComplete(){} static void sessionSaved(){}
 }""",
     'dev/pgrazor/Pad.java': '''package dev.pgrazor;
-public class Pad {public final android.app.Activity activity; public Pad(android.app.Activity a){activity=a;} public void close(){} public void confirmStopRoute(){}}''',
+public class Pad {public final android.app.Activity activity; public Pad(android.app.Activity a){activity=a;} public void close(){} public void confirmStopRoute(){} public void confirmMapTeleport(double lat,double lon,int mode,int epoch){}}''',
     'dev/pgrazor/LogActivity.java': 'package dev.pgrazor; public class LogActivity extends android.app.Activity {}',
     # Shells for collaborators whose real sources pull in Android UI/network far beyond Control's
     # narrow use of them. Control only references the members shelled here; policy is never exercised
@@ -182,7 +182,7 @@ class ControlJavaTests(unittest.TestCase):
                 'VgpController.java', 'CatchOutcomeController.java', 'SettingsWriter.java'))
             sources.extend([ROOT / 'test/ControlQuickSummaryTest.java',ROOT / 'test/ControlQuickBallTest.java',
                             ROOT / 'test/ControlQuickBallOutcomeTest.java',ROOT / 'test/ControlSettingsTest.java',
-                            ROOT / 'test/VgpControllerTest.java',ROOT / 'test/CooldownTest.java',
+                            ROOT / 'test/VgpControllerTest.java',ROOT / 'test/CooldownTest.java',ROOT / 'test/ControlCooldownTest.java',
                             ROOT / 'test/ControlSettingsReloadTest.java',ROOT / 'test/ControlItemCatalogTest.java'])
             classes = work / 'classes'
             sdk = Path(os.environ.get('ANDROID_HOME', str(Path(os.environ['LOCALAPPDATA']) / 'Android/Sdk')))
@@ -219,6 +219,9 @@ class ControlJavaTests(unittest.TestCase):
                                     capture_output=True, text=True, timeout=15)
             self.assertEqual(tested.returncode, 0, tested.stdout + tested.stderr)
             self.assertIn('PASS cooldown', tested.stdout)
+            tested = subprocess.run([str(runtime), '-cp', str(classes), 'dev.pgrazor.ControlCooldownTest'],
+                                    capture_output=True, text=True, timeout=15)
+            self.assertEqual(tested.returncode, 0, tested.stdout + tested.stderr)
             tested = subprocess.run([str(runtime), '-cp', str(classes), 'dev.pgrazor.ControlItemCatalogTest'],
                                     capture_output=True, text=True, timeout=15)
             self.assertEqual(tested.returncode, 0, tested.stdout + tested.stderr)

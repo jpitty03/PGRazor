@@ -21,7 +21,7 @@ void *learned_caller=nullptr,*last_ar=nullptr;PgrThrowValue last_hit{};int btxu_
 bool attached_flag=true,stop_inside=false;const PgrQuickballHostApi *host=nullptr;
 void *thread_current(){return attached_flag?&class_tokens[0]:nullptr;}
 void *object_class(void *o){return o?static_cast<Object*>(o)->klass:nullptr;}
-bool assignable(void *a,void *b){return a==b;}
+bool assignable(void *a,void *b){return a==b||(a==&class_tokens[C_MAPPK]&&b==&class_tokens[C_WILDMAP]);}
 void *new_root(void *object,int){assert(object&&root_next<512);auto &r=root_pool[root_next++];r={object,true};++root_count;return &r;}
 void *target_root(void *handle){auto *r=static_cast<Root*>(handle);assert(r&&r->live);return r->object;}
 void free_root(void *handle){auto *r=static_cast<Root*>(handle);assert(r&&r->live&&root_count);r->live=false;--root_count;}
@@ -164,10 +164,19 @@ int main(int argc,char **argv){
  void *forwarded[2]{};assert(host->begin_catch(nullptr,nullptr,gettid(),forwarded)==0);assert(host->shared_sites(3)==0);
  settings.lease_ms=2000;settings.iv_allowed=1;settings.iv_catch=1;assert(host->set_options(&settings)==0);assert(host->tick(gettid())==0);
  // Shared IV frame roots survive cancellation until the original's final caller pairs end.
- Object plate{&class_tokens[C_NAMEPLATE],{}},map_pokemon{&class_tokens[C_MAPPK],{}};
+ Object plate{&class_tokens[C_NAMEPLATE],{}},map_pokemon{&class_tokens[C_WILDMAP],{}};
+ PgrQuickballHostEvent cooldown_event{};
+ while(host->next_event(&cooldown_event)==0){}
  const unsigned before_frame=root_count;
  uint64_t frame=host->begin_catch(&plate,&map_pokemon,gettid(),forwarded);
  assert(frame&&forwarded[0]==&plate&&forwarded[1]==&map_pokemon&&root_count==before_frame+2);
+ bool wild_published=false;
+ while(host->next_event(&cooldown_event)==0){
+  if(!std::strcmp(cooldown_event.kind,"cooldown-encounter")){
+   assert(std::strstr(cooldown_event.json,"Niantic.Holoholo.Map.WildMapPokemon"));wild_published=true;
+  }
+ }
+ assert(wild_published); // Classification must precede any throw, even without another tick.
  assert(wrapped_btxu()==&response&&current_speed()==20);
  std::thread foreign([&]{assert(host->stop()==0);assert(host->tick(uint64_t(gettid()))==PGR_QBH_OFF_OWNER);});foreign.join();
  assert(current_speed()==20);host->sample(&gauge);assert(gauge.stopping&&gauge.owned>0);

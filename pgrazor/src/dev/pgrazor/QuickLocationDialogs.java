@@ -35,12 +35,15 @@ public final class QuickLocationDialogs {
             double[] point;
             try { point=CoordinateInput.parse(coordinates.getText().toString()); }
             catch (IllegalArgumentException e) { coordinates.setError(e.getMessage()); return; }
-            if (target.teleport(point[0], point[1])) dialog.dismiss();
+            TeleportDialog.confirm(activity,point[0],point[1],(lat,lon)->{
+                if(!target.teleport(lat,lon))return false;
+                dialog.dismiss();return true;
+            });
         }));
         show(activity,dialog);
     }
 
-    /** Lists saved places; tapping one teleports there immediately. */
+    /** Lists saved places; tapping one opens the cooldown confirmation. */
     public static void showFavorites(Activity activity, TeleportTarget target) {
         if (activity.isFinishing() || activity.isDestroyed() || !activity.hasWindowFocus()) return;
         new Thread(() -> {
@@ -60,7 +63,7 @@ public final class QuickLocationDialogs {
                     SavedPlaces.Entry e = snap.entries.get(i);
                     names[i] = String.format(Locale.US, "%s\n%.6f, %.6f", e.name, e.latitude, e.longitude);
                 }
-                b.setItems(names, (d, which) -> target.teleport(snap.entries.get(which).latitude, snap.entries.get(which).longitude));
+                b.setItems(names, (d, which) -> TeleportDialog.confirm(activity,snap.entries.get(which).latitude,snap.entries.get(which).longitude,target::teleport));
                 show(activity,b.create());
                 if (snap.damaged) Toast.makeText(activity, "Some saved places could not be read. Valid entries are shown.", Toast.LENGTH_LONG).show();
             });

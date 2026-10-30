@@ -529,8 +529,9 @@ public final class Control {
                 if(pad!=null)pad.confirmStopRoute();
                 return; // the accidental tap never becomes a walk or teleport
             }
-            if(mode==1)walkTo(latitude,longitude);else if(mode==2)teleport(latitude,longitude);
-            else if(mode==3){if(mapTapSequence.doubleTap(latitude,longitude,sampledAt,epoch,android.view.ViewConfiguration.getDoubleTapTimeout()))teleport(latitude,longitude);else walkTo(latitude,longitude);}else return;
+            boolean wantsTeleport=mode==2 || (mode==3 && mapTapSequence.doubleTap(latitude,longitude,sampledAt,epoch,android.view.ViewConfiguration.getDoubleTapTimeout()));
+            if(wantsTeleport){if(pad!=null)pad.confirmMapTeleport(latitude,longitude,mode,epoch);return;}
+            if(mode==1||mode==3)walkTo(latitude,longitude);else return;
             event("map-tap-applied",String.format(Locale.US,"mode=%d lat=%.7f lon=%.7f",mode,latitude,longitude));
         });
     }

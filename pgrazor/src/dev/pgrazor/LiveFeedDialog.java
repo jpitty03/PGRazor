@@ -718,7 +718,15 @@ public final class LiveFeedDialog {
                 MapTheme.style(body); MapTheme.styleButtons(detail);
                 map.setOnClickListener(v -> openMap(e, detail));
                 walk.setOnClickListener(v -> applyMove(e, false, detail));
-                teleport.setOnClickListener(v -> applyMove(e, true, detail));
+                teleport.setOnClickListener(v -> {
+                    if(closed)return;
+                    if(e.expired(System.currentTimeMillis())){toast("That result just expired.");return;}
+                    if(!CooldownState.valid(e.lat,e.lon)){toast("That result has no valid location.");return;}
+                    AlertDialog confirmation=TeleportDialog.confirm(activity,e.lat,e.lon,(lat,lon)->{
+                        applyMove(e,true,detail);return true;
+                    });
+                    if(confirmation!=null&&!children.contains(confirmation))children.add(confirmation);
+                });
             });
             detail.show();
         }

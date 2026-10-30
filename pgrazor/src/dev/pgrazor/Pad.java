@@ -133,6 +133,7 @@ public final class Pad {
             public void onFeeds(){stick.release(true);LiveFeedDialog.show(activity);}
             public void onFavorites(){QuickLocationDialogs.showFavorites(activity,Pad.this::quickTeleport);}
             public void onTeleport(){QuickLocationDialogs.showTeleport(activity,Pad.this::quickTeleport);}
+            public void onHotspots(){stick.release(true);HotspotsDialog.showQuick(activity,Pad.this::quickTeleport,Pad.this::quickWalk);}
             public void onAccounts(){stick.release(true);AccountsDialog.show(activity);}
             public void onSettings(){openSettings();}
         });
@@ -278,13 +279,18 @@ public final class Pad {
         EditText speed = input(Double.toString(Control.engine.speedKmh), "Speed (0.5–30 km/h)");
         for (EditText field : new EditText[]{lat, lon, speed}) form.addView(field);
         AlertDialog dialog = new AlertDialog.Builder(dialogContext()).setTitle("Coordinates & speed").setView(form).setNegativeButton("Cancel",null).setPositiveButton("Apply",null).create();
+        final AlertDialog[] confirmation = {null};
+        DialogLifecycle.bind(activity,dialog,()->{if(confirmation[0]!=null)confirmation[0].dismiss();});
         dialog.setOnShowListener(d -> dialog.getButton(-1).setOnClickListener(v -> {
             try {
                 // Validate all fields before committing any state.
                 MotionEngine check = new MotionEngine(); check.position(Double.parseDouble(lat.getText().toString().trim()), Double.parseDouble(lon.getText().toString().trim())); check.speed(Double.parseDouble(speed.getText().toString().trim()));
-                Control.engine.position(check.latitude, check.longitude); Control.engine.speed(check.speedKmh);
-                Control.saveState();
-                Control.event("coordinates-set", check.latitude + "," + check.longitude + " speed=" + check.speedKmh); refresh(); dialog.dismiss();
+                confirmation[0]=TeleportDialog.confirm(activity,check.latitude,check.longitude,(latitude,longitude)->{
+                    if(!quickTeleport(latitude,longitude))return false;
+                    Control.engine.speed(check.speedKmh); Control.saveState();
+                    Control.event("coordinates-set", latitude + "," + longitude + " speed=" + check.speedKmh);
+                    refresh(); dialog.dismiss(); return true;
+                });
             } catch (IllegalArgumentException error) { speed.setError("Enter valid coordinates and speed (0.5–30)."); }
         })); dialog.show();styleTree(form);
     }
@@ -353,6 +359,23 @@ public final class Pad {
             Control.event("quick-teleport", String.format(Locale.US,"lat=%.7f lon=%.7f",latitude,longitude));
             refresh(); return true;
         } catch (IllegalArgumentException error) { Toast.makeText(activity,"Enter valid coordinates",Toast.LENGTH_SHORT).show(); return false; }
+    }
+    void confirmMapTeleport(double latitude,double longitude,int mode,int epoch) {
+        TeleportDialog.confirm(activity,latitude,longitude,(lat,lon)->{
+            if(closed||!Control.mapTapAllowed()||mode!=Control.mapTapMode()||epoch!=Control.mapTapEpoch()||Control.engine.activeRouteToken()!=0) {
+                Toast.makeText(activity,"Map-tap settings changed; tap the map again.",Toast.LENGTH_SHORT).show();return true;
+            }
+            if(!quickTeleport(lat,lon))return false;
+            Control.event("map-tap-applied",String.format(Locale.US,"mode=%d lat=%.7f lon=%.7f",mode,lat,lon));return true;
+        });
+    }
+    private boolean quickWalk(double latitude,double longitude) {
+        if(!Control.canEnable()){Toast.makeText(activity,"Location adapter is not ready",Toast.LENGTH_SHORT).show();return false;}
+        try {
+            stick.release();Control.walkTo(latitude,longitude);
+            Control.event("hotspot-walk",String.format(Locale.US,"lat=%.7f lon=%.7f",latitude,longitude));
+            refresh();return true;
+        } catch(IllegalArgumentException error){Toast.makeText(activity,"Select valid coordinates",Toast.LENGTH_SHORT).show();return false;}
     }
     public void close() {
         if (closed) return;
