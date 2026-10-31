@@ -16,8 +16,8 @@ public final class GymAutomationSettings {
     private GymAutomationSettings() {}
     private static final GymAutomationPreferences preferences=new GymAutomationPreferences();
     private static final Object lock=new Object();
-    private static volatile String status="Gym automation off",guardReason="";
-    public static void publish(String detail){try{status=new org.json.JSONObject(detail).optString("message","Waiting");}catch(Exception ignored){}}
+    private static volatile String status="Gym automation off",guardReason="",backendStatus="";
+    public static void publish(String detail){try{backendStatus=new org.json.JSONObject(detail).optString("message","Waiting");status=backendStatus;}catch(Exception ignored){}}
     public static String status(){return guardReason.isEmpty()?status:guardReason;}
     /** Short, stable label for Pad's status pill beneath the icon. */
     public static String overlayStatus(){
@@ -27,8 +27,6 @@ public final class GymAutomationSettings {
         String raw=status.toLowerCase(java.util.Locale.US);
         if(raw.contains("paused")||raw.contains("failure"))return "Paused";
         if(raw.contains("bag full")||raw.contains("item bag full"))return "Bag full";
-        if(raw.contains("spinning"))return "Spinning gym";
-        if(raw.contains("gym spun")||raw.contains("gym disc spun")||raw.contains("spin accepted"))return "Gym spun";
         if(raw.contains("deploying"))return "Deploying defender";
         if(raw.contains("deployed"))return "Defender deployed";
         if(raw.contains("feeding"))return "Feeding berries";
@@ -42,7 +40,7 @@ public final class GymAutomationSettings {
         return "Starting";
     }
     public static void init(Context context) {}
-    public static void read(Properties p){synchronized(lock){preferences.read(p);guardReason="";status="Gym automation off";}}
+    public static void read(Properties p){synchronized(lock){preferences.read(p);guardReason="";backendStatus="";status="Gym automation off";}}
     public static void write(Properties p){preferences.write(p);}
     public static String config(){stopForCooldown();return preferences.config(SmartCatchSettings.gymSpinActive());}
     public static boolean enabled(){stopForCooldown();return (preferences.running()&&(preferences.deploy()||preferences.feed()))||SmartCatchSettings.gymSpinActive();}
@@ -77,7 +75,7 @@ public final class GymAutomationSettings {
                 guardReason="Select Deploy or Feed in Gym settings before starting.";
                 return false;
             }
-            guardReason="";status="Gym automation running";return true;
+            guardReason="";status=backendStatus.startsWith("Paused:")?backendStatus:"Waiting for gym";return true;
         }
     }
     private static void set(String key,Object value){
@@ -98,7 +96,7 @@ public final class GymAutomationSettings {
         int pad=MapTheme.dp(ui,16);body.setPadding(pad,pad,pad,pad);
         TextView description=new TextView(ui);
         TextView progress=new TextView(ui);progress.setText(status());body.addView(progress);
-        description.setText("Acts only within 40 m of a Gym while the game is on the map screen. It slots eligible #Gym-tagged Pokémon first; the lowest-CP fallback is used only when enabled and no eligible #Gym defender is available, and it never picks favorite, buddy, or protected Pokémon. Feeding uses Nanab before Razz and only above the reserves you set. It obeys the game's own server limits, so some actions may be declined. No dust or coin payout is promised.");body.addView(description);
+        description.setText("Acts only within 80 m of a Gym while the game is on the map screen. It slots eligible #Gym-tagged Pokémon first; the lowest-CP fallback is used only when enabled and no eligible #Gym defender is available, and it never picks favorite, buddy, or protected Pokémon. Feeding uses Nanab before Razz and only above the reserves you set. It obeys the game's own server limits, so some actions may be declined. No dust or coin payout is promised.");body.addView(description);
         CheckBox master=new CheckBox(ui);master.setText("Run Gym Slotter & Berry Feeder");body.addView(master);
         CheckBox deploy=new CheckBox(ui);deploy.setText("Auto-deploy to open Gym slots");deploy.setChecked(preferences.deploy());body.addView(deploy);
 

@@ -118,7 +118,8 @@ void poll_transport(){if(!(cfg.transport_flags&1))return;PgrRuntimeTransportSamp
  if(fresh)fresh=transport->sample(&end)==0&&end.snapshot_fresh&&!end.fault&&end.snapshot_seq==start.snapshot_seq&&end.generation==start.generation;
  if(!fresh){dismiss=allow_transfer=keep_all=0;count=0;protect=63;valid_keep=true;transport_sequence=transport_generation=0;}else {transport_sequence=start.snapshot_seq;transport_generation=start.generation;}
  if(protect<0||protect>63)protect=63;
- const bool enabled=allow_transfer&&valid_keep&&!keep_all&&(capabilities&PGR_SHH_TRANSFER);
+ // The overlay's Keep All flag gates manual catches below, not the VGP broker.
+ const bool enabled=allow_transfer&&valid_keep&&(capabilities&PGR_SHH_TRANSFER);
  const uint32_t flags=(dismiss||allow_transfer?PGR_SHH_ALLOWED:0)|(dismiss?PGR_SHH_DISMISS:0)|(enabled?PGR_SHH_TRANSFER_ENABLED:0)|(keep_all?PGR_SHH_KEEP_ALL:0);
  uint64_t epoch=1;{std::lock_guard<std::mutex> lock(options_mutex);epoch=options.epoch?options.epoch:1;const bool changed=((options.flags^flags)&(PGR_SHH_ALLOWED|PGR_SHH_DISMISS|PGR_SHH_TRANSFER_ENABLED|PGR_SHH_KEEP_ALL))||options.protect!=uint32_t(protect)||options.keep_count!=count||!std::equal(ids.begin(),ids.begin()+count,keep.begin())||transport_keep_valid!=valid_keep;
   if(changed||!(flags&PGR_SHH_ALLOWED)||now()>=deadline)++epoch;}
@@ -302,7 +303,7 @@ int external_submit(const PgrTransferExecRequest *input,uint64_t *token){
  const size_t active=std::count_if(external_tokens.begin(),external_tokens.end(),[](uint64_t v){return v!=0;});
  if(slot==external_tokens.end()||external_count+2*(active+1)>external_events.size())return -3;
  PgrTransferExecRequest request=*input;request.epoch=g.epoch;request.tid=tid();
- request.input.protect=g.protect;request.input.keep_all=(g.flags&PGR_SHH_KEEP_ALL)?1:0;
+ request.input.protect=g.protect;request.input.keep_all=0; // Background catches use main settings.
  request.input.keep_count=g.count;request.input.keep_ids=g.ids.data();
  if(transfer_policy->decide(&request.input)!=0)return 0;
  external_submitting=true;

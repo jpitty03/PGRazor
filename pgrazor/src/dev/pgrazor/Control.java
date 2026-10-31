@@ -422,7 +422,8 @@ public final class Control {
     public static void setTransferProtect(int mask){transferProtect=mask>=0&&mask<=63?mask:63;saveSettings();event("auto-transfer-protection",String.valueOf(transferProtect));}
     public static void setAutoTransferReady(boolean ready,String status){autoTransferReady=ready&&quickSummaryReady();transferStatus=status==null?"":status;}
     public static void transferResult(String status){transferStatus=status==null?"":status;}
-    public static boolean autoTransferAllowed(){return autoTransferEnabled&&!transferKeepAll&&autoTransferReady()&&hostLive();}
+    /** Main transfer permission; manual Keep All is applied only by the encounter consumer. */
+    public static boolean autoTransferAllowed(){return autoTransferEnabled&&autoTransferReady()&&hostLive();}
     /** Canonical keep list: sorted, de-duplicated positive dex IDs (1..2000), comma-separated; empty when none. */
     public static String transferKeepSpecies(){return transferKeepSpecies;}
     public static void setTransferKeepSpecies(String value){
@@ -433,13 +434,13 @@ public final class Control {
         transferKeepSpecies=canonical;saveSettings();
         event("transfer-keep-species",(canonical.isEmpty()?0:canonical.split(",").length)+" species kept");
     }
-    /** Keep All holds every catch regardless of the other rules; persisted and toggled by the overlay. */
+    /** Keep All holds manual encounter catches; background catches use the main settings. */
     public static boolean transferKeepAll(){return transferKeepAll;}
     public static void setTransferKeepAll(boolean value){
         if(value==transferKeepAll)return;
         // Keep All never enables the auto-transfer master; turning it off only resumes the saved rules.
         transferKeepAll=value;invalidateQuickBallOutcome();saveSettings();
-        event("transfer-keep-all",value?"ON; auto transfer held":"OFF; transfer rules resume; master unchanged");
+        event("transfer-keep-all",value?"ON; manual catches kept":"OFF; manual transfer rules resume; master unchanged");
     }
     public static boolean transferOverlayEnabled(){return transferOverlayEnabled;}
     public static void setTransferOverlayEnabled(boolean value){
@@ -890,6 +891,18 @@ public final class Control {
     public static int uiScalePercent(){return uiScalePercent;}
     public static void setUiScalePercent(int value){if(value!=25&&value!=50&&value!=75&&value!=100)return;uiScalePercent=value;saveSettings();}
     public static boolean darkTheme(){return darkTheme;}
+    private static volatile boolean idleWalking;
+    public static boolean idleWalking(){return idleWalking;}
+    public static void setIdleWalking(boolean value){
+        idleWalking=value;engine.setIdleWalking(value);saveSettings();
+    }
+    /** Idle motion shares the same location integrator and never owns an active route. */
+    public static void stepMotion(double seconds,boolean joystickHeld){
+        engine.setIdleWalkingAllowed(hostLive()&&desiredEnabled&&!joystickHeld
+            &&!autoWalkPlanning&&!gameRoutesPlanning&&!gameRoutes.running()
+            &&!cameraSamplePending()&&!interactionDiagnosticRunning());
+        engine.step(seconds);
+    }
     public static boolean joystickVisible(){return joystickVisible;}
     public static void setDarkTheme(boolean value){darkTheme=value;saveSettings();}
     public static void setJoystickVisible(boolean value){joystickVisible=value;saveSettings();}
@@ -908,6 +921,7 @@ public final class Control {
             try { settingsWriter.flush(SETTINGS_FLUSH_MS); }
             catch(IOException pending) { event("settings-load-error","Pending save not flushed: "+pending); return; }
             StrictMode.ThreadPolicy policy=StrictMode.allowThreadDiskReads();
+            idleWalking=false;engine.setIdleWalking(false);
             SmartCatchSettings.read(new Properties());
             GymAutomationSettings.read(new Properties());
             BuddyEmotionSettings.read(new Properties());
@@ -921,6 +935,7 @@ public final class Control {
                 try{uiScalePercent=Integer.parseInt(p.getProperty("uiScalePercent","100"));}catch(NumberFormatException invalid){uiScalePercent=100;}
                 if(uiScalePercent!=25&&uiScalePercent!=50&&uiScalePercent!=75&&uiScalePercent!=100)uiScalePercent=100;
                 joystickVisible=Boolean.parseBoolean(p.getProperty("joystickVisible","true"));
+                idleWalking=Boolean.parseBoolean(p.getProperty("idleWalking","false"));engine.setIdleWalking(idleWalking);
                 cooldownOverlay=Boolean.parseBoolean(p.getProperty("cooldownOverlay","false"));
                 quickSummaryEnabled=Boolean.parseBoolean(p.getProperty("autoDismiss","false"));
                 spawnBooster=Boolean.parseBoolean(p.getProperty("spawnBooster","false"));
@@ -1018,6 +1033,7 @@ public final class Control {
         p.setProperty("locationSpoofing",String.valueOf(desiredEnabled));
         p.setProperty("darkTheme",String.valueOf(darkTheme));p.setProperty("uiScalePercent",String.valueOf(uiScalePercent));
         p.setProperty("joystickVisible",String.valueOf(joystickVisible));
+        p.setProperty("idleWalking",String.valueOf(idleWalking));
         p.setProperty("spawnBooster",String.valueOf(spawnBooster));
         p.setProperty("giftOptions",String.valueOf(giftOptions));
         p.setProperty("vgpOverlay",String.valueOf(vgpOverlay));
@@ -1056,6 +1072,9 @@ public final class Control {
     }
     public static void event(String kind, String detail) {
         if("gym-automation".equals(kind))GymAutomationSettings.publish(detail);
+        if("gym-spin".equals(kind)&&SmartCatchSettings.gymSpinActive()){
+            try{setVgpStatus(new org.json.JSONObject(detail).optString("message","Waiting for gym disc"));}catch(Exception ignored){}
+        }
         if("buddy-emotion".equals(kind))BuddyEmotionSettings.publish(detail);
         if("batch-evolution".equals(kind))BatchEvolutionSettings.publish(detail);
         if("event-boxes".equals(kind)) {

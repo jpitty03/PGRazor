@@ -28,6 +28,13 @@ public final class ControlQuickSummaryTest {
         check(!Control.quickSummaryAllowed(),"Foreground alone does not bypass backend readiness");
         Control.connect(); // Handler stub intentionally does not execute UI restoration.
         check(Control.quickSummaryAllowed(),"Ready connected foreground allows feature");
+        Control.setAutoTransferReady(true,"Ready");Control.setAutoTransferEnabled(true);
+        Control.setTransferKeepAll(true);
+        check(Control.autoTransferAllowed()&&Control.transferKeepAll(),"Manual Keep All preserves background permission and its own flag");
+        Control.setAutoTransferEnabled(false);
+        check(!Control.autoTransferAllowed(),"Main master off blocks background transfer even with Keep All");
+        Control.setTransferKeepAll(false);
+        check(!Control.autoTransferAllowed(),"Overlay cannot enable the main transfer master");
         foreground(false);
         check(!Control.quickSummaryAllowed() && Control.quickSummaryEnabled(),"Background suspends permission without changing intent");
         foreground(true);

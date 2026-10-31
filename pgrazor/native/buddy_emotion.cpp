@@ -182,7 +182,7 @@ void pgr_buddy_emotion_tick(uint64_t tid,const PgrSharedMetadataOutput *metadata
   Root s=stats();if(!s){publish("Waiting for buddy data");return;}observe(s);
   if(now<next_poll)return;next_poll=now+1000;
   bool is_hungry=hungry(s);int selected=feeding_berry(p.settings),count=stock(selected);Action action=choose(p.settings,history,clock_ms(CLOCK_REALTIME),is_hungry,count,on_map(s)&&bool(gift(s)));
-  if(feed_burst>0){if(p.settings.berry&&is_hungry&&count>p.settings.reserve)action=Feed;else feed_burst=0;}
+  if(resume_feed_burst(p.settings,feed_burst,is_hungry,count))action=Feed;
   if(action==None){publish(!p.settings.berry?"No feeding berries selected":!selected?"No selected berry above reserve ("+std::to_string(p.settings.reserve)+" each)":is_hungry?"Hungry; waiting for feeding retry cooldown":excited?"Excited; buddy fed or in feeding cooldown":"Buddy fed or in feeding cooldown; waiting for next interaction");return;}
   if(action==Feed&&!feed_burst)feed_burst=3;
   begin(int(action)+1,p);

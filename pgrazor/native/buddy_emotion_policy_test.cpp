@@ -98,6 +98,34 @@ int main() {
     assert(choose(s, h, now, true, 100, true) == None);
     mark_attempt(h, None, 1);
     assert(h.action[0] == now + 1);
+    // Feed-burst recovery (regression for the "Hungry; waiting for feeding retry cooldown"
+    // stall: a burst interrupted by running out of berries, then restocked from a stop).
+    {
+        Settings f = Settings{true, 703, 50, false};
+        int burst = 3;
+        assert(resume_feed_burst(f, burst, true, 100) && burst == 3);   // stocked + hungry: feed
+        assert(!resume_feed_burst(f, burst, true, 50) && burst == 3);   // at reserve: hold burst
+        assert(!resume_feed_burst(f, burst, true, 0) && burst == 3);    // out of stock: hold burst
+        assert(resume_feed_burst(f, burst, true, 100) && burst == 3);   // restocked: resume feed
+        assert(!resume_feed_burst(f, burst, false, 100) && burst == 0); // full/cooldown: clear
+        assert(!resume_feed_burst(f, burst, true, 100) && burst == 0);  // no burst pending
+        burst = 2;
+        Settings off = f;
+        off.berry = 0;
+        assert(!resume_feed_burst(off, burst, true, 100) && burst == 0);// feeding off: clear
+        // One accepted berry followed by depletion must preserve only two remaining feeds.
+        History cycle{};cycle.action[Snapshot]=cycle.action[Pet]=now;
+        burst=3;mark_attempt(cycle,Feed,now);--burst;mark_success(cycle,now);
+        assert(choose(f,cycle,now+5000,true,100,false)==None); // ordinary cooldown still enforced
+        assert(!resume_feed_burst(f,burst,true,0)&&burst==2);
+        for(int remaining:{2,1}){
+            assert(resume_feed_burst(f,burst,true,100)&&burst==remaining);
+            --burst; // confirmed response consumes the existing budget
+        }
+        assert(!resume_feed_burst(f,burst,true,100)); // restocks cannot start extra bursts
+        off=f;off.enabled=false;burst=2;
+        assert(!resume_feed_burst(off,burst,true,100)&&burst==0);
+    }
     const uint64_t max = std::numeric_limits<uint64_t>::max();
     History largest{max, {max, max, max, max}, max}, restored;
     assert(parse_history(encode(largest), restored));

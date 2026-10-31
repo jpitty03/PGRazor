@@ -187,7 +187,7 @@ public final class Pad {
     }
     /**
      * Compact overlay for the transfer policy with three clearly distinct states: KEEP (Keep All on,
-     * nothing auto-transfers), XFER (Keep All off and the auto-transfer master on, so the rules run),
+     * manual catches are kept), XFER (Keep All off and the auto-transfer master on, so the rules run),
      * and OFF (auto-transfer master off, so nothing transfers regardless). Tap toggles Keep All only;
      * it never re-enables the master.
      */
@@ -211,8 +211,8 @@ public final class Pad {
     }
     private String transferToggleDescription(){
         boolean keep=Control.transferKeepAll(),master=Control.autoTransferEnabled();
-        String state=keep?"Keep All on; no catches are auto-transferred":(master?"Normal transfer rules apply":"Auto transfer is off");
-        return "Transfer protection: "+state+". Tap to "+(keep?"use normal transfer rules":"keep every catch")+". Drag to reposition.";
+        String state=keep?"Keep All on; manual catches are kept":(master?"Normal transfer rules apply":"Auto transfer is off");
+        return "Manual encounter transfer: "+state+". Tap to "+(keep?"use normal transfer rules":"keep manual catches")+". Drag to reposition.";
     }
 
     private void applyMapScale(){
@@ -263,7 +263,7 @@ public final class Pad {
             stick.applyMotion(now);
             boolean wasWalking = Control.engine.walking;
             MotionEngine.RouteProgress before=Control.engine.routeProgress();
-            Control.engine.step((now-lastTick)/1000.0); lastTick = now;
+            Control.stepMotion((now-lastTick)/1000.0,stick.pointer>=0); lastTick = now;
             Control.tickGameRoutes();
             MotionEngine.RouteProgress after=Control.engine.routeProgress();
             if (before.total>1 && after.total==before.total && after.visited>before.visited)
@@ -276,7 +276,7 @@ public final class Pad {
             refresh();
             if (now-lastLog >= 1000 && Control.engine.enabled) {
                 lastLog = now;
-                Control.event("position", String.format(Locale.US, "lat=%.7f lon=%.7f speed=%.3f walking=%s reads=%d/%d", Control.engine.latitude, Control.engine.longitude, Control.engine.metersPerSecond(), Control.engine.walking, Control.latitudeReads, Control.longitudeReads));
+                Control.event("position", String.format(Locale.US, "lat=%.7f lon=%.7f speed=%.3f walking=%s idleWalking=%s reads=%d/%d", Control.engine.latitude, Control.engine.longitude, Control.engine.metersPerSecond(), Control.engine.walking, Control.engine.idleWalkingActive(), Control.latitudeReads, Control.longitudeReads));
             }
             handler.postDelayed(this, 100);
         }

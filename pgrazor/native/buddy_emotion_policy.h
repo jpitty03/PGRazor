@@ -134,6 +134,21 @@ inline Action choose(const Settings& s, const History& h, uint64_t now,
     return None;
 }
 
+// Resolve a pending feed burst (armed when a hunger cycle starts feeding) against the live
+// hunger and stock state. Returns true when another Feed should be issued this tick. The burst
+// is the retry bound: it is never grown here and is decremented by the caller on a confirmed
+// feed. It is cleared only when the cycle is genuinely over -- feeding turned off, or the buddy
+// no longer hungry (full, or in the game's confirmed feeding cooldown, both surfaced via the
+// caller's hungry check). A merely transient out-of-stock / below-reserve berry keeps the burst
+// alive so restocking resumes feeding at once instead of stalling on the 30-minute retry cooldown.
+inline bool resume_feed_burst(const Settings& s, int& burst, bool hungry, int stock) {
+    if (burst <= 0) return false;
+    if (!s.enabled) { burst = 0; return false; }
+    if (s.berry != 0 && hungry && stock > s.reserve) return true;
+    if (s.berry == 0 || !hungry) burst = 0;
+    return false;
+}
+
 inline void mark_attempt(History& h, Action action, uint64_t now) {
     if (action >= Snapshot && action <= Gift) h.action[static_cast<int>(action)] = now;
 }

@@ -12,6 +12,55 @@ public final class MotionEngine {
     public volatile boolean walking;
     public volatile double targetLatitude, targetLongitude;
     private volatile double east, north;
+    private boolean idleEnabled, idleAllowed, idleActive;
+    private double idleWait, idlePhase, idleLat, idleLon;
+    private double[] idleOrigin, idleEast, idleNorth;
+    private static final double IDLE_RADIUS = 10, IDLE_DELAY = 3;
+    public synchronized void setIdleWalking(boolean value) {
+        if(idleEnabled!=value){idleEnabled=value;resetIdle();}
+    }
+    public synchronized void setIdleWalkingAllowed(boolean value) {
+        if(idleAllowed!=value){idleAllowed=value;resetIdle();}
+    }
+    public synchronized boolean idleWalkingActive() { return idleActive && idleEligible(); }
+    private boolean idleEligible() {
+        return idleEnabled && idleAllowed && enabled && speedKmh>0 && !walking && Math.hypot(east,north)==0;
+    }
+    private void resetIdle() { idleActive=false;idleWait=idlePhase=0;idleOrigin=idleEast=idleNorth=null; }
+    private double idleSpeed() { return Math.min(speedKmh,5)/3.6; }
+    /** Evaluate every point from a fixed anchor; repeated loops cannot accumulate drift. */
+    private void stepIdle(double seconds) {
+        if(!idleActive){
+            double needed=IDLE_DELAY-idleWait;
+            if(seconds<needed){idleWait+=seconds;return;}
+            seconds-=needed;idleWait=IDLE_DELAY;idleActive=true;
+            idleLat=latitude;idleLon=longitude;idleOrigin=unit(idleLat,idleLon);
+            double lat=Math.toRadians(idleLat),lon=Math.toRadians(idleLon);
+            idleEast=new double[]{-Math.sin(lon),Math.cos(lon),0};
+            idleNorth=new double[]{-Math.sin(lat)*Math.cos(lon),-Math.sin(lat)*Math.sin(lon),Math.cos(lat)};
+        }
+        if(seconds<=0)return;
+        idlePhase=(idlePhase+idleSpeed()*seconds/IDLE_RADIUS)%(2*Math.PI);
+        double e=IDLE_RADIUS*Math.sin(idlePhase),n=IDLE_RADIUS*(1-Math.cos(idlePhase));
+        double r=Math.hypot(e,n),angle=r/EARTH_RADIUS_METERS;
+        if(r<1e-10){latitude=idleLat;longitude=idleLon;}
+        else{
+            double c=Math.cos(angle),k=Math.sin(angle)/r;
+            double x=c*idleOrigin[0]+k*(e*idleEast[0]+n*idleNorth[0]);
+            double y=c*idleOrigin[1]+k*(e*idleEast[1]+n*idleNorth[1]);
+            double z=c*idleOrigin[2]+k*(e*idleEast[2]+n*idleNorth[2]);
+            latitude=Math.toDegrees(Math.atan2(z,Math.hypot(x,y)));
+            longitude=Math.toDegrees(Math.atan2(y,x));
+        }
+        // Tangent heading in the destination's local frame, including polar anchors.
+        double lat=Math.toRadians(latitude),lon=Math.toRadians(longitude);
+        double[] tangent=new double[3];
+        for(int i=0;i<3;i++)tangent[i]=Math.cos(idlePhase)*idleEast[i]+Math.sin(idlePhase)*idleNorth[i];
+        double te=-Math.sin(lon)*tangent[0]+Math.cos(lon)*tangent[1];
+        double tn=-Math.sin(lat)*Math.cos(lon)*tangent[0]-Math.sin(lat)*Math.sin(lon)*tangent[1]+Math.cos(lat)*tangent[2];
+        bearing=(Math.toDegrees(Math.atan2(te,tn))+360)%360;
+    }
+
     private double[][] route = new double[0][];
     private double[] remainingLegMeters = new double[0];
     private int visitedStops;
@@ -50,13 +99,13 @@ public final class MotionEngine {
     }
     public synchronized void position(double lat, double lon) {
         validatePosition(lat, lon);
-        latitude = lat; longitude = lon;
+        resetIdle();latitude = lat; longitude = lon;
     }
     public synchronized void speed(double value) {
         // Exactly 0 pauses travel in place; otherwise the usual 0.5..30 km/h range applies.
         if (!Double.isFinite(value) || (value != 0 && (value < 0.5 || value > 30)))
             throw new IllegalArgumentException("Speed must be 0 (paused) or between 0.5 and 30 km/h.");
-        speedKmh = value;
+        speedKmh = value;if(value==0)resetIdle();
     }
     /** Explicitly start a shortest-path walk; callers must check adapter readiness. */
     public synchronized void walkTo(double lat, double lon) {
@@ -79,7 +128,7 @@ public final class MotionEngine {
         double[] legs=new double[copy.length];
         for(int i=copy.length-2;i>=0;i--)legs[i]=legs[i+1]
             +angle(unit(copy[i][0],copy[i][1]),unit(copy[i+1][0],copy[i+1][1]))*EARTH_RADIUS_METERS;
-        route=copy; remainingLegMeters=legs; visitedStops=0; looping=loop;plannedRoute=true;routeGeneration++;
+        resetIdle();route=copy; remainingLegMeters=legs; visitedStops=0; looping=loop;plannedRoute=true;routeGeneration++;
         targetLatitude=route[0][0]; targetLongitude=route[0][1];
         east = north = 0;
         enabled = true;
@@ -93,7 +142,7 @@ public final class MotionEngine {
             arrive();
     }
     public synchronized void input(double x, double y) {
-        clearRoute();
+        resetIdle();clearRoute();
         if (!Double.isFinite(x) || !Double.isFinite(y)) { east = north = 0; return; }
         double length = Math.max(1, Math.hypot(x, y));
         east = x / length; north = y / length;
@@ -101,15 +150,19 @@ public final class MotionEngine {
             bearing = (Math.toDegrees(Math.atan2(east, north)) + 360) % 360;
     }
     private void clearRoute() { plannedRoute=false;routeGeneration++;walking=false; route=new double[0][]; remainingLegMeters=new double[0]; visitedStops=0; looping=false; }
-    public synchronized void stop() { clearRoute(); east = north = 0; }
+    public synchronized void stop() { resetIdle();clearRoute(); east = north = 0; }
     /** Camera invalidation stops manual velocity without cancelling a walk or its arrival ownership. */
     public synchronized void stopManualMotion() { east = north = 0; }
     public synchronized void pause() { enabled = false; stop(); }
     public synchronized double metersPerSecond() {
+        if(idleWalkingActive())return idleSpeed();
         return enabled ? speedKmh / 3.6 * (walking ? 1 : Math.hypot(east, north)) : 0;
     }
     public synchronized void step(double seconds) {
-        if (!enabled || !Double.isFinite(seconds) || seconds <= 0) return;
+        if (!enabled) {resetIdle();return;}
+        if (!Double.isFinite(seconds) || seconds <= 0) return;
+        if(idleEligible()){stepIdle(Math.min(seconds,.25));return;}
+        resetIdle();
         // Avoid jumps after a stalled UI frame or suspended app.
         double distance = metersPerSecond() * Math.min(seconds, 0.25) / EARTH_RADIUS_METERS;
         if (walking) {

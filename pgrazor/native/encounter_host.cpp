@@ -727,7 +727,7 @@ static void handle_vgp_transfer_ready(const PgrVgpControllerOut &out, uint64_t t
   tp_in.protect = protect_mask;
   tp_in.known = tf_out.known;
   tp_in.flags = tf_out.flags;
-  tp_in.keep_all = g_opts.transfer_keep_all ? 1u : 0u;
+  tp_in.keep_all = 0; // VGP/VGP+ use main protection settings, not the manual overlay.
   tp_in.keep_count = g_keep_species_count;
   tp_in.keep_ids = g_keep_species_count ? g_keep_species : nullptr;
 

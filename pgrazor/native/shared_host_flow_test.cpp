@@ -219,7 +219,7 @@ uint32_t wire32(const uint8_t *p){uint32_t value;std::memcpy(&value,p,4);return 
 void wire_put(std::vector<uint8_t>&bytes,size_t at,uint32_t value){std::memcpy(bytes.data()+at,&value,4);}
 void wire_decode(const std::vector<uint8_t>&bytes,uint32_t length){assert(length>=32);const uint32_t count=wire32(bytes.data()+12);size_t at=32;for(uint32_t i=0;i<count;++i){WireEvent e{};e.opcode=wire32(bytes.data()+at);const auto ns=wire32(bytes.data()+at+4),nt=wire32(bytes.data()+at+8);at+=12;for(uint32_t j=0;j<ns;++j){int64_t value;std::memcpy(&value,bytes.data()+at,8);at+=8;e.scalars.push_back(value);}for(uint32_t j=0;j<nt;++j){uint32_t n=wire32(bytes.data()+at);at+=4;e.strings.emplace_back(reinterpret_cast<const char*>(bytes.data()+at),n);at+=n;}wire_events.push_back(e);}assert(at==length);}
 void wire_exchange(const std::vector<uint8_t>&frame={}){std::vector<uint8_t> out(65536);uint32_t length=0;assert(fixture_transport.exchange(frame.empty()?nullptr:frame.data(),frame.size(),out.data(),out.size(),&length)==0);wire_decode(out,length);}
-void wire_snapshot(bool dismiss,bool transfer,const std::string &keep_list="",bool keep_all=false,int protect=63){static uint64_t sequence=0;++sequence;std::vector<uint8_t> bytes(PGR_TRANSPORT_SNAPSHOT_FIXED+7*4+keep_list.size(),0);wire_put(bytes,0,PGR_TRANSPORT_SNAPSHOT_MAGIC);wire_put(bytes,4,1);wire_put(bytes,8,bytes.size());std::memcpy(bytes.data()+16,&sequence,8);bytes[32+25]=dismiss;bytes[32+5]=transfer;bytes[32+35]=keep_all;wire_put(bytes,72+8*4,uint32_t(protect));size_t at=152;for(unsigned i=0;i<7;++i){uint32_t n=i==4?keep_list.size():0;wire_put(bytes,at,n);at+=4;if(n){std::memcpy(bytes.data()+at,keep_list.data(),n);at+=n;}}wire_exchange(bytes);}
+void wire_snapshot(bool dismiss,bool transfer,const std::string &keep_list="",bool keep_all=false,int protect=63){static uint64_t sequence=0;++sequence;std::vector<uint8_t> bytes(PGR_TRANSPORT_SNAPSHOT_FIXED+PGR_TRANSPORT_STRINGS*4+keep_list.size(),0);wire_put(bytes,0,PGR_TRANSPORT_SNAPSHOT_MAGIC);wire_put(bytes,4,PGR_TRANSPORT_FRAME_VERSION);wire_put(bytes,8,bytes.size());std::memcpy(bytes.data()+16,&sequence,8);bytes[32+25]=dismiss;bytes[32+5]=transfer;bytes[32+35]=keep_all;wire_put(bytes,72+8*4,uint32_t(protect));size_t at=PGR_TRANSPORT_OFF_STRINGS;for(unsigned i=0;i<PGR_TRANSPORT_STRINGS;++i){uint32_t n=i==4?keep_list.size():0;wire_put(bytes,at,n);at+=4;if(n){std::memcpy(bytes.data()+at,keep_list.data(),n);at+=n;}}wire_exchange(bytes);}
 bool wire_has(uint32_t opcode,const char *text=nullptr){for(auto &e:wire_events)if(e.opcode==opcode&&(!text||(!e.strings.empty()&&e.strings[0]==text)))return true;return false;}
 }
 int main(int argc,char **argv){assert(argc==2||argc==3);void *lib=dlopen(argv[1],RTLD_NOW|RTLD_LOCAL);assert(lib);auto get=reinterpret_cast<const void *(*)(uint32_t)>(dlsym(lib,"pgrazor_native_api"));assert(get);auto core=static_cast<const pgrazor_native_api_v2*>(get(2));assert(core);
@@ -308,14 +308,19 @@ int main(int argc,char **argv){assert(argc==2||argc==3);void *lib=dlopen(argv[1]
   PgrTransferExecRequest req{1,sizeof(req),response.id,999,uint64_t(gettid()),&bag_object,&pokemon,{}};
   req.input={1,sizeof(PgrTransferInput),facts.attack,facts.defense,facts.stamina,facts.species,0,facts.known,facts.flags,0,0,0,nullptr};
   uint64_t token=0;assert(broker->submit(&req,&token)==0&&!token&&!release_calls); // authoritative keep list
-  opt.epoch=3;opt.keep_ids=nullptr;opt.keep_count=0;assert(host->update(&opt)==0);host->tick(gettid(),3);
+  opt.epoch=3;opt.keep_ids=nullptr;opt.keep_count=0;opt.flags|=PGR_SHH_KEEP_ALL;assert(host->update(&opt)==0);host->tick(gettid(),3);
   assert(broker->submit(&req,&token)==1&&token&&release_calls==1);PgrTransferExecEvent e{};unsigned requests=0,completed=0;
   while(broker->next_event(&e)==1){assert(e.token==token);requests+=e.kind==PGR_TX_EVENT_REQUEST;completed+=e.kind==PGR_TX_EVENT_COMPLETE&&(e.aux&1);}
   assert(requests==1&&completed==1);host->tick(gettid(),4);check_clean();assert(broker->next_event(&e)==0);
+  // Manual Keep All does not block the broker, but still protects manual catches.
+  response.id++;pokemon.id=response.id;Present volatile manual=&detail_present_fn;manual(&view,&pokemon,nullptr,false,nullptr);host->tick(gettid(),5);host->tick(gettid(),6);host->tick(gettid(),7);
+  assert(release_calls==1);check_clean();
+  opt.epoch=4;opt.flags&=~PGR_SHH_KEEP_ALL;assert(host->update(&opt)==0);host->tick(gettid(),8);
   // Ordinary catch transfer still receives its own event after the external FIFO is drained.
-  response.id++;pokemon.id=response.id;Present volatile present=&detail_present_fn;present(&view,&pokemon,nullptr,false,nullptr);host->tick(gettid(),5);host->tick(gettid(),6);host->tick(gettid(),7);
+  response.id++;pokemon.id=response.id;Present volatile present=&detail_present_fn;present(&view,&pokemon,nullptr,false,nullptr);host->tick(gettid(),9);host->tick(gettid(),10);host->tick(gettid(),11);
   assert(release_calls==2&&detail_clicks==1);check_clean();assert(broker->next_event(&e)==0);
-  host->stop();host->tick(gettid(),8);assert(!broker->ready());token=123;assert(broker->submit(&req,&token)<0&&!token);
+  opt.epoch=5;opt.flags=0;assert(host->update(&opt)==0);host->tick(gettid(),12);token=123;assert(broker->submit(&req,&token)==0&&!token&&release_calls==2);
+  host->stop();host->tick(gettid(),13);assert(!broker->ready());token=123;assert(broker->submit(&req,&token)<0&&!token);
   puts("PASS61 transfer broker + actual23/35/57: authoritative policy/epoch, synchronous external routing, ordinary catch isolation, stop");return 0;
  }
  if(argc==3){

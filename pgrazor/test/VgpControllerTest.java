@@ -27,6 +27,14 @@ public final class VgpControllerTest {
         Control.setVgpEnabled(true);
         check(Control.vgpEnabled() && Control.vgpOverlay(),"Enabled with overlay on in foreground");
         check(logged("vgp-enabled","ON; runtime only"),"Enable logged");
+        java.util.Properties spin=new java.util.Properties();
+        spin.setProperty("smartCatchEnabled","true");spin.setProperty("smartCatchSpinGyms","true");
+        SmartCatchSettings.read(spin);
+        Control.event("gym-spin","{\"message\":\"Gym spun\"}");
+        check(Control.vgpStatus().equals("Gym spun"),"Gym spin reports through VGP status");
+        SmartCatchSettings.read(new java.util.Properties());Control.setVgpStatus("Ready");
+        Control.event("gym-spin","{\"message\":\"Gym spun\"}");
+        check(Control.vgpStatus().equals("Ready"),"Late gym spin status ignored when VGP+ gym spin is disabled");
 
         // Arming the guard with no live cooldown keeps VGP on.
         Control.setVgpStopOnCooldown(true);

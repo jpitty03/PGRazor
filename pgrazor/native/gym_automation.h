@@ -9,6 +9,7 @@ namespace pgr_gym {
 struct Settings {bool deploy=false,feed=false,fallback=false;int nanab=50,razz=50;bool spin=false;};
 bool parse(const char*,size_t,Settings&);
 double distance(double,double,double,double);
+bool within_interaction_range(double meters);
 struct Defender {uint64_t id=0;int species=0,cp=0;bool eligible=false,tagged=false,protected_fallback=false;};
 uint64_t choose(const std::vector<Defender>&,const std::vector<int>&,bool fallback);
 int berry(int nanab,int razz,const Settings&);

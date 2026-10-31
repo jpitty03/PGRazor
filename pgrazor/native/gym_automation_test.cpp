@@ -2,6 +2,7 @@
 #include <cassert>
 #include <cstring>
 #include <cstdio>
+#include <limits>
 using namespace pgr_gym;
 int main(){
  Settings s;const char *p="1;1;1;1;50;10";assert(parse(p,strlen(p),s)&&s.deploy&&s.feed&&s.fallback);
@@ -12,6 +13,10 @@ int main(){
  std::vector<Defender> c={{1,1,10,true,false,false},{2,2,20,true,true,false},{3,3,5,false,true,false},{4,4,1,true,false,true}};
  assert(choose(c,{},true)==2);assert(!choose(c,{2},false));assert(choose(c,{2},true)==1);assert(!choose(c,{1,2},true));
  assert(distance(0,0,0,0)==0&&distance(0,0,0,.001)>40&&distance(91,0,0,0)>40);
+ for(double meters:{0.,40.,40.01,60.,79.99,80.})assert(within_interaction_range(meters));
+ for(double meters:{-1.,80.01,100.,std::numeric_limits<double>::infinity(),std::numeric_limits<double>::quiet_NaN()})assert(!within_interaction_range(meters));
+ assert(within_interaction_range(distance(0,0,0,.00054))); // ~60m, previously rejected.
+ assert(!within_interaction_range(distance(0,0,0,.00081))); // ~90m, still outside.
  History spins;assert(spins.spin_attempt("a",100));assert(!spins.spin_attempt("a",299999));
  assert(spins.spin_attempt("b",101));spins.spin_until("a",400000);spins.spin_until("a",200000);
  assert(!spins.spin_allowed("a",399999));assert(spins.spin_allowed("a",400000));

@@ -17,8 +17,9 @@ public final class ControlSettingsReloadTest {
             throw new AssertionError("Export missed latest queued choice");
         Control.setAutoBerry(705); Control.setBattleOptions(2);
         java.util.Properties incoming=new java.util.Properties();
-        incoming.setProperty("battleOptions","5"); incoming.setProperty("autoBerry","701");
+        incoming.setProperty("idleWalking","false"); incoming.setProperty("battleOptions","5"); incoming.setProperty("autoBerry","701");
         Control.importSettings(app,incoming,9.3); Control.flushSettings(5000);
+        if(Control.idleWalking())throw new AssertionError("Idle walking import did not apply false");
         if(Control.battleOptions()!=5 || Control.autoBerry()!=701 || Control.vgpEnabled())
             throw new AssertionError("Import ordering, legacy berry migration or VGP OFF changed");
         if(!"5".equals(Control.exportSettings().getProperty("battleOptions")))

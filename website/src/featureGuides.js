@@ -155,11 +155,11 @@ export const featureGuides = [
       'Open Transfer on catch and turn on Transfer below 90% IV.',
       'Enable the keep rules you want: legendary/mythical/Ultra Beasts, shiny, event/costume, background, XXS, and XXL.',
       'Open Custom keep list to search and keep specific species (including all forms).',
-      'Optionally turn on the Keep-all overlay button for a draggable toggle that pauses auto-transfer without losing your rules.',
+      'Optionally turn on the Keep-all overlay button for a draggable toggle that keeps manual encounter catches without changing your rules.',
     ],
     notes: [
       'Favorites and eggs are always kept.',
-      'The rules apply to both manual and Virtual Go Plus catches.',
+      'The main rules apply to both manual and Virtual Go Plus catches. The Keep All overlay affects only manual encounters; VGP and VGP+ continue using the main settings.',
       'Turning Keep All off restores your existing rules; it does not enable auto-transfer if the main setting is off.',
       'The custom list and the overlay state are saved across restarts and included in settings backups.',
     ],
@@ -202,7 +202,7 @@ export const featureGuides = [
     ],
     notes: [
       'VGP+ attempts loaded, visible wild Pokémon without the standard VGP 40 m cutoff; the game still decides encounter eligibility and a declined encounter is skipped.',
-      'Gym disc spinning runs on the map at loaded gyms of any team within 40 m, checks bag space, and respects each disc cooldown. The VGP start/stop and optional Stop on cooldown (estimated) controls apply. Gym-disc spinning has been user-verified.',
+      'Gym disc spinning runs on the map at loaded gyms of any team within 80 m, checks bag space, and respects each disc cooldown. The VGP start/stop and optional Stop on cooldown (estimated) controls apply. Gym-disc spinning has been user-verified.',
       'Premium rules take priority over candy rules. Empty selected stock falls back to available regular balls or skips the berry; Master Balls are never used.',
       'Throws wait roughly 1.2–1.8 seconds, with at most three additional throws after confirmed escapes.',
       'Existing storage, transfer, foreground, and manual-interaction gates still apply, and ratings do not guarantee a catch.',
@@ -221,7 +221,7 @@ export const featureGuides = [
       'Turn on the actions you want: “Auto-deploy to open Gym slots” and/or “Auto-feed berries to your Gym defenders”.',
       'For feeding, set the Nanab Berry reserve and Razz Berry reserve (0–1000, default 50); for deployment, optionally turn on the lowest-CP fallback.',
       'Enable “Show gym automation overlay”, then tap the draggable gym-and-berry icon — or the “Run Gym Slotter & Berry Feeder” checkbox — to start or stop the whole feature. Your deploy and feed choices are preserved.',
-      'Keep the game on the map screen, where it validates each attempt. Deployment and feeding need a friendly gym within 40 m, with an open slot to deploy.',
+      'Keep the game on the map screen, where it validates each attempt. Deployment and feeding need a friendly gym within 80 m, with an open slot to deploy.',
     ],
     notes: [
       'The master starts off every session. Active cooldown stops the whole run and blocks a new start; restart it manually after the cooldown ends.',

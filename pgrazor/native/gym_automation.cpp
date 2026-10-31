@@ -2,6 +2,8 @@
 #include <cmath>
 #include <algorithm>
 namespace pgr_gym {
+// Base local Gym interaction radius; server responses still decide eligibility.
+bool within_interaction_range(double meters){return std::isfinite(meters)&&meters>=0&&meters<=80;}
 bool parse(const char *p,size_t len,Settings &out){
  out={};if(!p||len>64)return false;int v[7]{},n=0,digits=0;
  for(size_t i=0;i<=len;++i){char c=i==len?';':p[i];if(c==';'){if(!digits||n>=7)return false;++n;digits=0;}

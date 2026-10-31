@@ -37,6 +37,8 @@ public class SettingsBackupRulesTest {
         JSONObject v=valid();v.getJSONObject("settings").put("vgpEnabled","true");rejects(v);
         v=valid();v.getJSONObject("preferences").put("pgrazor-livefeed-session",new JSONObject().put("token","secret"));rejects(v);
         v=valid();v.getJSONObject("settings").put("itemRules","1:100001;");rejects(v);
+        v=valid();v.getJSONObject("settings").put("idleWalking","true");SettingsBackupRules.validate(v);
+        v=valid();v.getJSONObject("settings").put("idleWalking","maybe");rejects(v);
         v=valid();v.getJSONObject("settings").put("locationSpoofing","false");SettingsBackupRules.validate(v);
         v=valid();v.getJSONObject("settings").put("locationSpoofing","invalid");rejects(v);
         v=valid();v.getJSONObject("settings").put("ivCatch","false").put("ivOwned","true");SettingsBackupRules.validate(v);

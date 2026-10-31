@@ -10,6 +10,7 @@ std::map<uintptr_t, void*> test_roots;
 uintptr_t test_next_handle = 1;
 unsigned test_allocations = 0, test_frees = 0, test_polls = 0;
 unsigned test_events = 0, test_unexpected_runtime = 0;
+std::string test_event_kind;
 int test_result = PGR_VR_DONE;
 int test_objects[8]{};
 bool test_active = true, test_map = true, test_fresh = true;
@@ -72,6 +73,7 @@ int test_emit(uint32_t opcode, const int64_t *scalars, uint32_t scalar_count,
               const PgrRuntimeTransportString *strings, uint32_t string_count) {
  assert(opcode == 19 && !scalars && scalar_count == 0);
  assert(strings && string_count == 2);
+ test_event_kind.assign(strings[0].ptr,strings[0].len);
  ++test_events;
  return 0;
 }
@@ -165,6 +167,12 @@ extern "C" const void *pgrazor_vgp_results_api(uint32_t version) {
 }
 
 int main() {
+ test_transport.emit=test_emit;status.clear();spin_status.clear();
+ event("Feeding gym defender");assert(test_event_kind=="gym-automation");
+ event("Gym spun",1,0,true);assert(test_event_kind=="gym-spin"&&status=="Feeding gym defender");
+ event("Bag full; gym spin waiting",0,0,true);assert(test_event_kind=="gym-spin"&&status=="Feeding gym defender");
+ unsigned before_events=test_events;event("Feeding gym defender");assert(test_events==before_events);
+ event("Defender deployed",1);assert(test_event_kind=="gym-automation"&&spin_status=="Bag full; gym spin waiting");
  // Exercise the real typed transport permission gate before poll fixtures.
  test_transport = {};
  test_transport.sample = test_sample;
@@ -215,6 +223,30 @@ int main() {
    assert(next_scan == 0);
   }
  }
+ // Manual screens must not leave a read-only details promise timing out forever.
+ for(bool timed_out:{false,true}){
+  auto p=test_setup(1);const auto now=clock_ms();
+  inspected[pending.id]=now+60000;
+  if(timed_out)pending.since=now-15001;else p.allowed=false;
+  poll(p);test_cleared(0,1);
+  assert(!paused&&next_scan>=now+1500&&inspected.at("gym-fixture")<now+2000);
+ }
+ // A server feed deadline must not retain canceled UI state until it expires.
+ for(bool inventory_arrived:{false,true}){
+  test_setup(5);const auto now=clock_ms();pending.await_stock=true;pending.stock_before=10;pending.canceled=true;
+  assert(!observe_feed_stock(10,now)&&pending.await_stock&&!paused);
+  if(inventory_arrived){
+   assert(observe_feed_stock(9,now)&&!pending.await_stock&&!paused);
+   Permission p;poll(p);test_cleared(0,0);
+  }else{
+   pending.since=now-5001;assert(!observe_feed_stock(10,now));test_cleared(0,1);assert(paused);
+  }
+ }
+ {
+  auto p=test_setup(5);const auto now=clock_ms();next_scan=now+1800000;
+  p.allowed=false;poll(p);test_cleared(0,0);
+  assert(!paused&&next_scan==now+1800000); // keep the confirmed server deadline
+ }
  for (int phase : {2, 3, 6}) {
   auto p = test_setup(phase);
   pending.since = clock_ms() - 15001;
@@ -245,7 +277,7 @@ int main() {
   p.config = "changed";
   poll(p);
   test_cleared(0, 0);
-  assert(!paused && next_scan == 0);
+  assert(!paused && next_scan >= clock_ms()+1400);
  }
  {
   test_setup(1);

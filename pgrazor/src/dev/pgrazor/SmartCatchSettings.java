@@ -54,7 +54,7 @@ public final class SmartCatchSettings {
         CheckBox curved=new CheckBox(ui);curved.setText("Curveball");curved.setChecked(preferences.curve());options.addView(curved);
         curved.setOnCheckedChangeListener((v,on)->{set("Curve",on);});
         CheckBox gymSpin=new CheckBox(ui);gymSpin.setText("Auto-spin Gym discs");gymSpin.setChecked(preferences.spinGyms());options.addView(gymSpin);
-        TextView gymSpinHelp=new TextView(ui);gymSpinHelp.setText("While VGP is running on the map, spin nearby Gym discs of any team within 40 m when the item bag has room.");options.addView(gymSpinHelp);
+        TextView gymSpinHelp=new TextView(ui);gymSpinHelp.setText("While VGP is running on the map, spin nearby Gym discs of any team within 80 m when the item bag has room.");options.addView(gymSpinHelp);
         gymSpin.setOnCheckedChangeListener((v,on)->{if(on!=preferences.spinGyms())set("SpinGyms",on);});
         TextView candy=button(options,"Candy species (Pinap): "+(preferences.candySpecies().isEmpty()?"None":preferences.candySpecies().split(",").length+" selected"));
         candy.setOnClickListener(v->SmartCatchSpeciesDialog.show(activity,()->candy.setText("Candy species (Pinap): "+(preferences.candySpecies().isEmpty()?"None":preferences.candySpecies().split(",").length+" selected"))));

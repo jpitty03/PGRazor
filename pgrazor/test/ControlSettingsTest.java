@@ -11,7 +11,7 @@ public final class ControlSettingsTest {
         Control.configureQuickBall(true); Control.configureQuickSummary(true); Control.configureCameraSteering(true);
         if(args[0].equals("save")) {
             Control.setGiftOptions(7);
-            Control.setSpawnBooster(true);
+            Control.setSpawnBooster(true);Control.setIdleWalking(true);
             Control.setAutoBerry(705); Control.setEncounterBerryEnabled(true); Control.setBuddyBerry(703);
             Control.setBattleOptions(111); Control.setBattleOptions(981); // Rapid change: the newest value must win after coalescing.
             Control.setRocketOptions(5);
@@ -25,6 +25,7 @@ public final class ControlSettingsTest {
             Control.setQuickBallReady(false,"Loading"); Control.setQuickSummaryReady(false,"Loading");
         }
         if(!Control.itemTransferEnabled()||!Control.itemRules().equals("1:100;101:0;")||!Control.itemLimits().equals("1:100;101:0;2:250;")||!Control.itemCatalog().contains("Poke Ball"))throw new AssertionError("Item limits not persisted");
+        if(!Control.idleWalking()||Control.engine.idleWalkingActive())throw new AssertionError("Idle preference persistence without active motion");
         if(!Control.spawnBooster()||Control.spawnAllowed())throw new AssertionError("Spawn persistence/readiness");
         if(Control.giftOptions()!=7||Control.giftsAllowed())throw new AssertionError("Gift persistence/readiness");
         if(Control.buddyBerry()!=703||Control.buddyAllowed())throw new AssertionError("Buddy preference/readiness");
