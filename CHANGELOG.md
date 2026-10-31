@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## v0.1.7-experimental.3
+
+[Full release notes](docs/releases/v0.1.7-experimental.3.md)
+
+- Add Auto-spin Gym discs under VGP+, controlled by the VGP overlay, with bag-space checks and per-gym cooldown handling. Gym-disc spinning has been user-verified.
+
+- Gym auto quick/charged attacks now activate Battle on the next-opponent dialog without waiting for the countdown; manual exit and disabled automation cancel continuation.
+
 - Recheck nearby gyms promptly after temporary no-action results instead of excluding them for 60 seconds; keep reserve and retry status visible.
 
 - Add a draggable gym-and-berry overlay that starts/stops the entire Gym Slotter & Berry Feeder while preserving deployment and feeding choices. Active cooldown stops both actions; restart manually after it ends. The master starts off each session. A small status line follows the icon and shows deployment, feeding, and cooldown activity.
@@ -44,7 +52,7 @@
 
 ### Using tags for gym defenders and evolution
 
-These controls are in the current development build; they are not part of the published v0.1.7-experimental.2 APK.
+These controls are included in v0.1.7-experimental.3.
 
 **Gym defenders**
 

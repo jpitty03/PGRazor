@@ -83,19 +83,24 @@ Permission permission(){Permission p;auto tr=static_cast<const PgrRuntimeTranspo
  tr->get_bool(3,&active);tr->get_bool(16,&ready);tr->get_bool(38,&map);
  bool coords=tr->get_double(0,&p.lat,&has)==0&&has;has=0;coords=(tr->get_double(1,&p.lon,&has)==0&&has)&&coords;
  if(tr->sample(&z)||!z.snapshot_fresh||z.snapshot_seq!=a.snapshot_seq)return p;p.seq=a.snapshot_seq;p.valid_config=true;
- p.allowed=active&&ready&&map&&coords&&(p.settings.deploy||p.settings.feed)&&std::isfinite(distance(p.lat,p.lon,p.lat,p.lon));return p;
+ p.allowed=active&&ready&&map&&coords&&(p.settings.deploy||p.settings.feed||p.settings.spin)&&std::isfinite(distance(p.lat,p.lon,p.lat,p.lon));return p;
 }
+void *virtual_call(Root &o,void *m,void **args=nullptr){void *v=fn<void*(*)(void*,void*)>(exp("object_get_virtual_method"))(o.get(),m);require(v,"virtual method");return invoke(v,o.get(),args);}
 Root fort(Root &gym){void *m=fn<void*(*)(void*,void*)>(exp("object_get_virtual_method"))(gym.get(),h(H_VGP_M_FORT));return Root(invoke(m,gym.get()));}
-bool gym_valid(Root &gym,const Permission &p,std::string *why=nullptr,double *meters=nullptr,bool for_deploy=false){
+bool gym_valid(Root &gym,const Permission &p,std::string *why=nullptr,double *meters=nullptr,bool for_deploy=false,bool for_spin=false){
  auto reject=[why](const char *reason){if(why)*why=reason;return false;};
  if(!gym||klass(gym.get())!=cls("Niantic.Holoholo.Gym","MapGym"))return reject("gym identity");
  void *obj=gym.get();void *alive_args[]={obj};if(!boxed<bool>(invoke(const_cast<void*>(md->methods[5]),nullptr,alive_args),"System.Boolean"))return reject("inactive gym object");
  Root f=fort(gym);if(!f)return reject("missing gym data");
  double d=distance(p.lat,p.lon,field<double>(f.get(),"Latitude","System.Double"),field<double>(f.get(),"Longitude","System.Double"));if(meters)*meters=d;
  if(!std::isfinite(d)||d>40)return reject("outside 40m");
- if(!boxed<bool>(call(gym.get(),"get_IsFriendly"),"System.Boolean"))return reject("not friendly");
+ if(!for_spin&&!boxed<bool>(call(gym.get(),"get_IsFriendly"),"System.Boolean"))return reject("not friendly");
  if(boxed<bool>(call(gym.get(),"get_InGymState"),"System.Boolean"))return reject("gym screen open");
  if(!field<bool>(f.get(),"Enabled","System.Boolean"))return reject("gym disabled");
+ if(for_spin){
+  if(boxed<bool>(virtual_call(gym,h(H_VGP_M_COOLING)),"System.Boolean"))return reject("disc cooldown");
+  return true;
+ }
  // The raw Closed flag is not a reliable action gate on loaded gyms.
  // Let the typed server response decide closure; deployment attempts retain
  // their ten-minute retry budget. Deployment lockouts remain placement-only.
@@ -111,6 +116,13 @@ Pending pending;
 Defender candidate(Root&);
 // The typed SendRpc uses the game's RPC handler. Inventory is re-read before
 // each action; no synthetic removal, berry decrement or reward is applied.
+bool spin_bag_room(){
+ Root bag=resolve("Niantic.Holoholo","IItemBag"),player=resolve("Niantic.Holoholo","IPlayerService");
+ if(!bag||!player)return false;
+ int total=boxed<int>(invoke(h(H_VGP_M_TOTAL_ITEMS),bag.get()),"System.Int32");
+ int maximum=boxed<int>(invoke(h(H_VGP_M_MAX_ITEMS),player.get()),"System.Int32");
+ return total>=0&&maximum>0&&total<maximum;
+}
 Root send(Root &request,const char *out_name,const char *rpc_name,Root &reflection){
  Root bag=resolve("Niantic.Holoholo","IItemBag");require(bool(bag),"item bag unavailable");
  Root rpc(field<void*>(bag.get(),"cynr","Niantic.Holoholo.Rpc.IRpcHandler"));require(bool(rpc),"RPC unavailable");
@@ -121,20 +133,22 @@ Root send(Root &request,const char *out_name,const char *rpc_name,Root &reflecti
  for(int i=0;i<2;i++){Root t=type_object(ks[i]);void **slot=reinterpret_cast<void**>(static_cast<char*>(types.get())+32+i*8);fn<void(*)(void*,void**,void*)>(exp("gc_wbarrier_set_field"))(types.get(),slot,t.get());}
  void *args[]={types.get()};reflection=Root(call(reflected.get(),"MakeGenericMethod",1,args));
  void *closed=fn<void*(*)(void*)>(exp("method_get_from_reflection"))(reflection.get());require(closed&&fn<bool(*)(void*)>(boot.meta.method_is_inflated)(closed),"closed RPC");
- auto p=permission();require(p.allowed&&p.config==pending.config&&gym_valid(pending.gym,p,nullptr,nullptr,!strcmp(rpc_name,"GymDeploy")),"permission changed");
+ auto p=permission();require(p.allowed&&p.config==pending.config&&gym_valid(pending.gym,p,nullptr,nullptr,!strcmp(rpc_name,"GymDeploy"),!strcmp(rpc_name,"FortSearch")),"permission changed");
  // Resolve inventory again after generic-method construction; a concurrent
  // cleanup or manual action may have changed stock since planning.
  if(!strcmp(rpc_name,"GymFeedPokemon")){
   int chosen=field<int>(request.get(),"Item","Holoholo.Rpc.Item");void *a[]={&chosen};int stock=boxed<int>(call(bag.get(),"GetItemCount",1,a),"System.Int32");
   require(stock>(chosen==703?p.settings.nanab:p.settings.razz),"berry reserve changed");put(request.get(),"StartingQuantity","System.Int32",stock);
   pending.last_item=chosen;pending.stock_before=stock;
- }else{
+ }else if(!strcmp(rpc_name,"GymDeploy")){
   uint64_t id=field<uint64_t>(request.get(),"PokemonId","System.UInt64");void *a[]={&id};Root pokemon(call(pending.bag.get(),"GetPokemon",1,a));require(bool(pokemon),"defender inventory changed");
   auto c=candidate(pokemon);require(c.eligible&&(c.tagged||(p.settings.fallback&&!c.protected_fallback)),"defender eligibility changed");
  }
+ if(!strcmp(rpc_name,"FortSearch"))require(p.settings.spin&&spin_bag_room(),"spin bag full or disabled");
  put(request.get(),"PlayerLatDegrees","System.Double",p.lat);put(request.get(),"PlayerLngDegrees","System.Double",p.lon);
- auto final_permission=permission();require(final_permission.allowed&&final_permission.config==pending.config&&gym_valid(pending.gym,final_permission,nullptr,nullptr,!strcmp(rpc_name,"GymDeploy")),"permission expired before request");
+ auto final_permission=permission();require(final_permission.allowed&&final_permission.config==pending.config&&gym_valid(pending.gym,final_permission,nullptr,nullptr,!strcmp(rpc_name,"GymDeploy"),!strcmp(rpc_name,"FortSearch")),"permission expired before request");
  int id=literal(cls("Holoholo.Rpc","Method"),rpc_name),zero=0,timeout=10000;void *rpc_args[]={&id,request.get(),&zero,&timeout,&zero};
+ if(!strcmp(rpc_name,"FortSearch"))require(history.spin_attempt(pending.id,clock_ms()),"spin already attempted");
  if(!strcmp(rpc_name,"GymDeploy"))reserved[pending.defender]=clock_ms()+1800000;
  return Root(invoke(closed,rpc.get(),rpc_args));
 }
@@ -160,7 +174,6 @@ void validate_bindings(){
  Root bag=resolve("Niantic.Holoholo","IItemBag");require(bool(bag),"item bag not ready");field_info(klass(bag.get()),"cynr","Niantic.Holoholo.Rpc.IRpcHandler");
  event("Gym request bindings validated");
 }
-void *virtual_call(Root &o,void *m){void *v=fn<void*(*)(void*,void*)>(exp("object_get_virtual_method"))(o.get(),m);require(v,"virtual method");return invoke(v,o.get());}
 void clear_pending(){
  if(pending.enumerator){try{virtual_call(pending.enumerator,h(H_INC_M_DISPOSE));}catch(...) {}}
  pending=Pending{};
@@ -275,6 +288,18 @@ void poll(const Permission &p){
  Root response;response.h=out.value_handle;
  pending.promise.reset();pending.reflection.reset();
  if(pending.canceled){clear_pending();return;}
+ if(pending.phase==6){
+  require(response&&klass(response.get())==cls("Holoholo.Rpc","FortSearchOutProto"),"spin response identity");
+  bool ok=success(response.get());int result=result_value(response.get());
+  int64_t deadline=field<int64_t>(response.get(),"CooldownComplete","System.Int64");
+  const int64_t wall=int64_t(clock_ms(CLOCK_REALTIME));
+  if(deadline>wall){require(deadline-wall<=86400000,"invalid spin cooldown");history.spin_until(pending.id,now+uint64_t(deadline-wall));
+   void *args[]={&deadline};virtual_call(pending.gym,h(H_VGP_M_COOLDOWN),args);
+  }
+  event(ok?"Gym spun":"Gym spin declined",result);
+  if(ok)cooldown("Gym disc spin");
+  clear_pending();next_scan=now+1500;return;
+ }
  if(pending.phase==1){
   require(response&&klass(response.get())==cls("Niantic.Holoholo","MapPlaceDetails"),"gym details response identity");Root gd=reference(response.get(),"GymDetails","Niantic.Holoholo");
   pending.details=Root(field<void*>(gd.get(),"Status","Holoholo.Rpc.GymStatusAndDefendersProto"));act(p);return;
@@ -293,32 +318,54 @@ void poll(const Permission &p){
   if(deadline>wall){require(deadline-wall<=1800000,"invalid feed cooldown");next_scan=std::max(next_scan,now+uint64_t(deadline-wall));}}
  pending.phase=5;
 }
+void issue_spin(const Permission &p){
+ Root f=fort(pending.gym);Root req=request("FortSearchProto");
+ Root id(fn<void*(*)(const char*)>(boot.runtime.string_new)(pending.id.c_str()));
+ putref(req.get(),"Id","System.String",id.get());
+ put(req.get(),"PlayerLatDegrees","System.Double",p.lat);put(req.get(),"PlayerLngDegrees","System.Double",p.lon);
+ put(req.get(),"FortLatDegrees","System.Double",field<double>(f.get(),"Latitude","System.Double"));
+ put(req.get(),"FortLngDegrees","System.Double",field<double>(f.get(),"Longitude","System.Double"));
+ pending.phase=6;pending.since=clock_ms();
+ pending.promise=send(req,"FortSearchOutProto","FortSearch",pending.reflection);
+ require(bool(pending.promise),"spin outcome unknown");event("Spinning gym disc");
+}
 void discover(const Permission &p){
  auto now=clock_ms();for(auto it=inspected.begin();it!=inspected.end();)if(it->second<=now)it=inspected.erase(it);else ++it;
  Root type=type_object(cls("Niantic.Holoholo.Gym","MapGym"));void *args[]={type.get()};Root gyms(invoke(h(H_VGP_M_FIND_ALL),nullptr,args));if(!gyms)return;
  size_t n=fn<size_t(*)(void*)>(exp("array_length"))(gyms.get());require(n<=2048,"gym array bound");
  std::string nearest_reason;double nearest=1e30;bool nearby_waiting=false;
- for(size_t i=0;i<n;i++){Root gym(*reinterpret_cast<void**>(static_cast<char*>(gyms.get())+32+i*8));std::string why;double meters=1e30;if(!gym_valid(gym,p,&why,&meters)){if(meters<nearest){nearest=meters;nearest_reason=why;}continue;}
+ for(size_t i=0;i<n;i++){Root gym(*reinterpret_cast<void**>(static_cast<char*>(gyms.get())+32+i*8));std::string why;double meters=1e30;
+  if(p.settings.spin&&gym_valid(gym,p,nullptr,nullptr,false,true)){
+   Root sf=fort(gym);std::string sid=string(field<void*>(sf.get(),"FortId","System.String"));
+   if(history.spin_allowed(sid,now)){
+    if(spin_bag_room()){
+     pending.gym=std::move(gym);pending.id=sid;pending.config=p.config;issue_spin(p);return;
+    }else event("Bag full; gym spin waiting");
+   }
+  }
+  if(!p.settings.deploy&&!p.settings.feed)continue;
+  if(!gym_valid(gym,p,&why,&meters)){if(meters<nearest){nearest=meters;nearest_reason=why;}continue;}
   Root f=fort(gym);std::string id=string(field<void*>(f.get(),"FortId","System.String"));if(id.empty())continue;
   if(inspected.count(id)){nearby_waiting=true;continue;}if(inspected.size()>=512)continue;
   if(!p.settings.feed&&!history.deploy_allowed(id,clock_ms()))continue;
   pending.gym=std::move(gym);pending.id=id;pending.config=p.config;pending.phase=1;pending.since=clock_ms();
   inspected[id]=now+60000;
   pending.promise=Root(call(pending.gym.get(),"GetGymDetailsFromServer"));require(bool(pending.promise),"gym details promise");event("Reading nearby friendly gym");return;
- }if(nearby_waiting){if(status!="Berry reserves reached")event("Waiting to recheck nearby gym");}else if(!nearest_reason.empty())event("Nearest gym: "+nearest_reason+" ("+std::to_string(int(nearest))+"m)");else event("Waiting for a friendly gym within 40m");
+ }if(p.settings.spin&&!p.settings.deploy&&!p.settings.feed){if(status!="Bag full; gym spin waiting"&&status!="Gym spun")event("Waiting for a nearby gym disc");}
+ else if(nearby_waiting){if(status!="Berry reserves reached")event("Waiting to recheck nearby gym");}else if(!nearest_reason.empty())event("Nearest gym: "+nearest_reason+" ("+std::to_string(int(nearest))+"m)");else event("Waiting for a friendly gym within 40m");
 }
 }
 void pgr_gym_tick(uint64_t tid,const PgrSharedMetadataOutput *metadata){
  if(busy||!tid||tid!=uint64_t(gettid())||(owner&&owner!=tid))return;
  struct Guard{Guard(){busy=true;}~Guard(){busy=false;}} guard;
  try{
-  auto p=permission();if(p.valid_config&&!p.settings.deploy&&!p.settings.feed)paused=false;
+  auto p=permission();if(p.valid_config&&!p.settings.deploy&&!p.settings.feed&&!p.settings.spin)paused=false;
   if(!initialized){if(!p.allowed||paused)return;auto api=static_cast<const PgrBootApi*>(pgrazor_runtime_bootstrap_api(1));boot.version=1;boot.size=sizeof(boot);require(api&&api->snapshot(&boot)==0,"runtime bootstrap");md=metadata;require(md,"shared metadata");owner=tid;validate_bindings();initialized=true;}
   require(fn<void*(*)()>(boot.runtime.thread_current)()!=nullptr,"owner not attached");
   if(p.allowed){Root player=resolve("Niantic.Holoholo","IPlayerService");if(!player){if(pending.phase)pending.canceled=true;return;}std::string id=string(call(player.get(),"get_PlayerId"));if(id.empty())return;
    if(account!=id){clear_pending();account=id;history=History{};inspected.clear();reserved.clear();}}
   if(pending.phase){poll(p);return;}
-  if(paused)return;if(!p.allowed){event(p.settings.deploy||p.settings.feed?"Waiting for map readiness":"Off");return;}
+  if(paused)return;if(!p.allowed){event(p.settings.deploy||p.settings.feed||p.settings.spin?"Waiting for map readiness":"Off");return;}
   auto now=clock_ms();if(now<next_scan)return;next_scan=now+3000;
   discover(p);
  }catch(const Failure &e){paused=true;clear_pending();event(std::string("Paused: ")+e.where);}catch(...){paused=true;clear_pending();event("Paused: gym automation failure");}

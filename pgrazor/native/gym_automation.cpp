@@ -3,11 +3,11 @@
 #include <algorithm>
 namespace pgr_gym {
 bool parse(const char *p,size_t len,Settings &out){
- out={};if(!p||len>64)return false;int v[6]{},n=0,digits=0;
- for(size_t i=0;i<=len;++i){char c=i==len?';':p[i];if(c==';'){if(!digits||n>=6)return false;++n;digits=0;}
-  else {if(c<'0'||c>'9'||n>=6||++digits>4)return false;v[n]=v[n]*10+c-'0';}}
- if(n!=6||v[0]!=1||v[1]>1||v[2]>1||v[3]>1||v[4]>1000||v[5]>1000)return false;
- out={bool(v[1]),bool(v[2]),bool(v[3]),v[4],v[5]};return true;
+ out={};if(!p||len>64)return false;int v[7]{},n=0,digits=0;
+ for(size_t i=0;i<=len;++i){char c=i==len?';':p[i];if(c==';'){if(!digits||n>=7)return false;++n;digits=0;}
+  else {if(c<'0'||c>'9'||n>=7||++digits>4)return false;v[n]=v[n]*10+c-'0';}}
+ if(!((n==6&&v[0]==1)||(n==7&&v[0]==2))||v[1]>1||v[2]>1||v[3]>1||v[4]>1000||v[5]>1000||v[6]>1)return false;
+ out={bool(v[1]),bool(v[2]),bool(v[3]),v[4],v[5],bool(v[6])};return true;
 }
 double distance(double a,double b,double c,double d){
  if(!std::isfinite(a)||!std::isfinite(b)||!std::isfinite(c)||!std::isfinite(d)||std::abs(a)>90||std::abs(c)>90||std::abs(b)>180||std::abs(d)>180)return INFINITY;
@@ -21,6 +21,12 @@ uint64_t choose(const std::vector<Defender>& candidates,const std::vector<int>& 
  }return best?best->id:0;
 }
 int berry(int n,int r,const Settings &s){return n>s.nanab?703:r>s.razz?701:0;}
+bool History::spin_allowed(const std::string &id,uint64_t now){
+ for(auto i=spins.begin();i!=spins.end();)if(i->second<=now)i=spins.erase(i);else ++i;
+ return !id.empty()&&!spins.count(id)&&spins.size()<512;
+}
+bool History::spin_attempt(const std::string &id,uint64_t now){if(!spin_allowed(id,now))return false;spins[id]=now+300000;return true;}
+void History::spin_until(const std::string &id,uint64_t until){auto i=spins.find(id);if(i!=spins.end())i->second=std::max(i->second,until);}
 bool History::deploy_allowed(const std::string &id,uint64_t now){
  for(auto i=gyms.begin();i!=gyms.end();)if(i->second<=now)i=gyms.erase(i);else ++i;
  return !id.empty()&&gyms.find(id)==gyms.end()&&gyms.size()<512;

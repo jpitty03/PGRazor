@@ -6,7 +6,7 @@
 #include <vector>
 struct PgrSharedMetadataOutput;
 namespace pgr_gym {
-struct Settings {bool deploy=false,feed=false,fallback=false;int nanab=50,razz=50;};
+struct Settings {bool deploy=false,feed=false,fallback=false;int nanab=50,razz=50;bool spin=false;};
 bool parse(const char*,size_t,Settings&);
 double distance(double,double,double,double);
 struct Defender {uint64_t id=0;int species=0,cp=0;bool eligible=false,tagged=false,protected_fallback=false;};
@@ -15,7 +15,10 @@ int berry(int nanab,int razz,const Settings&);
 // Entries are not evicted while live. Saturation refuses work instead of losing
 // deduplication guarantees. Attempts count even when the network outcome is unknown.
 struct History {
- std::map<std::string,uint64_t> gyms;
+ std::map<std::string,uint64_t> gyms,spins;
+ bool spin_allowed(const std::string&,uint64_t);
+ bool spin_attempt(const std::string&,uint64_t);
+ void spin_until(const std::string&,uint64_t);
  struct Feed {uint64_t until;unsigned count;};
  std::map<uint64_t,Feed> feeds;
  bool deploy_allowed(const std::string&,uint64_t);

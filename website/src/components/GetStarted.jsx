@@ -37,10 +37,9 @@ export default function GetStarted() {
       <p className="cta__experimental">
         <span className="cta__badge">Experimental</span>
         The published{' '}
-        <a href={links.releasesExperimental}>v0.1.7-experimental.2 prerelease</a> includes
-        Events, the native runtime, battle fixes, and expanded Autowalk limits. Newer
-        development features in the guides are not included in that APK. Read its release
-        notes before installing.
+        <a href={links.releasesExperimental}>v0.1.7-experimental.3 prerelease</a> includes
+        VGP+, gym automation, Buddy Emotion Engine, batch evolution, map search and hotspots,
+        and automatic gym battle continuation. Read its release notes for setup and validation limits.
       </p>
 
       <div className="faq">

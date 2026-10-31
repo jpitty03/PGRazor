@@ -22,10 +22,13 @@ public final class GymAutomationSettings {
     /** Short, stable label for Pad's status pill beneath the icon. */
     public static String overlayStatus(){
         stopForCooldown();
-        if(!guardReason.isEmpty())return guardReason.contains("cooldown")?"Cooldown":"Choose Deploy or Feed";
+        if(!guardReason.isEmpty())return guardReason.contains("cooldown")?"Cooldown":"Choose an action";
         if(!preferences.running())return "Off";
         String raw=status.toLowerCase(java.util.Locale.US);
         if(raw.contains("paused")||raw.contains("failure"))return "Paused";
+        if(raw.contains("bag full")||raw.contains("item bag full"))return "Bag full";
+        if(raw.contains("spinning"))return "Spinning gym";
+        if(raw.contains("gym spun")||raw.contains("gym disc spun")||raw.contains("spin accepted"))return "Gym spun";
         if(raw.contains("deploying"))return "Deploying defender";
         if(raw.contains("deployed"))return "Defender deployed";
         if(raw.contains("feeding"))return "Feeding berries";
@@ -41,8 +44,8 @@ public final class GymAutomationSettings {
     public static void init(Context context) {}
     public static void read(Properties p){synchronized(lock){preferences.read(p);guardReason="";status="Gym automation off";}}
     public static void write(Properties p){preferences.write(p);}
-    public static String config(){stopForCooldown();return preferences.config();}
-    public static boolean enabled(){stopForCooldown();return preferences.running()&&(preferences.deploy()||preferences.feed());}
+    public static String config(){stopForCooldown();return preferences.config(SmartCatchSettings.gymSpinActive());}
+    public static boolean enabled(){stopForCooldown();return (preferences.running()&&(preferences.deploy()||preferences.feed()))||SmartCatchSettings.gymSpinActive();}
     public static boolean running(){stopForCooldown();return preferences.running();}
     public static boolean feedEnabled(){stopForCooldown();return preferences.effectiveFeed();}
     public static boolean deployEnabled(){stopForCooldown();return preferences.effectiveDeploy();}
@@ -81,7 +84,8 @@ public final class GymAutomationSettings {
         synchronized(lock){
             boolean wasRunning=preferences.running();preferences.set(key,String.valueOf(value));
             if(wasRunning&&!preferences.running())status="Gym automation stopped: select Deploy or Feed to run.";
-            if(("Deploy".equals(key)||"Feed".equals(key))&&(preferences.deploy()||preferences.feed())
+            if(("Deploy".equals(key)||"Feed".equals(key))
+                &&(preferences.deploy()||preferences.feed())
                 &&guardReason.startsWith("Select Deploy"))guardReason="";
         }
         persist();

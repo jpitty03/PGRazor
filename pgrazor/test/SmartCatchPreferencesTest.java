@@ -8,6 +8,7 @@ public final class SmartCatchPreferencesTest {
         SmartCatchPreferences p=new SmartCatchPreferences();
         String defaults="1;0;1;0;1;1500;30;3;1;";
         eq(defaults,p.config());
+        eq(false,p.spinGyms());
         eq(true,SmartCatchPreferences.matchesSpecies(25,"Pikachu","PIKA"));
         eq(true,SmartCatchPreferences.matchesSpecies(25,"Pikachu"," #25 "));
         eq(true,SmartCatchPreferences.matchesSpecies(25,"",""));
@@ -15,10 +16,16 @@ public final class SmartCatchPreferencesTest {
         String[][] values={{"Enabled","true"},{"Ball","3"},{"Berry","708"},{"Premium","false"},{"HighCp","10000"},{"HighLevel","50"},{"Grade","0"},{"Curve","false"},{"CandySpecies"," 25,1,25,2000 "}};
         for(String[] v:values)p.set(v[0],v[1]);
         eq("1;1;3;708;0;10000;50;0;0;1,25,2000",p.config());
-        Properties saved=new Properties();p.write(saved);eq(9,saved.size());
-        SmartCatchPreferences restored=new SmartCatchPreferences();restored.read(saved);eq(p.config(),restored.config());
-        restored.read(new Properties());eq(defaults,restored.config()); // account with no saved keys must reset everything
-        String[][] invalid={{"Enabled","yes"},{"Ball","4"},{"Berry","707"},{"Premium","TRUE"},{"HighCp","-1"},{"HighLevel","51"},{"Grade","4"},{"Curve","1"},{"CandySpecies","0"}};
+        p.set("SpinGyms","true");eq(true,p.spinGyms());eq("1;1;3;708;0;10000;50;0;0;1,25,2000",p.config());
+        Properties saved=new Properties();p.write(saved);eq(10,saved.size());
+        SmartCatchPreferences restored=new SmartCatchPreferences();restored.read(saved);eq(p.config(),restored.config());eq(true,restored.spinGyms());
+        Properties legacy=new Properties();legacy.setProperty("gymAutomationSpin","true");
+        restored.read(legacy);eq(true,restored.spinGyms());
+        restored.write(legacy);eq(false,legacy.containsKey("gymAutomationSpin"));eq("true",legacy.getProperty("smartCatchSpinGyms"));
+        legacy.setProperty("smartCatchSpinGyms","false");legacy.setProperty("gymAutomationSpin","true");
+        restored.read(legacy);eq(false,restored.spinGyms()); // New key wins over legacy.
+        restored.read(new Properties());eq(defaults,restored.config());eq(false,restored.spinGyms());
+        String[][] invalid={{"Enabled","yes"},{"Ball","4"},{"Berry","707"},{"Premium","TRUE"},{"HighCp","-1"},{"HighLevel","51"},{"Grade","4"},{"Curve","1"},{"SpinGyms","1"},{"CandySpecies","0"}};
         Properties bad=new Properties();for(String[] v:invalid)bad.setProperty("smartCatch"+v[0],v[1]);
         p.read(bad);eq(defaults,p.config());
         for(String[] v:invalid){String before=p.config();reject(()->p.set(v[0],v[1]));eq(before,p.config());}

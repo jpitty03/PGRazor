@@ -31,6 +31,8 @@ public final class SmartCatchSettings {
     public static void read(Properties p){preferences.read(p);}
     public static void write(Properties p){preferences.write(p);}
     public static String config(){return preferences.config();}
+    /** Gym-disc spinning follows VGP's actual run/cooldown gate, not catch availability. */
+    public static boolean gymSpinActive(){return preferences.enabled()&&preferences.spinGyms()&&Control.vgpEnabled();}
     public static String normalizeSpecies(String value){return SmartCatchPreferences.normalizeSpecies(value);}
     static String candySpecies(){return preferences.candySpecies();}
     static void setCandySpecies(String value){set("CandySpecies",value);}
@@ -51,9 +53,12 @@ public final class SmartCatchSettings {
         row(activity,options,"Throw rating",new String[]{"Default","Nice","Great","Excellent"},preferences.grade(),index->{set("Grade",index);});
         CheckBox curved=new CheckBox(ui);curved.setText("Curveball");curved.setChecked(preferences.curve());options.addView(curved);
         curved.setOnCheckedChangeListener((v,on)->{set("Curve",on);});
+        CheckBox gymSpin=new CheckBox(ui);gymSpin.setText("Auto-spin Gym discs");gymSpin.setChecked(preferences.spinGyms());options.addView(gymSpin);
+        TextView gymSpinHelp=new TextView(ui);gymSpinHelp.setText("While VGP is running on the map, spin nearby Gym discs of any team within 40 m when the item bag has room.");options.addView(gymSpinHelp);
+        gymSpin.setOnCheckedChangeListener((v,on)->{if(on!=preferences.spinGyms())set("SpinGyms",on);});
         TextView candy=button(options,"Candy species (Pinap): "+(preferences.candySpecies().isEmpty()?"None":preferences.candySpecies().split(",").length+" selected"));
         candy.setOnClickListener(v->SmartCatchSpeciesDialog.show(activity,()->candy.setText("Candy species (Pinap): "+(preferences.candySpecies().isEmpty()?"None":preferences.candySpecies().split(",").length+" selected"))));
-        Runnable refresh=()->{mode.setChecked(preferences.enabled());SettingsUi.enabled(mode,Control.vgpOverlay());SettingsUi.enabled(options,Control.vgpOverlay()&&preferences.enabled());};
+        Runnable refresh=()->{mode.setChecked(preferences.enabled());gymSpin.setChecked(preferences.spinGyms());SettingsUi.enabled(mode,Control.vgpOverlay());SettingsUi.enabled(options,Control.vgpOverlay()&&preferences.enabled());};
         mode.setOnCheckedChangeListener((v,on)->{if(on!=preferences.enabled())set("Enabled",on);refresh.run();});
         refresh.run();return refresh;
     }

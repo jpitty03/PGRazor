@@ -27,8 +27,9 @@ public final class GymAutomationPreferences {
         p.setProperty("gymAutomationNanabReserve",String.valueOf(nanabReserve));
         p.setProperty("gymAutomationRazzReserve",String.valueOf(razzReserve));
     }
-    public synchronized String config(){
-        return "1;"+(running&&deploy?1:0)+";"+(running&&feed?1:0)+";"+(fallback?1:0)+";"+nanabReserve+";"+razzReserve;
+    public synchronized String config(){return config(false);}
+    public synchronized String config(boolean gymSpinActive){
+        return "2;"+(running&&deploy?1:0)+";"+(running&&feed?1:0)+";"+(fallback?1:0)+";"+nanabReserve+";"+razzReserve+";"+(gymSpinActive?1:0);
     }
     public synchronized boolean deploy(){return deploy;}
     public synchronized boolean feed(){return feed;}

@@ -6,6 +6,7 @@
 #include "rocket_combat.h"
 #include "rocket_minigame.h"
 #include "runtime_bootstrap.h"
+#include "runtime_metadata.h"
 #include "runtime_transport.h"
 #include "shared_host.h"
 
@@ -99,7 +100,11 @@ enum HookSlot : unsigned {
     HK_BT_LEG_FAST     = 39,
     HK_BT_LEG_CHARGE   = 40,
 
-    HK_COUNT           = 41
+    HK_GYM_NEXT_INIT = 41,
+    HK_GYM_NEXT_PRESS = 42,
+    HK_GYM_NEXT_LEAVE = 43,
+    HK_GYM_NEXT_DISMISS = 44,
+    HK_COUNT           = 45
 };
 
 constexpr size_t kEventCap     = 256;
@@ -674,6 +679,61 @@ void hook_bt_leg_charge(void *self,void *method){
  if(battle_gate(&tid)){pgr_battle_sample_v1 sample{};if(g_battles->sample(&sample)==0&&sample.scope_active&&sample.mode==PGR_BATTLE_MODE_GYM)emit_gym_cooldown(tid);}orig(self,method);
 }
 
+// The next-opponent dialog is separate from the active battle scope. Capture its
+// lifecycle on the Unity owner, but invoke its existing Battle action only on a tick.
+void *g_gym_next_class=nullptr,*g_gym_next_method=nullptr,*g_gym_is_open=nullptr;
+uintptr_t g_gym_next_root=0;uint64_t g_gym_next_until=0;
+bool g_gym_next_ready=false;
+bool gym_next_allowed(){
+ uint64_t tid=0;if(!battle_gate(&tid))return false;
+ std::lock_guard<std::mutex> lock(g_options_mutex);
+ return (g_opts.flags&PGR_CBH_OPT_ACTIVE)&&(g_opts.flags&PGR_CBH_OPT_BATTLES_ALLOWED)
+   &&!(g_opts.flags&PGR_CBH_OPT_STOPPING)&&(g_opts.battle_mask&12u)
+   &&now_ms()<g_battle_deadline_ms;
+}
+void clear_gym_next(){
+ const uintptr_t root=g_gym_next_root;g_gym_next_root=0;g_gym_next_until=0;
+ if(root)reinterpret_cast<void(*)(uintptr_t)>(g_cfg.gchandle_free)(root);
+}
+void clear_gym_next_if(void *self){
+ if(g_gym_next_root&&reinterpret_cast<void*(*)(uintptr_t)>(g_cfg.gchandle_get_target)(g_gym_next_root)==self)clear_gym_next();
+}
+void hook_gym_next_init(void *self,void *defender,int seconds,void *method){
+ auto orig=reinterpret_cast<void(*)(void*,void*,int,void*)>(load_original(HK_GYM_NEXT_INIT));
+ FrameGuard frame;uint64_t tid=0;
+ if(!g_gym_next_ready||!battle_gate(&tid)){orig(self,defender,seconds,method);return;}
+ PinnedArgs pins{self,defender};orig(pins.get(0),pins.get(1),seconds,method);
+ if(!pins.valid||!gym_next_allowed()||seconds<=0||seconds>60||!pins.get(1))return;
+ if(reinterpret_cast<void*(*)(void*)>(g_cfg.object_get_class)(pins.get(0))!=g_gym_next_class)return;
+ clear_gym_next();
+ g_gym_next_root=reinterpret_cast<uintptr_t(*)(void*,int)>(g_cfg.gchandle_new)(pins.get(0),0);
+ g_gym_next_until=now_ms()+uint64_t(seconds)*1000;
+}
+template<HookSlot SLOT> void hook_gym_next_close(void *self,void *method){
+ auto orig=reinterpret_cast<Fn2Ptr>(load_original(SLOT));FrameGuard frame;
+ if(self_tid()==g_owner_tid.load()&&thread_attached())clear_gym_next_if(self);
+ orig(self,method);
+}
+void tick_gym_next(){
+ if(!g_gym_next_root)return;
+ if(!g_gym_next_ready||!gym_next_allowed()||now_ms()>=g_gym_next_until){clear_gym_next();return;}
+ const uintptr_t captured=g_gym_next_root;
+ void *receiver=reinterpret_cast<void*(*)(uintptr_t)>(g_cfg.gchandle_get_target)(captured);
+ PinnedArgs pins{receiver};if(!pins.valid||!receiver){clear_gym_next();return;}
+ using Invoke=void*(*)(void*,void*,void**,void**);auto invoke=reinterpret_cast<Invoke>(g_cfg.runtime_invoke);
+ void *exc=nullptr;void *open=invoke(g_gym_is_open,pins.get(0),nullptr,&exc);
+ if(exc||!open){clear_gym_next();return;}
+ void *value=reinterpret_cast<void*(*)(void*)>(g_cfg.object_unbox)(open);
+ if(!value||!*static_cast<uint8_t*>(value))return;
+ // Manual press/dismiss can clear the captured dialog during managed work.
+ if(g_gym_next_root!=captured)return;
+ if(!gym_next_allowed()){clear_gym_next();return;}
+ clear_gym_next(); // consume before invoking; reentrancy cannot submit twice
+ invoke(g_gym_next_method,pins.get(0),nullptr,&exc);
+ queue_event(exc?PGR_CBH_EV_BATTLE_ERROR:PGR_CBH_EV_BATTLE_ACTION,1,0,self_tid(),
+   exc?"{\"action\":\"gym-next-battle\",\"error\":\"invoke\"}":"{\"action\":\"gym-next-battle\"}");
+}
+
 // --- Hook Table Installation ------------------------------------------------------
 
 struct HookEntry {
@@ -708,6 +768,43 @@ bool install_hook_group(const HookEntry *entries, size_t count) {
         if(rc!=0||!orig)return false;
     }
     return true;
+}
+
+bool install_gym_next(){
+ if(g_gym_next_ready)return true;
+ const auto *api=api_table<PgrMetaApi>(pgrazor_runtime_metadata_api(1));
+ if(!api||!api->resolve_class||!api->validate_method)return false;
+ const auto *boot=api_table<PgrBootApi>(pgrazor_runtime_bootstrap_api(1));PgrBootBinding binding{};
+ if(!boot||!boot->snapshot||boot->snapshot(&binding)!=0||!binding.module_base)return false;
+ auto klass=[&](const char *ns,const char *name)->void*{
+  PgrMetaClassQuery q{};q.version=1;q.size=sizeof(q);q.name_space=ns;q.name=name;q.canonical_match=PGR_MD_MATCH_EXACT;
+  PgrMetaClassResult r{};return api->resolve_class(&q,&r)==0?const_cast<void*>(r.klass):nullptr;};
+ void *k=klass("Niantic.Holoholo.Gym.Battle","GymBattleContinueGuiController");
+ void *base=klass("Niantic.Holoholo.NUI","GuiController");if(!k||!base)return false;
+ auto method=[&](void *owner,const char *name,const char *ret,const char *p0=nullptr,const char *p1=nullptr){
+  PgrMetaMethodQuery q{};q.version=1;q.size=sizeof(q);q.owner=owner;q.name=name;q.return_type=ret;
+  q.param_count=p1?2:p0?1:0;q.param_types[0]=p0;q.param_types[1]=p1;
+  q.return_match=q.param_match[0]=q.param_match[1]=PGR_MD_MATCH_EXACT;
+  if(owner==k&&std::strcmp(name,"HandleDismissComplete")==0){static const uint8_t bytes[]={0xfe,0x57,0xbe,0xa9,0xf4,0x4f,0x01,0xa9,0x33,0xdc,0x02,0xb0,0xf4,0x03,0x00,0xaa,0x68,0xce,0x6c,0x39,0x08,0x01,0x00,0x37};q.expected_code=static_cast<const char*>(binding.module_base)+156510272;q.prologue=bytes;q.prologue_len=sizeof(bytes);}
+  if(owner==k&&std::strcmp(name,"Initialize")==0){static const uint8_t bytes[]={0xfe,0x67,0xbc,0xa9,0xf8,0x5f,0x01,0xa9,0xf6,0x57,0x02,0xa9,0xf4,0x4f,0x03,0xa9,0x36,0xdc,0x02,0xb0,0xf4,0x03,0x02,0x2a};q.expected_code=static_cast<const char*>(binding.module_base)+156510496;q.prologue=bytes;q.prologue_len=sizeof(bytes);}
+  if(owner==k&&std::strcmp(name,"LeaveBattle")==0){static const uint8_t bytes[]={0x09,0x88,0x40,0xf9,0x49,0x01,0x00,0xb4,0xfe,0x4f,0xbf,0xa9,0x28,0x21,0x40,0xf9,0x2a,0x0d,0x40,0xf9,0xf3,0x03,0x00,0xaa};q.expected_code=static_cast<const char*>(binding.module_base)+156512340;q.prologue=bytes;q.prologue_len=sizeof(bytes);}
+  if(owner==k&&std::strcmp(name,"ContinueToNextBattle")==0){static const uint8_t bytes[]={0x09,0x84,0x40,0xf9,0x49,0x01,0x00,0xb4,0xfe,0x4f,0xbf,0xa9,0x28,0x21,0x40,0xf9,0x2a,0x0d,0x40,0xf9,0xf3,0x03,0x00,0xaa};q.expected_code=static_cast<const char*>(binding.module_base)+156512392;q.prologue=bytes;q.prologue_len=sizeof(bytes);}
+  PgrMetaMethodResult r{};if(api->validate_method(&q,&r)!=0)return PgrMetaMethodResult{};return r;};
+ auto init=method(k,"Initialize","System.Void","Holoholo.Rpc.GymDefenderProto","System.Int32");
+ auto press=method(k,"ContinueToNextBattle","System.Void");
+ auto leave=method(k,"LeaveBattle","System.Void");
+ auto dismiss=method(k,"HandleDismissComplete","System.Void");
+ auto open=method(base,"get_IsOpen","System.Boolean");
+ if(!init.method||!press.method||!leave.method||!dismiss.method||!open.method)return false;
+ // The no-op HandleOpen/HandleOpenComplete bodies are only four bytes: never hook them.
+ g_gym_next_class=k;g_gym_next_method=const_cast<void*>(press.method);g_gym_is_open=const_cast<void*>(open.method);
+ const HookEntry entries[]={
+  {HK_GYM_NEXT_INIT,const_cast<void*>(init.code),reinterpret_cast<void*>(hook_gym_next_init)},
+  {HK_GYM_NEXT_PRESS,const_cast<void*>(press.code),reinterpret_cast<void*>(hook_gym_next_close<HK_GYM_NEXT_PRESS>)},
+  {HK_GYM_NEXT_LEAVE,const_cast<void*>(leave.code),reinterpret_cast<void*>(hook_gym_next_close<HK_GYM_NEXT_LEAVE>)},
+  {HK_GYM_NEXT_DISMISS,const_cast<void*>(dismiss.code),reinterpret_cast<void*>(hook_gym_next_close<HK_GYM_NEXT_DISMISS>)}
+ };
+ g_gym_next_ready=install_hook_group(entries,4);return g_gym_next_ready;
 }
 
 bool install_shared_vnext_hook() {
@@ -1210,6 +1307,11 @@ int finish_setup_locked(uint64_t tid) {
         return PGR_CBH_ERR_LEAF_INIT;
     }
 
+    if(g_default_bind_mode&&(caps&PGR_CBH_CAP_BATTLES)) {
+        const bool next_ready=install_gym_next();
+        queue_event(PGR_CBH_EV_BATTLE_ACTION,1,0,owner,next_ready?
+          "{\"gymNextReady\":true}":"{\"gymNextReady\":false}");
+    }
     g_accepted_cfg     = g_cfg;
     g_has_accepted_cfg = true;
     g_configured.store(true, std::memory_order_release);
@@ -1442,6 +1544,7 @@ int api_tick(uint64_t proven_tid) {
     if((caps&PGR_CBH_CAP_ROCKET_COMBAT)&&g_rocket_combat){refresh_leaf_gates();g_rocket_combat->tick(proven_tid,terminal()?1:0);}
     if((caps&PGR_CBH_CAP_ROCKET_MINIGAME)&&g_rocket_mini){refresh_leaf_gates();if(terminal())g_rocket_mini->restore();g_rocket_mini->tick(1);}
     if((caps&PGR_CBH_CAP_BATTLES)&&g_battles){refresh_leaf_gates();g_battles->tick(proven_tid,terminal()?1:0);}
+    tick_gym_next();
     g_leaves_latched.store(true, std::memory_order_release);
     drain_leaf_events(proven_tid);
     return PGR_CBH_OK;
@@ -1450,6 +1553,7 @@ int api_tick(uint64_t proven_tid) {
 int api_stop(uint64_t proven_tid) {
     if (!g_configured.load(std::memory_order_acquire)) return PGR_CBH_ERR_NOT_CONFIGURED;
     g_stopping.store(true, std::memory_order_release);
+    if(self_tid()==g_owner_tid.load()&&thread_attached())clear_gym_next();
     api_revoke();
 
     const uint32_t caps  = g_capabilities.load(std::memory_order_acquire);

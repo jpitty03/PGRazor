@@ -139,6 +139,14 @@ void test_cleared(unsigned polls, unsigned events) {
 }
 }
 
+extern "C" __attribute__((visibility("default"))) void *il2cpp_object_get_virtual_method(void *receiver,void *base){
+ assert(receiver==&test_objects[0]&&base==&test_objects[1]);return &test_objects[2];
+}
+void *test_virtual_invoke(void *m,void *receiver,void **args,void **exception){
+ assert(m==&test_objects[2]&&receiver==&test_objects[0]);
+ if(args)assert(*static_cast<int64_t*>(args[0])==123456);
+ *exception=nullptr;return &test_objects[3];
+}
 extern "C" const void *pgrazor_runtime_bootstrap_api(uint32_t) {
  assert(false && "poll fixture must not bootstrap");
  return nullptr;
@@ -183,7 +191,7 @@ int main() {
  assert(!permission().allowed);
  test_map = true;
  assert(permission().allowed);
- for (int phase : {2, 3}) {
+ for (int phase : {2, 3, 6}) {
   for (bool config_change : {false, true}) {
    auto p = test_setup(phase);
    if (config_change) p.config = "changed";
@@ -195,7 +203,7 @@ int main() {
    assert(next_scan == 0);
   }
  }
- for (int phase : {2, 3}) {
+ for (int phase : {2, 3, 6}) {
   auto p = test_setup(phase);
   pending.since = clock_ms() - 15001;
   poll(p);
@@ -239,5 +247,15 @@ int main() {
   assert(inspected.at("other-gym")==now+60000);
   assert(!paused && !history.feed_allowed(42,now+5000));
  }
- std::puts("PASS: gym runtime cancellation, timeout, rejection and bounded no-action retry");
+ {
+  test_setup(1);clear_pending();
+  boot.handle=dlopen(nullptr,RTLD_NOW);assert(boot.handle);
+  boot.runtime.runtime_invoke=reinterpret_cast<void*>(test_virtual_invoke);
+  Root receiver(&test_objects[0]);
+  assert(virtual_call(receiver,&test_objects[1])==&test_objects[3]);
+  int64_t deadline=123456;void *args[]={&deadline};
+  assert(virtual_call(receiver,&test_objects[1],args)==&test_objects[3]);
+  receiver.reset();assert(test_roots.empty());dlclose(boot.handle);boot.handle=nullptr;
+ }
+ std::puts("PASS: virtual gym getter/setter dispatch; gym runtime cancellation, timeout, rejection and bounded no-action retry");
 }

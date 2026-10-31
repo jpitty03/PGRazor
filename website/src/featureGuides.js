@@ -9,7 +9,7 @@
 // `availability` stays neutral: it never implies the latest release ships a
 // feature that is still only on the project's main branch. Three buckets are
 // used — shipping releases, the published v0.1.7-experimental.2 pre-release,
-// and local development work that is not in any published APK yet.
+// and the newer experimental.3 features.
 
 const AVAILABILITY = {
   released: 'Available in current PGRazor releases; confirm against your installed build.',
@@ -17,8 +17,8 @@ const AVAILABILITY = {
     'Published in the v0.1.7-experimental.2 pre-release. Pre-releases are test candidates — check the release notes for device-validation status.',
   experimental1:
     'Introduced with the Events screen in the v0.1.7-experimental.1 pre-release. Experimental and off by default.',
-  localDev:
-    'Development build. These controls are not yet included in published APKs.',
+  experimental3:
+    'Included in v0.1.7-experimental.3. Check the release notes for device-validation status.',
 };
 
 export const featureGuides = [
@@ -42,6 +42,7 @@ export const featureGuides = [
       'Show joystick toggles the handle; the panel behind it is intentionally transparent.',
       'Disabling spoofing returns the device to its normal location and stops simulated movement.',
       'Adventure Sync prompts are dismissed automatically only while spoofing is on and the app has no Android location permission.',
+      'Spawn booster (80 m) is an optional, experimental Location & overlays toggle that widens the nearby spawn range; it appears only when the game supports it and does not prove a server-side bonus.',
     ],
   },
   {
@@ -50,7 +51,7 @@ export const featureGuides = [
     category: 'Map',
     summary:
       'A full-screen map with place search, loaded nearby layers, a live location dot, and per-pin Walk or Teleport.',
-    availability: AVAILABILITY.localDev,
+    availability: AVAILABILITY.experimental3,
     where: 'Quick Menu > Map (full screen, in your chosen PGRazor theme).',
     steps: [
       'Open the Quick Menu and tap Map.',
@@ -72,7 +73,7 @@ export const featureGuides = [
     category: 'Map',
     summary:
       'Jump to 14 curated hotspots or your own saved places, with a cooldown estimate before any teleport.',
-    availability: AVAILABILITY.localDev,
+    availability: AVAILABILITY.experimental3,
     where: 'Quick Menu > Hotspots or Favorites, and the World Map. Hotspots offers 14 curated destinations.',
     steps: [
       'Save a place from the World Map so it appears under Favorites (Favorites shares the map’s saved places).',
@@ -160,6 +161,7 @@ export const featureGuides = [
     where: 'Settings > Catch & summary and Settings > Throws.',
     steps: [
       'In Catch & summary, turn on Quick catch to shorten the catch animation and skip the post-catch screens.',
+      'In Catch & summary, turn on Quick spin to let an opened PokéStop spin and close its reward screen automatically.',
       'In Throws, set Throw rating to Nice, Great, or Excellent, and optionally turn on Always curveball or Always hit.',
       'Turn on Catch IV/level to show CP, level, and color-graded IV above the encounter, and Inventory IV/level for owned Pokémon details.',
       'Tap the Catching berry overlay icon/count to choose up to three berries in priority order; each throw uses the first choice you still have in stock.',
@@ -219,18 +221,20 @@ export const featureGuides = [
     category: 'Automation',
     summary:
       'An expanded VGP mode (formerly Smart Background Catcher) with ball, berry, throw, and premium/candy rules.',
-    availability: AVAILABILITY.localDev,
+    availability: AVAILABILITY.experimental3,
     where: 'Settings > Virtual Go Plus > VGP+; start/stop from the same VGP overlay icon.',
     steps: [
       'With the VGP overlay enabled, turn on VGP+ in the Virtual Go Plus section.',
-      'Pick a Standard ball (Poké, Great, or Ultra) and a Standard berry (Off, Razz, Nanab, Pinap, Golden Razz, or Silver Pinap).',
-      'Optionally turn on “Shiny or IV ≥90%: Ultra Ball + Golden Razz”, and set High CP (0–10000) and High level (0–50) thresholds — a threshold of 0 disables that rule.',
+      'Pick a Standard ball (Poké Ball, Great Ball, or Ultra Ball) and a Standard berry (Off, Razz, Nanab, Pinap, Golden Razz, or Silver Pinap).',
+      'Optionally turn on “Shiny or IV ≥90%: Ultra Ball + Golden Razz”, and set High CP threshold (0–10000) and High level threshold (0–50) — a threshold of 0 disables that rule.',
       'Choose a Throw rating (Default/Nice/Great/Excellent) and optional Curveball.',
       'Open Candy species (Pinap) to select species that should get a Pinap for candy.',
+      'Optionally enable Auto-spin Gym discs under VGP+. It defaults off and is separate from Nearby Pokéstops; Gym Slotter and feeding need not be enabled.',
       'Use the normal VGP Start/Stop icon to run it.',
     ],
     notes: [
       'VGP+ attempts loaded, visible wild Pokémon without the standard VGP 40 m cutoff; the game still decides encounter eligibility and a declined encounter is skipped.',
+      'Gym disc spinning runs on the map at loaded gyms of any team within 40 m, checks bag space, and respects each disc cooldown. The VGP start/stop and optional Stop on cooldown (estimated) controls apply. Gym-disc spinning has been user-verified.',
       'Premium rules take priority over candy rules. Empty selected stock falls back to available regular balls or skips the berry; Master Balls are never used.',
       'Throws wait roughly 1.2–1.8 seconds, with at most three additional throws after confirmed escapes.',
       'Existing storage, transfer, foreground, and manual-interaction gates still apply, and ratings do not guarantee a catch.',
@@ -241,23 +245,23 @@ export const featureGuides = [
     title: 'Gym Slotter & Berry Feeder',
     category: 'Automation',
     summary:
-      'Slot a tagged defender into an open friendly gym slot and feed your gym defenders, within 40 m of a gym.',
-    availability: AVAILABILITY.localDev,
+      'Deploy a tagged defender to an open friendly gym slot and feed your gym defenders from one draggable overlay.',
+    availability: AVAILABILITY.experimental3,
     where: 'Settings > Raids, gyms & Dynamax > Gym Slotter & Berry Feeder.',
     steps: [
-      'In the game’s Pokémon storage, open the Tags tab and create a tag named Gym (the #Gym shorthand is also recognized).',
-      'Assign the eligible, healthy defenders you want deployed to that Gym tag.',
-      'Open Gym Slotter & Berry Feeder and turn on “Auto-deploy to open Gym slots”. Deployment and feeding are independent and both default off; VGP need not be running.',
-      'Keep the game on the map, near a friendly gym within 40 m that has an open slot — the game validates eligibility for each attempt.',
-      'Choose deployment, feeding, or both, then enable Show gym automation overlay. Tap the gym-and-berry icon, or use Run Gym Slotter & Berry Feeder, to start or stop the whole feature. Your choices are preserved. A small status line under the icon shows deployment, feeding, and cooldown activity. The master starts off each session; active cooldown stops both actions, and you must restart manually after it ends.',
-      'For feeding, turn on “Auto-feed berries to your Gym defenders” and set the Nanab and Razz reserves (0–1000, default 50).',
+      'In the game’s Pokémon storage, open the Tags tab and create a tag named Gym (the #Gym shorthand is also recognized), then assign the eligible, healthy defenders you want deployed.',
+      'Open Gym Slotter & Berry Feeder. Deployment and feeding are two independent switches that both default off, and VGP need not be running.',
+      'Turn on the actions you want: “Auto-deploy to open Gym slots” and/or “Auto-feed berries to your Gym defenders”.',
+      'For feeding, set the Nanab Berry reserve and Razz Berry reserve (0–1000, default 50); for deployment, optionally turn on the lowest-CP fallback.',
+      'Enable “Show gym automation overlay”, then tap the draggable gym-and-berry icon — or the “Run Gym Slotter & Berry Feeder” checkbox — to start or stop the whole feature. Your deploy and feed choices are preserved.',
+      'Keep the game on the map screen, where it validates each attempt. Deployment and feeding need a friendly gym within 40 m, with an open slot to deploy.',
     ],
     notes: [
-      'Tagged candidates have priority. The optional “lowest-CP fallback” is a separate toggle, used only when no eligible #Gym defender is available, and it excludes shiny, lucky, and IV ≥90% Pokémon.',
-      'All candidates skip favorites, the current buddy, injured, already-deployed, and otherwise ineligible Pokémon.',
-      'The Gym tag is only read for priority; it is not removed when a Pokémon is deployed.',
-      'Feeding is independent of deployment: it uses surplus Nanab then Razz above your reserves, with at least 1500 ms between confirmed feeds and bounded per-defender attempts.',
-      'Server refusals and inventory updates govern follow-up requests; rewards are reported only from successful responses. Ambiguous timeouts pause the feature — switch both options off to reset the pause. No dust or coin payout is promised.',
+      'The master starts off every session. Active cooldown stops the whole run and blocks a new start; restart it manually after the cooldown ends.',
+      'The overlay uses the bundled gym symbol with a Razz Berry badge, shows ON, OFF, or CD, and carries a compact status line (for example Waiting for gym, Deploying defender, Feeding berries, or Cooldown).',
+      'Tagged candidates have priority. The optional “lowest-CP fallback” is used only when no eligible #Gym defender is available and excludes shiny, lucky, and IV ≥90% Pokémon; every candidate skips favorites, the current buddy, injured, already-deployed, and otherwise ineligible Pokémon. The Gym tag is read for priority only and is not removed when a Pokémon is deployed.',
+      'Feeding uses surplus Nanab then Razz above your reserves, with at least 1500 ms between confirmed feeds and bounded per-defender attempts.',
+      'After a temporary no-action result a nearby gym is rechecked promptly rather than skipped for about a minute, and reserve and retry status stay visible. Server refusals and inventory updates govern follow-up requests, and rewards are reported only from successful responses; an ambiguous timeout pauses the feature until you switch the options off. No dust or coin payout is promised.',
     ],
   },
   {
@@ -266,7 +270,7 @@ export const featureGuides = [
     category: 'Automation',
     summary:
       'Builds buddy mood with snapshots, petting, and reserve-aware berry feeding, replacing the old Auto feed buddy.',
-    availability: AVAILABILITY.localDev,
+    availability: AVAILABILITY.experimental3,
     where: 'Settings > Buddy Emotion Engine.',
     steps: [
       'Expand Buddy Emotion Engine and turn on “Run the Buddy Emotion Engine”. This one master control covers snapshots, petting, hunger-based feeding, and optional gift collection.',
@@ -288,7 +292,7 @@ export const featureGuides = [
     category: 'Inventory',
     summary:
       'Preview a tagged batch, then evolve each eligible Pokémon once without opening the evolution cutscene.',
-    availability: AVAILABILITY.localDev,
+    availability: AVAILABILITY.experimental3,
     where: 'Settings > Batch evolution.',
     steps: [
       'In Pokemon storage, open Tags, create a tag such as Evolve, and assign only the Pokemon you want evolved to it.',
@@ -389,12 +393,13 @@ export const featureGuides = [
     where: 'Settings > Team Rocket and Settings > Raids, gyms & Dynamax.',
     steps: [
       'In Team Rocket, enable Auto quick attack, Auto charged attack, and/or Auto shield.',
-      'In Raids, gyms & Dynamax, enable the quick/charged/Max attack and dodge options you want per battle type.',
+      'In Raids, gyms & Dynamax, enable the per-type options you want: Raids / Gyms / Dynamax auto quick attack, auto charged attack, Dynamax auto Max attack, and per-type auto dodge.',
       'Start the battle in the game; the enabled assists act on the game’s natural callbacks.',
     ],
     notes: [
       'Automated attacks and dodges pause while the Pokémon switch picker is open and resume after it closes.',
       'Dynamax attack controls can recover from a missed setup callback so quick and charged attacks can still start.',
+      'Experimental.3 adds gym next-opponent continuation: when Gyms: auto quick attack or Gyms: auto charged attack is on, the next-opponent prompt starts the following gym battle instead of waiting out its countdown. Leaving the battle manually or turning those gym attack options off cancels it. User-confirmed on MuMu.',
     ],
   },
   {

@@ -5,7 +5,7 @@ import java.util.TreeSet;
 
 /** Pure Java account configuration and native wire serialization. */
 public final class SmartCatchPreferences {
-    private boolean enabled, premium=true, curve=true;
+    private boolean enabled, premium=true, curve=true, spinGyms;
     private int ball=1, berry, highCp=1500, highLevel=30, grade=3;
     private String candySpecies="";
     private static final int[] BERRIES={0,701,703,705,706,708};
@@ -39,6 +39,9 @@ public final class SmartCatchPreferences {
         berry=number(p,"Berry",0,0,708);if(!validBerry(berry))berry=0;
         premium=flag(p,"Premium",true);highCp=number(p,"HighCp",1500,0,10000);
         highLevel=number(p,"HighLevel",30,0,50);grade=number(p,"Grade",3,0,3);curve=flag(p,"Curve",true);
+        String spin=p.getProperty("smartCatchSpinGyms");
+        if(spin==null)spin=p.getProperty("gymAutomationSpin");
+        spinGyms="true".equals(spin);
         try{candySpecies=normalizeSpecies(p.getProperty("smartCatchCandySpecies",""));}catch(IllegalArgumentException e){candySpecies="";}
     }
     public synchronized void write(Properties p){
@@ -46,6 +49,7 @@ public final class SmartCatchPreferences {
         p.setProperty("smartCatchBerry",String.valueOf(berry));p.setProperty("smartCatchPremium",String.valueOf(premium));
         p.setProperty("smartCatchHighCp",String.valueOf(highCp));p.setProperty("smartCatchHighLevel",String.valueOf(highLevel));
         p.setProperty("smartCatchGrade",String.valueOf(grade));p.setProperty("smartCatchCurve",String.valueOf(curve));
+        p.setProperty("smartCatchSpinGyms",String.valueOf(spinGyms));p.remove("gymAutomationSpin");
         p.setProperty("smartCatchCandySpecies",candySpecies);
     }
     public synchronized String config(){
@@ -59,6 +63,7 @@ public final class SmartCatchPreferences {
     public synchronized boolean enabled(){return enabled;}
     public synchronized boolean premium(){return premium;}
     public synchronized boolean curve(){return curve;}
+    public synchronized boolean spinGyms(){return spinGyms;}
     public synchronized int ball(){return ball;}
     public synchronized int berry(){return berry;}
     public synchronized int highCp(){return highCp;}
