@@ -191,6 +191,18 @@ int main() {
  assert(!permission().allowed);
  test_map = true;
  assert(permission().allowed);
+ // A revoked pre-send gate after deployment must not latch the entire engine.
+ for(const char *reason:{"map readiness changed","settings changed","gym eligibility changed"}){
+  test_setup(3);pending.promise.reset();
+  const auto before=clock_ms();
+  try{require_unsent(false,reason);assert(false);}catch(const UnsentRequest &e){recover_unsent(e.where);}
+  assert(!paused && pending.phase==0 && test_roots.empty() && test_polls==0);
+  assert(next_scan>=before+1500 && status.find("Waiting:")==0);
+ }
+ {
+  test_setup(3);recover_unsent("unexpected outstanding request");
+  assert(paused && pending.phase==0 && test_roots.empty() && test_polls==0);
+ }
  for (int phase : {2, 3, 6}) {
   for (bool config_change : {false, true}) {
    auto p = test_setup(phase);

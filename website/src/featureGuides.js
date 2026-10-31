@@ -261,7 +261,7 @@ export const featureGuides = [
       'The overlay uses the bundled gym symbol with a Razz Berry badge, shows ON, OFF, or CD, and carries a compact status line (for example Waiting for gym, Deploying defender, Feeding berries, or Cooldown).',
       'Tagged candidates have priority. The optional “lowest-CP fallback” is used only when no eligible #Gym defender is available and excludes shiny, lucky, and IV ≥90% Pokémon; every candidate skips favorites, the current buddy, injured, already-deployed, and otherwise ineligible Pokémon. The Gym tag is read for priority only and is not removed when a Pokémon is deployed.',
       'Feeding uses surplus Nanab then Razz above your reserves, with at least 1500 ms between confirmed feeds and bounded per-defender attempts.',
-      'After a temporary no-action result a nearby gym is rechecked promptly rather than skipped for about a minute, and reserve and retry status stay visible. Server refusals and inventory updates govern follow-up requests, and rewards are reported only from successful responses; an ambiguous timeout pauses the feature until you switch the options off. No dust or coin payout is promised.',
+      'If readiness or eligibility changes before a request is sent, the feature waits and rechecks instead of remaining paused; this recovery was user-verified after two gym deployments on Android. After a temporary no-action result a nearby gym is rechecked promptly rather than skipped for about a minute, and reserve and retry status stay visible. Server refusals and inventory updates govern follow-up requests, and rewards are reported only from successful responses; an ambiguous timeout pauses the feature until you switch the options off. No dust or coin payout is promised.',
     ],
   },
   {

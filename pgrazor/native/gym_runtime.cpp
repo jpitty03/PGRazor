@@ -16,6 +16,8 @@ namespace {
 using namespace pgr_shared_meta;
 using namespace pgr_gym;
 struct Failure {const char *where;};
+struct UnsentRequest {const char *where;};
+void require_unsent(bool ok,const char *where){if(!ok)throw UnsentRequest{where};}
 void require(bool ok,const char *where){if(!ok)throw Failure{where};}
 PgrBootBinding boot{};const PgrSharedMetadataOutput *md=nullptr;
 bool initialized=false,busy=false,paused=false;uint64_t owner=0,next_scan=0;
@@ -133,7 +135,9 @@ Root send(Root &request,const char *out_name,const char *rpc_name,Root &reflecti
  for(int i=0;i<2;i++){Root t=type_object(ks[i]);void **slot=reinterpret_cast<void**>(static_cast<char*>(types.get())+32+i*8);fn<void(*)(void*,void**,void*)>(exp("gc_wbarrier_set_field"))(types.get(),slot,t.get());}
  void *args[]={types.get()};reflection=Root(call(reflected.get(),"MakeGenericMethod",1,args));
  void *closed=fn<void*(*)(void*)>(exp("method_get_from_reflection"))(reflection.get());require(closed&&fn<bool(*)(void*)>(boot.meta.method_is_inflated)(closed),"closed RPC");
- auto p=permission();require(p.allowed&&p.config==pending.config&&gym_valid(pending.gym,p,nullptr,nullptr,!strcmp(rpc_name,"GymDeploy"),!strcmp(rpc_name,"FortSearch")),"permission changed");
+ auto p=permission();require_unsent(p.allowed,"map readiness changed");
+ require_unsent(p.config==pending.config,"settings changed");
+ require_unsent(gym_valid(pending.gym,p,nullptr,nullptr,!strcmp(rpc_name,"GymDeploy"),!strcmp(rpc_name,"FortSearch")),"gym eligibility changed");
  // Resolve inventory again after generic-method construction; a concurrent
  // cleanup or manual action may have changed stock since planning.
  if(!strcmp(rpc_name,"GymFeedPokemon")){
@@ -146,7 +150,9 @@ Root send(Root &request,const char *out_name,const char *rpc_name,Root &reflecti
  }
  if(!strcmp(rpc_name,"FortSearch"))require(p.settings.spin&&spin_bag_room(),"spin bag full or disabled");
  put(request.get(),"PlayerLatDegrees","System.Double",p.lat);put(request.get(),"PlayerLngDegrees","System.Double",p.lon);
- auto final_permission=permission();require(final_permission.allowed&&final_permission.config==pending.config&&gym_valid(pending.gym,final_permission,nullptr,nullptr,!strcmp(rpc_name,"GymDeploy"),!strcmp(rpc_name,"FortSearch")),"permission expired before request");
+ auto final_permission=permission();require_unsent(final_permission.allowed,"map readiness changed before request");
+ require_unsent(final_permission.config==pending.config,"settings changed before request");
+ require_unsent(gym_valid(pending.gym,final_permission,nullptr,nullptr,!strcmp(rpc_name,"GymDeploy"),!strcmp(rpc_name,"FortSearch")),"gym eligibility changed before request");
  int id=literal(cls("Holoholo.Rpc","Method"),rpc_name),zero=0,timeout=10000;void *rpc_args[]={&id,request.get(),&zero,&timeout,&zero};
  if(!strcmp(rpc_name,"FortSearch"))require(history.spin_attempt(pending.id,clock_ms()),"spin already attempted");
  if(!strcmp(rpc_name,"GymDeploy"))reserved[pending.defender]=clock_ms()+1800000;
@@ -184,6 +190,13 @@ void retry_no_action(uint64_t now,uint64_t delay=5000){
  if(!pending.id.empty())inspected[pending.id]=now+delay;
  clear_pending();next_scan=now+delay;
 }
+// Only used for gates rejected before invoking SendRpc. Never retry an
+// outstanding request whose outcome may still mutate inventory or a gym.
+void recover_unsent(const char *reason){
+ if(pending.promise){paused=true;clear_pending();event("Paused: outstanding gym request");return;}
+ retry_no_action(clock_ms(),1500);event(std::string("Waiting: ")+reason);
+}
+
 Root reference(void*,const char*,const char*);
 std::vector<Defender> defenders(){
  require(bool(pending.details),"gym details missing");
@@ -368,6 +381,6 @@ void pgr_gym_tick(uint64_t tid,const PgrSharedMetadataOutput *metadata){
   if(paused)return;if(!p.allowed){event(p.settings.deploy||p.settings.feed||p.settings.spin?"Waiting for map readiness":"Off");return;}
   auto now=clock_ms();if(now<next_scan)return;next_scan=now+3000;
   discover(p);
- }catch(const Failure &e){paused=true;clear_pending();event(std::string("Paused: ")+e.where);}catch(...){paused=true;clear_pending();event("Paused: gym automation failure");}
+ }catch(const UnsentRequest &e){recover_unsent(e.where);}catch(const Failure &e){paused=true;clear_pending();event(std::string("Paused: ")+e.where);}catch(...){paused=true;clear_pending();event("Paused: gym automation failure");}
 }
 void pgr_gym_stop(uint64_t tid){if(initialized&&tid==owner&&tid==uint64_t(gettid())){clear_pending();paused=true;}}

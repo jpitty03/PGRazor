@@ -2,9 +2,12 @@
 
 ## Unreleased
 
+
 ## v0.1.7-experimental.3
 
 [Full release notes](docs/releases/v0.1.7-experimental.3.md)
+
+- Fix gym deployment-to-feeding transitions latching Paused when a settings, readiness, or gym eligibility check changes before the next request is sent. Recheck unsent work; keep uncertain in-flight outcomes paused. User confirmed recovery across two successful gym deployments on Android.
 
 - Add Auto-spin Gym discs under VGP+, controlled by the VGP overlay, with bag-space checks and per-gym cooldown handling. Gym-disc spinning has been user-verified.
 
