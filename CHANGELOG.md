@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Recheck nearby gyms promptly after temporary no-action results instead of excluding them for 60 seconds; keep reserve and retry status visible.
+
+- Add a draggable gym-and-berry overlay that starts/stops the entire Gym Slotter & Berry Feeder while preserving deployment and feeding choices. Active cooldown stops both actions; restart manually after it ends. The master starts off each session. A small status line follows the icon and shows deployment, feeding, and cooldown activity.
+
 - Add Batch evolution: preview a named tag, review candy/item costs and skipped entries, then evolve eligible Pokemon sequentially without opening the cutscene. Include Stop, inventory-confirmed progress, server-reported XP, and optional removal of the selected tag after successful evolution. Preserve other tags and skipped entries; special or ambiguous evolutions are skipped.
 - Validate tag-removal request construction during preview and handle replacement Pokemon IDs when confirming evolutions. Evolution and optional tag removal have been user-tested on MuMu.
 
@@ -37,6 +41,28 @@
 - Show a live blue current-location dot on the World Map independently of the red destination pin.
 
 - Add World Map place search for businesses, parks, landmarks, and addresses, biased toward the viewed map area. Selecting a result centers its destination pin; Walk and Teleport remain explicit actions. Search uses Photon/OpenStreetMap and results may be incomplete.
+
+### Using tags for gym defenders and evolution
+
+These controls are in the current development build; they are not part of the published v0.1.7-experimental.2 APK.
+
+**Gym defenders**
+
+1. In Pokémon GO's Pokémon storage, open **Tags**, create a tag named `Gym`, and apply it to Pokémon you want to deploy. `#Gym` is also recognized, but `Gym` is the simplest name to use.
+2. Open **PGRazor Settings → Raids, gyms & Dynamax → Gym Slotter & Berry Feeder**, then enable **Auto-deploy to open Gym slots**.
+3. Start the feature with its gym-and-berry overlay icon or **Run Gym Slotter & Berry Feeder**, then stay on the game map near a friendly gym within 40 m with an open slot. VGP does not need to be running. The slotter prefers eligible tagged defenders; favorites, your current buddy, injured or deployed Pokémon, and other ineligible defenders are skipped. It also avoids species already defending that gym.
+4. Leave **Allow lowest-CP fallback** off to restrict deployment to your tagged choices. Enable it only if you also want eligible untagged Pokémon considered when none of your tagged defenders can be used. Deployment does not remove the `Gym` tag.
+
+Deployment and berry feeding have separate selection switches; the overlay starts/stops the whole feature without clearing either choice. Feeding does not require tagging the defenders. Enable **Show gym automation overlay** for the draggable gym-and-berry icon. Active cooldown stops both actions; restart manually after it ends. It uses Nanab, then Razz, only above your configured reserves, and respects server refusals and feeding limits.
+
+**Batch evolution**
+
+1. Create a tag such as `Evolve` in Pokémon storage and apply it only to Pokémon you want evolved. You can use another tag name; enter that name in **PGRazor Settings → Batch evolution**.
+2. Optionally check **Remove this tag after each confirmed evolution** before previewing. It defaults off. When enabled, it removes only the selected tag from successful evolutions; other tags and skipped or failed entries are preserved.
+3. Select **Preview batch** and review the eligible count, candy/item costs, and skip reasons. Favorites, your buddy, deployed Pokémon, eggs, Shadow/purified Pokémon, and conditional or ambiguous evolution branches are skipped.
+4. Activate a Lucky Egg yourself if wanted, then choose **Start batch** and confirm. Each selected Pokémon evolves once per batch, even if another evolution is available afterward. **Stop** prevents further requests; an in-flight action may still finish.
+
+If an error appears, check Pokémon storage and the completed count before retrying: the evolution may have succeeded even if tag cleanup failed. The engine does not automatically retry uncertain evolutions.
 
 ## v0.1.7-experimental.2
 

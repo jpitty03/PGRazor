@@ -1,4 +1,6 @@
-import { features } from '../content.js';
+import SettingsGuide from './SettingsGuide.jsx';
+import Gallery from './Gallery.jsx';
+import { indexHref } from './guideData.js';
 
 export default function Features() {
   return (
@@ -6,25 +8,17 @@ export default function Features() {
       <div className="section__head">
         <p className="section__num">01 / Features</p>
         <h2 id="features-heading" className="section__title">
-          Set up your kind of session.
+          Features.
         </h2>
         <p className="section__lead">
-          From the first throw to your next route. Pick the helpers you want and keep
-          the controls close at hand.
+          Explore the settings guide, then take a closer look at the actual app screens.
         </p>
       </div>
 
-      <ul className="feature-list">
-        {features.map((feature, index) => (
-          <li className="feature" key={feature.title}>
-            <span className="feature__num" aria-hidden="true">
-              {String(index + 1).padStart(2, '0')}
-            </span>
-            <h3 className="feature__title">{feature.title}</h3>
-            <p className="feature__body">{feature.body}</p>
-          </li>
-        ))}
-      </ul>
+      <p className="guide-note">These guides cover the current development build as well as released features. Check each guide's availability against your installed APK.</p>
+      <p className="guide-back"><a className="btn btn--primary" href={indexHref}>Browse all feature guides</a></p>
+      <SettingsGuide />
+      <Gallery />
     </section>
   );
 }

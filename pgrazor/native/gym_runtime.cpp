@@ -165,6 +165,12 @@ void clear_pending(){
  if(pending.enumerator){try{virtual_call(pending.enumerator,h(H_INC_M_DISPOSE));}catch(...) {}}
  pending=Pending{};
 }
+// A read-only/no-action result is temporary, not a minute-long exclusion.
+// Keep action history intact: refreshing details must never bypass feed/deploy limits.
+void retry_no_action(uint64_t now,uint64_t delay=5000){
+ if(!pending.id.empty())inspected[pending.id]=now+delay;
+ clear_pending();next_scan=now+delay;
+}
 Root reference(void*,const char*,const char*);
 std::vector<Defender> defenders(){
  require(bool(pending.details),"gym details missing");
@@ -240,11 +246,11 @@ void cooldown(const char *label){const auto *t=static_cast<const PgrRuntimeTrans
 void act(const Permission &p){
  if(!snapshot_valid(p)){clear_pending();return;}auto rows=defenders();
  if(p.settings.deploy&&rows.size()<6&&history.deploy_allowed(pending.id,clock_ms())&&gym_valid(pending.gym,p,nullptr,nullptr,true)){
-  if(!prepare_selection()){event("Waiting for defender inventory and tags");clear_pending();next_scan=clock_ms()+5000;return;}
+  if(!prepare_selection()){event("Waiting for defender inventory and tags");retry_no_action(clock_ms());return;}
   event("Selecting gym defender");return;
  }
  if(p.settings.feed&&!rows.empty()&&issue_feed(p))return;
- event("No eligible gym action");clear_pending();next_scan=clock_ms()+5000;
+ if(status!="Berry reserves reached")event("No eligible gym action; retrying shortly");retry_no_action(clock_ms());
 }
 void poll(const Permission &p){
  auto now=clock_ms();if(paused||p.config!=pending.config||!p.allowed)pending.canceled=true;
@@ -254,7 +260,7 @@ void poll(const Permission &p){
     virtual_call(pending.enumerator,h(H_INC_M_DISPOSE));pending.enumerator.reset();std::vector<int> species;for(auto d:defenders())species.push_back(d.species);
     uint64_t id=choose(pending.candidates,species,p.settings.fallback);pending.phase=0;
     if(id)issue_deploy(id,p);
-    if(!pending.promise){if(p.settings.feed&&issue_feed(p))return;event("No eligible defender");clear_pending();next_scan=now+10000;}return;
+    if(!pending.promise){if(p.settings.feed&&issue_feed(p))return;if(status!="Berry reserves reached")event("No eligible defender; retrying shortly");retry_no_action(now,10000);}return;
    }
    require(++pending.scanned<=25000,"inventory capacity bound");Root pokemon(virtual_call(pending.enumerator,h(H_INC_M_CURRENT)));if(pokemon)pending.candidates.push_back(candidate(pokemon));
   }return;
@@ -291,15 +297,15 @@ void discover(const Permission &p){
  auto now=clock_ms();for(auto it=inspected.begin();it!=inspected.end();)if(it->second<=now)it=inspected.erase(it);else ++it;
  Root type=type_object(cls("Niantic.Holoholo.Gym","MapGym"));void *args[]={type.get()};Root gyms(invoke(h(H_VGP_M_FIND_ALL),nullptr,args));if(!gyms)return;
  size_t n=fn<size_t(*)(void*)>(exp("array_length"))(gyms.get());require(n<=2048,"gym array bound");
- std::string nearest_reason;double nearest=1e30;
+ std::string nearest_reason;double nearest=1e30;bool nearby_waiting=false;
  for(size_t i=0;i<n;i++){Root gym(*reinterpret_cast<void**>(static_cast<char*>(gyms.get())+32+i*8));std::string why;double meters=1e30;if(!gym_valid(gym,p,&why,&meters)){if(meters<nearest){nearest=meters;nearest_reason=why;}continue;}
   Root f=fort(gym);std::string id=string(field<void*>(f.get(),"FortId","System.String"));if(id.empty())continue;
-  if(inspected.count(id)||inspected.size()>=512)continue;
+  if(inspected.count(id)){nearby_waiting=true;continue;}if(inspected.size()>=512)continue;
   if(!p.settings.feed&&!history.deploy_allowed(id,clock_ms()))continue;
   pending.gym=std::move(gym);pending.id=id;pending.config=p.config;pending.phase=1;pending.since=clock_ms();
   inspected[id]=now+60000;
   pending.promise=Root(call(pending.gym.get(),"GetGymDetailsFromServer"));require(bool(pending.promise),"gym details promise");event("Reading nearby friendly gym");return;
- }if(!nearest_reason.empty())event("Nearest gym: "+nearest_reason+" ("+std::to_string(int(nearest))+"m)");else event("Waiting for a friendly gym within 40m");
+ }if(nearby_waiting){if(status!="Berry reserves reached")event("Waiting to recheck nearby gym");}else if(!nearest_reason.empty())event("Nearest gym: "+nearest_reason+" ("+std::to_string(int(nearest))+"m)");else event("Waiting for a friendly gym within 40m");
 }
 }
 void pgr_gym_tick(uint64_t tid,const PgrSharedMetadataOutput *metadata){

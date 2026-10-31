@@ -26,6 +26,9 @@ public final class Pad {
     private Button cooldownTimer;
     private TextView vgpActivity, buddyEmotionStatus;
     private OverlayDrag buddyEmotionDrag;
+    private GymFeedOverlay gymFeedOverlay;
+    private TextView gymAutomationStatus;
+    private OverlayDrag gymFeedDrag;
     private VgpMarker vgpMarker;
     // Draggable, position-persisting handles for the cooldown and VGP overlays.
     private OverlayDrag cooldownDrag, vgpDrag;
@@ -116,6 +119,10 @@ public final class Pad {
         buddyEmotionStatus=text("EP: waiting",12,ink());buddyEmotionStatus.setPadding(dp(10),dp(6),dp(10),dp(6));buddyEmotionStatus.setMaxLines(3);
         FrameLayout.LayoutParams buddyEpLayout=new FrameLayout.LayoutParams(dp(240),-2,Gravity.TOP|Gravity.LEFT);buddyEpLayout.leftMargin=dp(12);buddyEpLayout.topMargin=dp(265);parent.addView(buddyEmotionStatus,buddyEpLayout);buddyEmotionStatus.setVisibility(View.GONE);
         buddyEmotionStatus.setOnClickListener(v->BuddyEmotionSettings.show(activity));buddyEmotionDrag=OverlayDrag.attach(parent,buddyEmotionStatus,"buddy-emotion");
+        gymFeedOverlay=new GymFeedOverlay(activity);FrameLayout.LayoutParams gymFeedLayout=new FrameLayout.LayoutParams(dp(54),dp(54),Gravity.TOP|Gravity.LEFT);gymFeedLayout.leftMargin=dp(12);gymFeedLayout.topMargin=dp(375);parent.addView(gymFeedOverlay,gymFeedLayout);
+        gymAutomationStatus=text("Off",11,ink());gymAutomationStatus.setPadding(dp(6),dp(3),dp(6),dp(3));gymAutomationStatus.setMaxLines(1);gymAutomationStatus.setMaxWidth(dp(165));gymAutomationStatus.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        parent.addView(gymAutomationStatus,new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.LEFT));
+        gymFeedDrag=OverlayDrag.attach(parent,gymFeedOverlay,gymAutomationStatus,"gym-feed");
         // The toggle is the drag handle; the status pill follows it as one coherent unit. Tap still flips VGP.
         vgpDrag=OverlayDrag.attach(parent,vgpToggle,vgpActivity,"vgp");
         vgpMarker=new VgpMarker(host);parent.addView(vgpMarker,new FrameLayout.LayoutParams(dp(38),dp(46)));vgpMarker.setVisibility(View.GONE);
@@ -212,7 +219,7 @@ public final class Pad {
         if(launcher==null||launcher.getWidth()==0||parent.getWidth()==0)return;
         int percent=Control.uiScalePercent();if(appliedUiScale==percent)return;
         appliedUiScale=percent;float scale=percent/100f;
-        for(View view:new View[]{launcher,joystickOverlay,cooldownTimer,vgpToggle,vgpActivity,vgpMarker,transferToggle,gameRoutesOverlay}){
+        for(View view:new View[]{launcher,joystickOverlay,cooldownTimer,vgpToggle,vgpActivity,vgpMarker,transferToggle,gameRoutesOverlay,gymFeedOverlay,gymAutomationStatus}){
             if(view==null)continue;
             float fx=view.getX()/Math.max(1,parent.getWidth()-OverlayDrag.visualWidth(view));
             float fy=view.getY()/Math.max(1,parent.getHeight()-OverlayDrag.visualHeight(view));
@@ -223,11 +230,14 @@ public final class Pad {
         if(cooldownDrag!=null)cooldownDrag.refreshBounds();if(vgpDrag!=null)vgpDrag.refreshBounds();
         if(transferDrag!=null)transferDrag.refreshBounds();
         if(gameRoutesDrag!=null)gameRoutesDrag.refreshBounds();
+        if(gymFeedDrag!=null)gymFeedDrag.refreshBounds();
         if(encounterBerry!=null)encounterBerry.applyUiScale(scale);
         if(quickMenu!=null)quickMenu.applyScale(scale);
     }
     private void refresh() {
         applyMapScale();
+        if(gymFeedOverlay!=null)gymFeedOverlay.refresh(!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing()));
+        if(gymAutomationStatus!=null){gymAutomationStatus.setVisibility(gymFeedOverlay.getVisibility());gymAutomationStatus.setText(GymAutomationSettings.overlayStatus());gymAutomationStatus.setTextColor(ink());gymAutomationStatus.setBackground(rounded(surface(),8));gymFeedDrag.refreshBounds();}
         if(vgpToggle!=null){vgpToggle.setVisibility(Control.vgpOverlayVisible()&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);vgpToggle.setContentDescription("Virtual Go Plus "+(Control.vgpEnabled()?"on; tap to turn off":"off; tap to turn on")+". "+Control.vgpStatus());vgpToggle.invalidate();}
 
         // Pair the status line with the toggle so the cooldown shutoff reason is visible even when VGP is off.
@@ -389,6 +399,9 @@ public final class Pad {
         if(cooldownDrag!=null){cooldownDrag.detach();cooldownDrag=null;}if(vgpDrag!=null){vgpDrag.detach();vgpDrag=null;}if(transferDrag!=null){transferDrag.detach();transferDrag=null;}if(gameRoutesDrag!=null){gameRoutesDrag.detach();gameRoutesDrag=null;}
         if(buddyEmotionDrag!=null){buddyEmotionDrag.detach();buddyEmotionDrag=null;}
         if(buddyEmotionStatus!=null)parent.removeView(buddyEmotionStatus);
+        if(gymFeedDrag!=null){gymFeedDrag.detach();gymFeedDrag=null;}
+        if(gymAutomationStatus!=null){parent.removeView(gymAutomationStatus);gymAutomationStatus=null;}
+        if(gymFeedOverlay!=null){gymFeedOverlay.close();parent.removeView(gymFeedOverlay);gymFeedOverlay=null;}
         settings.close();
         parent.removeView(settings.view());parent.removeView(launcher);parent.removeView(joystickOverlay);if(encounterBerry!=null){encounterBerry.close();parent.removeView(encounterBerry);}if(cooldownTimer!=null)parent.removeView(cooldownTimer);if(vgpToggle!=null)parent.removeView(vgpToggle);if(vgpActivity!=null)parent.removeView(vgpActivity);if(vgpMarker!=null)parent.removeView(vgpMarker);if(transferToggle!=null)parent.removeView(transferToggle);if(gameRoutesOverlay!=null){gameRoutesOverlay.close();parent.removeView(gameRoutesOverlay);}
         settings.view().setOnApplyWindowInsetsListener(null);

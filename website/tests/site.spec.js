@@ -63,12 +63,29 @@ test('cooldown nav link reveals the section and its estimate table', async ({ pa
   await expect(section.getByRole('heading', { level: 2 })).toBeVisible();
 
   const table = section.locator('table.cooldown__table');
-  await expect(table.getByRole('columnheader', { name: 'Distance (km)' })).toBeVisible();
-  await expect(table.getByRole('columnheader', { name: /Reported wait/ })).toBeVisible();
+  await expect(table.first().getByRole('columnheader', { name: 'Distance (km)' })).toBeVisible();
+  await expect(table.first().getByRole('columnheader', { name: /Wait/ })).toBeVisible();
   // Endpoints of the chart confirm the data rendered in order.
   await expect(table.getByRole('rowheader', { name: '1', exact: true })).toBeVisible();
   await expect(table.getByRole('rowheader', { name: '1350+' })).toBeVisible();
   await expect(table.getByRole('cell', { name: '120 min' })).toBeVisible();
+});
+
+test('cooldown chart shows every estimate without internal scrolling or competitor links', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 740 });
+  await page.goto('./#cooldown');
+  const chart = page.locator('.cooldown__chart');
+  await expect(chart.locator('tbody tr')).toHaveCount(30);
+  const size = await chart.boundingBox();
+  expect(size.height).toBeLessThan(650);
+  const scrollable = await chart.locator('*').evaluateAll(elements => elements.filter(element => {
+    const style = getComputedStyle(element);
+    return ((/auto|scroll/.test(style.overflowY) && element.scrollHeight > element.clientHeight + 1)
+      || (/auto|scroll/.test(style.overflowX) && element.scrollWidth > element.clientWidth + 1));
+  }).length);
+  expect(scrollable).toBe(0);
+  await expect(page.locator('a[href*="pgsharp"]')).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
 });
 
 test('cooldown trigger and safe groups expand', async ({ page }) => {

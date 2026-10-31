@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { nav, links } from '../content.js';
 import { asset } from '../assets.js';
+import { homeHref } from './guideData.js';
 import { GithubIcon, SunIcon, MoonIcon, MenuIcon, CloseIcon } from './Icons.jsx';
 
 const NAV_ID = 'primary-nav';
 
-export default function Header({ theme, onToggleTheme }) {
+export default function Header({ theme, onToggleTheme, onGuide = false }) {
   const [open, setOpen] = useState(false);
   const toggleRef = useRef(null);
   const headerRef = useRef(null);
@@ -36,11 +37,15 @@ export default function Header({ theme, onToggleTheme }) {
   }, [open]);
 
   const nextTheme = theme === 'dark' ? 'light' : 'dark';
+  // On guide pages the in-page anchors don't exist, so point home-bound links at
+  // the homepage (and its section anchors) instead of a dead fragment.
+  const brandHref = onGuide ? homeHref : '#top';
+  const anchorHref = (hash) => (onGuide ? `${homeHref}${hash}` : hash);
 
   return (
     <header className="site-header" ref={headerRef}>
       <div className="site-header__inner">
-        <a className="brand" href="#top">
+        <a className="brand" href={brandHref}>
           <img className="brand__mark" src={asset('logo.svg')} alt="" width="28" height="28" />
           <span className="brand__name">PGRazor</span>
         </a>
@@ -53,7 +58,7 @@ export default function Header({ theme, onToggleTheme }) {
           <ul className="site-nav__list">
             {nav.map((item) => (
               <li key={item.href}>
-                <a href={item.href} onClick={() => setOpen(false)}>
+                <a href={anchorHref(item.href)} onClick={() => setOpen(false)}>
                   {item.label}
                 </a>
               </li>

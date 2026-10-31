@@ -28,6 +28,20 @@ The `Website` workflow builds and checks pull requests. Changes to `website/` or
 
 The Vite base path is `/PGRazor/`. Keep image links base-aware when adding screenshots. Download buttons point to GitHub's `/releases/latest` so publishing an APK does not require a website edit.
 
+## Feature guides and routing
+
+The site has three views selected by a query string, so the static GitHub Pages deploy needs no client-side router and every link survives reload, sharing, and the back button:
+
+- no query — the marketing homepage (`Hero`, `Features`, `Cooldown`, `GetStarted`).
+- `?guide=all` — the feature-guide index (`GuideIndex`): the guides grouped by `category` with a text filter.
+- `?guide=<id>` — one guide (`GuideDetail`). An unknown id renders an in-page "Guide not found" with a link back to the index.
+
+`App.jsx` reads `window.location.search` once on load, picks the view, and updates `document.title` and the `meta[name="description"]` to match. Guide links are ordinary `<a>` elements whose `href` changes the query, which triggers a full load of the same `index.html`. On guide views the header/footer logo and nav point back at the homepage and its section anchors (`/PGRazor/#features`, …) instead of dead in-page fragments.
+
+Guide content lives in `src/featureGuides.js`, which exports `featureGuides` — an array of `{ id, title, category, summary, availability, where, steps[], notes[] }`. That file is maintained separately from the layout. `src/components/guideData.js` re-exports the catalog and provides base-aware links. To add or edit a guide, update `featureGuides.js`; the index and detail pages pick it up without component edits. The homepage Features section links to the guide index.
+
+Each guide's `availability` is shown prominently (an index tag and a callout on the detail page). Features documented only in the current development build are not promised in, or implied to be part of, the latest release APK; keep `availability` accurate and avoid release promises.
+
 ## Screenshots and artwork
 
 - `public/logo.svg`: original PGRazor branding, shared with `pgrazor/branding/pgrazor.svg`.
@@ -39,4 +53,4 @@ Screenshots are representative; enabled options and layout depend on your settin
 
 ## Cooldown guidance
 
-The Cooldown section uses original text and an HTML table, with a reference link to the community chart. It is guidance, not a published server contract. The listed values match the reference chart used by the app; the app interpolates between distances and rounds up to whole minutes. Review action exceptions when updating the guide. No competitor artwork is bundled. The stable download remains separate from the experimental prerelease link.
+The Cooldown section uses original text and two compact tables with all 30 estimates visible without internal scrolling. The values are guidance, not a published server contract. The app interpolates between distances and rounds up to whole minutes. Preserve the chart values and action exceptions when adjusting presentation. Published release downloads remain separate from development-build guides.

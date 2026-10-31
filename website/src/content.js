@@ -8,12 +8,11 @@ export const links = {
   github: 'https://github.com/jpitty03/PGRazor',
   discord: 'https://discord.gg/9QqfkDSQX3',
   kofi: 'https://ko-fi.com/pgrazor',
-  cooldownReference: 'https://www.pgsharp.com/cooldown-rules/',
 };
 
 export const nav = [
   { href: '#features', label: 'Features' },
-  { href: '#in-the-app', label: 'In the app' },
+  { href: '?guide=all', label: 'Feature guides' },
   { href: '#cooldown', label: 'Cooldown' },
   { href: '#get-started', label: 'Get started' },
 ];
@@ -23,62 +22,7 @@ export const heroFacts = [
   { term: 'License', detail: 'MIT (original source)' },
 ];
 
-export const features = [
-  {
-    title: 'No root, one APK',
-    body: 'A single APK installs like a normal app on ARM64 Android phones and the MuMu emulator — no root needed.',
-  },
-  {
-    title: 'Quick Catch',
-    body: 'Shorten catch animations and skip the post-catch screens, so you can get back to the map.',
-  },
-  {
-    title: 'Berry priorities',
-    body: 'Pick up to three berries in priority order; each throw uses the first one you still have in stock.',
-  },
-  {
-    title: 'IV & level display',
-    body: 'Optionally show CP, level, and colour-graded IV right on the encounter and in Pokémon details.',
-  },
-  {
-    title: 'Transfer keep rules',
-    body: 'Auto-transfer low-IV catches while protecting shinies, legendaries, XXS, XXL, and a searchable custom species list. Favorites and eggs are always kept.',
-  },
-  {
-    title: 'Virtual Go Plus',
-    body: 'Catch nearby wild Pokémon with red balls only and spin nearby stops, with a target marker and an on/off status overlay.',
-  },
-  {
-    title: 'Routes & favorites',
-    body: 'A camera-relative joystick, saved places, Autowalk routes, speed presets, and a local cooldown estimate with history.',
-  },
-  {
-    title: 'Hands-off automation',
-    body: 'Optional gift opening and sending, buddy-berry feeding, and unlimited-incubator egg incubation by shortest or longest distance.',
-  },
-  {
-    title: 'Seasonal events',
-    body: 'An Events screen with per-event settings. For Halloween 2026, optionally open every visible map box and skip encounter screens. Experimental and off by default.',
-  },
-  {
-    title: 'LivePokeMap feeds',
-    body: 'Browse remote Pokémon, stops, gyms, and raids — this needs your own separate, paid LivePokeMap subscription.',
-  },
-  {
-    title: 'Inventory limits',
-    body: 'Choose which items to discard and how many to keep. The same limits apply to existing stock and new items.',
-  },
-  {
-    title: 'Settings backups',
-    body: 'Export and import your settings as JSON to move between phones or restore after reinstalling.',
-  },
-  {
-    title: 'Scales to your screen',
-    body: 'Resize the launcher, quick menu, joystick, and overlays to 100 / 75 / 50 / 25%, and drag them where you like.',
-  },
-];
-
-// The "In the app" preview is a settings guide, not a live app. Each group maps
+// The feature preview is a settings guide, not a live app. Each group maps
 // to a real section of the in-app settings and lists actual control names.
 export const settingGroups = [
   {
@@ -97,12 +41,13 @@ export const settingGroups = [
   {
     id: 'explore',
     label: 'Explore',
-    intro: 'Found under Location & overlays.',
+    intro: 'Found under Location & overlays, with the map and hotspots in the Quick Menu.',
     items: [
       { name: 'Joystick & taps', detail: 'A camera-relative joystick with tap-to-walk, teleport, or double-tap teleport.' },
       { name: 'Speed presets', detail: 'Switch between 0, 9.3, 16, and 30 km/h.' },
-      { name: 'Saved places & Autowalk', detail: 'Keep favorite locations and build looping routes through up to 50 nearby stops and gyms.' },
-      { name: 'Nearby layers', detail: 'See stops, gyms, and raids the game has loaded around you, with team rings and raid categories.' },
+      { name: 'Saved places & Autowalk', detail: 'Keep favorite locations and build looping Autowalk routes; the default is 50 nearby stops and gyms, and you can raise it toward all currently loaded or leave it blank for All.' },
+      { name: 'Place search & hotspots', detail: 'A local development map adds place search, a live blue location dot, and 14 curated hotspots, each with a cooldown estimate before teleport.' },
+      { name: 'Nearby layers', detail: 'See stops, gyms, and raids the game has loaded around you, with team rings and raid categories; choose Walk or Teleport from a pin.' },
       { name: 'Cooldown estimate', detail: 'A local timer with history — an estimate, not a guarantee.' },
       { name: 'LivePokeMap feeds', detail: 'Remote sightings, signed in with your own separate LivePokeMap subscription.' },
     ],
@@ -110,14 +55,17 @@ export const settingGroups = [
   {
     id: 'automate',
     label: 'Automate',
-    intro: 'Found under Virtual Go Plus, Eggs, Buddy, Gifts, Battles, and Events.',
+    intro: 'Found under Virtual Go Plus, Eggs, Buddy Emotion Engine, Gifts, Raids/gyms/Dynamax, inventory controls, and Events.',
     items: [
       { name: 'Virtual Go Plus', detail: 'Catch nearby wild Pokémon with red balls only and spin stops; starts off and stops when the app is backgrounded.' },
+      { name: 'VGP+', detail: 'A local development build adds ball, berry, throw, and premium/candy rules and reaches loaded Pokémon past the 40 m cutoff.' },
       { name: 'Auto incubate eggs', detail: 'Uses the unlimited incubator only, by shortest or longest distance.' },
-      { name: 'Auto feed buddy', detail: 'Feed your buddy a berry you select.' },
+      { name: 'Buddy Emotion Engine', detail: 'A local development build adds snapshots, petting, and reserve-aware berry feeding with optional gift collection; it replaces Auto feed buddy.' },
+      { name: 'Gym Slotter & Berry Feeder', detail: 'A local development build slots Gym-tagged defenders into open friendly gym slots within 40 m and feeds defenders; independent toggles, both off by default.' },
+      { name: 'Batch evolution', detail: 'A local development build previews a tagged batch, then evolves each eligible Pokémon once without the cutscene; no automatic Lucky Egg.' },
       { name: 'Friend gifts', detail: 'Open and send gifts, with optional stickers.' },
       { name: 'Battles', detail: 'Assist with Team Rocket, raids, gyms, and Dynamax / Max encounters.' },
-      { name: 'Events (Halloween 2026)', detail: 'Optionally open every visible map box and skip encounter screens. Experimental and off by default.' },
+      { name: 'Events (Halloween 2026)', detail: 'Optionally open every visible map box and skip encounter screens; it does not catch the encounters. Experimental and off by default.' },
     ],
   },
   {

@@ -227,5 +227,17 @@ int main() {
   test_cleared(0, 0);
   assert(!paused && next_scan == 0);
  }
- std::puts("PASS: gym runtime cancellation, timeout, and rejection policy");
+ {
+  test_setup(1);
+  const auto now=clock_ms();
+  inspected["gym-fixture"]=now+60000;
+  inspected["other-gym"]=now+60000;
+  history.refuse(42,now);
+  retry_no_action(now);
+  test_cleared(0,0);
+  assert(next_scan==now+5000 && inspected.at("gym-fixture")==now+5000);
+  assert(inspected.at("other-gym")==now+60000);
+  assert(!paused && !history.feed_allowed(42,now+5000));
+ }
+ std::puts("PASS: gym runtime cancellation, timeout, rejection and bounded no-action retry");
 }

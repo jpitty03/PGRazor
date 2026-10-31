@@ -5,7 +5,7 @@ export default function GetStarted() {
   return (
     <section className="section" id="get-started" aria-labelledby="get-started-heading">
       <div className="section__head">
-        <p className="section__num">04 / Get started</p>
+        <p className="section__num">03 / Get started</p>
         <h2 id="get-started-heading" className="section__title">
           Three steps to your first session.
         </h2>
@@ -36,10 +36,11 @@ export default function GetStarted() {
 
       <p className="cta__experimental">
         <span className="cta__badge">Experimental</span>
-        Want the Events update early? The{' '}
-        <a href={links.releasesExperimental}>v0.1.7 experimental prerelease</a> adds the
-        Halloween box opener and the native runtime. It passed automated checks and MuMu
-        testing, but hasn’t been retested on a physical phone — expect rough edges.
+        The published{' '}
+        <a href={links.releasesExperimental}>v0.1.7-experimental.2 prerelease</a> includes
+        Events, the native runtime, battle fixes, and expanded Autowalk limits. Newer
+        development features in the guides are not included in that APK. Read its release
+        notes before installing.
       </p>
 
       <div className="faq">

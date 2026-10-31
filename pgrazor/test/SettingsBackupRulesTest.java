@@ -42,6 +42,10 @@ public class SettingsBackupRulesTest {
         v=valid();v.getJSONObject("settings").put("ivCatch","false").put("ivOwned","true");SettingsBackupRules.validate(v);
         v=valid();v.getJSONObject("settings").put("ivOwned","maybe");rejects(v);
         v=valid();v.getJSONObject("preferences").put("pgrazor-overlays",new JSONObject().put("vgp.fx",1.2));rejects(v);
+        v=valid();v.getJSONObject("settings").put("gymAutomationOverlay","false");SettingsBackupRules.validate(v);
+        v=valid();v.getJSONObject("settings").put("gymAutomationOverlay","maybe");rejects(v);
+        v=valid();v.getJSONObject("preferences").put("pgrazor-overlays",new JSONObject().put("gym-feed.fx",0.4).put("gym-feed.fy",0.6));SettingsBackupRules.validate(v);
+        v=valid();v.getJSONObject("preferences").put("pgrazor-overlays",new JSONObject().put("gym-feed.fx",1.1));rejects(v);
         // Transfer keep list and Keep All / overlay settings.
         v=valid();v.getJSONObject("settings").put("transferKeepAll","true").put("transferOverlay","false").put("transferKeepSpecies","1,4,25,2000");SettingsBackupRules.validate(v);
         v=valid();v.getJSONObject("settings").put("transferKeepSpecies","");SettingsBackupRules.validate(v);
