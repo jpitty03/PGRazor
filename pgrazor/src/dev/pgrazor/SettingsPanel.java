@@ -62,12 +62,10 @@ final class SettingsPanel {
     private final CheckBox[] giftChoices=new CheckBox[3];
     private final CheckBox[] rocketChoices=new CheckBox[3];
     private final CheckBox[] battleChoices=new CheckBox[10];
-    private final RadioButton[] buddyChoices=new RadioButton[6];
+    private Runnable buddyRefresh=()->{},smartRefresh=()->{};
     // Section roots gated by backend readiness, refreshed without recreation.
     private View catchRoot, buddyRoot, giftRoot, itemsRoot, rocketRoot, battleRoot, quickBallRoot;
     private LinearLayout cameraRoot, interactionRoot;
-    private static final int[] BERRY_IDS={0,701,703,705,706,707};
-    private static final String[] BERRY_NAMES={"Off","Razz Berry","Nanab Berry","Pinap Berry","Golden Razz Berry","Silver Pinap Berry"};
     private final java.util.List<TextView> sectionHeads=new java.util.ArrayList<>();
     private final java.util.List<TextView> captions=new java.util.ArrayList<>();
 
@@ -237,7 +235,7 @@ final class SettingsPanel {
     private void buildVgpSection() {
         LinearLayout vgpC=section(body,"Virtual Go Plus",false);
         vgpSwitch=switchRow(vgpC,"VGP overlay");vgpSwitch.setChecked(Control.vgpOverlay());
-        vgpSwitch.setOnCheckedChangeListener((b,checked)->{if(checked!=Control.vgpOverlay())Control.setVgpOverlay(checked);});
+        vgpSwitch.setOnCheckedChangeListener((b,checked)->{if(checked!=Control.vgpOverlay())Control.setVgpOverlay(checked);host.refresh();});
         String[] vgpLabels={"Nearby Pokémon","Nearby PokéStops","Push notifications"};
         for(int i=0;i<3;i++){final int bit=1<<i;CheckBox box=new CheckBox(activity);box.setText(vgpLabels[i]);box.setChecked((Control.vgpOptions()&bit)!=0);vgpChoices[i]=box;vgpC.addView(box);
             box.setOnClickListener(v->{Control.setVgpOptions(box.isChecked()?Control.vgpOptions()|bit:Control.vgpOptions()&~bit);
@@ -247,8 +245,7 @@ final class SettingsPanel {
         vgpCooldownStop=new CheckBox(activity);vgpCooldownStop.setText("Stop on cooldown (estimated)");vgpCooldownStop.setContentDescription("Stop Virtual Go Plus during the estimated action cooldown");vgpCooldownStop.setChecked(Control.vgpStopOnCooldown());vgpC.addView(vgpCooldownStop);
         vgpCooldownStop.setOnClickListener(v->{if(vgpCooldownStop.isChecked()!=Control.vgpStopOnCooldown())Control.setVgpStopOnCooldown(vgpCooldownStop.isChecked());host.refresh();});
         vgpStatus=caption(vgpC,Control.vgpStatus());
-        Button smart=button("Smart Background Catcher");vgpC.addView(smart);
-        smart.setOnClickListener(v->SmartCatchSettings.show(activity));
+        smartRefresh=SmartCatchSettings.populate(activity,vgpC);
     }
 
     private void buildIncubationSection() {
@@ -266,11 +263,9 @@ final class SettingsPanel {
     }
 
     private void buildBuddySection() {
-        LinearLayout buddyC = section(body, "Auto feed buddy", false); buddyRoot = (View)buddyC.getParent();
-        buddyStatus = caption(buddyC, Control.buddyStatus());
-        RadioGroup buddyBerries = new RadioGroup(activity); buddyBerries.setOrientation(LinearLayout.VERTICAL);
-        for(int i=0;i<BERRY_IDS.length;i++){final int id=BERRY_IDS[i];RadioButton b=new RadioButton(activity);b.setId(View.generateViewId());b.setText(BERRY_NAMES[i]);b.setChecked(Control.buddyBerry()==id);b.setOnClickListener(v->Control.setBuddyBerry(id));buddyChoices[i]=b;buddyBerries.addView(b);}
-        buddyC.addView(buddyBerries);
+        LinearLayout buddyC=section(body,"Buddy Emotion Engine",false);buddyRoot=(View)buddyC.getParent();
+        buddyRefresh=BuddyEmotionSettings.populate(activity,buddyC);
+        buddyStatus=caption(buddyC,"");
     }
 
     private void buildGiftsSection() {
@@ -287,6 +282,8 @@ final class SettingsPanel {
         LinearLayout itemsC = new LinearLayout(activity); itemsC.setOrientation(LinearLayout.VERTICAL); body.addView(itemsC); itemsRoot = itemsC;
         itemSettings = button("Auto-transfer items"); itemsC.addView(itemSettings); itemSettings.setOnClickListener(v -> showItemSettings());
         itemStatus = caption(itemsC, "");
+        Button evolve=button("Batch evolution");itemsC.addView(evolve);
+        evolve.setOnClickListener(v -> BatchEvolutionSettings.show(activity));
     }
 
     private void buildRocketSection() {
@@ -306,6 +303,8 @@ final class SettingsPanel {
         for(int i=0;i<10;i++){final int bit=1<<i;CheckBox box=new CheckBox(activity);box.setText(battleLabels[i]);box.setChecked((Control.battleOptions()&bit)!=0);battleChoices[i]=box;battleC.addView(box);box.setOnClickListener(v->Control.setBattleOptions(box.isChecked()?Control.battleOptions()|bit:Control.battleOptions()&~bit));}
 
         battleStatus = caption(battleC, "");
+        Button gyms=button("Gym Slotter & Berry Feeder");battleC.addView(gyms);
+        gyms.setOnClickListener(v->GymAutomationSettings.show(activity));
     }
 
     private void buildThrowsSection() {
@@ -410,11 +409,13 @@ final class SettingsPanel {
         Runnable populate=()->{for(String row:Control.itemCatalog().split("\n")){String[] b=row.split("\\|",-1);if(b.length!=3)continue;int id;try{id=Integer.parseInt(b[0]);}catch(NumberFormatException invalid){continue;}if(boxes.containsKey(id)){boxes.get(id).setText(b[1]+" ("+b[2]+" in bag)");continue;}
             LinearLayout line=new LinearLayout(activity);line.setOrientation(LinearLayout.HORIZONTAL);line.setGravity(Gravity.CENTER_VERTICAL);
             CheckBox box=new CheckBox(activity);box.setText(b[1]+" ("+b[2]+" in bag)");box.setChecked(selected.contains(id));line.addView(box,new LinearLayout.LayoutParams(0,-2,1));
-            EditText cap=new EditText(dialogContext());cap.setInputType(InputType.TYPE_CLASS_NUMBER);cap.setSingleLine(true);cap.setHint("Max");cap.setText(String.valueOf(limits.containsKey(id)?limits.get(id):100));cap.setContentDescription("Maximum "+b[1]+" to keep");cap.setEnabled(box.isChecked());box.setOnCheckedChangeListener((button,checked)->cap.setEnabled(checked));line.addView(cap,new LinearLayout.LayoutParams(dp(80),-2));rows.addView(line);styleTree(line);boxes.put(id,box);inputs.put(id,cap);
+            EditText cap=new EditText(dialogContext());cap.setInputType(InputType.TYPE_CLASS_NUMBER);cap.setSingleLine(true);cap.setHint("Max");cap.setText(String.valueOf(limits.containsKey(id)?limits.get(id):100));cap.setContentDescription("Maximum "+b[1]+" to keep");SettingsUi.enabled(cap,enabled.isChecked()&&box.isChecked());box.setOnCheckedChangeListener((button,checked)->SettingsUi.enabled(cap,enabled.isChecked()&&checked));line.addView(cap,new LinearLayout.LayoutParams(dp(80),-2));rows.addView(line);styleTree(line);boxes.put(id,box);inputs.put(id,cap);
         }};populate.run();
+        Runnable dependencies=()->{for(java.util.Map.Entry<Integer,CheckBox> entry:boxes.entrySet()){SettingsUi.enabled(entry.getValue(),enabled.isChecked());SettingsUi.enabled(inputs.get(entry.getKey()),enabled.isChecked()&&entry.getValue().isChecked());}};
+        enabled.setOnCheckedChangeListener((v,on)->dependencies.run());dependencies.run();
         TextView status=new TextView(activity);status.setText(Control.itemStatus());form.addView(status);
         AlertDialog dialog=new AlertDialog.Builder(dialogContext()).setTitle("Auto-transfer inventory items").setView(form).setNegativeButton("Cancel",null).setPositiveButton("Save & apply",null).create();
-        final Runnable[] poll=new Runnable[1];poll[0]=()->{if(!dialog.isShowing())return;Control.requestItemCatalog();populate.run();status.setText(Control.itemStatus());handler.postDelayed(poll[0],1000);};
+        final Runnable[] poll=new Runnable[1];poll[0]=()->{if(!dialog.isShowing())return;Control.requestItemCatalog();populate.run();dependencies.run();status.setText(Control.itemStatus());handler.postDelayed(poll[0],1000);};
         itemDialogs.add(dialog);
         dialog.setOnDismissListener(d->{handler.removeCallbacks(poll[0]);itemDialogs.remove(dialog);});dialog.show();styleTree(form);handler.post(poll[0]);
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{StringBuilder rules=new StringBuilder(),all=new StringBuilder();for(java.util.Map.Entry<Integer,EditText> e:inputs.entrySet()){int cap;try{cap=Integer.parseInt(e.getValue().getText().toString().trim());if(cap<0||cap>100000)throw new NumberFormatException();}catch(NumberFormatException invalid){e.getValue().setError("Enter 0 to 100000");return;}String rule=e.getKey()+":"+cap+";";all.append(rule);if(boxes.get(e.getKey()).isChecked())rules.append(rule);}
@@ -437,6 +438,19 @@ final class SettingsPanel {
         refreshQuickCatch();
         refreshLocationOptions();
         refreshThrows();
+        refreshDependencies();
+    }
+
+    private void refreshDependencies(){
+        for(CheckBox box:vgpChoices)SettingsUi.enabled(box,Control.vgpOverlay());
+        SettingsUi.enabled(vgpCooldownStop,Control.vgpOverlay());smartRefresh.run();
+        for(CheckBox box:transferProtection)SettingsUi.enabled(box,Control.autoTransferEnabled());
+        SettingsUi.enabled(transferKeepList,Control.autoTransferEnabled());
+        SettingsUi.enabled((View)transferOverlaySwitch.getParent(),Control.autoTransferEnabled());
+        SettingsUi.enabled(incubatorPriority,Control.autoIncubate()&&Control.incubatorAvailable());
+        SettingsUi.enabled(giftChoices[2],(Control.giftOptions()&2)!=0);
+        SettingsUi.enabled((View)joystickSwitch.getParent(),Control.desiredEnabled());
+        SettingsUi.enabled(mapTap,Control.desiredEnabled()&&Control.quickBallConfigured());
     }
 
     private void refreshLocationStatus() {
@@ -473,7 +487,7 @@ final class SettingsPanel {
         autoTransferSwitch.setChecked(Control.autoTransferEnabled());
         for(int i=0;i<6;i++)transferProtection[i].setChecked((Control.transferProtect()&(1<<i))!=0);
         if(transferKeepList!=null){String kept=Control.transferKeepSpecies();int n=kept.isEmpty()?0:kept.split(",").length;transferKeepList.setText(n>0?"Custom keep list ("+n+")":"Custom keep list");}
-        if(transferOverlaySwitch!=null){transferOverlaySwitch.setChecked(Control.transferOverlayEnabled());transferOverlaySwitch.setEnabled(Control.autoTransferEnabled());transferOverlaySwitch.setAlpha(Control.autoTransferEnabled()?1f:0.45f);}
+        if(transferOverlaySwitch!=null){transferOverlaySwitch.setChecked(Control.transferOverlayEnabled());transferOverlaySwitch.setEnabled(Control.autoTransferEnabled());transferOverlaySwitch.setAlpha(1f);}
         transferStatus.setText(Control.transferStatus());
     }
 
@@ -493,11 +507,7 @@ final class SettingsPanel {
         vgpCooldownStop.setChecked(Control.vgpStopOnCooldown());
     }
 
-    private void refreshBuddy() {
-        if(buddyChoices.length>0&&buddyChoices[0].isShown())Control.requestBerryCatalog();
-        buddyStatus.setText(Control.buddyStatus());
-        for(int i=0;i<BERRY_IDS.length;i++){int id=BERRY_IDS[i],count=Control.berryCount(id);RadioButton b=buddyChoices[i];b.setText(BERRY_NAMES[i]+(id==0?"":" ("+count+")"));b.setChecked(Control.buddyBerry()==id);boolean ready=id==0||(count>0&&Control.buddyAvailable());b.setEnabled(ready);b.setAlpha(ready?1f:0.4f);}
-    }
+    private void refreshBuddy() {buddyRefresh.run();buddyStatus.setText(BuddyEmotionSettings.status());}
 
     private void refreshGifts() {
         for(int i=0;i<3;i++)giftChoices[i].setChecked((Control.giftOptions()&(1<<i))!=0);giftStatus.setText(Control.giftStatus());

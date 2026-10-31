@@ -21,6 +21,10 @@ def control_shell():
     specs = re.findall(r'^\s*"(\w+):([^":]*):([^":]+)"', mailbox, re.M)
     specs.append(('eventBoxesAllowed', '', 'boolean'))
     specs.append(('smartCatchConfig', '', 'String'))
+    specs.append(('gymAutomationConfig', '', 'String'))
+    specs.append(('buddyEmotionConfig', '', 'String'))
+    specs.append(('buddyEmotionHistory', '', 'String'))
+    specs.append(('batchEvolutionConfig', '', 'String'))
     methods = []
     for name, params, expected_result in specs:
         actual = re.search(r'public static\s+(?:synchronized\s+)?([\w\[\]]+)\s+' + name + r'\(([^)]*)\)', source)
@@ -30,6 +34,8 @@ def control_shell():
         signature = ','.join(t + ' a' + str(i) for i, t in enumerate(types))
         if name == 'accountCommandSnapshot':
             body = 'reads++;return snapshot;'
+        elif name == 'gymAutomationConfig':
+            body = 'reads++;return "1;1;0;0;50;10";'
         elif name in ('accountIdentity', 'accountSessionSaved'):
             body = 'mutations++;if(onMutation!=null)onMutation.run();if(throwMutation)throw new RuntimeException("id-secret");'
         elif name == 'event':

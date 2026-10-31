@@ -124,6 +124,23 @@ public class AccountProfiles {
     'dev/pgrazor/Pad.java': '''package dev.pgrazor;
 public class Pad {public final android.app.Activity activity; public Pad(android.app.Activity a){activity=a;} public void close(){} public void confirmStopRoute(){} public void confirmMapTeleport(double lat,double lon,int mode,int epoch){}}''',
     'dev/pgrazor/LogActivity.java': 'package dev.pgrazor; public class LogActivity extends android.app.Activity {}',
+    'dev/pgrazor/BatchEvolutionSettings.java': 'package dev.pgrazor; public final class BatchEvolutionSettings { public static String config(){return "1|0|0|Evolve";} public static boolean enabled(){return false;} public static void reset(){} public static void publish(String s){} }',
+    'dev/pgrazor/BuddyEmotionSettings.java': """package dev.pgrazor;
+public final class BuddyEmotionSettings {
+ private static final BuddyEmotionPreferences prefs=new BuddyEmotionPreferences();
+ public static String config(){return prefs.config();} public static String history(){return "";}
+ public static boolean enabled(){return prefs.enabled();} public static void publish(String detail){}
+ public static void read(java.util.Properties p){prefs.read(p);} public static void write(java.util.Properties p){prefs.write(p);}
+}""",
+    'dev/pgrazor/GymAutomationSettings.java': '''package dev.pgrazor;
+public final class GymAutomationSettings {
+ private static final GymAutomationPreferences prefs=new GymAutomationPreferences();
+ public static String config(){return prefs.config();}
+ public static boolean enabled(){return prefs.deploy()||prefs.feed();}
+ public static void publish(String detail){}
+ public static void read(java.util.Properties p){prefs.read(p);}
+ public static void write(java.util.Properties p){prefs.write(p);}
+}''',
     'dev/pgrazor/SmartCatchSettings.java': '''package dev.pgrazor;
 public final class SmartCatchSettings {
  private static final SmartCatchPreferences prefs=new SmartCatchPreferences();
@@ -186,7 +203,7 @@ class ControlJavaTests(unittest.TestCase):
                 'Control.java', 'MotionEngine.java', 'LocationState.java', 'GameRoutesController.java',
                 'CameraHeadingState.java', 'CameraSteering.java',
                 'BerryPriority.java', 'MapTapSequence.java', 'CooldownState.java',
-                'VgpController.java', 'CatchOutcomeController.java', 'SettingsWriter.java', 'SmartCatchPreferences.java'))
+                'VgpController.java', 'CatchOutcomeController.java', 'SettingsWriter.java', 'SmartCatchPreferences.java', 'GymAutomationPreferences.java', 'BuddyEmotionPreferences.java'))
             sources.extend([ROOT / 'test/ControlQuickSummaryTest.java',ROOT / 'test/ControlQuickBallTest.java',
                             ROOT / 'test/ControlQuickBallOutcomeTest.java',ROOT / 'test/ControlSettingsTest.java',
                             ROOT / 'test/VgpControllerTest.java',ROOT / 'test/CooldownTest.java',ROOT / 'test/ControlCooldownTest.java',

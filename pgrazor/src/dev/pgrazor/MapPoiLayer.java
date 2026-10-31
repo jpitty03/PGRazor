@@ -25,7 +25,7 @@ import java.util.HashMap;
 
 /** Draws and makes tappable the game-loaded nearby points (stops/gyms/raids) over the map.
  *  All map coupling is explicit: a {@link Projector} places lat/lon on screen, a {@link Snapshots}
- *  feeds the point data, a themed context hosts the read-only detail dialogs, and a redraw callback
+ *  feeds the point data, a themed context hosts the detail dialogs, and a redraw callback
  *  requests frames. Map gestures, routes and selection stay in the dialog's view. */
 final class MapPoiLayer {
     /** Screen placement for a lat/lon against the live viewport, plus the drawable bounds. */
@@ -64,6 +64,11 @@ final class MapPoiLayer {
     private JSONArray pois = new JSONArray();
     private String lastPois = "";
     private boolean closed;
+    private WorldMapDialog.DestinationListener walk, teleport;
+
+    void setDestinationActions(WorldMapDialog.DestinationListener walk, WorldMapDialog.DestinationListener teleport) {
+        this.walk = walk; this.teleport = teleport;
+    }
 
     MapPoiLayer(Context context, Context dialogContext, Projector projector, Snapshots snapshots, Runnable invalidate) {
         this.context = context; this.dialogContext = dialogContext; this.projector = projector;
@@ -231,7 +236,27 @@ final class MapPoiLayer {
         final String id = initial.optString("id", "");
         final TextView body = new TextView(dialogContext);
         int pad = dp(18); body.setPadding(pad, pad, pad, pad); body.setTextSize(14);
-        final AlertDialog dialog = new AlertDialog.Builder(dialogContext).setTitle(poiTitle(initial)).setView(body).setNegativeButton("Close", null).create();
+        final double latitude = initial.optDouble("lat", Double.NaN), longitude = initial.optDouble("lon", Double.NaN);
+        final boolean valid = Double.isFinite(latitude) && Double.isFinite(longitude) && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180;
+        AlertDialog.Builder builder = new AlertDialog.Builder(dialogContext).setTitle(poiTitle(initial)).setView(body).setNegativeButton("Close", null);
+        if (walk != null) builder.setNeutralButton("Walk", null);
+        if (teleport != null) builder.setPositiveButton("Teleport", null);
+        final AlertDialog dialog = builder.create();
+        dialog.setOnShowListener(d -> {
+            MapTheme.styleButtons(dialog);
+            if (walk != null) {
+                dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setEnabled(valid);
+                dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
+                    if (!closed && walk.onDestination(latitude, longitude)) dialog.dismiss();
+                });
+            }
+            if (teleport != null) {
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(valid);
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                    if (!closed && teleport.onDestination(latitude, longitude)) dialog.dismiss();
+                });
+            }
+        });
         final Runnable[] refresh = new Runnable[1];
         refresh[0] = () -> {
             if (closed || !dialog.isShowing()) return;

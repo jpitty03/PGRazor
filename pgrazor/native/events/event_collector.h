@@ -26,6 +26,8 @@ PgrEventCollectorState pgr_event_collector_state();
 
 // visible_count counts candidates passing the visibility getter among the
 // nearest-candidate scan subset; it is not a census of every visible map box.
+// expired_count is diagnostic only: an elapsed local timestamp does not override
+// the game's active-list/visibility eligibility or the server's tap response.
 
 // Encounter dispatch may occur after animation, outside bfvy. One rooted
 // exact ownership record survives OFF until consumption/manual override. A stale

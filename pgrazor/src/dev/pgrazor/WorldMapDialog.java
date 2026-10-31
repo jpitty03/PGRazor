@@ -156,6 +156,17 @@ public final class WorldMapDialog {
             .setNegativeButton("Cancel", null).setPositiveButton("Teleport", null);
         if (walk != null) builder.setNeutralButton("Walk here", null);
         AlertDialog dialog = builder.create();
+        map.poiLayer.setDestinationActions(walk == null ? null : (lat, lon) -> {
+            if (!walk.onDestination(lat, lon)) return false;
+            dialog.dismiss(); return true;
+        }, (latitudePoi, longitudePoi) -> {
+            if (cooldownDialog[0] != null && cooldownDialog[0].isShowing()) return false;
+            cooldownDialog[0] = TeleportDialog.confirm(activity, latitudePoi, longitudePoi, (lat, lon) -> {
+                if (!listener.onDestination(lat, lon)) return false;
+                dialog.dismiss(); return true;
+            });
+            return false; // Keep details visible if the cooldown confirmation is cancelled.
+        });
         DialogLifecycle.bind(activity, dialog, () -> { if(hotspotsDialog[0]!=null)hotspotsDialog[0].dismiss(); if(cooldownDialog[0]!=null)cooldownDialog[0].dismiss(); if(searchDialog[0]!=null)searchDialog[0].dismiss(); if(routes!=null)routes.close(); places.close(); map.close(); });
         dialog.setOnShowListener(d -> {
             MapTheme.fullScreen(dialog); MapTheme.style(layout); MapTheme.styleButtons(dialog);
@@ -669,7 +680,7 @@ public final class WorldMapDialog {
                 case MotionEvent.ACTION_UP:
                     boolean insideWorld = zoom != 0 || (Math.abs(event.getX() - getWidth() / 2.0) <= world() / 2 && Math.abs(event.getY() - getHeight() / 2.0) <= world() / 2);
                     if (!dragged && !multiTouch) {
-                        // A tap on a visible marker opens read-only details and never moves the destination.
+                        // Browsing marker details never moves the destination; movement needs an explicit action.
                         List<JSONObject> hits = poiLayer.hasLayers() ? poiLayer.hits(event.getX(), event.getY()) : Collections.<JSONObject>emptyList();
                         if (!hits.isEmpty()) { performClick(); poiLayer.openDetails(hits); getParent().requestDisallowInterceptTouchEvent(false); return true; }
                         if (insideWorld) {

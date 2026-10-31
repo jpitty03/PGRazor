@@ -421,13 +421,14 @@ void pump(bool enabled,uint64_t n,bool diagnose){
     uintptr_t candidate_pin=pin(candidate);if(!candidate_pin)continue;
     candidate=root_get(candidate_pin);
     read_key(candidate,0xe0,key);bool box_key=std::strcmp(key,"TAPPABLE_TYPE_BOX")==0;if(box_key)++matched_boxes;
-    // Pinned bfxg 0xa4bc020 copies expiry into Data.Timestamp+0x68, but
-    // Refresh 0xa038338 never copies it to this backing field. Live boxes keep
-    // the default zero: unpopulated, not a Unix deadline or a future-expiry claim.
+    // Refresh can populate this animation/despawn timestamp, or leave it zero.
+    // It is diagnostic, not an extra eligibility deadline: live visible boxes
+    // with elapsed values still open manually. Match TapTappable's active-list
+    // path and the game's VisibleOnMap getter; let the server validate the tap.
     bool expiry_ok=read_field(candidate,0x100,expiry);
     if(expiry_ok&&expiry==0)++zero_expiry;
     if(expiry_ok&&expiry!=0&&expiry<=epoch_ms)++expired_count;
-    bool valid=read_field(candidate,0xd0,id)&&id&&!seen_before(id,n)&&expiry_ok&&(expiry==0||expiry>epoch_ms)&&
+    bool valid=read_field(candidate,0xd0,id)&&id&&!seen_before(id,n)&&expiry_ok&&expiry>=0&&
        read_bytes(candidate,0xe8,pos,sizeof(pos))&&std::isfinite(pos[0])&&std::isfinite(pos[1])&&std::fabs(pos[0])<=90&&std::fabs(pos[1])<=180;
     if(valid)valid=box_key;
     double distance=1e30;
@@ -454,11 +455,10 @@ void pump(bool enabled,uint64_t n,bool diagnose){
   const uint64_t action_now=now_ms();Location fresh;
   {std::lock_guard<std::mutex> l(location_mutex);fresh=location;}
   uint8_t still_active=0;int64_t expiry=0;double pos[2]{};char key[97]{};
-  clock_gettime(CLOCK_REALTIME,&wall);epoch_ms=int64_t(wall.tv_sec)*1000+wall.tv_nsec/1000000;
   bool authorized=!stopped.load()&&action_now<=enable_until_ms.load()&&fresh.at&&action_now>=fresh.at&&action_now-fresh.at<=5000&&
     root_get(session_root)==session&&read_field(session,0x98,still_active)&&still_active==1&&
     exact(candidate,controller_class)&&read_field(candidate,0xd0,id)&&id&&!seen_before(id,action_now)&&
-    read_field(candidate,0x100,expiry)&&(expiry==0||expiry>epoch_ms)&&read_bytes(candidate,0xe8,pos,sizeof(pos))&&
+    read_field(candidate,0x100,expiry)&&expiry>=0&&read_bytes(candidate,0xe8,pos,sizeof(pos))&&
     std::isfinite(pos[0])&&std::isfinite(pos[1])&&std::fabs(pos[0])<=90&&std::fabs(pos[1])<=180;
   if(authorized){
     read_key(candidate,0xe0,key);authorized=std::strcmp(key,"TAPPABLE_TYPE_BOX")==0;

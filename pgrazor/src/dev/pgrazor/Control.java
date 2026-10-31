@@ -237,13 +237,18 @@ public final class Control {
     public static void setBuddyStatus(String status){buddyStatus=status;}
     public static String buddyStatus(){return buddyStatus;}
     public static boolean buddyAvailable(){return buddyReady&&itemAccessAllowed();}
-    public static boolean buddySamplingRequested(){return (buddyBerry!=0||vgpEnabled||autoIncubate)&&hostLive();}
-    public static boolean buddyAllowed(){long age=SystemClock.elapsedRealtime()-buddyMapSample;return buddyAvailable()&&buddyMapSample>0&&age>=0&&age<1500;}
+    public static boolean buddySamplingRequested(){return (buddyBerry!=0||vgpEnabled||autoIncubate||GymAutomationSettings.enabled()||BuddyEmotionSettings.enabled()||BatchEvolutionSettings.enabled())&&hostLive();}
+    // Legacy wire slot remains for ABI compatibility; Buddy Emotion owns all feeding.
+    public static boolean buddyAllowed(){return false;}
     private static volatile boolean encounterBerryActive,encounterBerryBusy;
     private static volatile long encounterBerrySeen;
     public static void setEncounterBerry(boolean active,boolean busy){encounterBerryActive=active;encounterBerryBusy=busy;encounterBerrySeen=SystemClock.elapsedRealtime();}
     public static boolean catchScreenVisible(){long age=SystemClock.elapsedRealtime()-encounterBerrySeen;return encounterBerryActive&&age>=0&&age<2000&&foreground&&quickSummaryReady();}
     public static String smartCatchConfig(){return SmartCatchSettings.config();}
+    public static String gymAutomationConfig(){return GymAutomationSettings.config();}
+    public static String buddyEmotionConfig(){return BuddyEmotionSettings.config();}
+    public static String batchEvolutionConfig(){return BatchEvolutionSettings.config();}
+    public static String buddyEmotionHistory(){return BuddyEmotionSettings.history();}
     public static boolean encounterBerryVisible(){return encounterBerryEnabled&&catchScreenVisible();}
     public static boolean encounterBerryBusy(){return encounterBerryBusy;}
     private static volatile boolean cooldownOverlay;
@@ -889,6 +894,7 @@ public final class Control {
     public static void setDarkTheme(boolean value){darkTheme=value;saveSettings();}
     public static void setJoystickVisible(boolean value){joystickVisible=value;saveSettings();}
     private static void loadSettings(Application app) {
+        BatchEvolutionSettings.reset();
         synchronized(stateLock) {
             if(settingsFile==null) {
                 // Create the destination and its writer once so the sink can close over a stable
@@ -903,9 +909,13 @@ public final class Control {
             catch(IOException pending) { event("settings-load-error","Pending save not flushed: "+pending); return; }
             StrictMode.ThreadPolicy policy=StrictMode.allowThreadDiskReads();
             SmartCatchSettings.read(new Properties());
+            GymAutomationSettings.read(new Properties());
+            BuddyEmotionSettings.read(new Properties());
             try(FileInputStream in=settingsFile.openRead()) {
                 Properties p=new Properties(); p.load(in);
                 SmartCatchSettings.read(p);
+                GymAutomationSettings.read(p);
+                BuddyEmotionSettings.read(p);
                 desiredEnabled=Boolean.parseBoolean(p.getProperty("locationSpoofing","true"));
                 darkTheme=Boolean.parseBoolean(p.getProperty("darkTheme","true"));
                 try{uiScalePercent=Integer.parseInt(p.getProperty("uiScalePercent","100"));}catch(NumberFormatException invalid){uiScalePercent=100;}
@@ -1003,6 +1013,8 @@ public final class Control {
     private static Properties settingsSnapshot() {
         Properties p=new Properties();
         SmartCatchSettings.write(p);
+        GymAutomationSettings.write(p);
+        BuddyEmotionSettings.write(p);
         p.setProperty("locationSpoofing",String.valueOf(desiredEnabled));
         p.setProperty("darkTheme",String.valueOf(darkTheme));p.setProperty("uiScalePercent",String.valueOf(uiScalePercent));
         p.setProperty("joystickVisible",String.valueOf(joystickVisible));
@@ -1043,6 +1055,9 @@ public final class Control {
         if(writer!=null) writer.flush(timeoutMillis);
     }
     public static void event(String kind, String detail) {
+        if("gym-automation".equals(kind))GymAutomationSettings.publish(detail);
+        if("buddy-emotion".equals(kind))BuddyEmotionSettings.publish(detail);
+        if("batch-evolution".equals(kind))BatchEvolutionSettings.publish(detail);
         if("event-boxes".equals(kind)) {
             boolean available=false;
             try { available=new org.json.JSONObject(detail).optBoolean("available",false); }

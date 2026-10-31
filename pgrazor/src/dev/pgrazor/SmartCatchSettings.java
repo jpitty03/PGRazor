@@ -36,30 +36,34 @@ public final class SmartCatchSettings {
     static void setCandySpecies(String value){set("CandySpecies",value);}
     private static void set(String key,Object value){preferences.set(key,String.valueOf(value));persist();}
     private static void persist(){Control.saveSettings();}
+    public static Runnable populate(Activity activity,LinearLayout body){
+        Context ui=body.getContext();
+        CheckBox mode=new CheckBox(ui);mode.setText("VGP+");mode.setChecked(preferences.enabled());body.addView(mode);
+        LinearLayout options=new LinearLayout(ui);options.setOrientation(LinearLayout.VERTICAL);body.addView(options);
+        TextView description=new TextView(ui);description.setText("Use the VGP overlay to start or stop. VGP+ adds ball, berry and throw choices. High CP/level targets use Ultra Balls; set a threshold to 0 to disable it.");options.addView(description);
+        row(activity,options,"Standard ball",new String[]{"Poké Ball","Great Ball","Ultra Ball"},preferences.ball()-1,index->{set("Ball",index+1);});
+        int berryIndex=0;for(int i=0;i<BERRIES.length;i++)if(BERRIES[i]==preferences.berry())berryIndex=i;
+        row(activity,options,"Standard berry",BERRY_NAMES,berryIndex,index->{set("Berry",BERRIES[index]);});
+        CheckBox special=new CheckBox(ui);special.setText("Shiny or IV ≥90%: Ultra Ball + Golden Razz");special.setChecked(preferences.premium());options.addView(special);
+        special.setOnCheckedChangeListener((v,on)->{set("Premium",on);});
+        input(activity,options,"High CP threshold (0–10000)",String.valueOf(preferences.highCp()),value->{int n=bounded(value,10000);set("HighCp",n);},true);
+        input(activity,options,"High level threshold (0–50)",String.valueOf(preferences.highLevel()),value->{int n=bounded(value,50);set("HighLevel",n);},true);
+        row(activity,options,"Throw rating",new String[]{"Default","Nice","Great","Excellent"},preferences.grade(),index->{set("Grade",index);});
+        CheckBox curved=new CheckBox(ui);curved.setText("Curveball");curved.setChecked(preferences.curve());options.addView(curved);
+        curved.setOnCheckedChangeListener((v,on)->{set("Curve",on);});
+        TextView candy=button(options,"Candy species (Pinap): "+(preferences.candySpecies().isEmpty()?"None":preferences.candySpecies().split(",").length+" selected"));
+        candy.setOnClickListener(v->SmartCatchSpeciesDialog.show(activity,()->candy.setText("Candy species (Pinap): "+(preferences.candySpecies().isEmpty()?"None":preferences.candySpecies().split(",").length+" selected"))));
+        Runnable refresh=()->{mode.setChecked(preferences.enabled());SettingsUi.enabled(mode,Control.vgpOverlay());SettingsUi.enabled(options,Control.vgpOverlay()&&preferences.enabled());};
+        mode.setOnCheckedChangeListener((v,on)->{if(on!=preferences.enabled())set("Enabled",on);refresh.run();});
+        refresh.run();return refresh;
+    }
     public static void show(Activity activity){
         if(activity==null||activity.isFinishing()||activity.isDestroyed())return;
-        Context ui=MapTheme.wrap(activity);
-        LinearLayout body=new LinearLayout(ui);body.setOrientation(LinearLayout.VERTICAL);
-        int pad=MapTheme.dp(ui,16);body.setPadding(pad,pad,pad,pad);
-        TextView description=new TextView(ui);
-        description.setText("Use normal VGP Start/Stop; this mode replaces only its catch strategy and does not start VGP automatically. High CP or level thresholds select Ultra Balls; 0 disables that threshold. Choose up to 200 candy species for Pinap. Selected balls and berries require stock; Master Balls are never used.");body.addView(description);
-        CheckBox mode=new CheckBox(ui);mode.setText("Use Smart Background Catcher");mode.setChecked(preferences.enabled());body.addView(mode);
-        mode.setOnCheckedChangeListener((v,on)->{set("Enabled",on);});
-        row(activity,body,"Standard ball",new String[]{"Poké Ball","Great Ball","Ultra Ball"},preferences.ball()-1,index->{set("Ball",index+1);});
-        int berryIndex=0;for(int i=0;i<BERRIES.length;i++)if(BERRIES[i]==preferences.berry())berryIndex=i;
-        row(activity,body,"Standard berry",BERRY_NAMES,berryIndex,index->{set("Berry",BERRIES[index]);});
-        CheckBox special=new CheckBox(ui);special.setText("Shiny or IV ≥90%: Ultra Ball + Golden Razz");special.setChecked(preferences.premium());body.addView(special);
-        special.setOnCheckedChangeListener((v,on)->{set("Premium",on);});
-        input(activity,body,"High CP threshold (0–10000)",String.valueOf(preferences.highCp()),value->{int n=bounded(value,10000);set("HighCp",n);},true);
-        input(activity,body,"High level threshold (0–50)",String.valueOf(preferences.highLevel()),value->{int n=bounded(value,50);set("HighLevel",n);},true);
-        row(activity,body,"Throw rating",new String[]{"Default","Nice","Great","Excellent"},preferences.grade(),index->{set("Grade",index);});
-        CheckBox curved=new CheckBox(ui);curved.setText("Curveball");curved.setChecked(preferences.curve());body.addView(curved);
-        curved.setOnCheckedChangeListener((v,on)->{set("Curve",on);});
-        TextView candy=button(body,"Candy species (Pinap): "+(preferences.candySpecies().isEmpty()?"None":preferences.candySpecies().split(",").length+" selected"));
-        candy.setOnClickListener(v->SmartCatchSpeciesDialog.show(activity,()->candy.setText("Candy species (Pinap): "+(preferences.candySpecies().isEmpty()?"None":preferences.candySpecies().split(",").length+" selected"))));
+        Context ui=MapTheme.wrap(activity);LinearLayout body=new LinearLayout(ui);body.setOrientation(LinearLayout.VERTICAL);
+        int pad=MapTheme.dp(ui,16);body.setPadding(pad,pad,pad,pad);Runnable refresh=populate(activity,body);
         ScrollView scroll=new ScrollView(ui);scroll.addView(body);
-        AlertDialog dialog=new AlertDialog.Builder(ui).setTitle("Smart Background Catcher").setView(scroll).setPositiveButton("Done",null).create();
-        DialogLifecycle.bind(activity,dialog,null);dialog.setOnShowListener(d->{MapTheme.style(body);MapTheme.styleButtons(dialog);});dialog.show();
+        AlertDialog dialog=new AlertDialog.Builder(ui).setTitle("VGP+").setView(scroll).setPositiveButton("Done",null).create();
+        DialogLifecycle.bind(activity,dialog,null);dialog.setOnShowListener(d->{MapTheme.style(body);MapTheme.styleButtons(dialog);refresh.run();});dialog.show();
     }
     private interface Choice {void set(int index);}
     private interface Value {void set(String value);}
@@ -68,7 +72,7 @@ public final class SmartCatchSettings {
         throw new IllegalArgumentException("Enter a whole number from 0 to "+max+".");
     }
     private static TextView button(LinearLayout body,String text){
-        android.widget.Button b=new android.widget.Button(body.getContext());b.setText(text);body.addView(b);return b;
+        android.widget.Button b=new android.widget.Button(body.getContext());b.setText(text);b.setAllCaps(false);body.addView(b);return b;
     }
     private static void row(Activity a,LinearLayout body,String title,String[] names,int selected,Choice save){
         TextView button=button(body,title+": "+names[selected]);final int[] current={selected};

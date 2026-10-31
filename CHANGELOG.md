@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- Add Batch evolution: preview a named tag, review candy/item costs and skipped entries, then evolve eligible Pokemon sequentially without opening the cutscene. Include Stop, inventory-confirmed progress, server-reported XP, and optional removal of the selected tag after successful evolution. Preserve other tags and skipped entries; special or ambiguous evolutions are skipped.
+- Validate tag-removal request construction during preview and handle replacement Pokemon IDs when confirming evolutions. Evolution and optional tag removal have been user-tested on MuMu.
+
+- Add Walk and Teleport actions to world-map Stop, Gym, and Raid details, including the destination cooldown confirmation.
+
+- Fix Quick Spin losing pending spins during short frame stalls or concurrent settings updates. Continue to revoke automation when settings are disabled or stale.
+
+- Fix buddy care pausing on gift results and carrying a paused state into a newly selected buddy. Wait until the buddy is on the map before opening gifts.
+- Add a separate EP overlay visibility setting and compact Clear/Reset controls in the buddy berry-priority picker.
+
+- Consolidate buddy care into the Buddy Emotion Engine dropdown, with ordered berry selection and reserve-aware fallback. Preserve existing berry choices and retire the separate Auto feed buddy control.
+- Rename Smart Background Catcher to VGP+ and group its controls under Virtual Go Plus. Gray out dependent settings when their parent is off, while preserving saved choices.
+
+- Keep Buddy Emotion automation independent of location/joystick activation, and show when feeding is blocked by berry reserves, fullness/cooldown, or unavailable game services.
+
+- Add a native Buddy Emotion Engine with automatic snapshots, petting, hunger-based normal-berry feeding, optional gift collection, berry reserves, and a draggable status display using game-reported EP. Preserve recent action history across restarts. Maintenance countdown is an estimate; walking and battles remain manual.
+
+- Fix gym deployment and feeding blocked by an unreliable local closed flag; honor server results and feeding cooldowns, keep placement lockouts separate, and report skipped-gym reasons.
+
+- Fix event collection skipping visible, manually collectable boxes because of an extra local expiry cutoff.
+
+- Add a Gym Slotter & Berry Feeder with separate deployment and feeding switches, Gym-tag priority, optional low-CP fallback, berry reserves, and native request pacing. Deployment and consecutive feeding with Stardust rewards verified on MuMu.
+
 - Add Smart Background Catcher with configurable balls, berries, throw quality, and species priorities. Continue catching while in-game menus are open and consider loaded spawns beyond the standard VGP distance limit, subject to server acceptance.
 - Fix Smart Catcher rejecting valid encounter responses with a native VGP error; preserve catch retries and automatic transfer behavior.
 

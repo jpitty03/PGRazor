@@ -139,10 +139,15 @@ add_library(pgrazor_core SHARED
   vgp_controller.cpp
   smart_catch.cpp
   smart_catch_binding.cpp
+  gym_automation.cpp
+  buddy_emotion.cpp
+  batch_evolution.cpp
+  gym_runtime.cpp
   jni_core.cpp)
 
 target_sources(pgrazor_core PRIVATE events/event_collector.cpp)
 set_source_files_properties(events/event_collector.cpp PROPERTIES COMPILE_OPTIONS "-fexceptions")
+set_source_files_properties(batch_evolution.cpp gym_runtime.cpp buddy_emotion.cpp PROPERTIES COMPILE_OPTIONS "-fexceptions")
 
 target_include_directories(pgrazor_core PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}

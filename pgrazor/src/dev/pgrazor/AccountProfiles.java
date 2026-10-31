@@ -40,6 +40,7 @@ final class AccountProfiles {
     static String[] commandSnapshot(){return commands.snapshot();}
     static String status(){return message;}
     static String currentId(){return startupId;}
+    static boolean matchesAutomationIdentity(String id){return verified&&!switching&&!restarting&&id!=null&&id.equals(observed);}
     static AccountProfileStore store(){return store;}
     static boolean canSwitch(){return store!=null&&available&&verified&&!switching&&!restarting&&!deleting;}
     static boolean canDelete(String id){return canSwitch()&&!startupId.equals(id)&&store.get(id)!=null;}

@@ -39,6 +39,9 @@
 #include "vgp_marker.h"
 #include "vgp_policy.h"
 #include "vgp_results.h"
+#include "gym_automation.h"
+#include "batch_evolution.h"
+#include "buddy_emotion.h"
 
 namespace {
 
@@ -2361,6 +2364,9 @@ static int api_tick(uint64_t proven_tid) {
 
   // 3. MapPOI snapshot scan
   tick_map_poi(os_tid, now, rem_lease);
+  pgr_gym_tick(os_tid, &g_md);
+  pgr_evolution_tick(os_tid, &g_md);
+  pgr_buddy_emotion_tick(os_tid, &g_md);
 
 
   return PGR_EH_OK;
@@ -2384,6 +2390,9 @@ static int api_stop(uint64_t proven_tid) {
       pump_berry_events_and_resume(tid, 1);
     }
     if (g_vgc && (g_active_caps & PGR_EH_CAP_VGP)) {
+      pgr_gym_stop(tid);
+      pgr_evolution_stop(tid);
+      pgr_buddy_emotion_stop(tid);
       g_vgc->stop(tid);
       notify_vgp_target(0, 0.0, 0.0, 0);
     }

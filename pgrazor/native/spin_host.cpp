@@ -87,11 +87,19 @@ int update(const PgrSpinHostOptions *p){
 void poll(uint64_t t){
  if(!(config.flags&PGR_SPH_TRANSPORT)||t<last_poll+50)return;last_poll=t;
  PgrRuntimeTransportSample before{},after{};int enabled=0;const auto tr=transport();
- bool fresh=tr&&!tr->sample(&before)&&before.snapshot_fresh&&!tr->get_bool(24,&enabled)&&!tr->sample(&after)&&after.snapshot_fresh&&before.snapshot_seq==after.snapshot_seq;
+ // A settings publication between reads is not a revocation. Retry a bounded
+ // number of times; stale, disabled, or unreadable transport still fails closed.
+ bool fresh=false;
+ for(unsigned attempt=0;tr&&attempt<3;++attempt){
+  if(tr->sample(&before)||!before.snapshot_fresh||tr->get_bool(24,&enabled)||tr->sample(&after)||!after.snapshot_fresh)break;
+  if(before.snapshot_seq==after.snapshot_seq){fresh=true;break;}
+ }
  bool allow=fresh&&enabled==1;
  uint64_t old_deadline;{std::lock_guard<std::mutex> lock(policy_mutex);old_deadline=deadline;}
  if(!transport_epoch||allow!=transport_enabled||(allow&&t>=old_deadline)){if(transport_epoch==UINT64_MAX){stop();return;}++transport_epoch;}
- transport_enabled=allow;PgrSpinHostOptions p{1,sizeof(p),uint32_t(allow),allow?100u:0u,transport_epoch};update(&p);
+ // Opening a stop can stall a frame beyond 100ms. Keep its record through
+ // short stalls while continuing to check transport every 50ms when ticking.
+ transport_enabled=allow;PgrSpinHostOptions p{1,sizeof(p),uint32_t(allow),allow?1000u:0u,transport_epoch};update(&p);
 }
 void drain(){char body[512];
  if(caps.load()&PGR_SPH_CAMERA){PgrSpinCameraSample s{};if(camera()->sample(&s)){camera_error=PGR_SPH_FAULT;stop();}else{

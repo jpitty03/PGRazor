@@ -39,7 +39,7 @@ void *fake_invoke(const void *method,void *self,void **args,void **exc){
    if(visibility_mutation==1)pgr_event_collector_location(NAN,0,now_ms());
    if(visibility_mutation==2)enable_until_ms.store(0);
    if(visibility_mutation==3)put(session,0x98,uint8_t(0));
-   if(visibility_mutation==4)put(controller,0x100,int64_t(1));
+   if(visibility_mutation==4)put(controller,0x100,int64_t(-1));
    if(visibility_mutation==5)put(controller,0xe8,double(NAN));
    return ptr(visible);}
  assert(method==tap_method&&self==ptr(session)&&args&&args[0]==ptr(controller));
@@ -91,12 +91,16 @@ int main(){
  enable_until_ms.store(now_ms()-1);pump(true,now_ms());assert(taps==0);assert(pgr_event_collector_tick(true,uint64_t(gettid()))==0);
  // Reentrant managed visibility can invalidate each action gate before dispatch.
  for(int mutation=1;mutation<=5;++mutation){reset();visibility_mutation=mutation;pump(true,now_ms());assert(taps==0&&!active_id);}
- // Real live controllers retain default DespawnTimeMs=0: zero is unset,
- // while an explicit elapsed positive deadline and malformed negatives reject.
+ // Visibility/session ownership, not a local timestamp cutoff, gates live boxes.
+ // Both unset and elapsed timestamps can occur on manually collectable boxes.
  reset();put(controller,0x100,int64_t(0));pump(true,now_ms(),true);
  assert(taps==1&&active_id==100&&counters.zero_expiry_count==1&&counters.expired_count==0);
  result_hook(ptr(service),ptr(controller),ptr(response),nullptr);
- reset();put(controller,0x100,int64_t(1));pump(true,now_ms());assert(taps==0);
+ reset();put(controller,0x100,int64_t(1));pump(true,now_ms(),true);
+ assert(taps==1&&active_id==100&&counters.expired_count==1);
+ result_hook(ptr(service),ptr(controller),ptr(response),nullptr);
+ reset();put(controller,0x100,int64_t(1));put(visible,0x10,uint8_t(0));pump(true,now_ms());assert(taps==0);
+ put(visible,0x10,uint8_t(1));
  put(controller,0x100,int64_t(-1));pump(true,now_ms());assert(taps==0);
  // Any visible finite-coordinate box can be opened; distance only orders targets.
  reset();put(controller,0xe8,double(38));pump(true,now_ms());assert(taps==1&&active_id==100);

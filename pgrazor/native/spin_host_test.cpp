@@ -13,6 +13,7 @@ PgrSpinCameraSample camera_sample{};PgrQuickSpinSample quick_sample{};
 int camera_installs=0,quick_installs=0,camera_allowed=-1,quick_allowed=-1,clear_count=0;
 uint64_t camera_lease=0,quick_lease=0,quick_sequence=0,quick_opener=0;
 bool attached=true,fresh=true,allowed=true,reenter=false;int install_quick_error=0;
+unsigned sample_calls=0;bool race_once=false,race_always=false;
 std::vector<unsigned> opcodes;std::vector<std::string> payloads;
 void *thread(){static int token;return attached?&token:nullptr;}
 int camera_install(const PgrSpinCameraConfig *p){camera_config=*p;++camera_installs;return 0;}
@@ -28,7 +29,7 @@ int emit(uint32_t op,const int64_t *n,uint32_t nc,const PgrRuntimeTransportStrin
  opcodes.push_back(op);if(op==44){assert(nc==1&&sc==1&&n[0]>=0&&n[0]<=1);}if(op==17){assert(!nc&&sc==1);assert(std::string(s[0].ptr,s[0].len)=="Pokestop spin");}if(op==19){assert(!nc&&sc==2);assert(std::string(s[0].ptr,s[0].len)=="quick-close");payloads.emplace_back(s[1].ptr,s[1].len);}return 0;
 }
 int get_bool(uint32_t index,int *out){assert(index==24);*out=allowed;return 0;}
-int transport_sample(PgrRuntimeTransportSample *p){*p={};p->snapshot_fresh=fresh;p->snapshot_seq=1;return 0;}
+int transport_sample(PgrRuntimeTransportSample *p){*p={};p->snapshot_fresh=fresh;++sample_calls;p->snapshot_seq=race_always?sample_calls:(race_once&&sample_calls==1?1:2);return 0;}
 int valid(uint64_t g){return g==9;}
 int shared_sample(PgrSharedHostSample *p){*p={};p->hook_frames=7;return 0;}
 const PgrSpinCameraApi camera_table{1,sizeof(PgrSpinCameraApi),camera_install,camera_update,camera_tick,camera_read};
@@ -63,10 +64,19 @@ void scenario(unsigned mode){
  if(mode==4){quick_sample.cooldown_serial=2;quick_sample.request_serial=1;quick_sample.last_tid=c.owner_tid;quick_sample.last_gui_state=2;
   assert(a->tick(c.owner_tid,4,0)==0);unsigned cooldowns=0;for(auto op:opcodes)cooldowns+=op==17;assert(cooldowns==2);assert(!payloads.empty());
   PgrUnityPulse pulse{9,5,int32_t(c.owner_tid),0};a->on_unity_pulse(nullptr,&pulse);assert(quick_opener==7);
+  // A 150ms opening stall must not revoke the pending spin's epoch.
+  auto epoch=transport_epoch;usleep(150000);assert(a->tick(c.owner_tid,6,0)==0);
+  assert(transport_epoch==epoch&&quick_allowed==1&&quick_lease>500);
+  sample_calls=0;race_once=true;last_poll=0;assert(a->tick(c.owner_tid,7,0)==0);
+  assert(sample_calls==4&&transport_epoch==epoch&&quick_allowed==1);race_once=false;
+  sample_calls=0;race_always=true;last_poll=0;assert(a->tick(c.owner_tid,8,0)==0);
+  assert(sample_calls==6&&quick_allowed==0);race_always=false;
+  allowed=false;last_poll=0;assert(a->tick(c.owner_tid,9,0)==0);assert(quick_allowed==0);
+  allowed=true;last_poll=0;assert(a->tick(c.owner_tid,10,0)==0);assert(quick_allowed==1);
   // Force the next permitted settings poll without sleeping.
   last_poll=0;fresh=false;assert(a->tick(c.owner_tid,6,0)==0);assert(camera_allowed==0&&quick_allowed==0);
  }
- p.enabled=0;p.epoch=2;assert(a->update(&p)==0);assert(a->tick(c.owner_tid,7,0)==0);assert(camera_allowed<=0&&quick_allowed<=0);
+ p.enabled=0;p.epoch=policy.epoch+1;assert(a->update(&p)==0);assert(a->tick(c.owner_tid,7,0)==0);assert(camera_allowed<=0&&quick_allowed<=0);
  assert(a->stop()==0&&a->stop()==0);assert(a->update(&p)==PGR_SPH_STOPPED);assert(a->tick(c.owner_tid,8,0)==PGR_SPH_STOPPED);
  assert(a->sample(&s)==0&&s.stopping);if(mode==3)assert(s.quick_error==-7&&s.capabilities==1);
 }

@@ -14,6 +14,14 @@ import android.widget.*;
 final class SettingsUi {
     private SettingsUi() {}
 
+    static void enabled(View view,boolean enabled){
+        view.setAlpha(enabled?1f:0.45f); enableChildren(view,enabled);
+    }
+    private static void enableChildren(View view,boolean enabled){
+        view.setEnabled(enabled);
+        if(view instanceof ViewGroup){ViewGroup group=(ViewGroup)view;for(int i=0;i<group.getChildCount();i++)enableChildren(group.getChildAt(i),enabled);}
+    }
+
     static int dp(Context context, float x) { return Math.round(x * context.getResources().getDisplayMetrics().density); }
     static int ink() { return Control.darkTheme()?Color.rgb(235,241,246):Color.rgb(25,35,47); }
     static int muted() { return Control.darkTheme()?Color.rgb(154,171,187):Color.rgb(88,105,121); }

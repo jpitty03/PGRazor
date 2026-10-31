@@ -14,6 +14,9 @@ public class SettingsBackupRulesTest {
     }
     public static void main(String[] args)throws Exception{
         SettingsBackupRules.validate(valid());
+        JSONObject buddyOrder=valid();buddyOrder.getJSONObject("settings").put("buddyEmotionBerries","708,703,701");SettingsBackupRules.validate(buddyOrder);
+        for(String bad:new String[]{"703,703","707","703,","1201"}){buddyOrder.getJSONObject("settings").put("buddyEmotionBerries",bad);rejects(buddyOrder);}
+        buddyOrder.getJSONObject("settings").put("buddyEmotionBerries","");SettingsBackupRules.validate(buddyOrder);
         MapTapSequence taps=new MapTapSequence();
         if(taps.doubleTap(40,-70,1000,1,300)||!taps.doubleTap(40.00001,-70,1200,1,300)||taps.doubleTap(40,-70,1300,1,300))throw new AssertionError("Tap pair/triple handling");
         if(taps.doubleTap(41,-70,1400,1,300)||taps.doubleTap(41,-70,1500,2,300)||taps.doubleTap(41,-70,1900,2,300))throw new AssertionError("Distant, expired, or old-generation tap paired");
