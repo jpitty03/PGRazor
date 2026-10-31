@@ -1,4 +1,6 @@
 import { featureGuides, guideHref, homeHref, indexHref } from './guideData.js';
+import Gallery from './Gallery.jsx';
+import { guideScreenshots } from '../guideScreenshots.js';
 
 // One feature's how-to page. An unknown id (renamed, removed, or mistyped in a
 // shared link) renders a useful not-found view with a route back to the index
@@ -77,6 +79,14 @@ export default function GuideDetail({ id }) {
               <li key={index}>{step}</li>
             ))}
           </ol>
+        </section>
+      )}
+
+      {guideScreenshots[id]?.length > 0 && (
+        <section className="guide-detail__block guide-screenshots" aria-labelledby="guide-screenshots-heading">
+          <h2 id="guide-screenshots-heading">Screenshots</h2>
+          <p>Captured on MuMu. These examples show configured settings, not necessarily the defaults.</p>
+          <Gallery shots={guideScreenshots[id]} />
         </section>
       )}
 

@@ -54,3 +54,9 @@ Screenshots are representative; enabled options and layout depend on your settin
 ## Cooldown guidance
 
 The Cooldown section uses original text and two compact tables with all 30 estimates visible without internal scrolling. The values are guidance, not a published server contract. The app interpolates between distances and rounds up to whole minutes. Preserve the chart values and action exceptions when adjusting presentation. Published release downloads remain separate from development-build guides.
+
+## Guide screenshots
+
+Feature pages use `src/guideScreenshots.js` and the shared `Gallery` component. The 11 WebP images under `public/images/guides/` were captured from the released experimental.3 APK on the research MuMu on 2026-10-31, then losslessly cropped to the relevant panel. No controls or results were synthesized. Captions identify example settings rather than defaults or proof of successful gameplay; the map example selects Pier 39 without moving the character. OpenStreetMap attribution remains visible.
+
+Keep captures free of account names, saved places, private coordinates and unrelated overlays. Original captures and crop receipts remain in local diagnostic artifacts; publish only the reviewed panel images. The image catalog records dimensions for stable layout. Guide galleries support keyboard opening, Escape, a close button and focus restoration.

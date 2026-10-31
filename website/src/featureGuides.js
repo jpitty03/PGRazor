@@ -229,7 +229,7 @@ export const featureGuides = [
       'Optionally turn on “Shiny or IV ≥90%: Ultra Ball + Golden Razz”, and set High CP threshold (0–10000) and High level threshold (0–50) — a threshold of 0 disables that rule.',
       'Choose a Throw rating (Default/Nice/Great/Excellent) and optional Curveball.',
       'Open Candy species (Pinap) to select species that should get a Pinap for candy.',
-      'Optionally enable Auto-spin Gym discs under VGP+. It defaults off and is separate from Nearby Pokéstops; Gym Slotter and feeding need not be enabled.',
+      'Optionally enable Auto-spin Gym discs under VGP+. It defaults off and is separate from Nearby PokéStops; Gym Slotter and feeding need not be enabled.',
       'Use the normal VGP Start/Stop icon to run it.',
     ],
     notes: [
@@ -274,7 +274,7 @@ export const featureGuides = [
     where: 'Settings > Buddy Emotion Engine.',
     steps: [
       'Expand Buddy Emotion Engine and turn on “Run the Buddy Emotion Engine”. This one master control covers snapshots, petting, hunger-based feeding, and optional gift collection.',
-      'Open Feeding priority and tap berries in the order to try them; new setups start with Nanab, Razz, then Pinap.',
+      'Open Feeding priority and tap berries in the order to try them; uncheck and reselect a berry to move it to the end. Use Clear to empty the list or Reset to restore Nanab, Razz, then Pinap — the default for new setups.',
       'Set Reserve per berry (0–1000, default 50); each feed uses the first selected berry whose stock is above its reserve.',
       'Optionally turn on “Open gifts your buddy brings back”.',
       'Use “Show EP overlay” to show or hide the draggable status display without stopping buddy care.',
@@ -293,7 +293,7 @@ export const featureGuides = [
     summary:
       'Preview a tagged batch, then evolve each eligible Pokémon once without opening the evolution cutscene.',
     availability: AVAILABILITY.experimental3,
-    where: 'Settings > Batch evolution.',
+    where: 'Settings > Batch evolution (the button sits with the inventory controls, next to Auto-transfer items — there is no collapsible section for it).',
     steps: [
       'In Pokemon storage, open Tags, create a tag such as Evolve, and assign only the Pokemon you want evolved to it.',
       'Open Batch evolution and enter the exact tag name you want to evolve (for example, Evolve — this is just a sample tag).',
@@ -304,6 +304,7 @@ export const featureGuides = [
     ],
     notes: [
       'Only the one selected tag is used, and each selected Pokémon evolves once per batch; no evolution screen is opened.',
+      'Editing the tag field or toggling the removal option clears a finished preview; Start re-enables only after you preview again and at least one Pokémon is eligible.',
       'Favorites, your buddy, deployed Pokémon, eggs, Shadow/purified Pokémon, and evolutions needing a branch choice or special condition are skipped. Other tags and skipped entries are preserved.',
       'Optional tag removal affects only the selected tag and only after each confirmed evolution; a removal error stops the batch while keeping its evolution count.',
       'No Lucky Egg is used automatically — start one yourself if you want it. Candy and items are rechecked before each evolution.',

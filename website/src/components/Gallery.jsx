@@ -5,7 +5,7 @@ import { ExpandIcon, CloseIcon } from './Icons.jsx';
 
 // Screenshots open in a native <dialog>: the element handles modal focus
 // trapping, Escape-to-close, and restoring focus to the trigger on close.
-export default function Gallery() {
+export default function Gallery({ shots = screenshots }) {
   const dialogRef = useRef(null);
   const [active, setActive] = useState(null);
 
@@ -38,7 +38,7 @@ export default function Gallery() {
     <div className="gallery">
       <p className="gallery__hint">Tap a screenshot for a closer look.</p>
       <ul className="gallery__grid">
-        {screenshots.map((shot) => (
+        {shots.map((shot) => (
           <li key={shot.id}>
             <button type="button" className="shot-btn" onClick={() => setActive(shot)}>
               <img

@@ -733,6 +733,33 @@ a {
 }
 
 /* --- Cooldown ------------------------------------------------------------ */
+.guide-screenshots .gallery__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  max-width: 720px;
+  overflow: visible;
+}
+.guide-screenshots .shot-btn img {
+  height: 280px;
+  aspect-ratio: auto;
+  object-fit: contain;
+  padding: 0.5rem;
+}
+.guide-screenshots .shot-btn__bar {
+  position: static;
+  background: var(--bg-sunken);
+  text-align: left;
+}
+.guide-screenshots .lightbox__inner {
+  max-width: min(94vw, 960px);
+  max-height: calc(100dvh - 2rem);
+}
+.guide-screenshots .lightbox__image {
+  min-height: 0;
+  max-height: 65dvh;
+  object-fit: contain;
+}
+
 .cooldown__groups {
   display: grid;
   align-items: start;

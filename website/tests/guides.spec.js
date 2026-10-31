@@ -1,5 +1,32 @@
 import { test, expect } from '@playwright/test';
 import { featureGuides } from '../src/featureGuides.js';
+import { guideScreenshots } from '../src/guideScreenshots.js';
+
+test('guide screenshots load and open with keyboard and restore focus', async ({ page }) => {
+  for (const [id, shots] of Object.entries(guideScreenshots)) {
+    expect(featureGuides.some(guide => guide.id === id)).toBeTruthy();
+    await page.goto(`./?guide=${id}`);
+    const gallery = page.locator('.guide-screenshots');
+    await expect(gallery.locator('.shot-btn')).toHaveCount(shots.length);
+    for (const shot of shots) {
+      const button = gallery.getByRole('button', { name: `${shot.title} — open a larger view`, exact: true });
+      await button.scrollIntoViewIfNeeded();
+      const thumbnail = button.locator('img');
+      await expect(thumbnail).toHaveJSProperty('naturalWidth', shot.width);
+      await expect(thumbnail).toHaveJSProperty('naturalHeight', shot.height);
+      await button.focus();
+      await page.keyboard.press('Enter');
+      const dialog = gallery.getByRole('dialog');
+      await expect(dialog).toBeVisible();
+      await expect(dialog.locator('.lightbox__caption')).toHaveText(shot.caption);
+      await expect(dialog.getByRole('button', { name: 'Close', exact: true })).toBeInViewport();
+      await page.keyboard.press('Escape');
+      await expect(dialog).not.toBeVisible();
+      await expect(button).toBeFocused();
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
+  }
+});
 
 test('feature guides have unique destinations and useful instructions', async ({ page }) => {
   const ids = featureGuides.map(guide => guide.id);
