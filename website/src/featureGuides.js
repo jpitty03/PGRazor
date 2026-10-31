@@ -1,26 +1,4 @@
-// One how-to guide per feature. These are reference copy only: the layout and
-// routing that render them live in the components. Keep IDs kebab-case and
-// stable (they anchor the ?guide= links); never invent a setting name or a
-// server guarantee — the Android source is the authority for both.
-//
-// Each guide follows this exact shape:
-//   { id, title, category, summary, availability, where, steps[], notes[] }
-//
-// `availability` stays neutral: it never implies the latest release ships a
-// feature that is still only on the project's main branch. Three buckets are
-// used — shipping releases, the published v0.1.7-experimental.2 pre-release,
-// and the newer experimental.3 features.
-
-const AVAILABILITY = {
-  released: 'Available in current PGRazor releases; confirm against your installed build.',
-  experimental2:
-    'Published in the v0.1.7-experimental.2 pre-release. Pre-releases are test candidates — check the release notes for device-validation status.',
-  experimental1:
-    'Introduced with the Events screen in the v0.1.7-experimental.1 pre-release. Experimental and off by default.',
-  experimental3:
-    'Included in v0.1.7-experimental.3. Check the release notes for device-validation status.',
-};
-
+// Feature how-to copy. Keep IDs stable for shared guide links.
 export const featureGuides = [
   {
     id: 'location-joystick',
@@ -28,7 +6,6 @@ export const featureGuides = [
     category: 'Movement',
     summary:
       'Spoof your location, steer with a camera-relative joystick, and choose what a tap on the game map does.',
-    availability: AVAILABILITY.released,
     where: 'Settings > Location & overlays, plus the on-screen joystick.',
     steps: [
       'Open Settings and expand Location & overlays.',
@@ -51,7 +28,6 @@ export const featureGuides = [
     category: 'Map',
     summary:
       'A full-screen map with place search, loaded nearby layers, a live location dot, and per-pin Walk or Teleport.',
-    availability: AVAILABILITY.experimental3,
     where: 'Quick Menu > Map (full screen, in your chosen PGRazor theme).',
     steps: [
       'Open the Quick Menu and tap Map.',
@@ -73,7 +49,6 @@ export const featureGuides = [
     category: 'Map',
     summary:
       'Jump to 14 curated hotspots or your own saved places, with a cooldown estimate before any teleport.',
-    availability: AVAILABILITY.experimental3,
     where: 'Quick Menu > Hotspots or Favorites, and the World Map. Hotspots offers 14 curated destinations.',
     steps: [
       'Save a place from the World Map so it appears under Favorites (Favorites shares the map’s saved places).',
@@ -93,7 +68,6 @@ export const featureGuides = [
     category: 'Movement',
     summary:
       'Build a looping route through nearby stops and gyms, or import and save GPX paths to walk automatically.',
-    availability: AVAILABILITY.experimental2,
     where: 'Quick Menu > Autowalk and the World Map route builder.',
     steps: [
       'Open Autowalk from the Quick Menu to build a route through nearby loaded PokéStops and Gyms.',
@@ -115,7 +89,6 @@ export const featureGuides = [
     category: 'Movement',
     summary:
       'Discover and walk the game’s own Routes automatically, waiting for each reward before moving on.',
-    availability: AVAILABILITY.released,
     where: 'Quick Menu > In-game Routes (experimental).',
     steps: [
       'Open In-game Routes from the Quick Menu and choose a completion limit from 1 to 50.',
@@ -136,7 +109,6 @@ export const featureGuides = [
     category: 'Reference',
     summary:
       'A local, draggable timer that estimates the soft-ban wait between location-sensitive actions.',
-    availability: AVAILABILITY.released,
     where: 'Settings > Location & overlays (Cooldown overlay); tap the timer for history.',
     steps: [
       'Turn on the Cooldown overlay in Location & overlays.',
@@ -157,7 +129,6 @@ export const featureGuides = [
     category: 'Catching',
     summary:
       'Quick Catch, throw rating and curveball, encounter berry priorities, and on-encounter IV/level display.',
-    availability: AVAILABILITY.released,
     where: 'Settings > Catch & summary and Settings > Throws.',
     steps: [
       'In Catch & summary, turn on Quick catch to shorten the catch animation and skip the post-catch screens.',
@@ -179,7 +150,6 @@ export const featureGuides = [
     category: 'Catching',
     summary:
       'Auto-transfer low-IV catches while protecting shinies, legendaries, sizes, and a custom species list.',
-    availability: AVAILABILITY.released,
     where: 'Settings > Catch & summary > Transfer on catch.',
     steps: [
       'Open Transfer on catch and turn on Transfer below 90% IV.',
@@ -200,7 +170,6 @@ export const featureGuides = [
     category: 'Automation',
     summary:
       'Catch nearby wild Pokémon with red balls only and spin nearby stops, with a target marker and status overlay.',
-    availability: AVAILABILITY.released,
     where: 'Settings > Virtual Go Plus; start/stop from the VGP overlay icon.',
     steps: [
       'In Virtual Go Plus, turn on VGP overlay to show the overlay (the switch controls visibility, not the run state).',
@@ -221,7 +190,6 @@ export const featureGuides = [
     category: 'Automation',
     summary:
       'An expanded VGP mode (formerly Smart Background Catcher) with ball, berry, throw, and premium/candy rules.',
-    availability: AVAILABILITY.experimental3,
     where: 'Settings > Virtual Go Plus > VGP+; start/stop from the same VGP overlay icon.',
     steps: [
       'With the VGP overlay enabled, turn on VGP+ in the Virtual Go Plus section.',
@@ -246,7 +214,6 @@ export const featureGuides = [
     category: 'Automation',
     summary:
       'Deploy a tagged defender to an open friendly gym slot and feed your gym defenders from one draggable overlay.',
-    availability: AVAILABILITY.experimental3,
     where: 'Settings > Raids, gyms & Dynamax > Gym Slotter & Berry Feeder.',
     steps: [
       'In the game’s Pokémon storage, open the Tags tab and create a tag named Gym (the #Gym shorthand is also recognized), then assign the eligible, healthy defenders you want deployed.',
@@ -270,7 +237,6 @@ export const featureGuides = [
     category: 'Automation',
     summary:
       'Builds buddy mood with snapshots, petting, and reserve-aware berry feeding, replacing the old Auto feed buddy.',
-    availability: AVAILABILITY.experimental3,
     where: 'Settings > Buddy Emotion Engine.',
     steps: [
       'Expand Buddy Emotion Engine and turn on “Run the Buddy Emotion Engine”. This one master control covers snapshots, petting, hunger-based feeding, and optional gift collection.',
@@ -292,7 +258,6 @@ export const featureGuides = [
     category: 'Inventory',
     summary:
       'Preview a tagged batch, then evolve each eligible Pokémon once without opening the evolution cutscene.',
-    availability: AVAILABILITY.experimental3,
     where: 'Settings > Batch evolution (the button sits with the inventory controls, next to Auto-transfer items — there is no collapsible section for it).',
     steps: [
       'In Pokemon storage, open Tags, create a tag such as Evolve, and assign only the Pokemon you want evolved to it.',
@@ -317,7 +282,6 @@ export const featureGuides = [
     category: 'Automation',
     summary:
       'An Events screen that can open every visible map box and skip its encounter screens.',
-    availability: AVAILABILITY.experimental1,
     where: 'Quick Menu > Events > Halloween 2026.',
     steps: [
       'Open the Quick Menu and tap Events, then Halloween 2026.',
@@ -336,7 +300,6 @@ export const featureGuides = [
     category: 'Inventory',
     summary:
       'Choose which items to discard and how many to keep; the same limits apply to existing stock and new items.',
-    availability: AVAILABILITY.released,
     where: 'Settings > Auto-transfer items.',
     steps: [
       'Open Auto-transfer items from the inventory controls.',
@@ -354,7 +317,6 @@ export const featureGuides = [
     category: 'Automation',
     summary:
       'Optionally open and send gifts, with an owned sticker added when available.',
-    availability: AVAILABILITY.released,
     where: 'Settings > Friend gifts.',
     steps: [
       'Open Friend gifts.',
@@ -372,7 +334,6 @@ export const featureGuides = [
     category: 'Automation',
     summary:
       'Auto-incubate using only the unlimited incubator, by shortest or longest distance.',
-    availability: AVAILABILITY.released,
     where: 'Settings > Auto incubate eggs.',
     steps: [
       'Open Auto incubate eggs and turn on Auto incubate.',
@@ -390,7 +351,6 @@ export const featureGuides = [
     category: 'Battles',
     summary:
       'Assist with Team Rocket, raids, gyms, and Dynamax / Max encounters.',
-    availability: AVAILABILITY.experimental2,
     where: 'Settings > Team Rocket and Settings > Raids, gyms & Dynamax.',
     steps: [
       'In Team Rocket, enable Auto quick attack, Auto charged attack, and/or Auto shield.',
@@ -409,7 +369,6 @@ export const featureGuides = [
     category: 'Feeds',
     summary:
       'Browse remote Pokémon, stops, gyms, raids, and stations — requires your own paid LivePokeMap subscription.',
-    availability: AVAILABILITY.released,
     where: 'Quick Menu > Feeds.',
     steps: [
       'Subscribe to LivePokeMap separately, then open Feeds and sign in with your own account on the phone.',
@@ -431,7 +390,6 @@ export const featureGuides = [
     category: 'Interface',
     summary:
       'Light/dark themes, overlay scaling, a parent-off gating behavior for dependent controls, and JSON export/import.',
-    availability: AVAILABILITY.released,
     where: 'Settings header (theme), Location & overlays (UI scale), and Export / import settings.',
     steps: [
       'Tap the theme icon in the Settings header to switch the whole interface between light and dark.',
@@ -451,7 +409,6 @@ export const featureGuides = [
     title: 'Account profiles',
     category: 'Personalize',
     summary: 'Switch between remembered accounts while keeping their settings and locations separate.',
-    availability: 'Experimental account profiles. Check availability in your installed build.',
     where: 'Quick Menu > Switch account, or Settings > Accounts.',
     steps: [
       'Open Switch account and sign in normally to each account once to create its saved profile.',

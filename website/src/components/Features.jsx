@@ -15,7 +15,6 @@ export default function Features() {
         </p>
       </div>
 
-      <p className="guide-note">These guides cover the experimental and stable releases. Check each guide's availability against your installed APK.</p>
       <p className="guide-back"><a className="btn btn--primary" href={indexHref}>Browse all feature guides</a></p>
       <SettingsGuide />
       <Gallery />

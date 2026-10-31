@@ -11,7 +11,7 @@ export default function GuideIndex() {
   const filtered = useMemo(() => {
     if (!term) return featureGuides;
     return featureGuides.filter((guide) =>
-      [guide.title, guide.summary, guide.category, guide.availability]
+      [guide.title, guide.summary, guide.category]
         .filter(Boolean)
         .some((field) => String(field).toLowerCase().includes(term)),
     );
@@ -41,11 +41,6 @@ export default function GuideIndex() {
         </p>
       </div>
 
-      <p className="guide-note">
-        Each guide shows its <strong>availability</strong>. New features are available in
-        v0.1.7-experimental.3; the stable download does not include every feature shown here.
-        Check the release notes and your installed version before following a guide.
-      </p>
 
       {empty ? (
         <p className="guide-empty">
@@ -94,12 +89,6 @@ export default function GuideIndex() {
                           <a className="guide-card" href={guideHref(guide.id)}>
                             <span className="guide-card__title">{guide.title}</span>
                             <span className="guide-card__summary">{guide.summary}</span>
-                            {guide.availability && (
-                              <span className="guide-card__tag">
-                                <span className="guide-card__tag-label">Availability</span>
-                                {guide.availability}
-                              </span>
-                            )}
                           </a>
                         </li>
                       ))}

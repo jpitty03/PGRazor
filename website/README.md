@@ -38,9 +38,9 @@ The site has three views selected by a query string, so the static GitHub Pages 
 
 `App.jsx` reads `window.location.search` once on load, picks the view, and updates `document.title` and the `meta[name="description"]` to match. Guide links are ordinary `<a>` elements whose `href` changes the query, which triggers a full load of the same `index.html`. On guide views the header/footer logo and nav point back at the homepage and its section anchors (`/PGRazor/#features`, …) instead of dead in-page fragments.
 
-Guide content lives in `src/featureGuides.js`, which exports `featureGuides` — an array of `{ id, title, category, summary, availability, where, steps[], notes[] }`. That file is maintained separately from the layout. `src/components/guideData.js` re-exports the catalog and provides base-aware links. To add or edit a guide, update `featureGuides.js`; the index and detail pages pick it up without component edits. The homepage Features section links to the guide index.
+Guide content lives in `src/featureGuides.js`, which exports `featureGuides` — an array of `{ id, title, category, summary, where, steps[], notes[] }`. That file is maintained separately from the layout. `src/components/guideData.js` re-exports the catalog and provides base-aware links. To add or edit a guide, update `featureGuides.js`; the index and detail pages pick it up without component edits. The homepage Features section links to the guide index.
 
-Each guide's `availability` is shown prominently (an index tag and a callout on the detail page). Features documented only in the current development build are not promised in, or implied to be part of, the latest release APK; keep `availability` accurate and avoid release promises.
+Release-specific availability and validation details belong in the release notes.
 
 ## Screenshots and artwork
 

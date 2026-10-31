@@ -40,7 +40,6 @@ test('feature guides have unique destinations and useful instructions', async ({
   for (const guide of featureGuides) {
     expect(guide.steps.length).toBeGreaterThan(1);
     expect(guide.where.length).toBeGreaterThan(0);
-    expect(guide.availability.length).toBeGreaterThan(0);
     await expect(page.locator(`main a[href$="?guide=${guide.id}"]`).first()).toBeVisible();
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
@@ -53,7 +52,6 @@ test('every guide can be opened directly without missing content or script error
     await page.goto(`./?guide=${guide.id}`);
     await expect(page.getByRole('heading', { level: 1, name: guide.title, exact: true })).toBeVisible();
     expect(await page.title()).toContain(guide.title);
-    await expect(page.locator('main').getByText(guide.availability, { exact: true }).first()).toBeVisible();
     for (const step of guide.steps) {
       await expect(page.locator('main').getByText(step, { exact: true })).toHaveCount(1);
     }

@@ -57,12 +57,6 @@ export default function GuideDetail({ id }) {
         {guide.summary && <p className="section__lead">{guide.summary}</p>}
       </div>
 
-      {guide.availability && (
-        <p className="guide-detail__availability" role="note">
-          <span className="guide-detail__availability-label">Availability</span>
-          <span>{guide.availability}</span>
-        </p>
-      )}
 
       {guide.where && (
         <section className="guide-detail__block" aria-labelledby="guide-where-heading">
@@ -85,7 +79,7 @@ export default function GuideDetail({ id }) {
       {guideScreenshots[id]?.length > 0 && (
         <section className="guide-detail__block guide-screenshots" aria-labelledby="guide-screenshots-heading">
           <h2 id="guide-screenshots-heading">Screenshots</h2>
-          <p>Captured on MuMu. These examples show configured settings, not necessarily the defaults.</p>
+          <p>These examples show configured settings, not necessarily the defaults.</p>
           <Gallery shots={guideScreenshots[id]} />
         </section>
       )}

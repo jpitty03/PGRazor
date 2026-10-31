@@ -1241,25 +1241,6 @@ a {
   font-size: 0.95rem;
 }
 
-.guide-card__tag {
-  margin-top: auto;
-  padding-top: 0.7rem;
-  border-top: 1px solid var(--line);
-  color: var(--accent);
-  font-size: 0.8rem;
-  line-height: 1.5;
-}
-
-.guide-card__tag-label {
-  display: block;
-  font-family: var(--font-mono);
-  font-size: 0.66rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 0.15rem;
-}
-
 @media (max-width: 680px) {
   .guide-cards {
     grid-template-columns: 1fr;
@@ -1288,33 +1269,6 @@ a {
 
 .guide-detail__crumbs a:hover {
   text-decoration: underline;
-}
-
-.guide-detail__availability {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.5rem 0.9rem;
-  margin-bottom: clamp(1.75rem, 4vw, 2.5rem);
-  padding: 0.9rem 1.15rem;
-  border: 1px solid var(--line-strong);
-  border-left: 4px solid var(--accent);
-  border-radius: var(--radius);
-  background: var(--bg-elevated);
-}
-
-.guide-detail__availability-label {
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--accent);
-  font-weight: 700;
-}
-
-.guide-detail__availability span:last-child {
-  color: var(--ink);
-  font-weight: 600;
 }
 
 .guide-detail__block {
