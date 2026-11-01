@@ -944,7 +944,7 @@ a {
   gap: 0.85rem;
 }
 
-.cta__experimental {
+.cta__release {
   margin-top: 1.25rem;
   max-width: 62ch;
   padding: 1rem 1.15rem;
@@ -956,7 +956,7 @@ a {
   line-height: 1.6;
 }
 
-.cta__experimental a {
+.cta__release a {
   color: var(--accent);
   font-weight: 600;
 }

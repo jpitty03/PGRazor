@@ -14,7 +14,7 @@ int test_objects[3]{};
 int enum_result=0,enum_normal=11,enum_loot=21,enum_souvenir=22,enum_field=0;
 void* enum_class(void*){return &enum_field;}
 void* enum_lookup(void*,const char* name){
- if(!strcmp(name,"Result"))return &enum_field;
+ if(!strcmp(name,"Result")||!strcmp(name,"Status"))return &enum_field;
  if(!strcmp(name,"Success"))return &enum_normal;
  if(!strcmp(name,"SuccessAddedLootToInventory"))return &enum_loot;
  if(!strcmp(name,"SuccessAddedSouvenirToCollections"))return &enum_souvenir;
@@ -169,6 +169,8 @@ int main() {
     boot.meta.field_get_flags=reinterpret_cast<void*>(enum_flags);
     boot.runtime.field_get_value=reinterpret_cast<void*>(enum_read);
     boot.runtime.field_static_get_value=reinterpret_cast<void*>(enum_static);
+    boot.meta.class_is_enum=reinterpret_cast<void*>(+[](void*){return true;});
+    enum_result=enum_normal;assert(photo_success(&enum_field));enum_result=0;assert(!photo_success(&enum_field));
     enum_result=enum_normal;assert(success(&enum_field)&&!success(&enum_field,true));
     enum_result=enum_loot;assert(success(&enum_field,true)&&!success(&enum_field));
     enum_result=enum_souvenir;assert(success(&enum_field,true));
@@ -184,7 +186,7 @@ int main() {
     test_fresh = false; assert(!permission().valid); test_fresh = true;
     test_sequence_change = true; assert(!permission().valid); test_sequence_change = false;
 
-    for (int phase : {1, 2, 3, 4, 5}) {
+    for (int phase : {1, 2, 3, 4, 5, 6}) {
         for (int reason = 0; reason < 5; ++reason) {
             auto p = setup(phase);
             switch (reason) {

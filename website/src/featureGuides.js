@@ -236,7 +236,7 @@ export const featureGuides = [
     title: 'Buddy Emotion Engine',
     category: 'Automation',
     summary:
-      'Builds buddy mood with snapshots, petting, and reserve-aware berry feeding, replacing the old Auto feed buddy.',
+      'Builds buddy mood with snapshot requests, petting, and reserve-aware berry feeding, replacing the old Auto feed buddy. Snapshot-heart credit from the updated request path is not yet verified in game.',
     where: 'Settings > Buddy Emotion Engine.',
     steps: [
       'Expand Buddy Emotion Engine and turn on “Run the Buddy Emotion Engine”. This one master control covers snapshots, petting, hunger-based feeding, and optional gift collection.',
@@ -267,7 +267,7 @@ export const featureGuides = [
       'Move the joystick to release the idle-walking hold after the session completes or stops for a bird.',
     ],
     notes: [
-      'Unreleased and experimental; the live Galarian-bird encounter handoff is not yet verified. Detection covers loaded map objects and cannot guarantee a bird, spawn count, or spawn timing.',
+      'The live Galarian-bird encounter handoff is not yet verified. Detection covers loaded map objects and cannot guarantee a bird, spawn count, or spawn timing.',
       'It never activates incense, throws a ball, or uses a Master Ball automatically. An opening request can fail or be refused by the game; open the encounter yourself if needed.',
       'Manual movement or a replacement route takes over; backgrounding or lost account, game, or location readiness ends the session. It does not restart automatically.',
       'The previous speed is restored only while the task still owns the walk and its speed has not been changed. A replacement route and your new speed are preserved.',
@@ -287,7 +287,7 @@ export const featureGuides = [
       'Read the confirmed progress and status. Stop feed cancels unsent work; an already submitted feed may finish once.',
     ],
     notes: [
-      'Unreleased and experimental. This is one bounded run, with no recurring schedule or automatic restart.',
+      'This is one bounded run, with no recurring schedule or automatic restart.',
       'Only gyms with your own deployed defenders are eligible. The game still controls remote access, feeding limits, and accepted rewards; counts advance only on confirmed responses.',
       'Golden Razz and Silver Pinap are excluded. Reserves protect remaining stock; no Stardust or candy payout is promised.',
       'Backgrounding or lost account, game, or location readiness ends the run. Daily Incense and Mass Evolve must finish or stop before another task starts.',
@@ -401,7 +401,7 @@ export const featureGuides = [
     notes: [
       'Automated attacks and dodges pause while the Pokémon switch picker is open and resume after it closes.',
       'Dynamax attack controls can recover from a missed setup callback so quick and charged attacks can still start.',
-      'Experimental.3 adds gym next-opponent continuation: when Gyms: auto quick attack or Gyms: auto charged attack is on, the next-opponent prompt starts the following gym battle instead of waiting out its countdown. Leaving the battle manually or turning those gym attack options off cancels it. User-confirmed on MuMu.',
+      'Includes gym next-opponent continuation: when Gyms: auto quick attack or Gyms: auto charged attack is on, the next-opponent prompt starts the following gym battle instead of waiting out its countdown. Leaving the battle manually or turning those gym attack options off cancels it. User-confirmed on MuMu.',
     ],
   },
   {

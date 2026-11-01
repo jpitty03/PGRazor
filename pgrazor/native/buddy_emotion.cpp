@@ -84,7 +84,7 @@ void publish(const std::string &message,bool force=false){
  auto tr=static_cast<const PgrRuntimeTransportApi*>(pgrazor_runtime_transport_api(1));PgrRuntimeTransportString values[]={{"buddy-emotion",13},{json.c_str(),uint32_t(json.size())}};
  if(tr&&tr->emit(19,nullptr,0,values,2))paused=true;
 }
-struct Pending {Root promise,reflection;int phase=0;uint64_t since=0,buddy=0;std::string config,account;bool canceled=false;};Pending pending;
+struct Pending {Root promise,reflection;int phase=0;uint64_t since=0,buddy=0;int64_t snapshot_started=0;std::string config,account;bool canceled=false;};Pending pending;
 void clear(){pending=Pending{};}
 void adopt_buddy(const std::string &id,uint64_t buddy,const std::string &saved_text){
  if(id==account&&buddy==history.buddy)return;
@@ -111,11 +111,27 @@ int stock(int berry){if(!berry)return 0;Root bag=resolve("Niantic.Holoholo","IIt
 int feeding_berry(const Settings &s){int counts[5]{};for(int i=0;i<5;i++)counts[i]=stock(s.berries[i]);return select_berry(s,counts);}
 Root gift(Root &s){return Root(field<void*>(s.get(),"BuddyGiftPickedUp","Holoholo.Rpc.BuddyGiftProto"));}
 bool action_permission(const Permission &p){auto f=permission();return f.allowed&&f.config==p.config&&current_buddy()==history.buddy;}
+int photo_status(void *response){
+ auto f=fn<void*(*)(void*,const char*)>(boot.meta.class_get_field_from_name)(klass(response),"Status");require(f,"snapshot status");
+ int result=0;fn<void(*)(void*,void*,void*)>(boot.runtime.field_get_value)(response,f,&result);return result;
+}
+bool photo_success(void *response){
+ auto f=fn<void*(*)(void*,const char*)>(boot.meta.class_get_field_from_name)(klass(response),"Status");require(f,"snapshot status");
+ auto k=fn<void*(*)(void*)>(boot.meta.class_from_type)(fn<void*(*)(void*)>(boot.meta.field_get_type)(f));require(fn<bool(*)(void*)>(boot.meta.class_is_enum)(k),"snapshot status enum");
+ return photo_status(response)==literal(k,"Success");
+}
+Root start_photo_session(const Permission &p){
+ require(action_permission(p),"snapshot permission changed");
+ pending.snapshot_started=boxed<int64_t>(invoke(method(cls("Niantic.Holoholo","TimeUtil"),"ServerNowMs",0),nullptr),"System.Int64");require(pending.snapshot_started>0,"snapshot server clock unavailable");
+ Root service=resolve("Niantic.Holoholo.ARPhoto","IARPhotoRpcService");require(bool(service),"snapshot service unavailable");
+ int context=literal(cls("Holoholo.Rpc","ArContext"),"SingleplayerBuddy");uint64_t buddy=pending.buddy;void *args[]={&buddy,&context};
+ return Root(call(service.get(),"CheckPhotobomb",2,args));
+}
 Root photo_request(const Permission &p){
  Root service=resolve("Niantic.Holoholo.ARPhoto","IARPhotoRpcService");require(bool(service),"snapshot service unavailable");
  Root rpc(field<void*>(service.get(),"eiud","Niantic.Holoholo.Rpc.IRpcHandler"));require(bool(rpc),"snapshot RPC");
  Root req(fn<void*(*)(void*)>(boot.runtime.object_new)(cls("Holoholo.Rpc","CompleteSnapshotSessionProto")));call(req.get(),".ctor");
- put(req.get(),"PhotoPokemonId","System.UInt64",history.buddy);put(req.get(),"NumPhotosTaken","System.Int32",1);put(req.get(),"SnapshotSessionStartTime","System.Int64",int64_t(clock_ms(CLOCK_REALTIME)));
+ put(req.get(),"PhotoPokemonId","System.UInt64",history.buddy);put(req.get(),"NumPhotosTaken","System.Int32",1);put(req.get(),"SnapshotSessionStartTime","System.Int64",pending.snapshot_started);
  void *open=method(klass(rpc.get()),"SendRpc",5);require(fn<bool(*)(void*)>(boot.meta.method_is_generic)(open),"generic snapshot RPC");
  Root reflected(fn<void*(*)(void*,void*)>(exp("method_get_object"))(open,klass(rpc.get())));Root types(fn<void*(*)(void*,uintptr_t)>(boot.runtime.array_new)(cls("System","Type"),2));
  void *ks[]={klass(req.get()),cls("Holoholo.Rpc","CompleteSnapshotSessionOutProto")};
@@ -134,7 +150,7 @@ void begin(int phase,const Permission &p){
   if(action==Gift){Root s=stats();require(s&&on_map(s)&&gift(s),"buddy gift changed");}
   mark_attempt(history,action,clock_ms(CLOCK_REALTIME));publish(std::string("Requesting ")+labels[action],true);
   require(action_permission(p),"permission changed before interaction");
-  if(action==Snapshot)pending.promise=photo_request(p);
+  if(action==Snapshot){pending.phase=6;pending.promise=start_photo_session(p);}
   else if(action==Pet)pending.promise=Root(call(rpc.get(),"Pet"));
   else if(action==Gift)pending.promise=Root(call(rpc.get(),"OpenGift"));
   else {int one=1;void *args[]={&berry,&one};__android_log_print(ANDROID_LOG_INFO,"PGRazorBuddyEP","Feeding selected berry %d",berry);pending.promise=Root(call(rpc.get(),"Feed",2,args));}
@@ -147,15 +163,22 @@ void poll(const Permission &p){
  auto api=static_cast<const PgrVgpResultsApi*>(pgrazor_vgp_results_api(1));require(api,"promise reader");PgrVgpResultsResult out{};int rc=api->poll(pending.promise.get(),1,owner,&out);if(!rc)return;
  if(rc!=PGR_VR_DONE){bool canceled=pending.canceled;clear();feed_burst=0;paused=!canceled;publish(canceled?"Canceled request ended; refreshing buddy":"Paused: buddy request rejected; toggle off to resume",true);return;}
  Root response;response.h=out.value_handle;if(pending.canceled){clear();feed_burst=0;next_action=now+5000;return;}
+ if(pending.phase==6){
+  require(response&&klass(response.get())==cls("Holoholo.Rpc","CheckPhotobombOutProto"),"snapshot session response identity");
+  if(!photo_success(response.get())){int result=photo_status(response.get());clear();paused=true;publish("Paused: snapshot session declined ("+std::to_string(result)+"); toggle off to resume",true);return;}
+  require(action_permission(p),"snapshot permission changed before completion");
+  pending.promise.reset();pending.phase=1;pending.since=now;pending.promise=photo_request(p);require(bool(pending.promise),"snapshot completion outcome unknown");
+  publish("Completing buddy snapshot session",true);return;
+ }
  int phase=pending.phase;const char *name=phase==1?"CompleteSnapshotSessionOutProto":phase==2?"BuddyPettingOutProto":phase==3?"BuddyFeedingOutProto":phase==4?"OpenBuddyGiftOutProto":"BuddyStatsOutProto";
  require(response&&klass(response.get())==cls("Holoholo.Rpc",name),"buddy response identity");
  bool ok=false;int result=0;
- if(phase==1){auto f=fn<void*(*)(void*,const char*)>(boot.meta.class_get_field_from_name)(klass(response.get()),"Status");require(f,"snapshot status");auto k=fn<void*(*)(void*)>(boot.meta.class_from_type)(fn<void*(*)(void*)>(boot.meta.field_get_type)(f));require(fn<bool(*)(void*)>(boot.meta.class_is_enum)(k),"snapshot status enum");fn<void(*)(void*,void*,void*)>(boot.runtime.field_get_value)(response.get(),f,&result);ok=result==literal(k,"Success");}
+ if(phase==1){result=photo_status(response.get());ok=photo_success(response.get());}
  else {ok=success(response.get(),phase==4);result=result_value(response.get());}
  clear();next_action=now+2500;
  if(!ok){feed_burst=0;paused=phase!=4;publish(phase==4?"Gift declined ("+std::to_string(result)+"); continuing buddy care":"Paused: buddy action declined ("+std::to_string(result)+"); toggle off to resume",true);return;}
  if(phase!=1){Root observed(field<void*>(response.get(),"ObservedData","Holoholo.Rpc.BuddyObservedData"));observe(observed);last_stats=now;}
- if(phase<5){mark_success(history,clock_ms(CLOCK_REALTIME));if(phase==3&&feed_burst>0)--feed_burst;publish(std::string(labels[phase-1])+" accepted",true);if(phase==1)last_stats=0;}
+ if(phase<5){mark_success(history,clock_ms(CLOCK_REALTIME));if(phase==3&&feed_burst>0)--feed_burst;publish(phase==1?"Snapshot request accepted; refreshing buddy stats":std::string(labels[phase-1])+" accepted",true);if(phase==1)last_stats=0;}
  else publish("Buddy stats refreshed",true);
 }
 void validate(){
@@ -164,6 +187,9 @@ void validate(){
  method(cls("Niantic.Holoholo.Buddy","BuddyRpcService"),"Feed",2);
  field_info(cls("Holoholo.Rpc","CompleteSnapshotSessionProto"),"PhotoPokemonId","System.UInt64");field_info(cls("Holoholo.Rpc","CompleteSnapshotSessionProto"),"NumPhotosTaken","System.Int32");field_info(cls("Holoholo.Rpc","CompleteSnapshotSessionProto"),"SnapshotSessionStartTime","System.Int64");
  literal(cls("Holoholo.Rpc","Method"),"CompleteSnapshotSession");
+ literal(cls("Holoholo.Rpc","ArContext"),"SingleplayerBuddy");
+ method(cls("Niantic.Holoholo","TimeUtil"),"ServerNowMs",0);
+ method(cls("Niantic.Holoholo.ARPhoto","ARPhotoRpcService"),"CheckPhotobomb",2);
  publish("Buddy interfaces validated",true);
 }
 }

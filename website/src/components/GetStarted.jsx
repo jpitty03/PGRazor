@@ -34,12 +34,12 @@ export default function GetStarted() {
         </a>
       </div>
 
-      <p className="cta__experimental">
-        <span className="cta__badge">Experimental</span>
+      <p className="cta__release">
+        <span className="cta__badge">Stable</span>
         The published{' '}
-        <a href={links.releasesExperimental}>v0.1.7-experimental.3 prerelease</a> includes
+        <a href={links.releasesCurrent}>v0.1.7 release</a> includes
         VGP+, gym automation, Buddy Emotion Engine, batch evolution, map search and hotspots,
-        and automatic gym battle continuation. Read its release notes for setup and validation limits.
+        automatic gym battle continuation, idle walking, and the Automation hub. Read its release notes for setup and validation limits.
       </p>
 
       <div className="faq">

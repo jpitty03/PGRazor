@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.1.7
+
+[Full release notes](docs/releases/v0.1.7.md)
+
+- Start buddy snapshot sessions with the game's buddy photo context and server-adjusted start time before completing the snapshot. A successful request is reported separately from unverified heart credit.
+
 - Fix map-dependent automation stopping after long sessions; continuous camera updates no longer hit the diagnostic observation limit. Gym overlay now distinguishes map and inventory waits. Session logs rotate at 1 MiB with six recent segments and six diagnostic tails retained.
 - Fix gym berry inventory waits: use the game's item-bag feeding operation, remember its cache update across later berry gains, and recover from delayed inventory acknowledgement instead of permanently pausing after five seconds.
 - Add an expandable Automation section in Settings and an Automation entry in Quick Menu. Move Mass Evolve there alongside two experimental, manually started tasks.

@@ -3,8 +3,8 @@
 
 export const links = {
   releasesLatest: 'https://github.com/jpitty03/PGRazor/releases/latest',
-  releasesExperimental:
-    'https://github.com/jpitty03/PGRazor/releases/tag/v0.1.7-experimental.3',
+  releasesCurrent:
+    'https://github.com/jpitty03/PGRazor/releases/tag/v0.1.7',
   github: 'https://github.com/jpitty03/PGRazor',
   discord: 'https://discord.gg/9QqfkDSQX3',
   kofi: 'https://ko-fi.com/pgrazor',
@@ -36,7 +36,7 @@ export const settingGroups = [
       { name: 'Berry selector', detail: 'Choose up to three berries in priority order; off clears the list.' },
       { name: 'IV / level display', detail: 'Show CP, level, and colour-graded IV on the encounter and in details.' },
       { name: 'Transfer on catch', detail: 'Transfer new catches below 90% IV, with keep rules for shiny, legendary, XXS, XXL, and a custom species list.' },
-      { name: 'Keep All overlay', detail: 'A draggable toggle that pauses auto-transfer without losing your rules.' },
+      { name: 'Keep All overlay', detail: 'A draggable toggle that pauses transfer for manual encounters without changing VGP or VGP+ rules.' },
     ],
   },
   {
@@ -47,7 +47,7 @@ export const settingGroups = [
       { name: 'Joystick & taps', detail: 'A camera-relative joystick with tap-to-walk, teleport, or double-tap teleport.' },
       { name: 'Speed presets', detail: 'Switch between 0, 9.3, 16, and 30 km/h.' },
       { name: 'Saved places & Autowalk', detail: 'Keep favorite locations and build looping Autowalk routes; the default is 50 nearby stops and gyms, and you can raise it toward all currently loaded or leave it blank for All.' },
-      { name: 'Place search & hotspots', detail: 'Experimental.3 adds place search, a live blue location dot, and 14 curated hotspots, each with a cooldown estimate before teleport.' },
+      { name: 'Place search & hotspots', detail: 'Includes place search, a live blue location dot, and 14 curated hotspots, each with a cooldown estimate before teleport.' },
       { name: 'Nearby layers', detail: 'See stops, gyms, and raids the game has loaded around you, with team rings and raid categories; choose Walk or Teleport from a pin.' },
       { name: 'Spawn booster (80 m)', detail: 'An optional, experimental Location & overlays toggle that widens the nearby spawn range; it does not prove a server-side bonus. It can cause lag in busy areas with many nearby Pokémon, so turn it off if the game stutters.' },
       { name: 'Cooldown estimate', detail: 'A local timer with history — an estimate, not a guarantee.' },
@@ -57,16 +57,16 @@ export const settingGroups = [
   {
     id: 'automate',
     label: 'Automate',
-    intro: 'Found under Virtual Go Plus, Eggs, Buddy Emotion Engine, Gifts, Raids/gyms/Dynamax, inventory controls, and Events. The next update adds a separate Automation hub for tasks you start manually.',
+    intro: 'Found under Virtual Go Plus, Eggs, Buddy Emotion Engine, Gifts, Raids/gyms/Dynamax, inventory controls, and Events. Automation groups tasks you start manually.',
     items: [
       { name: 'Virtual Go Plus', detail: 'Catch nearby wild Pokémon with red balls only and spin stops; starts off and stops when the app is backgrounded.' },
-      { name: 'VGP+', detail: 'Experimental.3 adds ball, berry, throw, and premium/candy rules, reaches loaded Pokémon past the 40 m cutoff, and optionally spins nearby gym discs through the VGP controls.' },
+      { name: 'VGP+', detail: 'Includes ball, berry, throw, and premium/candy rules, reaches loaded Pokémon past the 40 m cutoff, and optionally spins nearby gym discs through the VGP controls.' },
       { name: 'Auto incubate eggs', detail: 'Uses the unlimited incubator only, by shortest or longest distance.' },
-      { name: 'Buddy Emotion Engine', detail: 'Experimental.3 adds snapshots, petting, and reserve-aware berry feeding with optional gift collection; it replaces Auto feed buddy.' },
-      { name: 'Gym Slotter & Berry Feeder', detail: 'Experimental.3 deploys Gym-tagged defenders to open friendly gym slots and feeds defenders; two independent toggles, both off by default, run from one draggable overlay.' },
-      { name: 'Daily Incense Session (upcoming)', detail: 'A manually started walk for up to 15 minutes. Loaded Galarian bird detection stops walking and VGP, attempts to open the encounter, and alerts you to catch manually. The live bird handoff is not yet verified.' },
-      { name: 'Remote Gym Feeding (upcoming)', detail: 'Run one batch for gyms you defend, using surplus Nanab, Razz, and optional Pinap above your reserves. Stop cancels unsent work; game limits still apply.' },
-      { name: 'Batch evolution', detail: 'Experimental.3 previews a tagged batch, then evolves each eligible Pokémon once without the cutscene; no automatic Lucky Egg. In the next update, find it as Mass Evolve under Settings or Quick Menu > Automation.' },
+      { name: 'Buddy Emotion Engine', detail: 'Includes snapshots, petting, and reserve-aware berry feeding with optional gift collection; it replaces Auto feed buddy.' },
+      { name: 'Gym Slotter & Berry Feeder', detail: 'Deploys Gym-tagged defenders to open friendly gym slots and feeds defenders; two independent toggles, both off by default, run from one draggable overlay.' },
+      { name: 'Daily Incense Session', detail: 'A manually started walk for up to 15 minutes. Loaded Galarian bird detection stops walking and VGP, attempts to open the encounter, and alerts you to catch manually. The live bird handoff is not yet verified.' },
+      { name: 'Remote Gym Feeding', detail: 'Run one batch for gyms you defend, using surplus Nanab, Razz, and optional Pinap above your reserves. Stop cancels unsent work; game limits still apply.' },
+      { name: 'Batch evolution', detail: 'Previews a tagged batch, then evolves each eligible Pokémon once without the cutscene; no automatic Lucky Egg. Find it as Mass Evolve under Settings or Quick Menu > Automation.' },
       { name: 'Friend gifts', detail: 'Open and send gifts, with optional stickers.' },
       { name: 'Battles', detail: 'Assist with Team Rocket, raids, gyms, and Dynamax / Max encounters.' },
       { name: 'Events (Halloween 2026)', detail: 'Optionally open every visible map box and skip encounter screens; it does not catch the encounters. Experimental and off by default.' },
