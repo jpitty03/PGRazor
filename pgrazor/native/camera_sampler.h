@@ -62,7 +62,7 @@ enum PgrCameraSamplerStatus {
   PGR_CS_ERR_MANAGED       = -13, // a managed getter threw
   PGR_CS_ERR_METADATA      = -14, // a resolved object had the wrong class
   PGR_CS_ERR_LAYER         = -15, // LayerMask.NameToLayer("WorldMap") != 13
-  PGR_CS_ERR_VECTOR        = -16  // forward vector non-finite or vertical (degenerate yaw)
+  PGR_CS_ERR_VECTOR        = -16  // forward vector non-finite; vertical yaw is temporarily unavailable
 };
 
 // out.reason classifies both the 0 refusals and the negative faults. Mirrors the JS cameraUnavailable /

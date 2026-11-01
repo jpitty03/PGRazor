@@ -835,6 +835,17 @@ int main(int argc, char **argv) {
    puts("PASS compiled64 source+real48 bounded diagnostics driven by real48 post-original subscribers,20-sample limit and balanced roots");return 0;
   }
   auto natural_getter=[&](){run_execute();call_getter();api->tick(gettid());};
+  if(argc>2&&std::strcmp(argv[2],"vertical")==0){
+   for(int i=0;i<4;++i){renew();run_execute();}
+   renew();natural_getter();assert(sample().sample_count==1);drain_all(api);
+   g_vector.x=0.0f;g_vector.y=-1.0f;g_vector.z=0.0f;
+   for(int i=0;i<4;++i){renew();natural_getter();}
+   assert(sample().active&&!sample().stopping&&sample().sample_count==1&&!g_state.sample_error[0]&&g_handles.empty());
+   auto events=drain_all(api);bool unavailable=false;for(auto &e:events)unavailable|=strstr(e.json,"vertical-forward-vector")!=nullptr;assert(unavailable);
+   g_vector.x=1.0f;g_vector.y=0.0f;g_vector.z=0.0f;
+   renew();natural_getter();assert(sample().active&&sample().sample_count==2&&g_handles.empty());
+   puts("PASS continuous camera invalidates vertical heading and recovers next valid sample without restart");return 0;
+  }
   if(argc>2&&std::strcmp(argv[2],"longrun")==0){
    for(unsigned i=0;i<PGR_CH_CALLS_MAX+10;++i){renew();run_execute();}
    assert(sample().active&&!g_state.overflow&&sample().calls>PGR_CH_CALLS_MAX);
@@ -896,6 +907,6 @@ int main(int argc, char **argv) {
   unsigned original_calls=g_getter_calls;call_getter();assert(g_getter_calls==original_calls+1&&sample().hook_installed);
   assert(api->start(&opts)==PGR_CH_ERR_RESTART_REQUIRED);assert(g_handles.empty());
   puts("PASS actual64 ABI+compiled64 source+real41 +real48 API3/Dobby: idle Unity getter boundary, in-ExecuteTasks/subscriber exclusion, generation and attachment gates, pinned roots, relocation refresh, original exception, revoke, foreign stop, permanent passthrough");
-  if(argc==2)for(const char *mode:{"bounded","transport"}){pid_t child=fork();assert(child>=0);if(!child){execl(argv[0],argv[0],argv[1],mode,static_cast<char*>(nullptr));_exit(127);}int status=0;assert(waitpid(child,&status,0)==child&&WIFEXITED(status)&&WEXITSTATUS(status)==0);}
+  if(argc==2)for(const char *mode:{"bounded","transport","vertical"}){pid_t child=fork();assert(child>=0);if(!child){execl(argv[0],argv[0],argv[1],mode,static_cast<char*>(nullptr));_exit(127);}int status=0;assert(waitpid(child,&status,0)==child&&WIFEXITED(status)&&WEXITSTATUS(status)==0);}
   return 0;
 }

@@ -332,7 +332,7 @@ int main(int argc, char **argv) {
     assert(api->sample(&r, &out) == PGR_CS_UNAVAILABLE && out.reason == 8 && g_handles.empty());
   }
 
-  // 8. degenerate forward vectors are faults (no garbage output).
+  // 8. Non-finite vectors fault; vertical headings are transiently unavailable.
   reset();
   {
     g_vector = {&cls_vector, INFINITY, 0.0f, 0.0f};
@@ -343,7 +343,9 @@ int main(int argc, char **argv) {
   {
     g_vector = {&cls_vector, 0.0f, 1.0f, 0.0f};  // purely vertical: hypot(x,z)==0
     PgrCameraSamplerRequest r = make_request(tid, 2000, &g_rig, &g_camera);
-    assert(api->sample(&r, &out) == PGR_CS_ERR_VECTOR && out.reason == 16 && g_handles.empty());
+    assert(api->sample(&r, &out) == PGR_CS_UNAVAILABLE && out.reason == 16 && out.x == 0.0 && g_handles.empty());
+    g_vector = {&cls_vector, 1.0f, 0.0f, 0.0f};
+    assert(api->sample(&r, &out) == PGR_CS_SAMPLE && std::fabs(out.yaw-90.0)<1e-6 && g_handles.empty());
   }
 
   // 9. yaw quadrants: atan2(x,z) in degrees, normalised to [0,360).
@@ -440,7 +442,7 @@ int main(int argc, char **argv) {
   puts("PASS camera sampler: ABI (config 216 / request 40 / output 72 / table 24) + offsets, install/"
        "validation/bad-layer/idempotence/reconfig, owner+attach+lease gate, non-map-rig/null-camera/"
        "camera-mismatch, layer-mismatch fault + cache, full reading + every field, map-hidden mask/layer, "
-       "null-transform, nonfinite/vertical faults, yaw quadrants, managed throws, gchandle failures (no "
+       "null-transform, nonfinite faults/vertical recovery, yaw quadrants, managed throws, gchandle failures (no "
        "partials), vector + camera relocation re-resolve, lease-expiry fresh-clock, reentrancy busy, owner "
        "latch (foreign thread refused), all roots balance");
   dlclose(lib);

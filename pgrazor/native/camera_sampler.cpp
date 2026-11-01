@@ -249,7 +249,9 @@ int run_sample(const PgrCameraSamplerRequest *request, uint64_t deadline, Result
   if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z)) {
     r.reason = PGR_CS_REASON_NONFINITE; return PGR_CS_ERR_VECTOR;
   }
-  if (std::sqrt(x * x + z * z) < 1e-6) { r.reason = PGR_CS_REASON_VERTICAL; return PGR_CS_ERR_VECTOR; }
+  // A top-down camera has no horizontal heading. It can occur during normal
+  // transitions; withhold this sample without disabling subsequent sampling.
+  if (std::sqrt(x * x + z * z) < 1e-6) { r.reason = PGR_CS_REASON_VERTICAL; return PGR_CS_UNAVAILABLE; }
   r.x = x; r.y = y; r.z = z;
   r.yaw = std::fmod(std::atan2(x, z) * 180.0 / kPi + 360.0, 360.0);
 

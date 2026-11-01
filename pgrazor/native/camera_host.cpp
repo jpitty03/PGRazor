@@ -1078,6 +1078,8 @@ const char *map_sampler_unavailable_reason(uint32_t code) {
       return "camera-transform-unavailable";
     case PGR_CS_REASON_MAP_HIDDEN:
       return "map-hidden";
+    case PGR_CS_REASON_VERTICAL:
+      return "vertical-forward-vector";
     default:
       return "camera-unavailable";
   }
@@ -1549,7 +1551,7 @@ void execute_sample_locked(uint64_t tid, void *rig_receiver,
       if (probe_reason || unavail_reason) break;
 
       if (std::hypot(coords[0], coords[2]) < 1e-6) {
-        probe_reason = "vertical-forward-vector";
+        unavail_reason = "vertical-forward-vector";
         break;
       }
       double yaw_degrees =

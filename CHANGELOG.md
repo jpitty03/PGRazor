@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Recover map readiness after a temporary straight-down camera angle instead of permanently stopping camera sampling and leaving VGP or buddy care waiting for the map.
+
 ## v0.1.7
 
 [Full release notes](docs/releases/v0.1.7.md)
