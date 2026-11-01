@@ -200,11 +200,24 @@ int run(const char *library){
  const auto *scheduler=static_cast<const PgrUnitySchedulerApi*>(core->query_feature(48,2));assert(scheduler);
  PgrUnitySchedulerConfig cfg{};cfg.version=2;cfg.size=sizeof(cfg);cfg.runtime_invoke=reinterpret_cast<void*>(invoke);cfg.runtime_invoke_convert_args=reinterpret_cast<void*>(convert);cfg.execute_tasks=&execute_token;cfg.thread_current=thread;cfg.verify_metadata=verify;cfg.expected_owner_tid=gettid();cfg.exclusive_owner=1;cfg.subscriber_count=1;cfg.subscribers[0].end=host->on_unity_pulse;
  assert(scheduler->install(&cfg)==0);assert(scheduler->activate());pulse();pulse();pulse();PgrInventoryHostSample gauge{};assert(host->sample(&gauge)==0&&(gauge.capabilities&56)==56);
- pulse(1);assert(originals[0]==1);pulse(2);assert(originals[2]==1);pause_ms(120);pulse();assert(open_calls==1&&originals[3]==1);
- pulse(3);assert(sequence_return==1&&originals[5]==1&&sequence.fields[H_GF_F_SEQ_STATE]==3);
- pulse(4);assert(originals[4]==1);pulse(5);assert(originals[8]==0);pulse();assert(send_calls==1&&reserves==1&&returns==1&&originals[6]==1&&originals[7]==1);
+ std::thread foreign([]{call_prof_open(&profile,nullptr);});foreign.join();
+ assert(originals[0]==1&&live.empty());originals[0]=0;
+ // Normal Unity UI callbacks occur outside ExecuteTasks. They must be captured
+ // on its proven owner, with automation still issued by the following pulse.
+ call_prof_open(&profile,nullptr);assert(originals[0]==1);
+ call_ready(&open_gui,nullptr);assert(originals[2]==1);
+ assert(open_calls==0);pause_ms(120);pulse();assert(open_calls==1&&originals[3]==1);
+ sequence_return=call_seq(&sequence,nullptr);assert(sequence_return==1&&originals[5]==1&&sequence.fields[H_GF_F_SEQ_STATE]==3);
+ call_close(&open_gui,nullptr);assert(originals[4]==1);
+ call_choose(&panel,nullptr);assert(originals[8]==0&&send_calls==0);
+ pulse();pulse();assert(send_calls==1&&reserves==1&&returns==1&&originals[6]==1&&originals[7]==1);
  unsigned permissions=0;bool issued=false,confirmed=false,skipped=false;PgrInventoryHostEvent event{};while(host->next_event(&event)==0){if(strstr(event.json,"gift-permission")){++permissions;assert(strstr(event.json,"\"mask\":7")&&strstr(event.json,"\"allowed\":true"));}if(strstr(event.json,"gift-bundled-request"))issued=true;if(strstr(event.json,"gift-bundled-result")&&strstr(event.json,"\"success\":true"))confirmed=true;if(strstr(event.json,"gift-presentation-skipped"))skipped=true;}assert(issued&&confirmed&&skipped&&permissions==1);
- pulse(6);assert(originals[1]==1);assert(host->stop()==0);pulse();assert(host->sample(&gauge)==0&&gauge.roots==0&&live.empty());
+ call_prof_close(&profile,nullptr);assert(originals[1]==1);
+ PgrUnitySchedulerSnapshot scheduler_state{};assert(scheduler->snapshot(&scheduler_state)==0);
+ assert(scheduler->revoke(scheduler_state.generation)==0);call_prof_open(&profile,nullptr);
+ assert(host->sample(&gauge)==0&&gauge.roots==0&&live.empty());
+ assert(scheduler->activate());pulse();
+ assert(host->stop()==0);pulse();assert(host->sample(&gauge)==0&&gauge.roots==0&&live.empty());
  // Stopped shared replacements preserve manual originals without new transactions.
  pulse(5);assert(originals[8]==1&&send_calls==1);
  puts("PASS actual65 social: actual48 owner inspector + all9 Dobby sites;17 incoming open and sequence skip;22 bundled send/sticker reserve/result/finally; telemetry, stopped originals and root balance. Synthetic56/managed world.");return 0;

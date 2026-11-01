@@ -178,7 +178,14 @@ bool is_open(void *root){void *p=target(root);return alive(p)&&read_int(target(r
 std::string managed_text(void *p){if(!exact(p,c(OC_STRING)))return "";int n=reinterpret_cast<int(*)(void*)>(rt.string_length)(p);if(n<1||n>256)return "";auto chars=reinterpret_cast<const uint16_t*(*)(void*)>(rt.boot.string_chars)(p);if(!chars)return "";std::string result;for(int i=0;i<n;++i){uint32_t u=chars[i];if(u>=0xd800&&u<=0xdbff&&i+1<n&&chars[i+1]>=0xdc00&&chars[i+1]<=0xdfff){u=0x10000+((u-0xd800)<<10)+(chars[++i]-0xdc00);}if(u<128)result+=char(u);else if(u<2048){result+=char(0xc0|(u>>6));result+=char(0x80|(u&63));}else if(u<65536){result+=char(0xe0|(u>>12));result+=char(0x80|((u>>6)&63));result+=char(0x80|(u&63));}else{result+=char(0xf0|(u>>18));result+=char(0x80|((u>>12)&63));result+=char(0x80|((u>>6)&63));result+=char(0x80|(u&63));}}return result;}
 std::string identity(void *f){if(!exact(f,c(OC_FRIEND_DETAILS)))return "";void *p=read_ref(f,h(H_GF_F_PLAYER));if(!exact(p,c(OC_PLAYER_SUMMARY)))return "";return managed_text(read_ref(p,h(H_GF_F_PLAYER_ID)));}
 bool observation_allowed(){uint64_t tid=gettid();if(stopping.load()||tid!=owner.load()||!attached(tid)||ticks.load()<3)return false;
- if(busy.load())return true;auto api=static_cast<const PgrUnitySchedulerApi3*>(pgrazor_unity_scheduler_api(3));return api&&api->executing_generation(tid)!=0;}
+ // Friend UI and RPC callbacks also arrive between ExecuteTasks frames. The
+ // scheduler has already proven this attached Unity owner; require its live
+ // generation, not an ExecuteTasks frame currently on the stack. Leaf leases
+ // still gate actions and the scheduled tick performs opening/sending.
+ auto api=static_cast<const PgrUnitySchedulerApi3*>(pgrazor_unity_scheduler_api(3));
+ if(!api||!api->snapshot||!api->valid)return false;
+ PgrUnitySchedulerSnapshot s{};
+ return api->snapshot(&s)==0&&s.installed&&!s.poisoned&&s.owner_tid==int64_t(tid)&&s.generation&&api->valid(s.generation)==1;}
 void reset_profile(){if(profile&&(caps.load()&PGR_IH_OUTGOING))outgoing()->observe(0,target(profile),nullptr,gettid());drop(open_gui);drop(profile);friend_id.clear();profile_checked=false;profile_failed=false;profile_next=profile_deadline=0;}
 void incoming_ready(void *gui){if(!exact(gui,c(OC_GIFT_6240)))return;if(caps.load()&PGR_IH_INCOMING)incoming()->observe(1,gui,gettid());if(profile){drop(open_gui);open_gui=hold(gui);}}
 void social_observe(unsigned kind,void *self,void *arg=nullptr){

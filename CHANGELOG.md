@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Restore automatic gift opening and sending when friend-screen callbacks arrive between native scheduler ticks.
+
 - Reduce VGP+ idle scene scans from up to 10 per second to 1 per second, retaining responsive pending catches and cancellation.
 
 - Preserve the trainer profile's scroll position during background player-stat updates, including VGP+ catches and transfers.
