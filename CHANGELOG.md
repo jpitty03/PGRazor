@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reduce VGP+ idle scene scans from up to 10 per second to 1 per second, retaining responsive pending catches and cancellation.
+
 - Preserve the trainer profile's scroll position during background player-stat updates, including VGP+ catches and transfers.
 
 - Make buddy care lighter and usable behind menus: idle checks run once per second, with one scene lookup per evaluation and berry-selection service lookups reduced from up to 5 to 1. Cancellation stays responsive.

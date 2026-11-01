@@ -637,7 +637,11 @@ void tickScan(const PgrVgpControllerTick *in, PgrVgpControllerOut *o, uint64_t n
     setStatus(o, PGR_VGC_ST_CLEAN_INV);
     return;
   }
-  const int armed = POL->arm(owner, smartEnabled(smartConfig())?100:2500);
+  // Discovery walks Unity's scene and allocates a managed array. When idle,
+  // scan at most once per second; pending RPC polling/cancellation still uses
+  // its separate 100 ms path above tickScan. Completion/retry delays can still
+  // replace this deadline with their existing, longer backoff.
+  const int armed = POL->arm(owner, smartEnabled(smartConfig())?1000:2500);
   if (armed < 0) { pauseError(o, armed); return; }
 
   uint64_t svcRoot = reinterpret_cast<uint64_t>(ITM->service_acquire());  // OWNED gc handle

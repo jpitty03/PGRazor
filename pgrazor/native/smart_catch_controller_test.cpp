@@ -12,6 +12,13 @@ std::string smart_text="1;1;3;0;1;1500;30;3;1;";
 int selected_calls=0,berry_calls=0,berry_confirmations=0,plans=0;
 int desired_berry=705;
 int encounter_accepted=1;
+uint64_t idle_clock=0,idle_deadline=0;
+unsigned idle_enumerations=0;
+int idle_due(uint64_t){return idle_clock>=idle_deadline?PGR_VP_YES:PGR_VP_OK;}
+int idle_arm(uint64_t,uint64_t delay){idle_deadline=idle_clock+delay;return 0;}
+int idle_enumerate(uint32_t kind,uint64_t owner,uint64_t lease,PgrVgpDiscoveryEnumeration *out){
+ ++idle_enumerations;return dsc_enumerate(kind,owner,lease,out);
+}
 bool (*admission)(void*)=nullptr;void *admission_context=nullptr;
 uint64_t clock_ms(){return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();}
 int smart_string(uint32_t index,char *out,uint32_t cap,uint32_t *len){assert(index==7);*len=smart_text.size();if(cap<*len)return -1;memcpy(out,smart_text.data(),*len);return 0;}
@@ -43,7 +50,7 @@ void confirm_berry_then_throw(){
  g_pollRc=PGR_VR_DONE;next_poll();o=step();assert(o.phase==PGR_VGC_PH_SMART_WAIT&&selected_calls==before);
  next_poll();o=step();assert(o.phase==PGR_VGC_PH_CATCH&&selected_calls==before+1);
 }
-void assert_clean(){PgrVgpControllerSample s{};assert(api->sample(&s)==0);assert(s.roots==0&&roots.empty());}
+void assert_clean(){PgrVgpControllerSample s{};assert(api->sample(&s)==0);if(s.roots||!roots.empty())std::fprintf(stderr,"roots=%llu handles=%zu phase=%u idle_clock=%llu\n",(unsigned long long)s.roots,roots.size(),s.phase,(unsigned long long)idle_clock);assert(s.roots==0&&roots.empty());}
 }
 extern "C" int pgr_smart_parse_settings(const char *text,size_t len,PgrSmartSettings *out){
  if(!out)return PGR_SMART_ERR_NULL_ARG;*out={};out->enabled=len>3&&text&&text[0]=='1'&&text[2]=='1';return 0;
@@ -67,6 +74,14 @@ int main(){
  api=static_cast<const PgrVgpControllerApi*>(pgrazor_vgp_controller_api(1));assert(api);tid=gettid();
  smart_transport.version=1;smart_transport.size=sizeof(smart_transport);smart_transport.get_string=smart_string;smart_transport.emit=smart_emit;
  auto cfg=makeConfig();assert(api->install(&cfg)==0);pgr_vgp_smart_escape_status(2);
+ // Thirty minutes of simulated 10 Hz host ticks: empty discovery must remain
+ // bounded, release all roots, and still find a new target at the next deadline.
+ resetScenario();g_count=0;POL.due=idle_due;POL.arm=idle_arm;DSC.enumerate=idle_enumerate;
+ for(idle_clock=0;idle_clock<1800000;idle_clock+=100){step();assert_clean();}
+ assert(idle_enumerations==1800&&selected_calls==0&&berry_calls==0);
+ g_count=1;auto found=step();assert(found.phase==PGR_VGC_PH_ENCOUNTER);
+ auto disabled=smart_tick();disabled.mask=0;g_pollRc=PGR_VR_DONE;next_poll();run(disabled);assert_clean();
+ POL.due=pol_due;POL.arm=pol_arm;DSC.enumerate=dsc_enumerate;
  uint64_t entered=begin_wait();
  // Neither berry nor throw may issue in the first 1.2 seconds following encounter success.
  while(clock_ms()-entered<1150){usleep(20000);auto o=step();assert(o.phase==PGR_VGC_PH_SMART_WAIT&&berry_calls==0&&selected_calls==0);}

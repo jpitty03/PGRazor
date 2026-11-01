@@ -75,6 +75,11 @@ def main(argv=None):
             entry = {'source': str(source.relative_to(root)), 'source_sha256': native_build.sha256(source)}
             receipt['tests'].append(entry)
             extra_flags = []
+            if source.stem == 'smart_catch_controller_test':
+                controller = root / 'native/vgp_controller.cpp'
+                extra_flags = [controller]
+                entry['controller_sha256'] = native_build.sha256(controller)
+                entry['fixture_base_sha256'] = native_build.sha256(root / 'native/vgp_controller_test.cpp')
             if source.stem in ('event_collector_test', 'profile_scroll_test'):
                 vendor = native_build.ensure_dobby(root, download=False)
                 extra_flags = ['-fexceptions', '-I'+str(vendor/'include'), '-llog']
