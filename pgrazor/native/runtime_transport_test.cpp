@@ -192,6 +192,7 @@ int main(int argc, char **argv) {
     s.strings[2] = u8"berryÃ©";          // effectiveBerryPriority (multibyte UTF-8)
     s.strings[5] = "cmd";                    // accountCommandSnapshot[0]
     s.strings[6] = "18446744073709551615";   // accountCommandSnapshot[1] (beyond JS precision)
+    s.strings[12] = "1|123|0|0|0|0|0|1";     // one-shot automation (frame v9)
     assert(push(s.frame()) == PGR_TRANSPORT_OK);
 
     int bv = 0; assert(api->get_bool(3, &bv) == PGR_TRANSPORT_OK && bv == 1);
@@ -204,6 +205,7 @@ int main(int argc, char **argv) {
     assert(api->get_double(1, &dv, &has) == PGR_TRANSPORT_OK && has == 0);  // NaN -> null coord
     char buf[64]; uint32_t n = 0;
     assert(api->get_string(0, buf, sizeof(buf), &n) == PGR_TRANSPORT_OK && std::string(buf, n) == "signin");
+    assert(api->get_string(12, buf, sizeof(buf), &n) == PGR_TRANSPORT_OK && std::string(buf, n) == s.strings[12]);
     assert(api->get_string(2, buf, sizeof(buf), &n) == PGR_TRANSPORT_OK && std::string(buf, n) == u8"berryÃ©");
     char cmd[32], tok[32]; uint32_t cl = 0, tl = 0;
     assert(api->get_command_snapshot(cmd, sizeof(cmd), &cl, tok, sizeof(tok), &tl) == PGR_TRANSPORT_OK);

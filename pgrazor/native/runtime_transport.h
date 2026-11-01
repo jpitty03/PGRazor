@@ -42,14 +42,14 @@ enum PgrRuntimeTransportInfo {
   PGR_TRANSPORT_API_VERSION     = 1,
   PGR_TRANSPORT_CONFIG_VERSION  = 1,
   PGR_TRANSPORT_SAMPLE_VERSION  = 1,
-  PGR_TRANSPORT_FRAME_VERSION   = 8,
+  PGR_TRANSPORT_FRAME_VERSION   = 9,
 
-  // Version 8 appends session-only batch evolution commands at string slot 11.
+  // Version 9 appends one-shot automation commands at string slot 12.
   // 40+10+2+6 scalar readers plus accountCommandSnapshot; 3 pulses; 59 actions.
   PGR_TRANSPORT_BOOLS           = 40,
   PGR_TRANSPORT_INTS            = 10,
   PGR_TRANSPORT_DOUBLES         = 2,
-  PGR_TRANSPORT_STRINGS         = 12,   // 5 strings + account command/token pair + smart catch config
+  PGR_TRANSPORT_STRINGS         = 13,   // 5 strings + account command/token pair + smart catch config
   PGR_TRANSPORT_PULSES          = 3,
   PGR_TRANSPORT_ACTIONS         = 59,
 

@@ -28,6 +28,8 @@ public final class Pad {
     private OverlayDrag buddyEmotionDrag;
     private GymFeedOverlay gymFeedOverlay;
     private TextView gymAutomationStatus;
+    private TextView automationStatus;
+    private OverlayDrag automationDrag;
     private OverlayDrag gymFeedDrag;
     private VgpMarker vgpMarker;
     // Draggable, position-persisting handles for the cooldown and VGP overlays.
@@ -57,6 +59,11 @@ public final class Pad {
         if(joystickOverlay!=null){joystickOverlay.setBackground(null);stick.setAlpha(0.6f);styleTree(joystickOverlay);stick.invalidate();}
         if(encounterBerry!=null)encounterBerry.invalidate();
         if(cooldownTimer!=null)cooldownTimer.setBackground(rounded(Control.darkTheme()?0xcc141b25:0xccf1f5f8,12));
+        // Status pill backgrounds depend only on the theme; refresh() must not reallocate them every tick.
+        if(gymAutomationStatus!=null)gymAutomationStatus.setBackground(rounded(surface(),8));
+        if(buddyEmotionStatus!=null)buddyEmotionStatus.setBackground(rounded(surface(),10));
+        if(automationStatus!=null)automationStatus.setBackground(rounded(surface(),8));
+        if(vgpActivity!=null)vgpActivity.setBackground(rounded(surface(),10));
         if(transferToggle!=null)transferToggle.invalidate();
         if(gameRoutesOverlay!=null)gameRoutesOverlay.invalidate();
         if(quickMenu!=null)quickMenu.applyTheme();
@@ -123,6 +130,10 @@ public final class Pad {
         gymAutomationStatus=text("Off",11,ink());gymAutomationStatus.setPadding(dp(6),dp(3),dp(6),dp(3));gymAutomationStatus.setMaxLines(1);gymAutomationStatus.setMaxWidth(dp(165));gymAutomationStatus.setEllipsize(android.text.TextUtils.TruncateAt.END);
         parent.addView(gymAutomationStatus,new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.LEFT));
         gymFeedDrag=OverlayDrag.attach(parent,gymFeedOverlay,gymAutomationStatus,"gym-feed");
+        automationStatus=text("",11,ink());automationStatus.setPadding(dp(8),dp(5),dp(8),dp(5));automationStatus.setMaxLines(3);
+        FrameLayout.LayoutParams automationLayout=new FrameLayout.LayoutParams(dp(220),-2,Gravity.TOP|Gravity.LEFT);automationLayout.leftMargin=dp(12);automationLayout.topMargin=dp(440);
+        parent.addView(automationStatus,automationLayout);automationStatus.setVisibility(View.GONE);
+        automationStatus.setOnClickListener(v->AutomationPanel.show(activity));automationDrag=OverlayDrag.attach(parent,automationStatus,"automation");
         // The toggle is the drag handle; the status pill follows it as one coherent unit. Tap still flips VGP.
         vgpDrag=OverlayDrag.attach(parent,vgpToggle,vgpActivity,"vgp");
         vgpMarker=new VgpMarker(host);parent.addView(vgpMarker,new FrameLayout.LayoutParams(dp(38),dp(46)));vgpMarker.setVisibility(View.GONE);
@@ -237,23 +248,29 @@ public final class Pad {
     private void refresh() {
         applyMapScale();
         if(gymFeedOverlay!=null)gymFeedOverlay.refresh(!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing()));
-        if(gymAutomationStatus!=null){gymAutomationStatus.setVisibility(gymFeedOverlay.getVisibility());gymAutomationStatus.setText(GymAutomationSettings.overlayStatus());gymAutomationStatus.setTextColor(ink());gymAutomationStatus.setBackground(rounded(surface(),8));gymFeedDrag.refreshBounds();}
+        if(gymAutomationStatus!=null){gymAutomationStatus.setVisibility(gymFeedOverlay.getVisibility());setTextIfChanged(gymAutomationStatus,GymAutomationSettings.overlayStatus());gymAutomationStatus.setTextColor(ink());gymFeedDrag.refreshBounds();}
         if(vgpToggle!=null){vgpToggle.setVisibility(Control.vgpOverlayVisible()&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);vgpToggle.setContentDescription("Virtual Go Plus "+(Control.vgpEnabled()?"on; tap to turn off":"off; tap to turn on")+". "+Control.vgpStatus());vgpToggle.invalidate();}
 
         // Pair the status line with the toggle so the cooldown shutoff reason is visible even when VGP is off.
-        if(buddyEmotionStatus!=null){buddyEmotionStatus.setVisibility(BuddyEmotionSettings.overlayEnabled()&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);buddyEmotionStatus.setText(BuddyEmotionSettings.status());buddyEmotionStatus.setTextColor(ink());buddyEmotionStatus.setBackground(rounded(surface(),10));}
-        if(vgpActivity!=null){vgpActivity.setVisibility(Control.vgpOverlayVisible()&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);vgpActivity.setText("VGP  |  "+Control.vgpStatus());vgpActivity.setTextColor(ink());vgpActivity.setBackground(rounded(surface(),10));}
+        if(buddyEmotionStatus!=null){buddyEmotionStatus.setVisibility(BuddyEmotionSettings.overlayEnabled()&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);setTextIfChanged(buddyEmotionStatus,BuddyEmotionSettings.status());buddyEmotionStatus.setTextColor(ink());}
+        if(automationStatus!=null){automationStatus.setVisibility(OneShotAutomation.overlayVisible()&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);setTextIfChanged(automationStatus,OneShotAutomation.overlayStatus());automationStatus.setTextColor(ink());automationDrag.refreshBounds();}
+        if(vgpActivity!=null){vgpActivity.setVisibility(Control.vgpOverlayVisible()&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);setTextIfChanged(vgpActivity,"VGP  |  "+Control.vgpStatus());vgpActivity.setTextColor(ink());}
         if(vgpMarker!=null){boolean show=Control.vgpTargetVisible()&&!settings.isVisible();vgpMarker.setVisibility(show?View.VISIBLE:View.GONE);if(show){vgpMarker.setX(Control.vgpTargetX()*parent.getWidth()-dp(19)*vgpMarker.getScaleX());vgpMarker.setY(Control.vgpTargetY()*parent.getHeight()-dp(36)-dp(46)*vgpMarker.getScaleY());vgpMarker.invalidate();}}
         if(transferToggle!=null){transferToggle.setVisibility(Control.transferOverlayVisible()&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);transferToggle.setContentDescription(transferToggleDescription());transferToggle.invalidate();}
 
         String routeReward=Control.takeGameRoutesRewardNotice();
         if(!routeReward.isEmpty())Toast.makeText(activity,routeReward,Toast.LENGTH_LONG).show();
         if(gameRoutesOverlay!=null)gameRoutesOverlay.refresh(!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing()));
-        if(cooldownTimer!=null){cooldownTimer.setVisibility(Control.cooldownOverlay()?View.VISIBLE:View.GONE);cooldownTimer.setText("☰  "+Cooldown.label());cooldownTimer.setTextColor(Cooldown.remaining()>0?Color.rgb(255,186,95):accent());}
+        if(cooldownTimer!=null){cooldownTimer.setVisibility(Control.cooldownOverlay()?View.VISIBLE:View.GONE);setTextIfChanged(cooldownTimer,"☰  "+Cooldown.label());cooldownTimer.setTextColor(Cooldown.remaining()>0?Color.rgb(255,186,95):accent());}
         if (lastEnabled != Control.engine.enabled) { lastEnabled = Control.engine.enabled; stick.invalidate(); }
         if(encounterBerry!=null)encounterBerry.refresh();
         if(quickMenu!=null)quickMenu.onRefresh();
-        settings.refresh();
+        // The hidden panel is GONE; openSettings() refreshes it immediately after show().
+        if(settings.isVisible())settings.refresh();
+    }
+    /** TextView.setText requests a layout pass even for identical text; this tick runs every 100 ms. */
+    private static void setTextIfChanged(TextView view,CharSequence value){
+        if(!android.text.TextUtils.equals(view.getText(),value))view.setText(value);
     }
     private final Runnable tick = new Runnable() {
         public void run() {
@@ -399,6 +416,7 @@ public final class Pad {
         if(cooldownDrag!=null){cooldownDrag.detach();cooldownDrag=null;}if(vgpDrag!=null){vgpDrag.detach();vgpDrag=null;}if(transferDrag!=null){transferDrag.detach();transferDrag=null;}if(gameRoutesDrag!=null){gameRoutesDrag.detach();gameRoutesDrag=null;}
         if(buddyEmotionDrag!=null){buddyEmotionDrag.detach();buddyEmotionDrag=null;}
         if(buddyEmotionStatus!=null)parent.removeView(buddyEmotionStatus);
+        if(automationStatus!=null){parent.removeView(automationStatus);automationStatus=null;}
         if(gymFeedDrag!=null){gymFeedDrag.detach();gymFeedDrag=null;}
         if(gymAutomationStatus!=null){parent.removeView(gymAutomationStatus);gymAutomationStatus=null;}
         if(gymFeedOverlay!=null){gymFeedOverlay.close();parent.removeView(gymFeedOverlay);gymFeedOverlay=null;}

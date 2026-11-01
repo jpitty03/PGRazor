@@ -835,8 +835,22 @@ int main(int argc, char **argv) {
    puts("PASS compiled64 source+real48 bounded diagnostics driven by real48 post-original subscribers,20-sample limit and balanced roots");return 0;
   }
   auto natural_getter=[&](){run_execute();call_getter();api->tick(gettid());};
+  if(argc>2&&std::strcmp(argv[2],"longrun")==0){
+   for(unsigned i=0;i<PGR_CH_CALLS_MAX+10;++i){renew();run_execute();}
+   assert(sample().active&&!g_state.overflow&&sample().calls>PGR_CH_CALLS_MAX);
+   renew();natural_getter();assert(sample().sample_count>0&&g_handles.empty());
+   g_state.calls=g_state.raw_matches=g_state.matches=UINT32_MAX;
+   renew();natural_getter();assert(sample().active&&sample().calls==UINT32_MAX&&sample().matches==UINT32_MAX);
+   // Explicit ExecuteTasks tracking must retain the same continuous semantics.
+   api->on_execute_enter(gettid(),1);api->on_execute_leave(gettid(),1);
+   assert(!g_state.overflow&&g_state.calls==UINT32_MAX);
+   // Diagnostic mode still has its strict observation budget.
+   g_state.continuous=false;g_state.calls=PGR_CH_CALLS_MAX;
+   api->on_execute_enter(gettid(),1);assert(g_state.overflow);
+   puts("PASS continuous camera survives 200000 calls and counter saturation; diagnostic budget retained");return 0;
+  }
   if(transport_mode){
-   uint64_t seq=0;unsigned heading_actions=0,telemetry_actions=0;auto frame=[&](bool enabled){std::vector<uint8_t> bytes(180,0);auto set=[&](size_t at,uint32_t v){memcpy(bytes.data()+at,&v,4);};set(0,PGR_TRANSPORT_SNAPSHOT_MAGIC);set(4,1);set(8,bytes.size());++seq;memcpy(bytes.data()+16,&seq,8);bytes[32+10]=enabled;uint32_t length=0;std::vector<uint8_t> output(65536);assert(transport->exchange(bytes.data(),bytes.size(),output.data(),output.size(),&length)==0);
+   uint64_t seq=0;unsigned heading_actions=0,telemetry_actions=0;auto frame=[&](bool enabled){std::vector<uint8_t> bytes(PGR_TRANSPORT_SNAPSHOT_FIXED+4*PGR_TRANSPORT_STRINGS,0);auto set=[&](size_t at,uint32_t v){memcpy(bytes.data()+at,&v,4);};set(0,PGR_TRANSPORT_SNAPSHOT_MAGIC);set(4,PGR_TRANSPORT_FRAME_VERSION);set(8,bytes.size());++seq;memcpy(bytes.data()+16,&seq,8);bytes[32+10]=enabled;uint32_t length=0;std::vector<uint8_t> output(65536);assert(transport->exchange(bytes.data(),bytes.size(),output.data(),output.size(),&length)==0);
     auto read=[&](size_t at){uint32_t v;memcpy(&v,output.data()+at,4);return v;};size_t at=32;for(unsigned n=0;n<read(12);++n){uint32_t op=read(at),ns=read(at+4),nt=read(at+8);at+=12+8*ns;heading_actions+=op==57;telemetry_actions+=op==19;for(unsigned j=0;j<nt;++j){uint32_t size=read(at);at+=4+size;}}assert(at==length);
    };
    frame(true);for(unsigned i=0;i<3;++i){renew();run_execute();}renew();natural_getter();assert(sample().sample_count==1);assert(g_handles.empty());

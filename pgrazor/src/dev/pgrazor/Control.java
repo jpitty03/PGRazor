@@ -38,6 +38,7 @@ public final class Control {
     public static void accountSessionSaved(){AccountProfiles.sessionSaved();}
     static Activity accountActivity(){return pad==null?null:pad.activity;}
     static void quiesceAccounts() throws IOException {
+        OneShotAutomation.reset();
         gameRoutes.stop("Account switch"); gameRoutesPlanning=false; gameRoutes.setPlanning(false); autoWalkPlanning=false;
         vgp.suspend();
         mapTapEpoch++; invalidateQuickBallOutcome();
@@ -95,6 +96,8 @@ public final class Control {
     public static volatile long latitudeReads, longitudeReads;
     private static PrintWriter log;
     private static File logFile;
+    private static long logBytes;
+    private static int logSegment;
     private static Pad pad;
     private static boolean registered;
     private static volatile long leaseDeadline;
@@ -237,7 +240,7 @@ public final class Control {
     public static void setBuddyStatus(String status){buddyStatus=status;}
     public static String buddyStatus(){return buddyStatus;}
     public static boolean buddyAvailable(){return buddyReady&&itemAccessAllowed();}
-    public static boolean buddySamplingRequested(){return (buddyBerry!=0||vgpEnabled||autoIncubate||GymAutomationSettings.enabled()||BuddyEmotionSettings.enabled()||BatchEvolutionSettings.enabled())&&hostLive();}
+    public static boolean buddySamplingRequested(){return (buddyBerry!=0||vgpEnabled||autoIncubate||GymAutomationSettings.enabled()||BuddyEmotionSettings.enabled()||BatchEvolutionSettings.enabled()||OneShotAutomation.enabled())&&hostLive();}
     // Legacy wire slot remains for ABI compatibility; Buddy Emotion owns all feeding.
     public static boolean buddyAllowed(){return false;}
     private static volatile boolean encounterBerryActive,encounterBerryBusy;
@@ -247,6 +250,9 @@ public final class Control {
     public static String smartCatchConfig(){return SmartCatchSettings.config();}
     public static String gymAutomationConfig(){return GymAutomationSettings.config();}
     public static String buddyEmotionConfig(){return BuddyEmotionSettings.config();}
+    public static boolean automationReady(){return hostLive()&&active()&&itemAccessAllowed();}
+    public static boolean automationPlanning(){return autoWalkPlanning||gameRoutesPlanning;}
+    public static String oneShotAutomationConfig(){return OneShotAutomation.config();}
     public static String batchEvolutionConfig(){return BatchEvolutionSettings.config();}
     public static String buddyEmotionHistory(){return BuddyEmotionSettings.history();}
     public static boolean encounterBerryVisible(){return encounterBerryEnabled&&catchScreenVisible();}
@@ -818,6 +824,7 @@ public final class Control {
         gameRoutes.stop("App left foreground; check the active in-game Route before restarting");
         gameRoutesPlanning=false;gameRoutes.setPlanning(false);
         requestInteractionStop();
+        OneShotAutomation.reset();
         foreground = false; autoWalkPlanning=false;mapPoiOpen=false;mapPoiSnapshot="";mapPoiAt=0; mapTapEpoch++; invalidateQuickBallOutcome(); cameraSampleRequest.set(false); invalidateCameraHeading("App backgrounded");
         // Losing the foreground switches VGP off, clears any target, and never auto-resumes.
         vgp.suspend();
@@ -898,7 +905,8 @@ public final class Control {
     }
     /** Idle motion shares the same location integrator and never owns an active route. */
     public static void stepMotion(double seconds,boolean joystickHeld){
-        engine.setIdleWalkingAllowed(hostLive()&&desiredEnabled&&!joystickHeld
+        OneShotAutomation.tick(joystickHeld);
+        engine.setIdleWalkingAllowed(hostLive()&&desiredEnabled&&!joystickHeld&&!OneShotAutomation.idleBlocked()
             &&!autoWalkPlanning&&!gameRoutesPlanning&&!gameRoutes.running()
             &&!cameraSamplePending()&&!interactionDiagnosticRunning());
         engine.step(seconds);
@@ -907,6 +915,7 @@ public final class Control {
     public static void setDarkTheme(boolean value){darkTheme=value;saveSettings();}
     public static void setJoystickVisible(boolean value){joystickVisible=value;saveSettings();}
     private static void loadSettings(Application app) {
+        OneShotAutomation.reset();
         BatchEvolutionSettings.reset();
         synchronized(stateLock) {
             if(settingsFile==null) {
@@ -1076,6 +1085,7 @@ public final class Control {
             try{setVgpStatus(new org.json.JSONObject(detail).optString("message","Waiting for gym disc"));}catch(Exception ignored){}
         }
         if("buddy-emotion".equals(kind))BuddyEmotionSettings.publish(detail);
+        if("remote-gym".equals(kind)||"incense-bird".equals(kind)||"incense-session".equals(kind)||"incense-open".equals(kind))OneShotAutomation.publish(kind,detail);
         if("batch-evolution".equals(kind))BatchEvolutionSettings.publish(detail);
         if("event-boxes".equals(kind)) {
             boolean available=false;
@@ -1086,10 +1096,31 @@ public final class Control {
         synchronized (logLock) {
             String line = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.US).format(new Date()) + " [" + kind + "] " + detail;
             Log.i("PGRazor", line);
-            if (log != null) log.println(line);
+            if (log != null) {
+                try {
+                    byte[] encoded=(line+"\n").getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                    if(logBytes+encoded.length>1048576L){
+                        log.close();
+                        logFile=new File(logFile.getParentFile(),new SimpleDateFormat("yyyyMMdd-HHmmss-SSS",Locale.US).format(new Date())+"-"+(++logSegment)+".txt");
+                        log=new PrintWriter(new FileOutputStream(logFile),true);logBytes=0;
+                        pruneLogs(logFile.getParentFile(),logFile,6);
+                    }
+                    // Bound an exceptional single event as well as ordinary segments.
+                    if(encoded.length>65536){line=line.substring(0,Math.min(line.length(),16000))+" [truncated]";encoded=(line+"\n").getBytes(java.nio.charset.StandardCharsets.UTF_8);}
+                    log.println(line);logBytes+=encoded.length;
+                }catch(IOException error){log=null;Log.e("PGRazor","File logging unavailable",error);}
+            }
         }
     }
+    private static void pruneLogs(File directory,File active,int keep) {
+        File[] files=directory.listFiles((dir,name)->name.matches("[0-9]{8}-[0-9]{6}-[0-9]{3}(-[0-9]+)?\\.txt"));
+        if(files==null)return;
+        java.util.Arrays.sort(files,(a,b)->b.getName().compareTo(a.getName()));
+        int retained=active==null?0:1;
+        for(File f:files){if(f.equals(active))continue;if(retained++>=keep&&!f.delete())Log.w("PGRazor","Unable to prune log "+f.getName());}
+    }
     private static void recoverRunLogs(Application app) {
+      synchronized(logLock) {
         try {
             File[] files=new File(app.getFilesDir(),"pgrazor-logs").listFiles((dir,name)->name.endsWith(".txt"));
             File destination=app.getExternalFilesDir("pgrazor-diagnostics");
@@ -1105,9 +1136,19 @@ public final class Control {
                     byte[] buffer=new byte[8192];
                     while(remaining>0){int n=in.read(buffer,0,(int)Math.min(buffer.length,remaining));if(n<0)break;out.write(buffer,0,n);remaining-=n;}
                 }
+                // Bound retained legacy sessions after their recent tail is exported.
+                if(source.length()>1048576L){
+                    try(RandomAccessFile old=new RandomAccessFile(source,"rw")){
+                        byte[] tail=new byte[524288];old.seek(old.length()-tail.length);old.readFully(tail);
+                        old.seek(0);old.write(tail);old.setLength(tail.length);
+                    }
+                }
             }
-            event("log-recovery","Recent run tails saved to app external diagnostics directory");
+            synchronized(logLock){pruneLogs(new File(app.getFilesDir(),"pgrazor-logs"),logFile,6);}
+            pruneLogs(destination,null,6);
+            event("log-recovery","Recent run tails saved; retaining six log segments and six diagnostic tails");
         }catch(IOException|RuntimeException error){event("log-recovery-error",error.toString());}
+      }
     }
     public static File currentLog() { return logFile; }
     // The staged profile's stationary fix is needed before login/map identity is available.

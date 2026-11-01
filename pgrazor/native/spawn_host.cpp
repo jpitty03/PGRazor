@@ -20,7 +20,7 @@ std::atomic<uint64_t> owner_tid{0},ticks{0};
 PgrSpawnHostConfig accepted{};uint32_t flags=0;bool bootstrap=false;
 void *thread_current=nullptr;const void *spawn_code=nullptr;
 PgrSpawnHostOptions policy{};uint64_t deadline=0;
-uint64_t sample_at=0;double previous_original=0,previous_effective=0;bool sampled=false;
+uint64_t sample_at=0,logged_at=0;double previous_original=0,previous_effective=0;bool sampled=false;
 PgrSpawnHostEvent events[32]{};uint32_t head=0,count=0;
 const pgrazor_native_api_v1 *leaf(){return static_cast<const pgrazor_native_api_v1*>(pgrazor_native_api(1));}
 const PgrRuntimeTransportApi *transport(){return static_cast<const PgrRuntimeTransportApi*>(pgrazor_runtime_transport_api(1));}
@@ -74,7 +74,10 @@ int tick(uint64_t tid){
  if(rc){leaf_error=rc;fault(PGR_SPAH_UNAVAILABLE);publish_ready(false);return PGR_SPAH_UNAVAILABLE;}
  pgrazor_spawn_snapshot s{};rc=leaf()->sample(&s);if(rc){leaf_error=rc;fault(PGR_SPAH_UNAVAILABLE);return PGR_SPAH_UNAVAILABLE;}
  if(std::isfinite(s.original)&&s.original>0&&std::isfinite(s.effective)&&s.effective>0&&(!sampled||t-sample_at>=2000||s.original!=previous_original||s.effective!=previous_effective)){
-  sampled=true;sample_at=t;previous_original=s.original;previous_effective=s.effective;char body[128];std::snprintf(body,sizeof(body),"\"original\":%.17g,\"effective\":%.17g",s.original,s.effective);event("spawn-range",body);
+  // Java keeps the 2 s setSpawnRange refresh; the log needs only changes plus a 30 s heartbeat.
+  const bool log=!sampled||t-logged_at>=30000||s.original!=previous_original||s.effective!=previous_effective;
+  sampled=true;sample_at=t;previous_original=s.original;previous_effective=s.effective;
+  if(log){logged_at=t;char body[128];std::snprintf(body,sizeof(body),"\"original\":%.17g,\"effective\":%.17g",s.original,s.effective);event("spawn-range",body);}
   int64_t values[2];std::memcpy(values,&s.original,8);std::memcpy(values+1,&s.effective,8);action(48,values,2,nullptr,0);
  }return stopping?PGR_SPAH_STOPPED:0;
 }

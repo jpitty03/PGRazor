@@ -34,6 +34,8 @@ public final class GymAutomationSettings {
         if(raw.contains("berry declined"))return "Berry declined";
         if(raw.contains("selecting"))return "Selecting defender";
         if(raw.contains("reserve"))return "Berry reserves reached";
+        if(raw.contains("map readiness"))return "Waiting for map";
+        if(raw.contains("inventory update"))return "Waiting for inventory";
         if(raw.contains("waiting")||raw.contains("nearby")||raw.contains("nearest")
             ||raw.contains("eligible"))return "Waiting for gym";
         if(raw.contains("rejected")||raw.contains("declined"))return "Action declined";

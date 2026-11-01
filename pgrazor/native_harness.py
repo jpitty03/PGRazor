@@ -111,7 +111,13 @@ def main(argv=None):
                 extra_flags = ['-fexceptions', '-I'+str(vendor/'include'), dobby, '-llog']
                 entry['dobby_sha256'] = native_build.sha256(dobby)
                 if source.stem == 'encounter_host_test':
-                    extra_flags.insert(0, root/'native/hook_engine.cpp')
+                    dependencies = ('hook_engine.cpp', 'incense_guard.cpp', 'remote_gym.cpp',
+                                    'gym_runtime.cpp', 'gym_automation.cpp', 'batch_evolution.cpp',
+                                    'buddy_emotion.cpp', 'vgp_controller.cpp', 'smart_catch.cpp',
+                                    'smart_catch_binding.cpp', 'vgp_discovery.cpp')
+                    extra_flags[:0] = [root/'native'/name for name in dependencies]
+                    entry['linked_sources_sha256'] = {name: native_build.sha256(root/'native'/name)
+                                                     for name in dependencies}
                 host_name = {'shared_host_flow_test':'shared_host.cpp','camera_host_test':'camera_host.cpp','interaction_host_test':'interaction_host.cpp','encounter_host_test':'encounter_host.cpp'}[source.stem]
                 entry['included_host_sha256'] = native_build.sha256(root/'native'/host_name)
             entry['compile_output'] = run([compiler, '-O2', '-std=c++17', '-static-libstdc++', source, *extra_flags, '-ldl', '-o', executable])

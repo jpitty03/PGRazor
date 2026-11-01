@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Fix map-dependent automation stopping after long sessions; continuous camera updates no longer hit the diagnostic observation limit. Gym overlay now distinguishes map and inventory waits. Session logs rotate at 1 MiB with six recent segments and six diagnostic tails retained.
+- Fix gym berry inventory waits: use the game's item-bag feeding operation, remember its cache update across later berry gains, and recover from delayed inventory acknowledgement instead of permanently pausing after five seconds.
+- Add an expandable Automation section in Settings and an Automation entry in Quick Menu. Move Mass Evolve there alongside two experimental, manually started tasks.
+- Add a Daily Incense session: activate incense in the game, choose a heading from 0 to 359 degrees, then start a straight walk at 10.5 km/h for up to 15 minutes. Stop, manual movement takeover, backgrounding, or lost account/game/location readiness ends the session. Loaded Galarian bird detection blocks VGP and stops the owned walk, attempts the normal encounter tap once, and requests sound/vibration notification. Catch manually; no automatic throw or Master Ball use. No spawn count or timing is guaranteed. Joystick movement releases the idle-walking hold after completion or a bird alert. The live Galarian-bird encounter handoff remains unverified.
+- Add a single bounded Remote Gym Feeding batch for gyms with your own deployed defenders. Feed surplus Nanab, then Razz, with optional Pinap and separate reserves; premium berries are excluded. Stop cancels unsent work, server limits still apply, and counters reflect confirmed responses only. No recurring schedule or reward payout is promised. Confirmed accepted feeding and clean Stop behavior on MuMu.
 - Add optional Idle walking under Location & overlays. After 3 seconds idle, follow a 10 m-radius circle within 20 m of the starting point, using the selected speed up to 5 km/h. Joystick and routes take priority; speed 0, backgrounding and lost location readiness pause movement. The setting is saved per account and included in backups. Walking distance credit remains game-dependent.
 - Expand Gym Slotter, Berry Feeder and VGP+ gym-disc spinning to the 80 m base interaction range, retaining eligibility, cooldown and server-result checks.
 - Recover gym discovery after manually viewing a gym. Preserve inventory acknowledgement and timeout safeguards for outstanding actions, and show native pause reasons instead of getting stuck at Starting.
@@ -9,6 +14,8 @@
 - Limit the Keep All overlay to manual encounters. VGP and VGP+ continue using the main transfer switch, protection rules and keep list.
 - Resume unfinished buddy feeding cycles after selected berries are restocked above reserve. Preserve the remaining feed budget and confirmed cooldowns; existing saved retry timers are not cleared.
 - Update the feature guides for gym range and manual encounter transfer controls.
+- Note in Settings and the feature guides that Spawn booster can cause lag in busy areas with many nearby Pokémon.
+- Reduce overlay work on the game's UI thread: the hidden Settings panel is no longer refreshed every 100 ms, and overlay status text and backgrounds are updated only when they change. Session logs record VGP marker phase changes and periodic positions, spawn-range changes, and event-box results or availability changes plus periodic heartbeats. Idle event-box scan counters do not trigger extra reports.
 
 ## v0.1.7-experimental.3
 

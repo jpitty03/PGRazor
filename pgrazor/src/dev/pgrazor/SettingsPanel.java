@@ -169,6 +169,7 @@ final class SettingsPanel {
         buildItemsSection();
         buildRocketSection();
         buildBattlesSection();
+        buildAutomationSection();
         buildThrowsSection();
         buildBackupSection();
         buildDiagnosticsSection();
@@ -196,6 +197,7 @@ final class SettingsPanel {
         spawnSwitch = switchRow(loc, "Spawn booster (80 m)"); spawnSwitch.setChecked(Control.spawnBooster());
         spawnSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.spawnBooster())return; Control.setSpawnBooster(spawnSwitch.isChecked()); });
         spawnStatus = caption(loc, "");
+        caption(loc, "Can cause lag in busy areas with many nearby Pokémon. Turn it off if the game stutters.");
         cooldownSwitch = switchRow(loc, "Cooldown overlay"); cooldownSwitch.setChecked(Control.cooldownOverlay());
         cooldownSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.cooldownOverlay())return; Control.setCooldownOverlay(cooldownSwitch.isChecked()); host.refresh(); });
         Button history = button("Cooldown history"); loc.addView(history); history.setOnClickListener(v -> Cooldown.show(activity));
@@ -285,7 +287,16 @@ final class SettingsPanel {
         LinearLayout itemsC = new LinearLayout(activity); itemsC.setOrientation(LinearLayout.VERTICAL); body.addView(itemsC); itemsRoot = itemsC;
         itemSettings = button("Auto-transfer items"); itemsC.addView(itemSettings); itemSettings.setOnClickListener(v -> showItemSettings());
         itemStatus = caption(itemsC, "");
-        Button evolve=button("Batch evolution");itemsC.addView(evolve);
+    }
+
+    private void buildAutomationSection() {
+        // ----- Automation (one-shot manual tasks; mirrors the quick-menu Automation hub) -----
+        LinearLayout autoC = section(body, "Automation", false);
+        Button incense = button("Daily Incense Session"); autoC.addView(incense);
+        incense.setOnClickListener(v -> AutomationPanel.showIncense(activity));
+        Button remoteFeed = button("Remote Gym Feeding"); autoC.addView(remoteFeed);
+        remoteFeed.setOnClickListener(v -> AutomationPanel.showRemoteFeed(activity));
+        Button evolve = button("Mass Evolve"); autoC.addView(evolve);
         evolve.setOnClickListener(v -> BatchEvolutionSettings.show(activity));
     }
 

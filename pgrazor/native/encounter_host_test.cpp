@@ -50,8 +50,9 @@ const void *pgrazor_transfer_policy_api(uint32_t v){return core?core->query_feat
 extern "C" const void *pgrazor_vgp_actions_api(uint32_t v){return core?core->query_feature(26,v):nullptr;}
 extern "C" const void *pgrazor_vgp_aux_api(uint32_t v){return core?core->query_feature(34,v):nullptr;}
 extern "C" const void *pgrazor_vgp_candidates_api(uint32_t v){return core?core->query_feature(29,v):nullptr;}
-extern "C" const void *pgrazor_vgp_controller_api(uint32_t v){return core?core->query_feature(33,v):nullptr;}
-extern "C" const void *pgrazor_vgp_discovery_api(uint32_t v){return core?core->query_feature(31,v):nullptr;}
+// Link the production controller so its hidden smart-escape setter and API use
+// the same state. Other feature tables still come from the dlopened core.
+// Discovery is linked with smart-catch binding for its hidden method setter.
 extern "C" const void *pgrazor_vgp_maintenance_api(uint32_t v){return core?core->query_feature(32,v):nullptr;}
 extern "C" const void *pgrazor_vgp_marker_api(uint32_t v){return core?core->query_feature(28,v):nullptr;}
 extern "C" const void *pgrazor_vgp_policy_api(uint32_t v){return core?core->query_feature(25,v):nullptr;}
@@ -154,7 +155,7 @@ static int vgp_case(){
  auto pc=PgrVgpPolicyConfig{};pc.version=1;pc.size=sizeof(pc);pc.scan_interval_ms=2500;pc.catch_seen_ms=30000;pc.spin_seen_ms=300000;pc.reject_delay_ms=30000;pc.terminal_delay_ms=3600000;pc.retry_delay_ms=5000;pc.default_delay_ms=30000;pc.max_keys=2048;
  for(int i=0;i<4;++i)pc.status_terminal[i]=pc.status_retry[i]=-1;pc.status_terminal[0]=100;
  auto policy=static_cast<const PgrVgpPolicyApi*>(core->query_feature(25,1));assert(policy&&policy->install(&pc)==0);
- u::api=static_cast<const PgrVgpControllerApi*>(core->query_feature(33,1));u::tid=gettid();auto vc=u::makeConfig();vc.policy_table=const_cast<PgrVgpPolicyApi*>(policy);assert(u::api->install(&vc)==0);u::resetScenario();
+ u::api=static_cast<const PgrVgpControllerApi*>(pgrazor_vgp_controller_api(1));u::tid=gettid();auto vc=u::makeConfig();vc.policy_table=const_cast<PgrVgpPolicyApi*>(policy);assert(u::api->install(&vc)==0);u::resetScenario();
  auto c=config();c.extra_exports=&extra;extra.gchandle_new=vc.gc_new;extra.gchandle_get_target=vc.gc_get;extra.gchandle_free=vc.gc_free;c.runtime_invoke=vc.runtime_invoke;c.object_get_class=vc.object_class;c.object_unbox=vc.object_unbox;
  assert(host->configure(&c)==0);g_vgc=u::api;g_active_caps=PGR_EH_CAP_VGP;g_installed=true;install_wire();
  PgrEncounterHostOptions o{1,sizeof(o)};o.vgp_allowed=1;o.vgp_enabled=1;o.vgp_catch_allowed=1;o.vgp_spin_allowed=1;o.lease_remaining_ms=2500;o.lat=10;o.lon=20;

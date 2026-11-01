@@ -72,6 +72,7 @@ public class StrictMode {
 public class Log {
  public static final java.util.List<String> lines=new java.util.ArrayList<>();
  public static int i(String tag,String text){lines.add(text);return 0;}
+ public static int w(String tag,String text){lines.add(text);return 0;}
  public static int e(String tag,String text,Throwable error){throw new AssertionError(text,error);}
 }''',
     'android/util/AtomicFile.java': '''package android.util;
@@ -125,6 +126,13 @@ public class AccountProfiles {
 public class Pad {public final android.app.Activity activity; public Pad(android.app.Activity a){activity=a;} public void close(){} public void confirmStopRoute(){} public void confirmMapTeleport(double lat,double lon,int mode,int epoch){}}''',
     'dev/pgrazor/LogActivity.java': 'package dev.pgrazor; public class LogActivity extends android.app.Activity {}',
     'dev/pgrazor/BatchEvolutionSettings.java': 'package dev.pgrazor; public final class BatchEvolutionSettings { public static String config(){return "1|0|0|Evolve";} public static boolean enabled(){return false;} public static void reset(){} public static void publish(String s){} }',
+    'dev/pgrazor/OneShotAutomation.java': '''package dev.pgrazor;
+public final class OneShotAutomation {
+ public static void reset(){} public static boolean enabled(){return false;}
+ public static String config(){return "1|0|0|0|0|0|0|0";}
+ public static void tick(boolean joystickHeld){} public static boolean idleBlocked(){return false;}
+ public static void publish(String kind,String detail){}
+}''',
     'dev/pgrazor/BuddyEmotionSettings.java': """package dev.pgrazor;
 public final class BuddyEmotionSettings {
  private static final BuddyEmotionPreferences prefs=new BuddyEmotionPreferences();
@@ -205,7 +213,7 @@ class ControlJavaTests(unittest.TestCase):
                 'CameraHeadingState.java', 'CameraSteering.java',
                 'BerryPriority.java', 'MapTapSequence.java', 'CooldownState.java',
                 'VgpController.java', 'CatchOutcomeController.java', 'SettingsWriter.java', 'SmartCatchPreferences.java', 'GymAutomationPreferences.java', 'BuddyEmotionPreferences.java'))
-            sources.extend([ROOT / 'test/ControlQuickSummaryTest.java',ROOT / 'test/ControlQuickBallTest.java',
+            sources.extend([ROOT / 'test/ControlLogRetentionTest.java', ROOT / 'test/ControlQuickSummaryTest.java',ROOT / 'test/ControlQuickBallTest.java',
                             ROOT / 'test/ControlQuickBallOutcomeTest.java',ROOT / 'test/ControlSettingsTest.java',
                             ROOT / 'test/VgpControllerTest.java',ROOT / 'test/CooldownTest.java',ROOT / 'test/ControlCooldownTest.java',
                             ROOT / 'test/ControlSettingsReloadTest.java',ROOT / 'test/ControlItemCatalogTest.java',ROOT / 'test/ControlIdleWalkingTest.java'])
@@ -224,6 +232,8 @@ class ControlJavaTests(unittest.TestCase):
             compiled = subprocess.run([str(compiler), '-encoding', 'UTF-8', '-d', str(classes),
                                        *map(str, sources)], capture_output=True, text=True, timeout=30)
             self.assertEqual(compiled.returncode, 0, compiled.stdout + compiled.stderr)
+            tested = subprocess.run([str(runtime), '-cp', str(classes), 'dev.pgrazor.ControlLogRetentionTest'], capture_output=True, text=True, timeout=15)
+            self.assertEqual(tested.returncode, 0, tested.stdout + tested.stderr)
             tested = subprocess.run([str(runtime), '-cp', str(classes), 'dev.pgrazor.ControlQuickSummaryTest'],
                                     capture_output=True, text=True, timeout=15)
             self.assertEqual(tested.returncode, 0, tested.stdout + tested.stderr)

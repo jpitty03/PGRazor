@@ -11,7 +11,7 @@ import java.nio.charset.StandardCharsets;
  */
 public final class NativeRuntimeTransportTest {
     // Wire constants mirror runtime_transport.h / NativeRuntimeTransport.
-    private static final int MAGIC_SNAPSHOT = 0x53524750, MAGIC_EVENTS = 0x45524750, VERSION = 8;
+    private static final int MAGIC_SNAPSHOT = 0x53524750, MAGIC_EVENTS = 0x45524750, VERSION = 9;
     private static final int OFF_BOOLS = 32, OFF_INTS = 80, OFF_DOUBLES = 120, OFF_PULSES = 136, OFF_STRINGS = 160;
     private static final int EVENT_HEADER = 32;
 
@@ -98,7 +98,10 @@ public final class NativeRuntimeTransportTest {
         require(readString(snap, at).equals("1;1;0;0;50;10")); at += 4 + "1;1;0;0;50;10".length(); // Gym config is slot 8.
         require(readString(snap, at).isEmpty()); at += 4; // Buddy config slot 9.
         require(readString(snap, at).isEmpty()); at += 4; // Buddy history slot 10.
-        require(readString(snap, at).isEmpty()); // Batch evolution slot 11.
+        require(readString(snap, at).isEmpty()); at += 4; // Batch evolution slot 11.
+        require(readString(snap, at).equals("1|123|0|0|0|0|0|0"));
+        at += 4 + "1|123|0|0|0|0|0|0".length(); // One-shot automation slot 12.
+        require(at == fake.lastSnapshot.length);
 
         // 3. A valid event batch dispatches to Control exactly once (no replay on the next tick).
         fake.nextEvents = new FrameBuilder()

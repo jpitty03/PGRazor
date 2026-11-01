@@ -2270,8 +2270,8 @@ int api_on_execute_enter(uint64_t tid, uint32_t is_execute_tasks) {
     return PGR_CH_OK;
   }
 
-  g_state.calls++;
-  if (g_state.calls > PGR_CH_CALLS_MAX) {
+  if(g_state.calls<UINT32_MAX)++g_state.calls;
+  if (!g_state.continuous && g_state.calls > PGR_CH_CALLS_MAX) {
     g_state.overflow = true;
     return PGR_CH_OK;
   }
@@ -2279,13 +2279,13 @@ int api_on_execute_enter(uint64_t tid, uint32_t is_execute_tasks) {
     return PGR_CH_OK;
   }
 
-  g_state.raw_matches++;
+  if(g_state.raw_matches<UINT32_MAX)++g_state.raw_matches;
   ThreadEntry *e = find_or_add_thread(tid);
   if (!e) return PGR_CH_OK;
 
   if (e->depth == 0) {
-    g_state.matches++;
-    e->count++;
+    if(g_state.matches<UINT32_MAX)++g_state.matches;
+    if(e->count<UINT32_MAX)++e->count;
   }
   e->depth++;
   return PGR_CH_OK;
@@ -2437,15 +2437,15 @@ void api_on_unity_begin(void *ctx, const PgrUnityPulse *pulse) {
 
   if (g_state.active && g_state.ready && !revoked() &&
       !g_state.explicit_execute_tracking) {
-    g_state.calls++;
-    if (g_state.calls > PGR_CH_CALLS_MAX) {
+    if(g_state.calls<UINT32_MAX)++g_state.calls;
+    if (!g_state.continuous && g_state.calls > PGR_CH_CALLS_MAX) {
       g_state.overflow = true;
     } else {
-      g_state.raw_matches++;
+      if(g_state.raw_matches<UINT32_MAX)++g_state.raw_matches;
       ThreadEntry *e = find_or_add_thread(tid);
       if (e) {
-        g_state.matches++;
-        e->count++;
+        if(g_state.matches<UINT32_MAX)++g_state.matches;
+        if(e->count<UINT32_MAX)++e->count;
       }
     }
   }

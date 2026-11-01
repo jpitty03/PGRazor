@@ -237,9 +237,13 @@ int main() {
   assert(!observe_feed_stock(10,now)&&pending.await_stock&&!paused);
   if(inventory_arrived){
    assert(observe_feed_stock(9,now)&&!pending.await_stock&&!paused);
-   Permission p;poll(p);test_cleared(0,0);
+   Permission p;poll(p);test_cleared(0,1);
   }else{
-   pending.since=now-5001;assert(!observe_feed_stock(10,now));test_cleared(0,1);assert(paused);
+   pending.since=now-20001;assert(!observe_feed_stock(10,now));
+   assert(!paused&&pending.phase==5&&pending.await_stock&&test_polls==0);
+   assert(!observe_feed_stock(-1,now)); // invalid inventory never authorizes another feed
+   assert(observe_feed_stock(9,now+1)&&!pending.await_stock&&!paused);
+   Permission p;poll(p);test_cleared(0,2);
   }
  }
  {

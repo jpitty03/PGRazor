@@ -41,6 +41,8 @@
 #include "vgp_results.h"
 #include "gym_automation.h"
 #include "batch_evolution.h"
+#include "remote_gym.h"
+#include "incense_guard.h"
 #include "buddy_emotion.h"
 
 namespace {
@@ -147,6 +149,8 @@ static uint64_t g_transfer_epoch = 1;
 static uint64_t g_vgp_cleanup_until_ms = 0;
 static uint64_t g_vgp_cleanup_ticket = 0;
 static int32_t g_last_vgp_status = -1;
+static int g_marker_log_phase = -1;
+static uint64_t g_marker_log_ms = 0;
 static char g_last_berry_prio_str[128] = {};
 static char g_last_keep_species_str[10000] = {};
 static bool g_last_vgp_enabled = false;
@@ -1078,12 +1082,18 @@ static void tick_vgp_controller(uint64_t tid, uint64_t now_ms, uint64_t lease_ms
     handle_vgp_transfer_ready(out, tid, lease_ms);
   }
   if (out.flags & PGR_VGC_EV_MARKER_UPDATE) {
-    const char *act = (out.phase == PGR_VGC_PH_SPIN) ? "spin" : "catch";
-    emit_eventf("vgp-marker", "{\"visible\":true,\"x\":%.2f,\"y\":%.2f,\"action\":\"%s\"}",
-                out.marker_x, out.marker_y, act);
+    const int phase = (out.phase == PGR_VGC_PH_SPIN) ? 1 : 0;
+    // setVgpTarget below carries every position; the log keeps phase changes plus a 2 s heartbeat.
+    if (phase != g_marker_log_phase || now_ms - g_marker_log_ms >= 2000) {
+      g_marker_log_phase = phase;
+      g_marker_log_ms = now_ms;
+      emit_eventf("vgp-marker", "{\"visible\":true,\"x\":%.2f,\"y\":%.2f,\"action\":\"%s\"}",
+                  out.marker_x, out.marker_y, phase ? "spin" : "catch");
+    }
     notify_vgp_target(out.marker_visible && isfinite(out.marker_x) && isfinite(out.marker_y), out.marker_x, out.marker_y,
                       out.phase == PGR_VGC_PH_SPIN ? 1 : 0);
   } else if (out.flags & PGR_VGC_EV_MARKER_HIDE) {
+    g_marker_log_phase = -1;
     emit_event("vgp-marker", "{\"visible\":false}");
     notify_vgp_target(0, 0.0, 0.0, 0);
   }
@@ -2356,6 +2366,10 @@ static int api_tick(uint64_t proven_tid) {
 
   g_sample.tick_serial++;
 
+  // Observe before automatic gameplay work; revoke before opening the manual encounter.
+  const bool bird_block=pgr_incense_guard_tick(os_tid,&g_md);
+  if(bird_block){g_opts.vgp_enabled=0;if(g_vgc&&g_last_vgp_enabled){g_vgc->revoke();clear_active_vgp_transfer();g_last_vgp_enabled=false;++g_vgp_epoch;}}
+  pgr_incense_guard_open(os_tid);
   // 1. Berries tick, resume & event drain
   pump_berry_events_and_resume(os_tid, 0);
 
@@ -2364,6 +2378,7 @@ static int api_tick(uint64_t proven_tid) {
 
   // 3. MapPOI snapshot scan
   tick_map_poi(os_tid, now, rem_lease);
+  pgr_remote_gym_tick(os_tid, &g_md);
   pgr_gym_tick(os_tid, &g_md);
   pgr_evolution_tick(os_tid, &g_md);
   pgr_buddy_emotion_tick(os_tid, &g_md);
@@ -2390,6 +2405,8 @@ static int api_stop(uint64_t proven_tid) {
       pump_berry_events_and_resume(tid, 1);
     }
     if (g_vgc && (g_active_caps & PGR_EH_CAP_VGP)) {
+      pgr_remote_gym_stop(tid);
+      pgr_incense_guard_stop(tid);
       pgr_gym_stop(tid);
       pgr_evolution_stop(tid);
       pgr_buddy_emotion_stop(tid);

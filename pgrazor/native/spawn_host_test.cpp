@@ -37,7 +37,7 @@ void scenario(const char *library,unsigned mode){
  bad=c;bad.flags^=1;assert(api->configure(&bad)==PGR_SPAH_REBIND);
  double radius=40;assert(call(&radius,&method_token)==40);
  if(mode==2){assert(api->tick(gettid())==PGR_SPAH_UNAVAILABLE);assert(call(&radius,&method_token)==40);return;}
- std::vector<uint8_t> frame(180,0);put32(frame,0,PGR_TRANSPORT_SNAPSHOT_MAGIC);put32(frame,4,1);put32(frame,8,frame.size());put64(frame,16,1);
+ std::vector<uint8_t> frame(PGR_TRANSPORT_SNAPSHOT_FIXED+PGR_TRANSPORT_STRINGS*4,0);put32(frame,0,PGR_TRANSPORT_SNAPSHOT_MAGIC);put32(frame,4,PGR_TRANSPORT_FRAME_VERSION);put32(frame,8,frame.size());put64(frame,16,1);
  frame[32+27]=frame[32+28]=frame[32+3]=1;
  if(mode==1)drain(tr,&frame);
  PgrSpawnHostOptions p{1,sizeof(p),1,1,2500,0};if(!mode)assert(api->update(&p)==0);

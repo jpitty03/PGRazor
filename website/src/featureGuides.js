@@ -19,7 +19,7 @@ export const featureGuides = [
       'Show joystick toggles the handle; the panel behind it is intentionally transparent.',
       'Disabling spoofing returns the device to its normal location and stops simulated movement.',
       'Adventure Sync prompts are dismissed automatically only while spoofing is on and the app has no Android location permission.',
-      'Spawn booster (80 m) is an optional, experimental Location & overlays toggle that widens the nearby spawn range; it appears only when the game supports it and does not prove a server-side bonus.',
+      'Spawn booster (80 m) is an optional, experimental Location & overlays toggle that widens the nearby spawn range; it appears only when the game supports it and does not prove a server-side bonus. It can cause lag in busy areas with many nearby Pokémon, so turn it off if the game stutters.',
     ],
   },
   {
@@ -253,15 +253,56 @@ export const featureGuides = [
     ],
   },
   {
+    id: 'daily-incense-session',
+    title: 'Daily Incense Session',
+    category: 'Automation',
+    summary:
+      'Start one timed walk and watch loaded spawns for Galarian birds, with a manual catch handoff.',
+    where: 'Settings > Automation > Daily Incense Session, or Quick Menu > Automation.',
+    steps: [
+      'Activate Daily Adventure Incense yourself in the game before starting this task.',
+      'Open Automation, choose Daily Incense Session, and enter a heading from 0 to 359 degrees.',
+      'Press Start to walk in that direction at 10.5 km/h for up to 15 minutes. Stop ends the session.',
+      'If a Galarian bird is detected, walking and VGP stop. The task attempts the normal encounter tap once and requests sound and vibration; catch it manually when the game presents it.',
+      'Move the joystick to release the idle-walking hold after the session completes or stops for a bird.',
+    ],
+    notes: [
+      'Unreleased and experimental; the live Galarian-bird encounter handoff is not yet verified. Detection covers loaded map objects and cannot guarantee a bird, spawn count, or spawn timing.',
+      'It never activates incense, throws a ball, or uses a Master Ball automatically. An opening request can fail or be refused by the game; open the encounter yourself if needed.',
+      'Manual movement or a replacement route takes over; backgrounding or lost account, game, or location readiness ends the session. It does not restart automatically.',
+      'The previous speed is restored only while the task still owns the walk and its speed has not been changed. A replacement route and your new speed are preserved.',
+    ],
+  },
+  {
+    id: 'remote-gym-feeding',
+    title: 'Remote Gym Feeding',
+    category: 'Automation',
+    summary:
+      'Run one bounded feeding batch for gyms with your own deployed defenders, using surplus normal berries.',
+    where: 'Settings > Automation > Remote Gym Feeding, or Quick Menu > Automation.',
+    steps: [
+      'Stop Gym automation and VGP+ gym spinning, then open Remote Gym Feeding.',
+      'Set separate Nanab and Razz reserves from 0 to 1000. Optionally enable Pinap and set its reserve; Pinap starts off.',
+      'Press Start feed to discover gyms you currently defend and try surplus Nanab, then Razz, then optional Pinap.',
+      'Read the confirmed progress and status. Stop feed cancels unsent work; an already submitted feed may finish once.',
+    ],
+    notes: [
+      'Unreleased and experimental. This is one bounded run, with no recurring schedule or automatic restart.',
+      'Only gyms with your own deployed defenders are eligible. The game still controls remote access, feeding limits, and accepted rewards; counts advance only on confirmed responses.',
+      'Golden Razz and Silver Pinap are excluded. Reserves protect remaining stock; no Stardust or candy payout is promised.',
+      'Backgrounding or lost account, game, or location readiness ends the run. Daily Incense and Mass Evolve must finish or stop before another task starts.',
+    ],
+  },
+  {
     id: 'batch-evolution',
-    title: 'Batch evolution',
-    category: 'Inventory',
+    title: 'Mass Evolve (batch evolution)',
+    category: 'Automation',
     summary:
       'Preview a tagged batch, then evolve each eligible Pokémon once without opening the evolution cutscene.',
-    where: 'Settings > Batch evolution (the button sits with the inventory controls, next to Auto-transfer items — there is no collapsible section for it).',
+    where: 'Settings > Automation > Mass Evolve, or Quick Menu > Automation > Mass Evolve.',
     steps: [
       'In Pokemon storage, open Tags, create a tag such as Evolve, and assign only the Pokemon you want evolved to it.',
-      'Open Batch evolution and enter the exact tag name you want to evolve (for example, Evolve — this is just a sample tag).',
+      'Open Automation > Mass Evolve and enter the exact tag name you want to evolve (for example, Evolve — this is just a sample tag).',
       'Optionally turn on “Remove this tag after each confirmed evolution” before previewing; it is off by default.',
       'Tap Preview batch to count eligible Pokémon and estimate candy/item cost before any candy is consumed.',
       'Tap Start batch, then confirm in the “Start batch evolution?” dialog to begin.',

@@ -675,7 +675,7 @@ static void push_transport_snapshot(const PgrRuntimeTransportApi *rt,
         return;
     }
     uint8_t frame[256] = {};
-    uint32_t total_size = PGR_TRANSPORT_SNAPSHOT_FIXED + 7 * 4;
+    uint32_t total_size = PGR_TRANSPORT_SNAPSHOT_FIXED + PGR_TRANSPORT_STRINGS * 4;
     uint32_t magic = PGR_TRANSPORT_SNAPSHOT_MAGIC;
     uint32_t ver = PGR_TRANSPORT_FRAME_VERSION;
     uint32_t flags = 0;

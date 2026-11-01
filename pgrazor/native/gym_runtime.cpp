@@ -1,4 +1,5 @@
 #include "gym_automation.h"
+#include "gym_feed_binding.h"
 #include "shared_metadata.h"
 #include "runtime_bootstrap.h"
 #include "runtime_transport.h"
@@ -20,6 +21,7 @@ struct UnsentRequest {const char *where;};
 void require_unsent(bool ok,const char *where){if(!ok)throw UnsentRequest{where};}
 void require(bool ok,const char *where){if(!ok)throw Failure{where};}
 PgrBootBinding boot{};const PgrSharedMetadataOutput *md=nullptr;
+bool remote_hold=false;
 bool initialized=false,busy=false,paused=false;uint64_t owner=0,next_scan=0;
 std::string status,spin_status,account;History history;std::map<std::string,uint64_t> inspected;std::map<uint64_t,uint64_t> reserved;
 uint64_t clock_ms(clockid_t c=CLOCK_BOOTTIME){timespec t{};clock_gettime(c,&t);return uint64_t(t.tv_sec)*1000+t.tv_nsec/1000000;}
@@ -115,7 +117,7 @@ bool gym_valid(Root &gym,const Permission &p,std::string *why=nullptr,double *me
  if(raid){int64_t start=0,end=0;fn<void(*)(void*,void*,void*)>(boot.runtime.field_get_value)(raid.get(),h(H_MP_BATTLE),&start);fn<void(*)(void*,void*,void*)>(boot.runtime.field_get_value)(raid.get(),h(H_MP_END),&end);auto wall=int64_t(clock_ms(CLOCK_REALTIME));if(start<=wall&&end>wall)return reject("active raid");}
  return true;
 }
-struct Pending {Root gym,promise,reflection,details,enumerator,bag,gm,buddy;std::string id,config;uint64_t since=0,defender=0;int phase=0,scanned=0,last_item=0,stock_before=0;bool canceled=false,await_stock=false;std::vector<uint64_t> tags;std::vector<Defender> candidates;};
+struct Pending {Root gym,promise,reflection,details,enumerator,bag,gm,buddy;std::string id,config;uint64_t since=0,defender=0;int phase=0,scanned=0,last_item=0,stock_before=0;bool canceled=false,await_stock=false,stock_seen=false;std::vector<uint64_t> tags;std::vector<Defender> candidates;};
 Pending pending;
 Defender candidate(Root&);
 // The typed SendRpc uses the game's RPC handler. Inventory is re-read before
@@ -140,13 +142,8 @@ Root send(Root &request,const char *out_name,const char *rpc_name,Root &reflecti
  auto p=permission();require_unsent(p.allowed,"map readiness changed");
  require_unsent(p.config==pending.config,"settings changed");
  require_unsent(gym_valid(pending.gym,p,nullptr,nullptr,!strcmp(rpc_name,"GymDeploy"),!strcmp(rpc_name,"FortSearch")),"gym eligibility changed");
- // Resolve inventory again after generic-method construction; a concurrent
- // cleanup or manual action may have changed stock since planning.
- if(!strcmp(rpc_name,"GymFeedPokemon")){
-  int chosen=field<int>(request.get(),"Item","Holoholo.Rpc.Item");void *a[]={&chosen};int stock=boxed<int>(call(bag.get(),"GetItemCount",1,a),"System.Int32");
-  require(stock>(chosen==703?p.settings.nanab:p.settings.razz),"berry reserve changed");put(request.get(),"StartingQuantity","System.Int32",stock);
-  pending.last_item=chosen;pending.stock_before=stock;
- }else if(!strcmp(rpc_name,"GymDeploy")){
+ // Deployment and disc spin retain their typed RPC paths. Feeding uses the item-bag service.
+ if(!strcmp(rpc_name,"GymDeploy")){
   uint64_t id=field<uint64_t>(request.get(),"PokemonId","System.UInt64");void *a[]={&id};Root pokemon(call(pending.bag.get(),"GetPokemon",1,a));require(bool(pokemon),"defender inventory changed");
   auto c=candidate(pokemon);require(c.eligible&&(c.tagged||(p.settings.fallback&&!c.protected_fallback)),"defender eligibility changed");
  }
@@ -264,11 +261,19 @@ bool issue_feed(const Permission &p){
  int nanab=703,razz=701;void *na[]={&nanab},*ra[]={&razz};int ns=boxed<int>(call(bag.get(),"GetItemCount",1,na),"System.Int32"),rs=boxed<int>(call(bag.get(),"GetItemCount",1,ra),"System.Int32");
  int chosen=berry(ns,rs,p.settings);if(!chosen){event("Berry reserves reached");return false;}
  uint64_t id=0;for(auto d:defenders())if(history.feed_allowed(d.id,clock_ms())){id=d.id;break;}if(!id)return false;
- Root req=request("GymFeedPokemonProto");Root fid(fn<void*(*)(const char*)>(boot.runtime.string_new)(pending.id.c_str()));
- putref(req.get(),"GymId","System.String",fid.get());put(req.get(),"PokemonId","System.UInt64",id);put(req.get(),"Item","Holoholo.Rpc.Item",chosen);put(req.get(),"StartingQuantity","System.Int32",chosen==703?ns:rs);
- put(req.get(),"PlayerLatDegrees","System.Double",p.lat);put(req.get(),"PlayerLngDegrees","System.Double",p.lon);
- if(!snapshot_valid(p)||!history.feed_attempt(id,clock_ms()))return false;
- pending.phase=3;pending.since=clock_ms();pending.defender=id;pending.promise=send(req,"GymFeedPokemonOutProto","GymFeedPokemon",pending.reflection);require(bool(pending.promise),"feeding outcome unknown");event("Feeding gym defender");return true;
+ Root fid(fn<void*(*)(const char*)>(boot.runtime.string_new)(pending.id.c_str()));
+ void *feed=pgr_gym_feed::resolve(boot,bag.get());require(feed,"Gym item-bag feeding contract unavailable");
+ if(!snapshot_valid(p)||!gym_valid(pending.gym,p))return false;
+ void *stock_args[]={&chosen};int current=boxed<int>(call(bag.get(),"GetItemCount",1,stock_args),"System.Int32");
+ if(current<=(chosen==703?p.settings.nanab:p.settings.razz))return false;
+ if(!history.feed_attempt(id,clock_ms()))return false;
+ pending.last_item=chosen;pending.stock_before=current;pending.stock_seen=false;
+ pending.phase=3;pending.since=clock_ms();pending.defender=id;
+ void *args[]={&chosen,&id,fid.get()};
+ pending.promise=Root(invoke(feed,bag.get(),args));require(bool(pending.promise),"feeding outcome unknown");
+ // The game may update its cache synchronously, before a badge/reward UI opens.
+ try{int after=boxed<int>(call(bag.get(),"GetItemCount",1,stock_args),"System.Int32");pgr_gym_feed::observe_stock(pending.stock_seen,current,after);}catch(...){}
+ event("Feeding gym defender");return true;
 }
 void cooldown(const char *label){const auto *t=static_cast<const PgrRuntimeTransportApi*>(pgrazor_runtime_transport_api(1));PgrRuntimeTransportString s{label,uint32_t(strlen(label))};if(t&&t->emit(17,nullptr,0,&s,1)!=0)paused=true;}
 void act(const Permission &p){
@@ -281,8 +286,9 @@ void act(const Permission &p){
  if(status!="Berry reserves reached")event("No eligible gym action; retrying shortly");retry_no_action(clock_ms());
 }
 bool observe_feed_stock(int stock,uint64_t now){
- if(stock<pending.stock_before){pending.await_stock=false;return true;}
- if(now-pending.since>5000){paused=true;event("Paused: waiting for berry inventory update");clear_pending();}
+ pgr_gym_feed::observe_stock(pending.stock_seen,pending.stock_before,stock);
+ if(pending.stock_seen){pending.await_stock=false;event("Berry inventory synchronized");return true;}
+ if(now-pending.since>5000)event("Waiting for berry inventory update; will resume when synchronized");
  return false;
 }
 void poll(const Permission &p){
@@ -338,11 +344,11 @@ void poll(const Permission &p){
  else{event(ok?"Gym berry accepted":"Gym berry declined",result,ok?dust:0);if(ok)cooldown("Gym berry feeding");else history.refuse(pending.defender,now);}
  if(!ok){clear_pending();next_scan=now+10000;return;}
  pending.details=Root(field<void*>(response.get(),"GymStatusAndDefenders","Holoholo.Rpc.GymStatusAndDefendersProto"));require(bool(pending.details),"missing updated gym details");
- pending.await_stock=pending.phase==3;pending.since=now;
+ pending.await_stock=pending.phase==3&&!pending.stock_seen;pending.since=now;
  // Respect the server's next-feed deadline as well as a conservative interval.
  // The inventory delta must also arrive before another berry is attempted.
  next_scan=now+1500;
- if(pending.await_stock){int64_t deadline=field<int64_t>(response.get(),"CooldownComplete","System.Int64");int64_t wall=int64_t(clock_ms(CLOCK_REALTIME));
+ if(pending.phase==3){int64_t deadline=field<int64_t>(response.get(),"CooldownComplete","System.Int64");int64_t wall=int64_t(clock_ms(CLOCK_REALTIME));
   if(deadline>wall){require(deadline-wall<=1800000,"invalid feed cooldown");next_scan=std::max(next_scan,now+uint64_t(deadline-wall));}}
  pending.phase=5;
 }
@@ -387,7 +393,7 @@ void pgr_gym_tick(uint64_t tid,const PgrSharedMetadataOutput *metadata){
  if(busy||!tid||tid!=uint64_t(gettid())||(owner&&owner!=tid))return;
  struct Guard{Guard(){busy=true;}~Guard(){busy=false;}} guard;
  try{
-  auto p=permission();if(p.valid_config&&!p.settings.deploy&&!p.settings.feed&&!p.settings.spin)paused=false;
+  auto p=permission();if(remote_hold)p.allowed=false;if(p.valid_config&&!p.settings.deploy&&!p.settings.feed&&!p.settings.spin)paused=false;
   if(!initialized){if(!p.allowed||paused)return;auto api=static_cast<const PgrBootApi*>(pgrazor_runtime_bootstrap_api(1));boot.version=1;boot.size=sizeof(boot);require(api&&api->snapshot(&boot)==0,"runtime bootstrap");md=metadata;require(md,"shared metadata");owner=tid;validate_bindings();initialized=true;}
   require(fn<void*(*)()>(boot.runtime.thread_current)()!=nullptr,"owner not attached");
   if(p.allowed){Root player=resolve("Niantic.Holoholo","IPlayerService");if(!player){if(pending.phase)pending.canceled=true;return;}std::string id=string(call(player.get(),"get_PlayerId"));if(id.empty())return;
@@ -399,3 +405,10 @@ void pgr_gym_tick(uint64_t tid,const PgrSharedMetadataOutput *metadata){
  }catch(const UnsentRequest &e){recover_unsent(e.where);}catch(const Failure &e){paused=true;clear_pending();event(std::string("Paused: ")+e.where);}catch(...){paused=true;clear_pending();event("Paused: gym automation failure");}
 }
 void pgr_gym_stop(uint64_t tid){if(initialized&&tid==owner&&tid==uint64_t(gettid())){clear_pending();paused=true;}}
+
+void pgr_gym_remote_hold(bool hold){remote_hold=hold;}
+pgr_gym::History *pgr_gym_remote_history(const std::string &player){
+ if(player.empty()||pending.phase)return nullptr;
+ if(account!=player){account=player;history=History{};inspected.clear();reserved.clear();}
+ return &history;
+}

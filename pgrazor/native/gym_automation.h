@@ -32,3 +32,7 @@ struct History {
 // Called only by the existing proven Unity owner; never starts a worker thread.
 void pgr_gym_tick(uint64_t,const PgrSharedMetadataOutput*);
 void pgr_gym_stop(uint64_t);
+
+// Unity-owner arbitration and shared attempt ledger for one-shot remote feeding.
+void pgr_gym_remote_hold(bool);
+pgr_gym::History *pgr_gym_remote_history(const std::string &player);

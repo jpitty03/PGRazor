@@ -156,6 +156,13 @@ void wait_tick(bool cleanup){
   if(tr->emit(19,nullptr,0,strings,2)){failed(10,-10058);return;}
  }
 }
+// Diagnostic tick/scan totals and distance are sampled at the heartbeat, not status changes.
+void collector_status_key(const PgrEventCollectorState &s,bool stopped,char *json,size_t capacity){
+   std::snprintf(json,capacity,"{\"available\":%s,\"error\":%d,\"enabled\":%d,\"inflight\":%d,\"timedOut\":%d,\"attempted\":%llu,\"completed\":%llu,\"failed\":%llu,\"skippedEncounters\":%llu,\"candy\":%llu,\"rareCandy\":%llu}",
+    s.ready&&!s.error&&!stopped?"true":"false",s.error,s.enabled,s.inflight,s.timed_out,
+    (unsigned long long)s.attempted,(unsigned long long)s.completed,(unsigned long long)s.failed,
+    (unsigned long long)s.skipped_encounters,(unsigned long long)s.candy,(unsigned long long)s.rare_candy);
+}
 void pulse(void*,const PgrUnityPulse *p){
  if(!p||p->reserved||p->tid!=gettid()||!attached()||p->generation!=generation.load()||scheduler->valid(p->generation)!=1)return;
  if(pulse_busy.test_and_set(std::memory_order_acquire))return;
@@ -171,20 +178,21 @@ void pulse(void*,const PgrUnityPulse *p){
    before.snapshot_seq==after.snapshot_seq&&before.generation==after.generation;
   pgr_event_collector_location(fresh?lat:NAN,fresh?lng:NAN,fresh?time:0);
   pgr_event_collector_tick(fresh&&enabled==1,owner.load());
-  static uint64_t report_at=0;
+  static uint64_t report_at=0,sent_at=0;static char sent[1024]={};
   if(time>=report_at){
    report_at=time+2000;
    const auto s=pgr_event_collector_state();char json[1024];
-   std::snprintf(json,sizeof(json),"{\"available\":%s,\"error\":%d,\"enabled\":%d,\"inflight\":%d,\"timedOut\":%d,\"attempted\":%llu,\"completed\":%llu,\"failed\":%llu,\"skippedEncounters\":%llu,\"candy\":%llu,\"rareCandy\":%llu}",
-    s.ready&&!s.error&&!stopping.load()?"true":"false",s.error,s.enabled,s.inflight,s.timed_out,
-    (unsigned long long)s.attempted,(unsigned long long)s.completed,(unsigned long long)s.failed,
-    (unsigned long long)s.skipped_encounters,(unsigned long long)s.candy,(unsigned long long)s.rare_candy);
+   collector_status_key(s,stopping.load(),json,sizeof(json));
+   char status_key[1024];std::snprintf(status_key,sizeof(status_key),"%s",json);
    const size_t used=std::strlen(json);
    if(used&&used<sizeof(json))std::snprintf(json+used-1,sizeof(json)-used+1,
     ",\"updates\":%llu,\"ownerUpdates\":%llu,\"scans\":%llu,\"sessionActive\":%d,\"reason\":%d,\"listCount\":%d,\"boxes\":%d,\"visibleCandidates\":%d,\"expired\":%d,\"zeroExpiry\":%d,\"nearestMeters\":%.1f,\"pendingEncounters\":%d,\"staleEncounters\":%d}",
     (unsigned long long)s.update_calls,(unsigned long long)s.owner_updates,(unsigned long long)s.scan_calls,s.session_active,s.pump_reason,s.list_count,s.matched_box_count,s.visible_count,s.expired_count,s.zero_expiry_count,s.nearest_meters,s.pending_encounters,s.stale_encounters);
-   const char channel[]="event-boxes";PgrRuntimeTransportString strings[]={{channel,sizeof(channel)-1},{json,uint32_t(std::strlen(json))}};
-   tr->emit(19,nullptr,0,strings,2);
+   // Java only needs availability changes; unchanged idle snapshots are resent every 30 s, not every 2 s.
+   if(std::strcmp(status_key,sent)||time-sent_at>=30000){
+    const char channel[]="event-boxes";PgrRuntimeTransportString strings[]={{channel,sizeof(channel)-1},{json,uint32_t(std::strlen(json))}};
+    if(tr->emit(19,nullptr,0,strings,2)==0){std::snprintf(sent,sizeof(sent),"%s",status_key);sent_at=time;}
+   }
   }
  }
  // Dependency order is stable; interaction observers follow their hook owners.
