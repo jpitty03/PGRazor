@@ -84,6 +84,8 @@ The `build.py` output named `pgrazor-preview.apk` is a controls preview, **not t
 
 ## GitHub Actions: APK releases
 
+Write concise release notes using [the release-note rules](releases/README.md) and [template](releases/TEMPLATE.md). GitHub and Discord share the same notes. Include version-specific download and GitHub release links; the shared footer adds Ko-fi and repository links. Omit verification sections and website-only changes from public notes and the changelog.
+
 Configure these Actions secrets:
 
 | Secret | Value |
