@@ -240,7 +240,7 @@ public final class Control {
     public static void setBuddyStatus(String status){buddyStatus=status;}
     public static String buddyStatus(){return buddyStatus;}
     public static boolean buddyAvailable(){return buddyReady&&itemAccessAllowed();}
-    public static boolean buddySamplingRequested(){return (buddyBerry!=0||vgpEnabled||autoIncubate||GymAutomationSettings.enabled()||BuddyEmotionSettings.enabled()||BatchEvolutionSettings.enabled()||OneShotAutomation.enabled())&&hostLive();}
+    public static boolean buddySamplingRequested(){return (buddyBerry!=0||vgpEnabled||autoIncubate||GymAutomationSettings.enabled()||BatchEvolutionSettings.enabled()||OneShotAutomation.enabled())&&hostLive();}
     // Legacy wire slot remains for ABI compatibility; Buddy Emotion owns all feeding.
     public static boolean buddyAllowed(){return false;}
     private static volatile boolean encounterBerryActive,encounterBerryBusy;

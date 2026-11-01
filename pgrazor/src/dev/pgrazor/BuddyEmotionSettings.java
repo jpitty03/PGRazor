@@ -41,7 +41,7 @@ public final class BuddyEmotionSettings {
     public static Runnable populate(Activity activity,LinearLayout body){
         Context ui=body.getContext();
         TextView description=new TextView(ui);
-        description.setText("Builds buddy mood with snapshots and petting while the game is open on the map. EP comes from the game; maintenance is an estimate. Walking and battles remain manual.");body.addView(description);
+        description.setText("Builds buddy mood with snapshots and petting while the game is in the foreground, including menus when buddy services are available. EP comes from the game; maintenance is an estimate. Walking and battles remain manual.");body.addView(description);
         CheckBox master=new CheckBox(ui);master.setText("Run the Buddy Emotion Engine");body.addView(master);
         TextView progress=new TextView(ui);body.addView(progress);
         TextView priority=button(body,"");

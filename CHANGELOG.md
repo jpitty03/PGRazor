@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Preserve the trainer profile's scroll position during background player-stat updates, including VGP+ catches and transfers.
+
+- Make buddy care lighter and usable behind menus: idle checks run once per second, with one scene lookup per evaluation and berry-selection service lookups reduced from up to 5 to 1. Cancellation stays responsive.
+
 - Recover map readiness after a temporary straight-down camera angle instead of permanently stopping camera sampling and leaving VGP or buddy care waiting for the map.
 
 ## v0.1.7

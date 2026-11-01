@@ -141,6 +141,7 @@ add_library(pgrazor_core SHARED
   smart_catch_binding.cpp
   gym_automation.cpp
   buddy_emotion.cpp
+  profile_scroll.cpp
   remote_gym.cpp
   incense_guard.cpp
   batch_evolution.cpp

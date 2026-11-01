@@ -40,7 +40,7 @@ int test_bool(uint32_t field, int* out) {
     switch (field) {
     case 0: ++test_account_slot_reads; *out = 1; break;
     case 9: ++test_live_slot_reads; *out = test_live; break;
-    case 16: *out = test_ready; break;
+    case 16: *out = test_ready && test_live; break; // Java itemAccessAllowed includes hostLive.
     case 38: *out = test_map; break;
     default: assert(false && "unexpected permission slot");
     }
@@ -178,11 +178,11 @@ int main() {
     setup_transport();
     test_live = false;
     assert(!permission().allowed);
-    assert(test_live_slot_reads && !test_account_slot_reads);
+    assert(!test_live_slot_reads && !test_account_slot_reads);
     test_live = true;
     assert(permission().allowed);
     test_ready = false; assert(!permission().allowed); test_ready = true;
-    test_map = false; assert(!permission().allowed); test_map = true;
+    test_map = false; assert(permission().allowed); test_map = true;
     test_fresh = false; assert(!permission().valid); test_fresh = true;
     test_sequence_change = true; assert(!permission().valid); test_sequence_change = false;
 
@@ -191,7 +191,7 @@ int main() {
             auto p = setup(phase);
             switch (reason) {
             case 0: test_config = "1;0;703;50;0"; p = permission(); break;
-            case 1: test_map = false; p = permission(); break;
+            case 1: test_live = false; p = permission(); break;
             case 2: test_config = "1;1;705;50;0"; p = permission(); break;
             case 3: ++history.buddy; break;
             case 4: account = "other-account"; break;
@@ -247,5 +247,32 @@ int main() {
         assert(!paused&&encode(history)==encode(saved));
         paused=true;adopt_buddy("another-account",43,"");assert(paused); // Same buddy cannot erase an unresolved pause.
     }
-    std::puts("PASS: buddy runtime permissions, gift enums, buddy swap recovery, cancellation, roots, rejection, timeout pause");
+    // Idle pacing does no managed work, and still reads fresh permission.
+    {
+        setup(2);clear();next_poll=clock_ms()+60000;
+        unsigned allocations=test_allocations,samples=test_samples;
+        for(int i=0;i<100;++i)pgr_buddy_emotion_tick(owner,nullptr);
+        assert(test_allocations==allocations&&test_roots.empty()&&test_samples>samples&&!paused);
+        assert(resolution_scope==nullptr);
+    }
+    // Map visibility never cancels any of the six phases; loss of host/item
+    // readiness does, even if the idle deadline is far in the future.
+    for(int phase:{1,2,3,4,5,6}){
+        setup(phase);test_result=PGR_VR_PENDING;test_map=false;
+        poll(permission());assert(!pending.canceled&&pending.phase==phase);
+        next_poll=clock_ms()+60000;test_live=false;
+        pgr_buddy_emotion_tick(owner,nullptr);
+        assert(pending.canceled&&test_polls==2);
+        test_result=PGR_VR_DONE;pgr_buddy_emotion_tick(owner,nullptr);
+        cleared(3,0,3);assert(!paused&&resolution_scope==nullptr);
+    }
+    // Evaluation-local roots are released and scope restored, including unwind.
+    {
+        assert(!resolution_scope&&test_roots.empty());
+        try{ResolutionScope scope;scope.container=Root(&test_objects[0]);scope.searched=true;
+            assert(scope.get()==&test_objects[0]);throw Failure{"fixture"};}
+        catch(const Failure&){}
+        assert(!resolution_scope&&test_roots.empty());
+    }
+    std::puts("PASS: buddy runtime camera-independent permissions, idle pacing, immediate cancellation, scope cleanup, gift enums, buddy swap recovery, roots, rejection, timeout pause");
 }

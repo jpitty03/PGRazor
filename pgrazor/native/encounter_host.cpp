@@ -16,6 +16,7 @@
 #include "encounter_berries.h"
 #include "catch_observers.h"
 #include "hook_engine.h"
+#include "profile_scroll.h"
 #include "inventory_host.h"
 #include "items.h"
 #include "map_poi.h"
@@ -2367,6 +2368,7 @@ static int api_tick(uint64_t proven_tid) {
   g_sample.tick_serial++;
 
   // Observe before automatic gameplay work; revoke before opening the manual encounter.
+  pgr_profile_scroll_install();
   const bool bird_block=pgr_incense_guard_tick(os_tid,&g_md);
   if(bird_block){g_opts.vgp_enabled=0;if(g_vgc&&g_last_vgp_enabled){g_vgc->revoke();clear_active_vgp_transfer();g_last_vgp_enabled=false;++g_vgp_epoch;}}
   pgr_incense_guard_open(os_tid);

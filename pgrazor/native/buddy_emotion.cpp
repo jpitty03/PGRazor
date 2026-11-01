@@ -55,10 +55,25 @@ template<class T>T boxed(void *o,const char *type){require(o&&typename_of(fn<voi
 std::string string(void *o){if(!o)return {};require(klass(o)==cls("System","String"),"string identity");int n=fn<int(*)(void*)>(exp("string_length"))(o);require(n>=0&&n<=512,"string bound");auto p=fn<const uint16_t*(*)(void*)>(boot.runtime.string_chars)(o);std::string s;for(int i=0;i<n;i++){if(p[i]>127)return "<non-ascii>";s+=char(p[i]);}return s;}
 void *h(unsigned id){return const_cast<void*>(md->opt_handles[id]);}
 Root type_object(void *k){return Root(fn<void*(*)(void*)>(exp("type_get_object"))(fn<void*(*)(void*)>(boot.meta.class_get_type)(k)));}
-Root resolve(void *contract){
+Root scene_container(){
  Root type=type_object(h(H_IL_MAP));void *args[]={type.get()};Root map(invoke(h(H_IL_FIND_M),nullptr,args));if(!map)return {};
- Root container(invoke(h(H_IL_CONTAINER_M),map.get()));if(!container)return {};
- Root target=type_object(contract);void *resolve_args[]={target.get()};return Root(invoke(h(H_IL_RESOLVE_M),container.get(),resolve_args));
+ return Root(invoke(h(H_IL_CONTAINER_M),map.get()));
+}
+// Never retain a scene service across ticks. Reuse only the container found
+// during this synchronous owner-thread evaluation, then release its root.
+struct ResolutionScope;
+ResolutionScope *resolution_scope=nullptr;
+struct ResolutionScope {
+ Root container;bool searched=false;ResolutionScope *previous=resolution_scope;
+ ResolutionScope(){resolution_scope=this;}
+ ~ResolutionScope(){resolution_scope=previous;}
+ void *get(){if(!searched){searched=true;container=scene_container();}return container.get();}
+};
+Root resolve(void *contract){
+ Root local;void *container=nullptr;
+ if(resolution_scope)container=resolution_scope->get();else{local=scene_container();container=local.get();}
+ if(!container)return {};
+ Root target=type_object(contract);void *resolve_args[]={target.get()};return Root(invoke(h(H_IL_RESOLVE_M),container,resolve_args));
 }
 Root resolve(const char *ns,const char *name){return resolve(cls(ns,name));}
 int literal(void *k,const char *name){void *f=fn<void*(*)(void*,const char*)>(boot.meta.class_get_field_from_name)(k,name);require(f,name);require((fn<int(*)(void*)>(boot.meta.field_get_flags)(f)&0x8050)==0x8050,name);int n=0;fn<void(*)(void*,void*)>(boot.runtime.field_static_get_value)(f,&n);return n;}
@@ -66,15 +81,17 @@ int result_value(void *o){auto f=fn<void*(*)(void*,const char*)>(boot.meta.class
 bool success(void *o,bool opening_gift=false){auto f=fn<void*(*)(void*,const char*)>(boot.meta.class_get_field_from_name)(klass(o),"Result");require(f,"Result");auto k=fn<void*(*)(void*)>(boot.meta.class_from_type)(fn<void*(*)(void*)>(boot.meta.field_get_type)(f));int result=result_value(o);return opening_gift?(result==literal(k,"SuccessAddedLootToInventory")||result==literal(k,"SuccessAddedSouvenirToCollections")):result==literal(k,"Success");}
 int count(Root &list,int cap){int n=boxed<int>(call(list.get(),"get_Count"),"System.Int32");require(n>=0&&n<=cap,"collection bound");return n;}
 Root item(Root &list,int index){void *args[]={&index};return Root(call(list.get(),"get_Item",1,args));}
-struct Permission {Settings settings;std::string config,saved;bool valid=false,allowed=false,live=false,ready=false,map=false;};
+struct Permission {Settings settings;std::string config,saved;bool valid=false,allowed=false,ready=false;};
 Permission permission(){
  Permission p;auto tr=static_cast<const PgrRuntimeTransportApi*>(pgrazor_runtime_transport_api(1));if(!tr)return p;
  PgrRuntimeTransportSample a{},z{};if(tr->sample(&a)||!a.snapshot_fresh||a.fault)return p;
- char text[257]{};uint32_t len=0;int active=0,ready=0,map=0;
+ char text[257]{};uint32_t len=0;int ready=0;
  if(tr->get_string(9,text,sizeof(text),&len)||!parse(text,len,p.settings))return p;p.config.assign(text,len);
  if(tr->get_string(10,text,sizeof(text),&len)||len>256)return p;p.saved.assign(text,len);
- tr->get_bool(9,&active);tr->get_bool(16,&ready);tr->get_bool(38,&map);
- if(tr->sample(&z)||!z.snapshot_fresh||z.snapshot_seq!=a.snapshot_seq)return p;p.valid=true;p.live=active;p.ready=ready;p.map=map;p.allowed=p.settings.enabled&&active&&ready&&map;return p;
+ // itemAccessAllowed includes hostLive: foreground, backend, connection lease
+ // and account-switch policy. Neither camera demand nor visibility is needed.
+ if(tr->get_bool(16,&ready))return p;
+ if(tr->sample(&z)||!z.snapshot_fresh||z.snapshot_seq!=a.snapshot_seq)return p;p.valid=true;p.ready=ready;p.allowed=p.settings.enabled&&ready;return p;
 }
 void publish(const std::string &message,bool force=false){
  uint64_t now=clock_ms();if(!force&&message==status&&now-last_publish<5000)return;status=message;last_publish=now;
@@ -93,7 +110,7 @@ void adopt_buddy(const std::string &id,uint64_t buddy,const std::string &saved_t
  if(saved_text.find(id+"|")==0&&parse_history(saved_text.substr(id.size()+1),saved)&&saved.buddy==buddy)history=saved;
  ep=-1;excited=false;last_stats=0;feed_burst=0;paused=false;next_action=next_poll=0;
 }
-uint64_t current_buddy(){Root svc=resolve("Niantic.Holoholo.Buddy","IBuddyPokemonService");if(!svc||!boxed<bool>(call(svc.get(),"get_HasBuddy"),"System.Boolean"))return 0;Root b(call(svc.get(),"get_BuddyPokemon"));return b?field<uint64_t>(b.get(),"BuddyPokemonId","System.UInt64"):0;}
+uint64_t current_buddy(bool *available=nullptr){Root svc=resolve("Niantic.Holoholo.Buddy","IBuddyPokemonService");if(available)*available=bool(svc);if(!svc||!boxed<bool>(call(svc.get(),"get_HasBuddy"),"System.Boolean"))return 0;Root b(call(svc.get(),"get_BuddyPokemon"));if(available)*available=bool(b);return b?field<uint64_t>(b.get(),"BuddyPokemonId","System.UInt64"):0;}
 Root stats(){Root s=resolve("Niantic.Holoholo.Buddy","IBuddyStatsService");return s?Root(call(s.get(),"get_BuddyStats")):Root{};}
 void observe(Root &s){
  require(s&&klass(s.get())==cls("Holoholo.Rpc","BuddyObservedData"),"buddy data identity");
@@ -107,8 +124,12 @@ bool hungry(Root &s){void *args[]={s.get()};if(boxed<bool>(invoke(h(H_BD_M_COOLD
  return std::isfinite(remain)&&std::isfinite(full)&&remain<=0&&full<1;
 }
 bool on_map(Root &s){void *args[]={s.get()};float remaining=boxed<float>(invoke(h(H_BD_M_REMAINING),nullptr,args),"System.Single");return std::isfinite(remaining)&&remaining>0;}
-int stock(int berry){if(!berry)return 0;Root bag=resolve("Niantic.Holoholo","IItemBag");if(!bag)return 0;void *args[]={&berry};return boxed<int>(call(bag.get(),"GetItemCount",1,args),"System.Int32");}
-int feeding_berry(const Settings &s){int counts[5]{};for(int i=0;i<5;i++)counts[i]=stock(s.berries[i]);return select_berry(s,counts);}
+int stock(Root &bag,int berry){if(!berry||!bag)return 0;void *args[]={&berry};return boxed<int>(call(bag.get(),"GetItemCount",1,args),"System.Int32");}
+int feeding_berry(const Settings &s,int *selected_count=nullptr){
+ Root bag;if(s.berry)bag=resolve("Niantic.Holoholo","IItemBag");
+ int counts[5]{};for(int i=0;i<5;i++)counts[i]=stock(bag,s.berries[i]);
+ int selected=select_berry(s,counts);if(selected_count){*selected_count=0;for(int i=0;i<5;i++)if(s.berries[i]==selected&&selected)*selected_count=counts[i];}return selected;
+}
 Root gift(Root &s){return Root(field<void*>(s.get(),"BuddyGiftPickedUp","Holoholo.Rpc.BuddyGiftProto"));}
 bool action_permission(const Permission &p){auto f=permission();return f.allowed&&f.config==p.config&&current_buddy()==history.buddy;}
 int photo_status(void *response){
@@ -195,19 +216,31 @@ void validate(){
 }
 void pgr_buddy_emotion_tick(uint64_t tid,const PgrSharedMetadataOutput *metadata){
  if(busy||!tid||tid!=uint64_t(gettid())||(owner&&tid!=owner))return;struct Guard{Guard(){busy=true;}~Guard(){busy=false;}} guard;
+ ResolutionScope resolution;
  try{
   auto p=permission();if(p.valid&&!p.settings.enabled)paused=false;
+  // Permission loss must drain/cancel in-flight work immediately, even while
+  // idle evaluation is throttled. Do not discover services while not live.
+  if(!p.allowed){
+   next_poll=0;
+   if(pending.phase){poll(p);return;}
+   if(paused)return; // Preserve the unresolved-result reason until explicitly reset.
+   publish(!p.valid?"Waiting for runtime settings":!p.settings.enabled?"Off":"Waiting for foreground game or item services");return;
+  }
+  const uint64_t now=clock_ms();
+  if(!pending.phase&&now<next_poll)return;
+  if(!pending.phase)next_poll=now+1000;
   if(!initialized){if(!p.allowed)return;auto api=static_cast<const PgrBootApi*>(pgrazor_runtime_bootstrap_api(1));boot.version=1;boot.size=sizeof(boot);require(api&&api->snapshot(&boot)==0,"runtime bootstrap");md=metadata;require(md,"metadata");owner=tid;validate();initialized=true;}
-  if(p.valid&&p.settings.enabled){Root player=resolve("Niantic.Holoholo","IPlayerService");if(!player)return;std::string id=string(call(player.get(),"get_PlayerId"));if(id.empty())return;uint64_t buddy=current_buddy();
+  if(p.valid&&p.settings.enabled){Root player=resolve("Niantic.Holoholo","IPlayerService");if(!player){if(pending.phase){p.allowed=false;poll(p);}else publish("Waiting for buddy services");return;}std::string id=string(call(player.get(),"get_PlayerId"));if(id.empty()){if(pending.phase){p.allowed=false;poll(p);}else publish("Waiting for account identity");return;}bool buddy_available=false;uint64_t buddy=current_buddy(&buddy_available);
+   if(!buddy_available){if(pending.phase){p.allowed=false;poll(p);}else publish("Waiting for buddy services");return;}
    adopt_buddy(id,buddy,p.saved);}
   if(pending.phase){poll(p);return;}if(paused)return;
-  if(!p.allowed){publish(!p.valid?"Waiting for runtime settings":!p.settings.enabled?"Off":!p.live?"Waiting for foreground game session":!p.ready?"Waiting for item services":"Waiting for the map");return;}
+  next_poll=now+1000;
   if(!history.buddy){publish("Choose a buddy first");return;}
-  uint64_t now=clock_ms();if(now<next_action)return;
+  if(now<next_action)return;
   if(!last_stats||now-last_stats>=60000){begin(5,p);return;}
   Root s=stats();if(!s){publish("Waiting for buddy data");return;}observe(s);
-  if(now<next_poll)return;next_poll=now+1000;
-  bool is_hungry=hungry(s);int selected=feeding_berry(p.settings),count=stock(selected);Action action=choose(p.settings,history,clock_ms(CLOCK_REALTIME),is_hungry,count,on_map(s)&&bool(gift(s)));
+  bool is_hungry=hungry(s);int count=0,selected=feeding_berry(p.settings,&count);Action action=choose(p.settings,history,clock_ms(CLOCK_REALTIME),is_hungry,count,on_map(s)&&bool(gift(s)));
   if(resume_feed_burst(p.settings,feed_burst,is_hungry,count))action=Feed;
   if(action==None){publish(!p.settings.berry?"No feeding berries selected":!selected?"No selected berry above reserve ("+std::to_string(p.settings.reserve)+" each)":is_hungry?"Hungry; waiting for feeding retry cooldown":excited?"Excited; buddy fed or in feeding cooldown":"Buddy fed or in feeding cooldown; waiting for next interaction");return;}
   if(action==Feed&&!feed_burst)feed_burst=3;

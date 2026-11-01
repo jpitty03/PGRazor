@@ -75,7 +75,7 @@ def main(argv=None):
             entry = {'source': str(source.relative_to(root)), 'source_sha256': native_build.sha256(source)}
             receipt['tests'].append(entry)
             extra_flags = []
-            if source.stem in ('event_collector_test',):
+            if source.stem in ('event_collector_test', 'profile_scroll_test'):
                 vendor = native_build.ensure_dobby(root, download=False)
                 extra_flags = ['-fexceptions', '-I'+str(vendor/'include'), '-llog']
                 entry['included_source_sha256'] = native_build.sha256(source.with_name(source.stem.removesuffix('_test')+'.cpp'))
@@ -113,7 +113,7 @@ def main(argv=None):
                 if source.stem == 'encounter_host_test':
                     dependencies = ('hook_engine.cpp', 'incense_guard.cpp', 'remote_gym.cpp',
                                     'gym_runtime.cpp', 'gym_automation.cpp', 'batch_evolution.cpp',
-                                    'buddy_emotion.cpp', 'vgp_controller.cpp', 'smart_catch.cpp',
+                                    'buddy_emotion.cpp', 'profile_scroll.cpp', 'vgp_controller.cpp', 'smart_catch.cpp',
                                     'smart_catch_binding.cpp', 'vgp_discovery.cpp')
                     extra_flags[:0] = [root/'native'/name for name in dependencies]
                     entry['linked_sources_sha256'] = {name: native_build.sha256(root/'native'/name)
