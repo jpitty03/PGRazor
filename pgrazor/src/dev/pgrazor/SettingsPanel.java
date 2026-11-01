@@ -60,6 +60,7 @@ final class SettingsPanel {
     // Multi-option groups keep checkboxes / radios.
     private final CheckBox[] transferProtection=new CheckBox[6];
     private final CheckBox[] giftChoices=new CheckBox[3];
+    private final CheckBox[] quickMenuChoices=new CheckBox[QuickMenu.CUSTOMIZABLE.length];
     private final CheckBox[] rocketChoices=new CheckBox[3];
     private final CheckBox[] battleChoices=new CheckBox[10];
     private Runnable buddyRefresh=()->{},smartRefresh=()->{};
@@ -183,6 +184,14 @@ final class SettingsPanel {
     private void buildLocationSection() {
         // ----- Location & overlays -----
         LinearLayout loc = section(body, "Location & overlays", true);
+        LinearLayout menu = section(loc,"Customize Quick Menu",false);
+        caption(menu,"Choose which entries appear. This does not turn features on or off. Settings stays visible.");
+        for(int i=0;i<QuickMenu.CUSTOMIZABLE.length;i++){
+            final int bit=1<<i;
+            CheckBox box=new CheckBox(activity);box.setText(QuickMenu.CUSTOMIZABLE[i]);
+            box.setChecked(Control.quickMenuVisible(bit));quickMenuChoices[i]=box;menu.addView(box);
+            box.setOnClickListener(v->{Control.setQuickMenuVisible(bit,box.isChecked());host.refresh();});
+        }
         uiScale=button("UI scale: "+Control.uiScalePercent()+"%");loc.addView(uiScale);
         uiScale.setOnClickListener(v->{final int[] values={100,75,50,25};String[] labels={"100%","75%","50%","25%"};int selected=0;for(int i=0;i<values.length;i++)if(values[i]==Control.uiScalePercent())selected=i;
             new AlertDialog.Builder(dialogContext()).setTitle("Overlay scale").setSingleChoiceItems(labels,selected,(dialog,which)->{host.releaseJoystick(true);Control.setUiScalePercent(values[which]);host.refresh();dialog.dismiss();}).setNegativeButton("Cancel",null).show();});
@@ -206,6 +215,7 @@ final class SettingsPanel {
         caption(loc, "When idle, start walking in a circle. Speed 0 pauses it.");
         joystickSwitch = switchRow(loc, "Show joystick"); joystickSwitch.setChecked(Control.joystickVisible());
         joystickSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.joystickVisible())return; host.setJoystickVisible(checked); });
+
     }
 
     private void buildCatchSection() {
@@ -296,6 +306,8 @@ final class SettingsPanel {
         incense.setOnClickListener(v -> AutomationPanel.showIncense(activity));
         Button remoteFeed = button("Remote Gym Feeding"); autoC.addView(remoteFeed);
         remoteFeed.setOnClickListener(v -> AutomationPanel.showRemoteFeed(activity));
+        Button gifts = button("Send & Open Gifts"); autoC.addView(gifts);
+        gifts.setOnClickListener(v -> GiftBatchDialog.show(activity));
         Button evolve = button("Mass Evolve"); autoC.addView(evolve);
         evolve.setOnClickListener(v -> BatchEvolutionSettings.show(activity));
     }
@@ -311,14 +323,33 @@ final class SettingsPanel {
     }
 
     private void buildBattlesSection() {
-        // ----- Raids, gyms & Dynamax -----
-        LinearLayout battleC = section(body, "Raids, gyms & Dynamax", false); battleRoot = (View)battleC.getParent();
-        String[] battleLabels={"Raids: auto quick attack","Raids: auto charged attack","Gyms: auto quick attack","Gyms: auto charged attack","Dynamax: auto quick attack","Dynamax: auto charged attack","Dynamax: auto Max attack","Raids: auto dodge","Gyms: auto dodge","Dynamax: auto dodge"};
-        for(int i=0;i<10;i++){final int bit=1<<i;CheckBox box=new CheckBox(activity);box.setText(battleLabels[i]);box.setChecked((Control.battleOptions()&bit)!=0);battleChoices[i]=box;battleC.addView(box);box.setOnClickListener(v->Control.setBattleOptions(box.isChecked()?Control.battleOptions()|bit:Control.battleOptions()&~bit));}
-
-        battleStatus = caption(battleC, "");
-        Button gyms=button("Gym Slotter & Berry Feeder");battleC.addView(gyms);
+        LinearLayout battleC = section(body, "Gyms, Raids & Dynamax", false); battleRoot = (View)battleC.getParent();
+        LinearLayout gymC = section(battleC, "Gyms", false);
+        Button gyms=button("Gym Slotter & Berry Feeder");gymC.addView(gyms);
         gyms.setOnClickListener(v->GymAutomationSettings.show(activity));
+        battleChoice(gymC,2,"Auto quick attack");
+        battleChoice(gymC,3,"Auto charged attack");
+        battleChoice(gymC,8,"Auto dodge");
+
+        LinearLayout raidC = section(battleC, "Raids", false);
+        battleChoice(raidC,0,"Auto quick attack");
+        battleChoice(raidC,1,"Auto charged attack");
+        battleChoice(raidC,7,"Auto dodge");
+
+        LinearLayout maxC = section(battleC, "Dynamax", false);
+        battleChoice(maxC,4,"Auto quick attack");
+        battleChoice(maxC,5,"Auto charged attack");
+        battleChoice(maxC,6,"Auto Max attack");
+        battleChoice(maxC,9,"Auto dodge");
+        battleStatus = caption(battleC, "");
+    }
+
+    private void battleChoice(LinearLayout owner,int index,String label) {
+        // Keep the persisted/native option bits unchanged when moving controls between groups.
+        final int bit=1<<index;
+        CheckBox box=new CheckBox(activity);box.setText(label);
+        box.setChecked((Control.battleOptions()&bit)!=0);battleChoices[index]=box;owner.addView(box);
+        box.setOnClickListener(v->Control.setBattleOptions(box.isChecked()?Control.battleOptions()|bit:Control.battleOptions()&~bit));
     }
 
     private void buildThrowsSection() {
@@ -549,6 +580,7 @@ final class SettingsPanel {
     }
 
     private void refreshLocationOptions() {
+        for(int i=0;i<quickMenuChoices.length;i++)quickMenuChoices[i].setChecked(Control.quickMenuVisible(1<<i));
         idleWalkSwitch.setChecked(Control.idleWalking());idleWalkSwitch.setEnabled(Control.desiredEnabled());idleWalkSwitch.setAlpha(Control.desiredEnabled()?1f:.45f);
         mapTap.setText("Game map tap: "+new String[]{"Do nothing","Walk","Teleport","Walk / double tap teleport"}[Control.mapTapMode()]);
         mapTap.setEnabled(Control.quickBallConfigured());

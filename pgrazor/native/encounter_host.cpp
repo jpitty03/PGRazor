@@ -43,6 +43,7 @@
 #include "gym_automation.h"
 #include "batch_evolution.h"
 #include "remote_gym.h"
+#include "gift_batch.h"
 #include "incense_guard.h"
 #include "buddy_emotion.h"
 
@@ -2380,6 +2381,7 @@ static int api_tick(uint64_t proven_tid) {
 
   // 3. MapPOI snapshot scan
   tick_map_poi(os_tid, now, rem_lease);
+  pgr_gift_batch_tick(os_tid, &g_md);
   pgr_remote_gym_tick(os_tid, &g_md);
   pgr_gym_tick(os_tid, &g_md);
   pgr_evolution_tick(os_tid, &g_md);
@@ -2407,6 +2409,7 @@ static int api_stop(uint64_t proven_tid) {
       pump_berry_events_and_resume(tid, 1);
     }
     if (g_vgc && (g_active_caps & PGR_EH_CAP_VGP)) {
+      pgr_gift_batch_stop();
       pgr_remote_gym_stop(tid);
       pgr_incense_guard_stop(tid);
       pgr_gym_stop(tid);

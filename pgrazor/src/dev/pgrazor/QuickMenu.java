@@ -35,6 +35,11 @@ public final class QuickMenu {
 
     static final int MAP = 0, WALK = 1, AUTOWALK = 2, FEEDS = 3, FAVORITES = 4, TELEPORT = 5, ACCOUNTS = 6, SETTINGS = 7, EVENTS = 8, AUTOMATION = 9;
 
+    // Append-only order: persisted visibility bits must not follow icon IDs (some are shared).
+    static final String[] CUSTOMIZABLE = {"Map", "Walking speed", "Autowalk", "In-game Routes", "Feeds", "Favorites", "Hotspots", "Teleport", "Switch account", "Events", "Automation"};
+    private final List<View> rows = new ArrayList<>();
+    private final List<Integer> visibilityBits = new ArrayList<>();
+    private int appliedHidden = -1;
     private final Activity activity;
     private final Listener listener;
     private final View anchor;
@@ -54,19 +59,19 @@ public final class QuickMenu {
 
         card = new LinearLayout(activity); card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(0, dp(6), 0, dp(6)); card.setElevation(dp(12));
-        card.addView(row(MAP, "Map", true, listener::onMap));
-        LinearLayout walkRow = (LinearLayout) row(WALK, "Walk", true, this::onWalk); walkLabel = (TextView) walkRow.getChildAt(1);
+        card.addView(row(MAP, "Map", true, listener::onMap, 1));
+        LinearLayout walkRow = (LinearLayout) row(WALK, "Walk", true, this::onWalk, 2); walkLabel = (TextView) walkRow.getChildAt(1);
         card.addView(walkRow);
-        card.addView(row(AUTOWALK, "Autowalk", true, listener::onAutoWalk));
-        card.addView(row(AUTOWALK, "In-game Routes", true, listener::onGameRoutes));
-        card.addView(row(FEEDS, "Feeds", true, listener::onFeeds));
-        card.addView(row(FAVORITES, "Favorites", true, listener::onFavorites));
-        card.addView(row(MAP, "Hotspots", true, listener::onHotspots));
-        card.addView(row(TELEPORT, "Teleport", true, listener::onTeleport));
-        card.addView(row(ACCOUNTS, "Switch account", true, listener::onAccounts));
-        card.addView(row(EVENTS, "Events", true, () -> dev.pgrazor.events.EventPanel.showSelector(activity, Control.darkTheme())));
-        card.addView(row(AUTOMATION, "Automation", true, () -> AutomationPanel.show(activity)));
-        card.addView(row(SETTINGS, "Settings", true, listener::onSettings));
+        card.addView(row(AUTOWALK, "Autowalk", true, listener::onAutoWalk, 4));
+        card.addView(row(AUTOWALK, "In-game Routes", true, listener::onGameRoutes, 8));
+        card.addView(row(FEEDS, "Feeds", true, listener::onFeeds, 16));
+        card.addView(row(FAVORITES, "Favorites", true, listener::onFavorites, 32));
+        card.addView(row(MAP, "Hotspots", true, listener::onHotspots, 64));
+        card.addView(row(TELEPORT, "Teleport", true, listener::onTeleport, 128));
+        card.addView(row(ACCOUNTS, "Switch account", true, listener::onAccounts, 256));
+        card.addView(row(EVENTS, "Events", true, () -> dev.pgrazor.events.EventPanel.showSelector(activity, Control.darkTheme()), 512));
+        card.addView(row(AUTOMATION, "Automation", true, () -> AutomationPanel.show(activity), 1024));
+        card.addView(row(SETTINGS, "Settings", true, listener::onSettings, 0));
         root.addView(card, new FrameLayout.LayoutParams(dp(196), -2));
 
         parent.addView(root, new FrameLayout.LayoutParams(-1, -1));
@@ -74,7 +79,7 @@ public final class QuickMenu {
         applyTheme();
     }
 
-    private View row(int kind, String label, boolean enabled, Runnable action) {
+    private View row(int kind, String label, boolean enabled, Runnable action, int visibilityBit) {
         LinearLayout r = new LinearLayout(activity); r.setOrientation(LinearLayout.HORIZONTAL);
         r.setGravity(Gravity.CENTER_VERTICAL); r.setMinimumHeight(dp(48)); r.setPadding(dp(14), dp(6), dp(16), dp(6));
         Icon icon = new Icon(activity, kind); icon.disabled = !enabled;
@@ -86,6 +91,7 @@ public final class QuickMenu {
             r.setBackground(new RippleDrawable(ColorStateList.valueOf(0x3345e1ba), null, rounded(0xffffffff, 10)));
             r.setOnClickListener(v -> {if(kind!=WALK)hide();action.run();});
         }
+        rows.add(r); visibilityBits.add(visibilityBit);
         rowIcons.add(icon); rowLabels.add(t); rowEnabled.add(enabled);
         return r;
     }
@@ -101,12 +107,19 @@ public final class QuickMenu {
         walkLabel.setText(String.format(Locale.US, "%.1f km/h", speed));
     }
 
-    public void onRefresh() { if (isShowing()) updateWalk(); }
+    private void updateVisibility() {
+        int hidden=Control.quickMenuHidden();if(hidden==appliedHidden)return;
+        appliedHidden=hidden;
+        for(int i=0;i<rows.size();i++)rows.get(i).setVisibility((hidden&visibilityBits.get(i))==0?View.VISIBLE:View.GONE);
+        if(isShowing())card.post(this::position);
+    }
+    public void onRefresh() { if (isShowing()) {updateVisibility();updateWalk();} }
     public void applyScale(float scale){card.setPivotX(0);card.setPivotY(0);card.setScaleX(scale);card.setScaleY(scale);if(isShowing())card.post(this::position);}
     public boolean isShowing() { return root.getVisibility() == View.VISIBLE; }
     public void toggle() { if (isShowing()) hide(); else show(); }
     public void hide() { root.setVisibility(View.GONE); }
     public void show() {
+        updateVisibility();
         updateWalk();
         root.setVisibility(View.VISIBLE); root.bringToFront();
         card.post(this::position);

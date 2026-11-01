@@ -123,6 +123,10 @@ void poll_policy(){
  if(tr->sample(&a)||!a.snapshot_fresh){p.lease_ms=0;update(&p);return;}
  p.item_enabled=b(17);p.item_allowed=b(16);int mode=n(3);p.item_catalog=mode>=0&&mode<=2?mode:0;p.buddy_allowed=b(8);p.buddy_berry=n(1);
  p.incubator_enabled=b(4);p.incubator_longest=b(13);p.incubator_allowed=b(14);int mask=n(2);p.gift_mask=mask>=0&&mask<=7?mask:0;p.gift_allowed=b(12);
+ // A one-shot batch owns gift requests until its terminal acknowledgement.
+ // Keep the user's saved manual-screen options, but do not start competing UI requests.
+ char task[96]{};uint32_t task_length=0;
+ if(!tr->get_string(12,task,sizeof(task),&task_length)&&task_length>=3&&!memcmp(task,"G1|",3))p.gift_mask=0;
  char text[8193]{};uint32_t length=0;if(tr->get_string(3,text,sizeof(text),&length)||length>8192){p.item_enabled=0;text[0]=0;}p.item_rules=text;
  if(tr->sample(&z)||!z.snapshot_fresh||a.snapshot_seq!=z.snapshot_seq)p.lease_ms=0;update(&p);
 }

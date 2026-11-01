@@ -14,6 +14,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 STUBS = {
+    "dev/pgrazor/GiftBatchSettings.java": "package dev.pgrazor; public class GiftBatchSettings {public static void reset(){} public static String config(){return null;} public static void publish(String s){} public static boolean running(){return false;}}",
     'dev/pgrazor/events/EventSettings.java': 'package dev.pgrazor.events; public final class EventSettings {public static boolean boxCollectorEnabled(android.app.Application app){return false;} public static void publishBoxCollectorCapability(boolean value){}}',
     'android/content/Context.java': 'package android.content; public class Context {public static final String NOTIFICATION_SERVICE="notification";}',
     'android/app/Activity.java': '''package android.app;

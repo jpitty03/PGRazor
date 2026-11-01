@@ -39,6 +39,7 @@ public final class Control {
     static Activity accountActivity(){return pad==null?null:pad.activity;}
     static void quiesceAccounts() throws IOException {
         OneShotAutomation.reset();
+        GiftBatchSettings.reset();
         gameRoutes.stop("Account switch"); gameRoutesPlanning=false; gameRoutes.setPlanning(false); autoWalkPlanning=false;
         vgp.suspend();
         mapTapEpoch++; invalidateQuickBallOutcome();
@@ -252,7 +253,7 @@ public final class Control {
     public static String buddyEmotionConfig(){return BuddyEmotionSettings.config();}
     public static boolean automationReady(){return hostLive()&&active()&&itemAccessAllowed();}
     public static boolean automationPlanning(){return autoWalkPlanning||gameRoutesPlanning;}
-    public static String oneShotAutomationConfig(){return OneShotAutomation.config();}
+    public static String oneShotAutomationConfig(){String gift=GiftBatchSettings.config();return gift!=null?gift:OneShotAutomation.config();}
     public static String batchEvolutionConfig(){return BatchEvolutionSettings.config();}
     public static String buddyEmotionHistory(){return BuddyEmotionSettings.history();}
     public static boolean encounterBerryVisible(){return encounterBerryEnabled&&catchScreenVisible();}
@@ -825,6 +826,7 @@ public final class Control {
         gameRoutesPlanning=false;gameRoutes.setPlanning(false);
         requestInteractionStop();
         OneShotAutomation.reset();
+        GiftBatchSettings.reset();
         foreground = false; autoWalkPlanning=false;mapPoiOpen=false;mapPoiSnapshot="";mapPoiAt=0; mapTapEpoch++; invalidateQuickBallOutcome(); cameraSampleRequest.set(false); invalidateCameraHeading("App backgrounded");
         // Losing the foreground switches VGP off, clears any target, and never auto-resumes.
         vgp.suspend();
@@ -894,6 +896,15 @@ public final class Control {
         saveState();
     }
     private static boolean darkTheme=true, joystickVisible=true;
+    // Visibility only. Bits are stable menu-entry IDs, independent of feature settings.
+    private static volatile int quickMenuHidden;
+    public static int quickMenuHidden(){return quickMenuHidden;}
+    public static boolean quickMenuVisible(int bit){return (quickMenuHidden&bit)==0;}
+    public static void setQuickMenuVisible(int bit,boolean visible){
+        if(bit<=0||bit>1024||(bit&(bit-1))!=0)return;
+        quickMenuHidden=visible?quickMenuHidden&~bit:quickMenuHidden|bit;
+        saveSettings();
+    }
     private static volatile int uiScalePercent=100;
     public static int uiScalePercent(){return uiScalePercent;}
     public static void setUiScalePercent(int value){if(value!=25&&value!=50&&value!=75&&value!=100)return;uiScalePercent=value;saveSettings();}
@@ -916,6 +927,7 @@ public final class Control {
     public static void setJoystickVisible(boolean value){joystickVisible=value;saveSettings();}
     private static void loadSettings(Application app) {
         OneShotAutomation.reset();
+        GiftBatchSettings.reset();
         BatchEvolutionSettings.reset();
         synchronized(stateLock) {
             if(settingsFile==null) {
@@ -930,6 +942,7 @@ public final class Control {
             try { settingsWriter.flush(SETTINGS_FLUSH_MS); }
             catch(IOException pending) { event("settings-load-error","Pending save not flushed: "+pending); return; }
             StrictMode.ThreadPolicy policy=StrictMode.allowThreadDiskReads();
+            quickMenuHidden=0;
             idleWalking=false;engine.setIdleWalking(false);
             SmartCatchSettings.read(new Properties());
             GymAutomationSettings.read(new Properties());
@@ -941,6 +954,7 @@ public final class Control {
                 BuddyEmotionSettings.read(p);
                 desiredEnabled=Boolean.parseBoolean(p.getProperty("locationSpoofing","true"));
                 darkTheme=Boolean.parseBoolean(p.getProperty("darkTheme","true"));
+                quickMenuHidden=boundedSetting(p,"quickMenuHidden",2047);
                 try{uiScalePercent=Integer.parseInt(p.getProperty("uiScalePercent","100"));}catch(NumberFormatException invalid){uiScalePercent=100;}
                 if(uiScalePercent!=25&&uiScalePercent!=50&&uiScalePercent!=75&&uiScalePercent!=100)uiScalePercent=100;
                 joystickVisible=Boolean.parseBoolean(p.getProperty("joystickVisible","true"));
@@ -1042,6 +1056,7 @@ public final class Control {
         p.setProperty("locationSpoofing",String.valueOf(desiredEnabled));
         p.setProperty("darkTheme",String.valueOf(darkTheme));p.setProperty("uiScalePercent",String.valueOf(uiScalePercent));
         p.setProperty("joystickVisible",String.valueOf(joystickVisible));
+        p.setProperty("quickMenuHidden",String.valueOf(quickMenuHidden));
         p.setProperty("idleWalking",String.valueOf(idleWalking));
         p.setProperty("spawnBooster",String.valueOf(spawnBooster));
         p.setProperty("giftOptions",String.valueOf(giftOptions));
@@ -1087,6 +1102,7 @@ public final class Control {
         if("buddy-emotion".equals(kind))BuddyEmotionSettings.publish(detail);
         if("remote-gym".equals(kind)||"incense-bird".equals(kind)||"incense-session".equals(kind)||"incense-open".equals(kind))OneShotAutomation.publish(kind,detail);
         if("batch-evolution".equals(kind))BatchEvolutionSettings.publish(detail);
+        if("gift-batch".equals(kind))GiftBatchSettings.publish(detail);
         if("event-boxes".equals(kind)) {
             boolean available=false;
             try { available=new org.json.JSONObject(detail).optBoolean("available",false); }

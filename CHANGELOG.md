@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## v0.1.8
+
+[Full release notes](docs/releases/v0.1.8.md)
+
+- Group battle checkboxes under Gyms, Raids, and Dynamax, with Gym Slotter & Berry Feeder first inside Gyms. Existing choices are preserved.
+
+- Add Location & overlays > Customize Quick Menu: hide individual menu entries without changing feature settings. Choices are saved per account and included in settings backups; Settings remains accessible.
+
+- Add Automation > Send & Open Gifts: one manually started batch, confirmed progress, Stop, and an option to attempt opening with a full item bag using the game's reward setting. Game eligibility and daily limits still apply.
+
+
 - Restore automatic gift opening and sending when friend-screen callbacks arrive between native scheduler ticks.
 
 - Reduce VGP+ idle scene scans from up to 10 per second to 1 per second, retaining responsive pending catches and cancellation.

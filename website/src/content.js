@@ -4,7 +4,7 @@
 export const links = {
   releasesLatest: 'https://github.com/jpitty03/PGRazor/releases/latest',
   releasesCurrent:
-    'https://github.com/jpitty03/PGRazor/releases/tag/v0.1.7',
+    'https://github.com/jpitty03/PGRazor/releases/tag/v0.1.8',
   github: 'https://github.com/jpitty03/PGRazor',
   discord: 'https://discord.gg/9QqfkDSQX3',
   kofi: 'https://ko-fi.com/pgrazor',
@@ -57,7 +57,7 @@ export const settingGroups = [
   {
     id: 'automate',
     label: 'Automate',
-    intro: 'Found under Virtual Go Plus, Eggs, Buddy Emotion Engine, Gifts, Raids/gyms/Dynamax, inventory controls, and Events. Automation groups tasks you start manually.',
+    intro: 'Found under Virtual Go Plus, Eggs, Buddy Emotion Engine, Gifts, Gyms, Raids & Dynamax, inventory controls, and Events. Automation groups tasks you start manually.',
     items: [
       { name: 'Virtual Go Plus', detail: 'Catch nearby wild Pokémon with red balls only and spin stops; starts off and stops when the app is backgrounded.' },
       { name: 'VGP+', detail: 'Includes ball, berry, throw, and premium/candy rules, reaches loaded Pokémon past the 40 m cutoff, and optionally spins nearby gym discs through the VGP controls.' },
@@ -65,6 +65,7 @@ export const settingGroups = [
       { name: 'Buddy Emotion Engine', detail: 'Includes snapshots, petting, and reserve-aware berry feeding with optional gift collection; it replaces Auto feed buddy.' },
       { name: 'Gym Slotter & Berry Feeder', detail: 'Deploys Gym-tagged defenders to open friendly gym slots and feeds defenders; two independent toggles, both off by default, run from one draggable overlay.' },
       { name: 'Daily Incense Session', detail: 'A manually started walk for up to 15 minutes. Loaded Galarian bird detection stops walking and VGP, attempts to open the encounter, and alerts you to catch manually. The live bird handoff is not yet verified.' },
+      { name: 'Send & Open Gifts', detail: 'Run one gift batch with confirmed sent/opened counts and a Stop button. Optional full-bag opening uses the game’s reward setting; eligibility and daily limits still apply.' },
       { name: 'Remote Gym Feeding', detail: 'Run one batch for gyms you defend, using surplus Nanab, Razz, and optional Pinap above your reserves. Stop cancels unsent work; game limits still apply.' },
       { name: 'Batch evolution', detail: 'Previews a tagged batch, then evolves each eligible Pokémon once without the cutscene; no automatic Lucky Egg. Find it as Mass Evolve under Settings or Quick Menu > Automation.' },
       { name: 'Friend gifts', detail: 'Open and send gifts, with optional stickers.' },
@@ -80,7 +81,7 @@ export const settingGroups = [
       { name: 'Light / dark themes', detail: 'The whole interface follows your chosen PGRazor theme.' },
       { name: 'Overlay scaling', detail: 'Size the launcher, quick menu, joystick, timer, and overlays at 100 / 75 / 50 / 25%.' },
       { name: 'Reposition overlays', detail: 'Drag the cooldown timer, VGP icon, and Keep All toggle anywhere.' },
-      { name: 'Quick menu', detail: 'Reach Map, speed, Autowalk, Feeds, Favorites, Teleport, and Settings fast.' },
+      { name: 'Quick menu', detail: 'Reach Map, speed, Autowalk, Feeds, Favorites, Teleport, and Settings fast. Customize Quick Menu hides entries you don’t use; Settings always stays visible.' },
       { name: 'Settings backup', detail: 'Export / import settings as JSON; tokens, location, and routes are left out.' },
     ],
   },

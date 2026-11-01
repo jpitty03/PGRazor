@@ -98,12 +98,12 @@ test('cooldown trigger and safe groups expand', async ({ page }) => {
 
 test('current stable release notes accompany the latest download', async ({ page }) => {
   await page.goto('./');
-  const experimental = page.locator(
-    'a[href="https://github.com/jpitty03/PGRazor/releases/tag/v0.1.7"]'
+  const releaseNotes = page.locator(
+    'a[href="https://github.com/jpitty03/PGRazor/releases/tag/v0.1.8"]'
   );
-  await expect(experimental).toHaveCount(1);
-  await expect(experimental).toBeVisible();
+  await expect(releaseNotes).toHaveCount(1);
+  await expect(releaseNotes).toBeVisible();
   // It must not masquerade as the primary "latest release" call to action.
-  await expect(experimental).not.toHaveClass(/btn--primary/);
+  await expect(releaseNotes).not.toHaveClass(/btn--primary/);
   await expect(page.locator('.cta__badge')).toHaveText('Stable');
 });

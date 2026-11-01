@@ -9,6 +9,7 @@ export const featureGuides = [
     where: 'Settings > Location & overlays, plus the on-screen joystick.',
     steps: [
       'Open Settings and expand Location & overlays.',
+      'Open Customize Quick Menu — the first control in Location & overlays — to show or hide any of the 11 Quick Menu entries. It changes visibility only, never a feature’s on/off state, and Settings always stays available. Choices are saved per account and included in settings backups.',
       'Turn on Location spoofing. It can run with Android’s system Location switch off or the app’s location permission denied.',
       'Use Coordinates & speed to set a start point and pick a speed preset: 0, 9.3, 16, or 30 km/h.',
       'Drag the joystick to walk; it steers relative to the game camera, not the screen.',
@@ -205,6 +206,7 @@ export const featureGuides = [
       'Gym disc spinning runs on the map at loaded gyms of any team within 80 m, checks bag space, and respects each disc cooldown. The VGP start/stop and optional Stop on cooldown (estimated) controls apply. Gym-disc spinning has been user-verified.',
       'Premium rules take priority over candy rules. Empty selected stock falls back to available regular balls or skips the berry; Master Balls are never used.',
       'Throws wait roughly 1.2–1.8 seconds, with at most three additional throws after confirmed escapes.',
+      'Idle scene scanning runs about once per second (down from up to ten) to stay light while keeping pending catches and Stop responsive.',
       'Existing storage, transfer, foreground, and manual-interaction gates still apply, and ratings do not guarantee a catch.',
     ],
   },
@@ -214,7 +216,7 @@ export const featureGuides = [
     category: 'Automation',
     summary:
       'Deploy a tagged defender to an open friendly gym slot and feed your gym defenders from one draggable overlay.',
-    where: 'Settings > Raids, gyms & Dynamax > Gym Slotter & Berry Feeder.',
+    where: 'Settings > Gyms, Raids & Dynamax > Gyms > Gym Slotter & Berry Feeder.',
     steps: [
       'In the game’s Pokémon storage, open the Tags tab and create a tag named Gym (the #Gym shorthand is also recognized), then assign the eligible, healthy defenders you want deployed.',
       'Open Gym Slotter & Berry Feeder. Deployment and feeding are two independent switches that both default off, and VGP need not be running.',
@@ -236,7 +238,7 @@ export const featureGuides = [
     title: 'Buddy Emotion Engine',
     category: 'Automation',
     summary:
-      'Builds buddy mood with snapshot requests, petting, and reserve-aware berry feeding, replacing the old Auto feed buddy. Snapshot-heart credit from the updated request path is not yet verified in game.',
+      'Builds buddy mood with snapshot requests, petting, and reserve-aware berry feeding, replacing the old Auto feed buddy. It keeps running while game menus are open.',
     where: 'Settings > Buddy Emotion Engine.',
     steps: [
       'Expand Buddy Emotion Engine and turn on “Run the Buddy Emotion Engine”. This one master control covers snapshots, petting, hunger-based feeding, and optional gift collection.',
@@ -249,6 +251,7 @@ export const featureGuides = [
       'It replaces the separate Auto feed buddy control. Existing single-berry choices are preserved, and legacy settings migrate with their old no-reserve behavior; disabling the engine grays the controls without clearing choices and does not re-enable the old feeder.',
       'Golden Razz and Silver Pinap are optional premium choices and are never selected by default; Poffins are never used. Clear the list to disable feeding.',
       'The overlay shows game-reported EP/excitement and an estimated maintenance countdown; the countdown is an estimate. Recent action history is scoped to the current account and buddy and survives restart.',
+      'Snapshots, petting, feeding, and gift opening are user-confirmed to run while game menus are open. Idle checks run about once per second to stay light, and cancellation remains responsive.',
       'Walking and battles stay manual. Unknown request outcomes pause automation until you toggle it off.',
     ],
   },
@@ -291,6 +294,25 @@ export const featureGuides = [
       'Only gyms with your own deployed defenders are eligible. The game still controls remote access, feeding limits, and accepted rewards; counts advance only on confirmed responses.',
       'Golden Razz and Silver Pinap are excluded. Reserves protect remaining stock; no Stardust or candy payout is promised.',
       'Backgrounding or lost account, game, or location readiness ends the run. Daily Incense and Mass Evolve must finish or stop before another task starts.',
+    ],
+  },
+  {
+    id: 'gift-batch',
+    title: 'Send & Open Gifts',
+    category: 'Automation',
+    summary: 'Send available gifts to eligible friends, then open received gifts in one manually started pass.',
+    where: 'Settings > Automation > Send & Open Gifts, or Quick Menu > Automation.',
+    steps: [
+      'Choose whether to open even when your item bag is full. This option is on by default, uses the game’s full-bag reward preference, and may provide fewer rewards.',
+      'Press Start. The pass sends your available gifts to eligible friends, then opens the gifts you have received, handling each friend once. Watch the confirmed Sent and Opened counts, skipped actions, and current status.',
+      'Press Stop to cancel remaining work. An already submitted request may finish once.',
+    ],
+    notes: [
+      'The batch does not repeat automatically, delete items, or bypass daily limits and friend eligibility.',
+      'Turn full-bag opening off to stop opening when the bag fills. Sending can still run.',
+      'A request with an unknown outcome stops the batch rather than being retried automatically.',
+      'Android testing confirmed sending, opening, and a clean Stop (9 sent and 8 opened across two runs). Full-bag opening uses the game’s reward setting and has not been live-verified.',
+      'Finish or stop other Automation tasks before starting. Losing game/account readiness ends the batch.',
     ],
   },
   {
@@ -392,10 +414,10 @@ export const featureGuides = [
     category: 'Battles',
     summary:
       'Assist with Team Rocket, raids, gyms, and Dynamax / Max encounters.',
-    where: 'Settings > Team Rocket and Settings > Raids, gyms & Dynamax.',
+    where: 'Settings > Team Rocket and Settings > Gyms, Raids & Dynamax.',
     steps: [
       'In Team Rocket, enable Auto quick attack, Auto charged attack, and/or Auto shield.',
-      'In Raids, gyms & Dynamax, enable the per-type options you want: Raids / Gyms / Dynamax auto quick attack, auto charged attack, Dynamax auto Max attack, and per-type auto dodge.',
+      'In Gyms, Raids & Dynamax, expand Gyms, Raids, or Dynamax and enable the options you want: Raids / Gyms / Dynamax auto quick attack, auto charged attack, Dynamax auto Max attack, and per-type auto dodge.',
       'Start the battle in the game; the enabled assists act on the game’s natural callbacks.',
     ],
     notes: [

@@ -29,6 +29,7 @@ public class JSONObject {
   java.util.regex.Matcher m=java.util.regex.Pattern.compile("\"([^\"]*)\"\\s*:\\s*\"([^\"]*)\"").matcher(text);
   while(m.find())values.put(m.group(1),m.group(2));
  }
+ public long optLong(String key,long fallback){try{return Long.parseLong(values.get(key));}catch(Exception e){return fallback;}}
  public String optString(String key){return optString(key,"");}
  public String optString(String key,String fallback){return values.getOrDefault(key,fallback);}
 }''',
@@ -41,6 +42,7 @@ public class Control {
  public static boolean ready=true,gameRoute,planning,vgp=true;
  public static int saves,walks;
  public static boolean automationReady(){return ready;}
+ public static boolean giftsAllowed(){return ready;}
  public static boolean gameRoutesRunning(){return gameRoute;}
  public static boolean automationPlanning(){return planning;}
  public static double currentLatitude(){return engine.latitude;}
@@ -64,7 +66,7 @@ class OneShotAutomationJavaTests(unittest.TestCase):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(text, encoding='utf-8')
                 sources.append(path)
-            sources += [ROOT / 'src/dev/pgrazor/OneShotAutomation.java',
+            sources += [ROOT / 'src/dev/pgrazor/GiftBatchSettings.java', ROOT / 'test/GiftBatchSettingsTest.java', ROOT / 'src/dev/pgrazor/OneShotAutomation.java',
                         ROOT / 'src/dev/pgrazor/MotionEngine.java',
                         ROOT / 'test/OneShotAutomationTest.java']
             compiled = subprocess.run([str(compiler), '-encoding', 'UTF-8', '-d', str(work),
@@ -75,6 +77,9 @@ class OneShotAutomationJavaTests(unittest.TestCase):
                                     capture_output=True, text=True, timeout=30)
             self.assertEqual(tested.returncode, 0, tested.stdout + tested.stderr)
             self.assertIn('PASS OneShotAutomation:', tested.stdout)
+            tested = subprocess.run([str(runtime), '-ea', '-cp', str(work), 'dev.pgrazor.GiftBatchSettingsTest'], capture_output=True, text=True, timeout=30)
+            self.assertEqual(tested.returncode, 0, tested.stdout + tested.stderr)
+
 
 
 if __name__ == '__main__':

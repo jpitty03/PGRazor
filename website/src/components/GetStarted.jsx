@@ -37,9 +37,9 @@ export default function GetStarted() {
       <p className="cta__release">
         <span className="cta__badge">Stable</span>
         The published{' '}
-        <a href={links.releasesCurrent}>v0.1.7 release</a> includes
-        VGP+, gym automation, Buddy Emotion Engine, batch evolution, map search and hotspots,
-        automatic gym battle continuation, idle walking, and the Automation hub. Read its release notes for setup and validation limits.
+        <a href={links.releasesCurrent}>v0.1.8 release</a> adds
+        gift batches, Quick Menu customization, reorganized battle settings, and lighter buddy and VGP+ automation.
+        Read its release notes for setup and validation limits.
       </p>
 
       <div className="faq">

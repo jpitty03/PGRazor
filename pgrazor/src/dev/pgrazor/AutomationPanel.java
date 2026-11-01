@@ -37,6 +37,7 @@ public final class AutomationPanel {
         final AlertDialog[] holder = new AlertDialog[1];
         entry(ui, body, "Daily Incense Session", () -> { if (holder[0] != null) holder[0].dismiss(); showIncense(activity); });
         entry(ui, body, "Remote Gym Feeding", () -> { if (holder[0] != null) holder[0].dismiss(); showRemoteFeed(activity); });
+        entry(ui, body, "Send & Open Gifts", () -> { if (holder[0] != null) holder[0].dismiss(); GiftBatchDialog.show(activity); });
         entry(ui, body, "Mass Evolve", () -> { if (holder[0] != null) holder[0].dismiss(); BatchEvolutionSettings.show(activity); });
         ScrollView scroll = new ScrollView(ui); scroll.addView(body);
         AlertDialog dialog = new AlertDialog.Builder(ui).setTitle("Automation").setView(scroll)

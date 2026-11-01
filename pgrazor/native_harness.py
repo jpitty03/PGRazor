@@ -75,6 +75,9 @@ def main(argv=None):
             entry = {'source': str(source.relative_to(root)), 'source_sha256': native_build.sha256(source)}
             receipt['tests'].append(entry)
             extra_flags = []
+            if source.stem == 'gift_batch_test':
+                extra_flags = ['-rdynamic', '-fexceptions']
+                entry['included_source_sha256'] = native_build.sha256(root/'native/gift_batch.cpp')
             if source.stem == 'smart_catch_controller_test':
                 controller = root / 'native/vgp_controller.cpp'
                 extra_flags = [controller]
@@ -116,7 +119,7 @@ def main(argv=None):
                 extra_flags = ['-fexceptions', '-I'+str(vendor/'include'), dobby, '-llog']
                 entry['dobby_sha256'] = native_build.sha256(dobby)
                 if source.stem == 'encounter_host_test':
-                    dependencies = ('hook_engine.cpp', 'incense_guard.cpp', 'remote_gym.cpp',
+                    dependencies = ('hook_engine.cpp', 'incense_guard.cpp', 'gift_batch.cpp', 'remote_gym.cpp',
                                     'gym_runtime.cpp', 'gym_automation.cpp', 'batch_evolution.cpp',
                                     'buddy_emotion.cpp', 'profile_scroll.cpp', 'vgp_controller.cpp', 'smart_catch.cpp',
                                     'smart_catch_binding.cpp', 'vgp_discovery.cpp')
