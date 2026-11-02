@@ -508,10 +508,10 @@ def build_all(root, abis=DEFAULT_ABIS, download=False):
         raise RuntimeError(
             'Native pilot build is opt-in. Set ' + _PILOT_ENV + '=1 to enable it.')
     root = Path(root).resolve()
-    schema_generator=root.parent/'tools/native_routes_schema.py'
+    schema_generator=root.parent/'tools/game_update.py'
     if not schema_generator.is_file():
-        raise RuntimeError('Missing compiled Routes schema generator')
-    subprocess.run([sys.executable,'-B',str(schema_generator),'--check'],check=True,timeout=30)
+        raise RuntimeError('Missing game binding profile generator')
+    subprocess.run([sys.executable,'-B',str(schema_generator),'generate','--check'],check=True,timeout=30)
     download = download or os.environ.get(_DOWNLOAD_ENV) == '1'
     abis = list(dict.fromkeys(abis))
     if not abis:

@@ -1,4 +1,5 @@
 #pragma once
+#include "game_bindings.h"
 #include "runtime_bootstrap.h"
 #include "runtime_metadata.h"
 #include <cstdint>
@@ -28,7 +29,7 @@ enum PgrCameraMetaInfo {
   PGR_CAM_ASM_LIMIT       = 128,        // camera-probe LIMITS.assemblies
   PGR_CAM_SCAN_MS         = 3000,       // camera-probe LIMITS.scanMs
   PGR_CAM_NAME_MAX        = 256,        // camera-probe LIMITS.nameBytes
-  PGR_CAM_MAIN_CAMERA_RVA = 0xad814b8u  // CameraStack.get_MainCamera pinned RVA
+  PGR_CAM_MAIN_CAMERA_RVA = PGR_GAME_CAMERA_METADATA_H_PGR_CAM_MAIN_CAMERA_RVA_RVA  // CameraStack.get_MainCamera pinned RVA
 };
 
 // resolve() return codes.
@@ -153,25 +154,25 @@ inline constexpr const char *kVectorFieldNames[kFieldCount] = {"x", "y", "z"};
 
 // pointerHandleAbi (camera-probe.js lines 80..111): read-only AArch64 code fingerprint of
 // il2cpp_gchandle_new / il2cpp_gchandle_get_target / il2cpp_gchandle_free.
-inline constexpr uint32_t kGcCreateWords[] = {0xaa0003e8,0x52800049,0x7200003f,0x1a890520,0xaa0803e1};
+inline constexpr uint32_t kGcCreateWords[] = PGR_GAME_CAMERA_METADATA_H_KGCCREATEWORDS_FINGERPRINT;
 inline constexpr uint32_t kGcCreateWordCount = 5;
-inline constexpr uint64_t kGcCreateBranchOff = 20;
-inline constexpr uint64_t kGcCreateBodyOff   = 0x384;
-inline constexpr uint32_t kGcCreateBodyWord  = 0x9a953120u;
-inline constexpr uint32_t kGcGetHead         = 0xf81b0ffeu;
-inline constexpr uint64_t kGcGetTailOff      = 20;
-inline constexpr uint32_t kGcGetTail[]       = {0x9273c817u, 0x394082e8u};
-inline constexpr uint32_t kGcFreeHead        = 0xf81b0ffeu;
-inline constexpr uint64_t kGcFreeTailOff     = 24;
-inline constexpr uint32_t kGcFreeTail[]      = {0x9273c816u, 0x394082c8u};
+inline constexpr uint64_t kGcCreateBranchOff = PGR_GAME_CAMERA_METADATA_H_KGCCREATEBRANCHOFF;
+inline constexpr uint64_t kGcCreateBodyOff   = PGR_GAME_CAMERA_METADATA_H_KGCCREATEBODYOFF;
+inline constexpr uint32_t kGcCreateBodyWord  = PGR_GAME_CAMERA_METADATA_H_KGCCREATEBODYWORD;
+inline constexpr uint32_t kGcGetHead         = PGR_GAME_CAMERA_METADATA_H_KGCGETHEAD;
+inline constexpr uint64_t kGcGetTailOff      = PGR_GAME_CAMERA_METADATA_H_KGCGETTAILOFF;
+inline constexpr uint32_t kGcGetTail[]       = PGR_GAME_CAMERA_METADATA_H_KGCGETTAIL_FINGERPRINT;
+inline constexpr uint32_t kGcFreeHead        = PGR_GAME_CAMERA_METADATA_H_KGCFREEHEAD;
+inline constexpr uint64_t kGcFreeTailOff     = PGR_GAME_CAMERA_METADATA_H_KGCFREETAILOFF;
+inline constexpr uint32_t kGcFreeTail[]      = PGR_GAME_CAMERA_METADATA_H_KGCFREETAIL_FINGERPRINT;
 
 // 80-byte il2cpp_debug_get_method_info prologue (camera-probe.js DEBUG_INFO_WORDS, lines 26..29).
-inline constexpr unsigned char kDebugPrologue[] = {0x68,0x12,0x05,0xd0,0x08,0x55,0x40,0xf9,0x48,0x01,0x00,0xb4,0x69,0x12,0x05,0xd0,0x29,0x59,0x40,0xf9,0xe9,0x00,0x00,0xb4,0x0a,0x04,0x40,0xf9,0x1f,0x01,0x0a,0xeb,0xe8,0x03,0x1f,0x2a,0x28,0x01,0x00,0x54,0x3f,0x01,0x0a,0xeb,0xe3,0x00,0x00,0x54,0xa1,0x00,0x00,0xb4,0x08,0x04,0x40,0xf9,0x3f,0x08,0x00,0xb9,0x3f,0x08,0x00,0xf9,0x28,0x00,0x00,0xf9,0x28,0x00,0x80,0x52,0xe0,0x03,0x08,0x2a,0xc0,0x03,0x5f,0xd6};
+inline constexpr unsigned char kDebugPrologue[] = PGR_GAME_CAMERA_METADATA_H_KDEBUGPROLOGUE_FINGERPRINT;
 inline constexpr uint32_t kDebugPrologueLen = sizeof(kDebugPrologue);
 static_assert(kDebugPrologueLen == 80, "DEBUG_INFO_WORDS is 20 AArch64 words (80 bytes)");
 
 // CameraStack.get_MainCamera 2-word leaf getter prologue at RVA 0xad814b8 (ldr x0,[x0,#24]; ret).
-inline constexpr uint32_t kGetMainCameraWords[] = {0xf9400c00u, 0xd65f03c0u};
+inline constexpr uint32_t kGetMainCameraWords[] = PGR_GAME_CAMERA_METADATA_H_KGETMAINCAMERAWORDS_FINGERPRINT;
 inline constexpr uint32_t kGetMainCameraByteLen = sizeof(kGetMainCameraWords);
 static_assert(kGetMainCameraByteLen == 8, "get_MainCamera leaf getter prologue is 8 bytes");
 

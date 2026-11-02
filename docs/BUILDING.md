@@ -126,6 +126,11 @@ The minimum SDK is Android 9 (API 28), but native gameplay hooks are supported o
 
 ### Hosted game input
 
-The release workflow reads `PGRAZOR_INPUT_URL` and verifies the exact checksum in `tools/private_input.py` before packaging. The current input is stored as an asset of the **unpublished** `build-inputs` draft release. Keep that release in draft status; original game packages must not be published as release assets.
+The release workflow reads `PGRAZOR_INPUT_URL`; `tools/private_input.py` verifies its checksum against the selected profile in `pgrazor/native/schema/game/` before packaging. The current input is stored as an asset of the **unpublished** `build-inputs` draft release. Keep that release in draft status; original game packages must not be published as release assets.
 
 For a game update, upload the new original package under a versioned filename, verify its downloaded SHA-256, and update `PGRAZOR_INPUT_URL` to its GitHub API asset URL. The workflow authenticates that download with its repository token. GitHub restricts draft assets to push-capable callers, so the manually dispatched build job has `contents: write`; checkout does not persist that token in Git credentials. Update the pinned checksum and native compatibility bindings together before running the release workflow.
+
+## Game-version updates
+
+See [GAME_UPDATES.md](GAME_UPDATES.md) for the version profile, generated binding
+checks and old/new signature comparison workflow.

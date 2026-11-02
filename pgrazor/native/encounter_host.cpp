@@ -1,3 +1,4 @@
+#include "game_bindings.h"
 #include "encounter_host.h"
 
 #include <dlfcn.h>
@@ -657,7 +658,7 @@ static void *resolve_rpc_field(void *bag_class,void *rpc_class){
   auto value=reinterpret_cast<bool(*)(void*)>(g_exp.meta.class_is_valuetype);
   auto accepts=reinterpret_cast<bool(*)(void*,void*)>(g_exp.meta.class_is_assignable_from);
   for(unsigned i=0;bag_class&&i<16;++i,bag_class=parent(bag_class)){
-    void *f=field(bag_class,"erhp");if(!f)continue;void *k=klass(type(f));
+    void *f=field(bag_class,PGR_GAME_ENCOUNTER_HOST_CPP_ERHP_NAME);if(!f)continue;void *k=klass(type(f));
     if(offset(f)<16||offset(f)>512||!k||value(k)||!accepts(k,rpc_class))return nullptr;
     return f;
   }return nullptr;
@@ -1420,7 +1421,7 @@ static int install_berries_leaf() {
   void *iter=nullptr;
   for(unsigned i=0;g_berry_response_class && i<128;++i){
     void *f=fields(g_berry_response_class,&iter);if(!f)break;
-    if(offset(f)!=0x10 || (flags(f)&0x10))continue;
+    if(offset(f)!=PGR_GAME_ENCOUNTER_HOST_CPP_BOXED_VALUE_OFFSET || (flags(f)&0x10))continue;
     void *klass=from_type(type(f));int align=0;
     if(!klass || !is_enum(klass) || size(klass,&align)!=4 || g_berry_status_field) return PGR_EH_ERR_METADATA;
     g_berry_status_field=f;

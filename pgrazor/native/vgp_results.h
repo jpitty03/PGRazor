@@ -1,4 +1,5 @@
 #pragma once
+#include "game_bindings.h"
 #include <stdint.h>
 
 // Feature 30 (API 1). Native, bounded, synchronous READ of a VGP request promise plus the catch/spin
@@ -43,8 +44,8 @@ enum PgrVgpResultsInfo {
   PGR_VR_CONFIG_VERSION = 1,
   PGR_VR_RESULT_VERSION = 1,
   PGR_VR_SAMPLE_VERSION = 1,
-  PGR_VR_OFFSET_MIN     = 16,   // existing vgpField guard: reject a field offset below this
-  PGR_VR_OFFSET_MAX     = 512,  // ...or above this
+  PGR_VR_OFFSET_MIN     = PGR_GAME_VGP_RESULTS_H_PGR_VR_OFFSET_MIN,   // existing vgpField guard: reject a field offset below this
+  PGR_VR_OFFSET_MAX     = PGR_GAME_VGP_RESULTS_H_PGR_VR_OFFSET_MAX,  // ...or above this
   PGR_VR_PARENT_MAX     = 16    // existing vgpField guard: class_get_parent walk depth
 };
 

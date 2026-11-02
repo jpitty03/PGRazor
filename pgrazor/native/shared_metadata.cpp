@@ -1,3 +1,4 @@
+#include "game_bindings.h"
 #include "shared_metadata.h"
 #include "managed_handle_abi.h"
 #include "shared_gift_code.h"
@@ -372,83 +373,76 @@ int nested_suffix(Ctx &c, const void *owner, const char *suffix, uint32_t limit,
 // ---------------------------------------------------------------------------------------------------
 // Clean pre-hook method prologues for all optional subfeatures.
 // ---------------------------------------------------------------------------------------------------
-#define P24(b0,b1,b2,b3,b4,b5,b6,b7,b8,b9,b10,b11,b12,b13,b14,b15,b16,b17,b18,b19,b20,b21,b22,b23) \
-  {0x##b0,0x##b1,0x##b2,0x##b3,0x##b4,0x##b5,0x##b6,0x##b7,0x##b8,0x##b9,0x##b10,0x##b11, \
-   0x##b12,0x##b13,0x##b14,0x##b15,0x##b16,0x##b17,0x##b18,0x##b19,0x##b20,0x##b21,0x##b22,0x##b23}
-#define P32(b0,b1,b2,b3,b4,b5,b6,b7,b8,b9,b10,b11,b12,b13,b14,b15,b16,b17,b18,b19,b20,b21,b22,b23,b24,b25,b26,b27,b28,b29,b30,b31) \
-  {0x##b0,0x##b1,0x##b2,0x##b3,0x##b4,0x##b5,0x##b6,0x##b7,0x##b8,0x##b9,0x##b10,0x##b11, \
-   0x##b12,0x##b13,0x##b14,0x##b15,0x##b16,0x##b17,0x##b18,0x##b19,0x##b20,0x##b21,0x##b22,0x##b23, \
-   0x##b24,0x##b25,0x##b26,0x##b27,0x##b28,0x##b29,0x##b30,0x##b31}
 
 // catchCanvas + catchDiscovery
-constexpr unsigned char kCanvasSet[32] = P32(fe,0f,1c,f8,f8,5f,01,a9,f6,57,02,a9,f4,4f,03,a9,75,70,02,d0,f3,03,01,2a,f4,03,00,aa,a8,82,7e,39);
-constexpr unsigned char kTopGui[32]    = P32(ff,83,02,d1,fd,7b,04,a9,fc,6f,05,a9,fa,67,06,a9,f8,5f,07,a9,f6,57,08,a9,f4,4f,09,a9,b3,f3,02,90);
+constexpr unsigned char kCanvasSet[32] = PGR_GAME_SHARED_METADATA_CPP_KCANVASSET_FINGERPRINT;
+constexpr unsigned char kTopGui[32]    = PGR_GAME_SHARED_METADATA_CPP_KTOPGUI_FINGERPRINT;
 
 // details + directPresentation
-constexpr unsigned char kDetPresent[32]= P32(ff,03,02,d1,fd,7b,02,a9,fc,6f,03,a9,fa,67,04,a9,f8,5f,05,a9,f6,57,06,a9,f4,4f,07,a9,57,21,02,90);
-constexpr unsigned char kDetExit[32]   = P32(fe,0f,1e,f8,f4,4f,01,a9,08,6c,40,f9,f3,03,00,aa,a8,00,00,b4,09,0d,40,f9,00,21,40,f9,01,15,40,f9);
-constexpr unsigned char kDetOpen[32]   = P32(fe,5f,bd,a9,f6,57,01,a9,f4,4f,02,a9,74,b4,02,b0,f3,03,00,aa,88,e6,4f,39,28,02,00,36,55,8a,02,f0);
-constexpr unsigned char kDetInit[32]   = P32(ff,83,01,d1,fe,67,02,a9,f8,5f,03,a9,f6,57,04,a9,f4,4f,05,a9,55,b4,02,d0,f3,03,01,aa,f4,03,00,aa);
-constexpr unsigned char kDetClick[32]  = P32(fe,57,be,a9,f4,4f,01,a9,14,b4,02,90,f3,03,00,aa,88,96,50,39,e8,00,00,36,14,b4,02,90,88,c6,4f,39);
-constexpr unsigned char kDpShow[32]    = P32(ff,83,02,d1,fd,7b,04,a9,fc,6f,05,a9,fa,67,06,a9,f8,5f,07,a9,f6,57,08,a9,f4,4f,09,a9,d3,b1,02,f0);
+constexpr unsigned char kDetPresent[32]= PGR_GAME_SHARED_METADATA_CPP_KDETPRESENT_FINGERPRINT;
+constexpr unsigned char kDetExit[32]   = PGR_GAME_SHARED_METADATA_CPP_KDETEXIT_FINGERPRINT;
+constexpr unsigned char kDetOpen[32]   = PGR_GAME_SHARED_METADATA_CPP_KDETOPEN_FINGERPRINT;
+constexpr unsigned char kDetInit[32]   = PGR_GAME_SHARED_METADATA_CPP_KDETINIT_FINGERPRINT;
+constexpr unsigned char kDetClick[32]  = PGR_GAME_SHARED_METADATA_CPP_KDETCLICK_FINGERPRINT;
+constexpr unsigned char kDpShow[32]    = PGR_GAME_SHARED_METADATA_CPP_KDPSHOW_FINGERPRINT;
 
 // transfer
-constexpr unsigned char kTrResult[24]  = P24(ff,03,02,d1,fe,5f,05,a9,f6,57,06,a9,f4,4f,07,a9,f5,f1,02,f0,f3,03,01,aa);
-constexpr unsigned char kTrError[24]   = P24(fe,0f,1d,f8,f6,57,01,a9,f4,4f,02,a9,f5,f1,02,f0,f3,03,01,aa,f4,03,00,aa);
-constexpr unsigned char kTrRelease[32] = P32(ff,43,02,d1,fe,23,00,f9,fa,67,05,a9,f8,5f,06,a9,f6,57,07,a9,f4,4f,08,a9,33,f2,02,d0,f5,03,01,aa);
+constexpr unsigned char kTrResult[24]  = PGR_GAME_SHARED_METADATA_CPP_KTRRESULT_FINGERPRINT;
+constexpr unsigned char kTrError[24]   = PGR_GAME_SHARED_METADATA_CPP_KTRERROR_FINGERPRINT;
+constexpr unsigned char kTrRelease[32] = PGR_GAME_SHARED_METADATA_CPP_KTRRELEASE_FINGERPRINT;
 
 // spin + spinCamera
-constexpr unsigned char kSpinEnter[24]  = P24(ff,c3,02,d1,fd,7b,05,a9,fc,6f,06,a9,fa,67,07,a9,f8,5f,08,a9,f6,57,09,a9);
-constexpr unsigned char kSpinExit[24]   = P24(fd,7b,ba,a9,fc,6f,01,a9,fa,67,02,a9,f8,5f,03,a9,f6,57,04,a9,f4,4f,05,a9);
-constexpr unsigned char kSpinResult[24] = P24(ff,c3,01,d1,fe,6f,02,a9,fa,67,03,a9,f8,5f,04,a9,f6,57,05,a9,f4,4f,06,a9);
-constexpr unsigned char kSpinClose[24]  = P24(fe,57,be,a9,f4,4f,01,a9,14,68,02,d0,f3,03,00,aa,88,1a,54,39,08,01,00,37);
-constexpr unsigned char kSpinSpin[24]   = P24(fe,4f,bf,a9,f3,03,00,aa,0e,ba,ff,97,7f,c2,03,39,fe,4f,c1,a8,c0,03,5f,d6);
-constexpr unsigned char kSpinRequest[24]= P24(fe,0f,1d,f8,f6,57,01,a9,f4,4f,02,a9,94,92,02,f0,f3,03,00,aa,88,66,62,39);
-constexpr unsigned char kSpinCan[24]    = P24(fe,57,be,a9,f4,4f,01,a9,34,93,02,b0,f3,03,00,aa,88,ae,60,39,08,01,00,37);
-constexpr unsigned char kSpinActive[24] = P24(00,00,42,39,c0,03,5f,d6,fe,0f,1d,f8,f6,57,01,a9,f4,4f,02,a9,b5,4d,02,f0);
-constexpr unsigned char kScMove[24]     = P24(ff,c3,02,d1,ea,33,00,fd,e9,a3,06,6d,fe,3f,00,f9,f8,5f,08,a9,f6,57,09,a9);
-constexpr unsigned char kScAppEnter[24] = P24(ff,c3,01,d1,fe,23,00,f9,f6,57,05,a9,f4,4f,06,a9,b4,68,02,f0,f3,03,00,aa);
-constexpr unsigned char kScAppExit[24]  = P24(fe,57,be,a9,f4,4f,01,a9,b4,68,02,d0,f3,03,00,aa,88,c6,52,39,08,01,00,37);
-constexpr unsigned char kScResEnter[24] = P24(fe,57,be,a9,f4,4f,01,a9,b4,66,02,b0,f3,03,00,aa,88,06,59,39,08,01,00,37);
-constexpr unsigned char kScResExit[24]  = P24(fe,57,be,a9,f4,4f,01,a9,b4,66,02,90,f3,03,00,aa,88,0a,59,39,08,01,00,37);
+constexpr unsigned char kSpinEnter[24]  = PGR_GAME_SHARED_METADATA_CPP_KSPINENTER_FINGERPRINT;
+constexpr unsigned char kSpinExit[24]   = PGR_GAME_SHARED_METADATA_CPP_KSPINEXIT_FINGERPRINT;
+constexpr unsigned char kSpinResult[24] = PGR_GAME_SHARED_METADATA_CPP_KSPINRESULT_FINGERPRINT;
+constexpr unsigned char kSpinClose[24]  = PGR_GAME_SHARED_METADATA_CPP_KSPINCLOSE_FINGERPRINT;
+constexpr unsigned char kSpinSpin[24]   = PGR_GAME_SHARED_METADATA_CPP_KSPINSPIN_FINGERPRINT;
+constexpr unsigned char kSpinRequest[24]= PGR_GAME_SHARED_METADATA_CPP_KSPINREQUEST_FINGERPRINT;
+constexpr unsigned char kSpinCan[24]    = PGR_GAME_SHARED_METADATA_CPP_KSPINCAN_FINGERPRINT;
+constexpr unsigned char kSpinActive[24] = PGR_GAME_SHARED_METADATA_CPP_KSPINACTIVE_FINGERPRINT;
+constexpr unsigned char kScMove[24]     = PGR_GAME_SHARED_METADATA_CPP_KSCMOVE_FINGERPRINT;
+constexpr unsigned char kScAppEnter[24] = PGR_GAME_SHARED_METADATA_CPP_KSCAPPENTER_FINGERPRINT;
+constexpr unsigned char kScAppExit[24]  = PGR_GAME_SHARED_METADATA_CPP_KSCAPPEXIT_FINGERPRINT;
+constexpr unsigned char kScResEnter[24] = PGR_GAME_SHARED_METADATA_CPP_KSCRESENTER_FINGERPRINT;
+constexpr unsigned char kScResExit[24]  = PGR_GAME_SHARED_METADATA_CPP_KSCRESEXIT_FINGERPRINT;
 
 // items + itemsLookup
-constexpr unsigned char kItCjpz[24]     = P24(ff,03,07,d1,ea,a3,00,fd,e9,23,15,6d,fd,7b,16,a9,fc,6f,17,a9,fa,67,18,a9);
-constexpr unsigned char kItCjpm[24]     = P24(fe,5f,bd,a9,f6,57,01,a9,f4,4f,02,a9,d6,aa,02,d0,34,fc,60,d3,f5,03,01,aa);
-constexpr unsigned char kItCjpd[24]     = P24(20,00,80,52,c0,03,5f,d6,fe,5f,bd,a9,f6,57,01,a9,f4,4f,02,a9,d6,aa,02,b0);
-constexpr unsigned char kItCjpx[24]     = P24(ff,83,02,d1,fd,7b,04,a9,fc,6f,05,a9,fa,67,06,a9,f8,5f,07,a9,f6,57,08,a9);
-constexpr unsigned char kItExpiring[24] = P24(00,5c,40,f9,c0,03,5f,d6,ff,83,02,d1,fd,7b,04,a9,fc,6f,05,a9,fa,67,06,a9);
-constexpr unsigned char kItGetCount[24] = P24(fe,0f,1d,f8,f6,57,01,a9,f4,4f,02,a9,13,38,40,f9,ff,07,00,f9,13,07,00,b4);
-constexpr unsigned char kItRecycle[24]  = P24(ff,03,03,d1,fd,7b,06,a9,fc,6f,07,a9,fa,67,08,a9,f8,5f,09,a9,f6,57,0a,a9);
-constexpr unsigned char kItZid[24]      = P24(ff,03,02,d1,fe,5f,05,a9,f6,57,06,a9,f4,4f,07,a9,55,f2,02,b0,f3,03,01,aa);
-constexpr unsigned char kItZie[24]      = P24(fe,0f,1d,f8,f6,57,01,a9,f4,4f,02,a9,55,f2,02,b0,f3,03,01,aa,f4,03,00,aa);
+constexpr unsigned char kItCjpz[24]     = PGR_GAME_SHARED_METADATA_CPP_KITCJPZ_FINGERPRINT;
+constexpr unsigned char kItCjpm[24]     = PGR_GAME_SHARED_METADATA_CPP_KITCJPM_FINGERPRINT;
+constexpr unsigned char kItCjpd[24]     = PGR_GAME_SHARED_METADATA_CPP_KITCJPD_FINGERPRINT;
+constexpr unsigned char kItCjpx[24]     = PGR_GAME_SHARED_METADATA_CPP_KITCJPX_FINGERPRINT;
+constexpr unsigned char kItExpiring[24] = PGR_GAME_SHARED_METADATA_CPP_KITEXPIRING_FINGERPRINT;
+constexpr unsigned char kItGetCount[24] = PGR_GAME_SHARED_METADATA_CPP_KITGETCOUNT_FINGERPRINT;
+constexpr unsigned char kItRecycle[24]  = PGR_GAME_SHARED_METADATA_CPP_KITRECYCLE_FINGERPRINT;
+constexpr unsigned char kItZid[24]      = PGR_GAME_SHARED_METADATA_CPP_KITZID_FINGERPRINT;
+constexpr unsigned char kItZie[24]      = PGR_GAME_SHARED_METADATA_CPP_KITZIE_FINGERPRINT;
 
 // rocket (RVCode, RMCode, ROCKETCODE)
-constexpr unsigned char kRvUpdate[24]   = P24(e8,0f,1b,fc,fe,07,00,f9,fa,67,01,a9,f8,5f,02,a9,f6,57,03,a9,f4,4f,04,a9);
-constexpr unsigned char kRvClose[24]    = P24(fe,57,be,a9,f4,4f,01,a9,d4,ee,02,d0,f3,03,00,aa,88,92,7c,39,08,01,00,37);
-constexpr unsigned char kRvBlocked[24]  = P24(fe,5f,bd,a9,f6,57,01,a9,f4,4f,02,a9,d4,ee,02,b0,f3,03,00,aa,88,9e,7c,39);
-constexpr unsigned char kRvFast[24]     = P24(ff,43,01,d1,fe,0b,00,f9,f8,5f,02,a9,f6,57,03,a9,f4,4f,04,a9,34,e9,02,90);
-constexpr unsigned char kRvObserve[24]  = P24(fe,0f,1a,f8,fc,6f,01,a9,fa,67,02,a9,f8,5f,03,a9,f6,57,04,a9,f4,4f,05,a9);
-constexpr unsigned char kRvCharge[24]   = P24(e8,0f,1a,fc,fe,07,00,f9,fc,6f,01,a9,fa,67,02,a9,f8,5f,03,a9,f6,57,04,a9);
-constexpr unsigned char kRvCharged[24]  = P24(00,b0,48,39,c0,03,5f,d6,01,b0,08,39,c0,03,5f,d6,00,b4,48,39,c0,03,5f,d6);
-constexpr unsigned char kRvVisible[24]  = P24(fe,0f,1d,f8,f6,57,01,a9,f4,4f,02,a9,08,bc,48,39,28,08,00,34,e1,03,1f,aa);
-constexpr unsigned char kRmUpdate[24]   = P24(ff,c3,01,d1,ea,0b,00,fd,e9,23,02,6d,fe,67,03,a9,f8,5f,04,a9,f6,57,05,a9);
-constexpr unsigned char kRmExit[24]     = P24(ff,43,02,d1,eb,2b,02,6d,e9,23,03,6d,fe,23,00,f9,fa,67,05,a9,f8,5f,06,a9);
-constexpr unsigned char kRmHide[24]     = P24(fe,0f,1c,f8,f8,5f,01,a9,f6,57,02,a9,f4,4f,03,a9,d4,39,02,f0,f3,03,00,aa);
-constexpr unsigned char kRmDestroy[24]  = P24(fe,5f,bd,a9,f6,57,01,a9,f4,4f,02,a9,d4,39,02,f0,f3,03,00,aa,88,22,52,39);
-constexpr unsigned char kRkEnter[24]    = P24(fe,0f,1c,f8,f8,5f,01,a9,f6,57,02,a9,f4,4f,03,a9,d6,37,02,90,f4,03,02,aa);
-constexpr unsigned char kRkExit[24]     = P24(fe,0f,1d,f8,f6,57,01,a9,f4,4f,02,a9,b4,37,02,90,f3,03,00,aa,88,de,5a,39);
-constexpr unsigned char kRkUpdate[24]   = P24(fe,5f,bd,a9,f6,57,01,a9,f4,4f,02,a9,15,cc,40,f9,75,0d,00,b4,16,39,02,f0);
-constexpr unsigned char kRkUi[24]       = P24(ef,3b,b8,6d,ed,33,01,6d,eb,2b,02,6d,e9,23,03,6d,fe,67,04,a9,f8,5f,05,a9);
-constexpr unsigned char kRkClose[24]    = P24(fe,0f,1c,f8,f8,5f,01,a9,f6,57,02,a9,f4,4f,03,a9,34,38,02,f0,f3,03,00,aa);
-constexpr unsigned char kRkDirector[24] = P24(fe,57,be,a9,f4,4f,01,a9,54,38,02,b0,f3,03,00,aa,88,5a,57,39,08,01,00,37);
-constexpr unsigned char kRkActive[24]   = P24(fe,57,be,a9,f4,4f,01,a9,74,40,02,b0,f3,03,00,aa,88,3a,7f,39,e8,00,00,36);
-constexpr unsigned char kRkFast[24]     = P24(fe,0f,1d,f8,f6,57,01,a9,f4,4f,02,a9,54,40,02,f0,f3,03,00,aa,88,7a,40,39);
-constexpr unsigned char kRkCharge[24]   = P24(ff,83,01,d1,fe,67,02,a9,f8,5f,03,a9,f6,57,04,a9,f4,4f,05,a9,b4,38,02,f0);
-constexpr unsigned char kRkVisible[24]  = P24(ff,03,01,d1,fe,0b,00,f9,f6,57,02,a9,f4,4f,03,a9,e1,03,1f,aa,f3,03,00,aa);
-constexpr unsigned char kRkPrompt[24]   = P24(fe,67,bc,a9,f8,5f,01,a9,f6,57,02,a9,f4,4f,03,a9,f5,39,02,f0,f3,03,01,2a);
-constexpr unsigned char kRkShield[24]   = P24(ff,c3,01,d1,fe,13,00,f9,fa,67,03,a9,f8,5f,04,a9,f6,57,05,a9,f4,4f,06,a9);
-constexpr unsigned char kRkShClose[24]  = P24(fe,57,be,a9,f4,4f,01,a9,f3,39,02,d0,f4,03,00,aa,68,fa,51,39,08,01,00,37);
+constexpr unsigned char kRvUpdate[24]   = PGR_GAME_SHARED_METADATA_CPP_KRVUPDATE_FINGERPRINT;
+constexpr unsigned char kRvClose[24]    = PGR_GAME_SHARED_METADATA_CPP_KRVCLOSE_FINGERPRINT;
+constexpr unsigned char kRvBlocked[24]  = PGR_GAME_SHARED_METADATA_CPP_KRVBLOCKED_FINGERPRINT;
+constexpr unsigned char kRvFast[24]     = PGR_GAME_SHARED_METADATA_CPP_KRVFAST_FINGERPRINT;
+constexpr unsigned char kRvObserve[24]  = PGR_GAME_SHARED_METADATA_CPP_KRVOBSERVE_FINGERPRINT;
+constexpr unsigned char kRvCharge[24]   = PGR_GAME_SHARED_METADATA_CPP_KRVCHARGE_FINGERPRINT;
+constexpr unsigned char kRvCharged[24]  = PGR_GAME_SHARED_METADATA_CPP_KRVCHARGED_FINGERPRINT;
+constexpr unsigned char kRvVisible[24]  = PGR_GAME_SHARED_METADATA_CPP_KRVVISIBLE_FINGERPRINT;
+constexpr unsigned char kRmUpdate[24]   = PGR_GAME_SHARED_METADATA_CPP_KRMUPDATE_FINGERPRINT;
+constexpr unsigned char kRmExit[24]     = PGR_GAME_SHARED_METADATA_CPP_KRMEXIT_FINGERPRINT;
+constexpr unsigned char kRmHide[24]     = PGR_GAME_SHARED_METADATA_CPP_KRMHIDE_FINGERPRINT;
+constexpr unsigned char kRmDestroy[24]  = PGR_GAME_SHARED_METADATA_CPP_KRMDESTROY_FINGERPRINT;
+constexpr unsigned char kRkEnter[24]    = PGR_GAME_SHARED_METADATA_CPP_KRKENTER_FINGERPRINT;
+constexpr unsigned char kRkExit[24]     = PGR_GAME_SHARED_METADATA_CPP_KRKEXIT_FINGERPRINT;
+constexpr unsigned char kRkUpdate[24]   = PGR_GAME_SHARED_METADATA_CPP_KRKUPDATE_FINGERPRINT;
+constexpr unsigned char kRkUi[24]       = PGR_GAME_SHARED_METADATA_CPP_KRKUI_FINGERPRINT;
+constexpr unsigned char kRkClose[24]    = PGR_GAME_SHARED_METADATA_CPP_KRKCLOSE_FINGERPRINT;
+constexpr unsigned char kRkDirector[24] = PGR_GAME_SHARED_METADATA_CPP_KRKDIRECTOR_FINGERPRINT;
+constexpr unsigned char kRkActive[24]   = PGR_GAME_SHARED_METADATA_CPP_KRKACTIVE_FINGERPRINT;
+constexpr unsigned char kRkFast[24]     = PGR_GAME_SHARED_METADATA_CPP_KRKFAST_FINGERPRINT;
+constexpr unsigned char kRkCharge[24]   = PGR_GAME_SHARED_METADATA_CPP_KRKCHARGE_FINGERPRINT;
+constexpr unsigned char kRkVisible[24]  = PGR_GAME_SHARED_METADATA_CPP_KRKVISIBLE_FINGERPRINT;
+constexpr unsigned char kRkPrompt[24]   = PGR_GAME_SHARED_METADATA_CPP_KRKPROMPT_FINGERPRINT;
+constexpr unsigned char kRkShield[24]   = PGR_GAME_SHARED_METADATA_CPP_KRKSHIELD_FINGERPRINT;
+constexpr unsigned char kRkShClose[24]  = PGR_GAME_SHARED_METADATA_CPP_KRKSHCLOSE_FINGERPRINT;
 
 // ---------------------------------------------------------------------------------------------------
 // Optional subfeature resolvers 0..10.
@@ -456,7 +450,7 @@ constexpr unsigned char kRkShClose[24]  = P24(fe,57,be,a9,f4,4f,01,a9,f3,39,02,d
 int do_catch_canvas(Ctx &c) {
   const void **H = c.out->opt_handles;
   return check_method(c, c.out->classes[0], "set_CanvasGroupVisible", "System.Void", 1, "System.Boolean", nullptr,
-                      false, false, 0xa331ab8ULL, kCanvasSet, sizeof(kCanvasSet), &H[H_CC_METHOD], &H[H_CC_CODE]);
+                      false, false, PGR_GAME_SHARED_METADATA_CPP_KCANVASSET_RVA, kCanvasSet, sizeof(kCanvasSet), &H[H_CC_METHOD], &H[H_CC_CODE]);
 }
 
 int do_catch_discovery(Ctx &c) {
@@ -464,9 +458,9 @@ int do_catch_discovery(Ctx &c) {
   const void *klass = c.out->opt_classes[OC_GUILAYER];
   if (!klass) return set_err(c, PGR_MD_ERR_NOT_FOUND, "gui-layer-class");
   H[H_CD_CLASS] = klass;
-  if ((rc = ref_field(c, c.out->classes[0], "guiLayerService", 0xa0, &H[H_CD_LAYER]))) return rc;
+  if ((rc = ref_field(c, c.out->classes[0], PGR_GAME_SHARED_METADATA_CPP_H_CD_LAYER_NAME, PGR_GAME_SHARED_METADATA_CPP_H_CD_LAYER_OFFSET, &H[H_CD_LAYER]))) return rc;
   return check_method(c, klass, "TopGui", "Niantic.Holoholo.NUI.IGuiController", 0, nullptr, nullptr,
-                      false, false, 0x92c6da0ULL, kTopGui, sizeof(kTopGui), &H[H_CD_TOP], &H[H_CD_TOP_CODE]);
+                      false, false, PGR_GAME_SHARED_METADATA_CPP_KTOPGUI_RVA, kTopGui, sizeof(kTopGui), &H[H_CD_TOP], &H[H_CD_TOP_CODE]);
 }
 
 int do_catch_scene(Ctx &c) {
@@ -508,27 +502,27 @@ int do_details(Ctx &c) {
   if (!dgui || !data || !view || !pk || !int_c || !del || !act)
     return set_err(c, PGR_MD_ERR_NOT_FOUND, "details-classes-unavailable");
 
-  if ((rc = ref_field(c, del, "m_target", 0x20, &H[H_DET_DELEGATE_TARGET]))) return rc;
-  if ((rc = ref_field(c, view, "dszr", 0xe0, &H[H_DET_VIEW_RESP]))) return rc;
-  if ((rc = ref_field(c, dgui, "egiq", 0x3a8, &H[H_DET_DATA]))) return rc;
-  if ((rc = ref_field(c, dgui, "egin", 0x390, &H[H_DET_CALLBACK]))) return rc;
-  if ((rc = ref_field(c, data, "OnScreenDismissed", 0x28, &H[H_DET_ON_DISMISSED]))) return rc;
-  if ((rc = ref_field(c, data, "PokemonList", 0x10, &H[H_DET_LIST], &H[H_DET_LIST_CLASS]))) return rc;
-  if ((rc = scalar_field(c, data, "StartingIndex", 0x18, "System.Int32", 4, "details-field", &H[H_DET_INDEX]))) return rc;
-  if ((rc = scalar_field(c, data, "IsPostEncounter", 0x39, "System.Boolean", 1, "details-field", &H[H_DET_POST]))) return rc;
-  if ((rc = scalar_field(c, pk, "id_", 0x20, "System.UInt64", 8, "details-field", &H[H_DET_ID]))) return rc;
+  if ((rc = ref_field(c, del, PGR_GAME_SHARED_METADATA_CPP_H_DET_DELEGATE_TARGET_NAME, PGR_GAME_SHARED_METADATA_CPP_H_DET_DELEGATE_TARGET_OFFSET, &H[H_DET_DELEGATE_TARGET]))) return rc;
+  if ((rc = ref_field(c, view, PGR_GAME_SHARED_METADATA_CPP_H_DET_VIEW_RESP_NAME, PGR_GAME_SHARED_METADATA_CPP_H_DET_VIEW_RESP_OFFSET, &H[H_DET_VIEW_RESP]))) return rc;
+  if ((rc = ref_field(c, dgui, PGR_GAME_SHARED_METADATA_CPP_H_DET_DATA_NAME, PGR_GAME_SHARED_METADATA_CPP_H_DET_DATA_OFFSET, &H[H_DET_DATA]))) return rc;
+  if ((rc = ref_field(c, dgui, PGR_GAME_SHARED_METADATA_CPP_H_DET_CALLBACK_NAME, PGR_GAME_SHARED_METADATA_CPP_H_DET_CALLBACK_OFFSET, &H[H_DET_CALLBACK]))) return rc;
+  if ((rc = ref_field(c, data, PGR_GAME_SHARED_METADATA_CPP_H_DET_ON_DISMISSED_NAME, PGR_GAME_SHARED_METADATA_CPP_H_DET_ON_DISMISSED_OFFSET, &H[H_DET_ON_DISMISSED]))) return rc;
+  if ((rc = ref_field(c, data, PGR_GAME_SHARED_METADATA_CPP_H_DET_LIST_CLASS_NAME, PGR_GAME_SHARED_METADATA_CPP_H_DET_LIST_CLASS_OFFSET, &H[H_DET_LIST], &H[H_DET_LIST_CLASS]))) return rc;
+  if ((rc = scalar_field(c, data, PGR_GAME_SHARED_METADATA_CPP_H_DET_INDEX_NAME, PGR_GAME_SHARED_METADATA_CPP_H_DET_INDEX_OFFSET, "System.Int32", 4, "details-field", &H[H_DET_INDEX]))) return rc;
+  if ((rc = scalar_field(c, data, PGR_GAME_SHARED_METADATA_CPP_H_DET_POST_NAME, PGR_GAME_SHARED_METADATA_CPP_H_DET_POST_OFFSET, "System.Boolean", 1, "details-field", &H[H_DET_POST]))) return rc;
+  if ((rc = scalar_field(c, pk, PGR_GAME_SHARED_METADATA_CPP_H_DET_ID_NAME, PGR_GAME_SHARED_METADATA_CPP_H_DET_ID_OFFSET, "System.UInt64", 8, "details-field", &H[H_DET_ID]))) return rc;
 
   MParam pres_p[3] = {{"Holoholo.Rpc.PokemonProto", nullptr}, {nullptr, pred_award_list}, {"System.Boolean", nullptr}};
-  if ((rc = check_method_ex(c, view, "bucb", "System.Void", nullptr, 3, pres_p, false, false,
-                            0xad1bb60ULL, kDetPresent, sizeof(kDetPresent), &H[H_DET_PRESENT], &H[H_DET_PRESENT_CODE]))) return rc;
+  if ((rc = check_method_ex(c, view, PGR_GAME_SHARED_METADATA_CPP_BUCB_NAME, "System.Void", nullptr, 3, pres_p, false, false,
+                            PGR_GAME_SHARED_METADATA_CPP_KDETPRESENT_RVA, kDetPresent, sizeof(kDetPresent), &H[H_DET_PRESENT], &H[H_DET_PRESENT_CODE]))) return rc;
   if ((rc = check_method(c, view, "ExitState", "System.Void", 0, nullptr, nullptr, false, false,
-                         0xad1c8acULL, kDetExit, sizeof(kDetExit), &H[H_DET_EXIT], &H[H_DET_EXIT_CODE]))) return rc;
+                         PGR_GAME_SHARED_METADATA_CPP_KDETEXIT_RVA, kDetExit, sizeof(kDetExit), &H[H_DET_EXIT], &H[H_DET_EXIT_CODE]))) return rc;
   if ((rc = check_method(c, dgui, "Initialize", "System.Void", 1, "Niantic.Holoholo.UI.Pokemon.PokemonInfoData", nullptr, false, false,
-                         0x9ab3238ULL, kDetInit, sizeof(kDetInit), &H[H_DET_INIT], &H[H_DET_INIT_CODE]))) return rc;
+                         PGR_GAME_SHARED_METADATA_CPP_KDETINIT_RVA, kDetInit, sizeof(kDetInit), &H[H_DET_INIT], &H[H_DET_INIT_CODE]))) return rc;
   if ((rc = check_method(c, dgui, "HandleOpenComplete", "System.Void", 0, nullptr, nullptr, false, false,
-                         0x9ab05d0ULL, kDetOpen, sizeof(kDetOpen), &H[H_DET_OPEN], &H[H_DET_OPEN_CODE]))) return rc;
+                         PGR_GAME_SHARED_METADATA_CPP_KDETOPEN_RVA, kDetOpen, sizeof(kDetOpen), &H[H_DET_OPEN], &H[H_DET_OPEN_CODE]))) return rc;
   if ((rc = check_method(c, dgui, "OnDismissOrContinueClicked", "System.Void", 0, nullptr, nullptr, false, false,
-                         0x9abd7c0ULL, kDetClick, sizeof(kDetClick), &H[H_DET_CLICK], &H[H_DET_CLICK_CODE]))) return rc;
+                         PGR_GAME_SHARED_METADATA_CPP_KDETCLICK_RVA, kDetClick, sizeof(kDetClick), &H[H_DET_CLICK], &H[H_DET_CLICK_CODE]))) return rc;
   if ((rc = check_method(c, H[H_DET_LIST_CLASS], "get_Count", "System.Int32", 0, nullptr, nullptr, false, true,
                          0, nullptr, 0, &H[H_DET_COUNT], nullptr))) return rc;
   if ((rc = check_method(c, H[H_DET_LIST_CLASS], "get_Item", "Holoholo.Rpc.PokemonProto", 1, "System.Int32", nullptr, false, true,
@@ -542,7 +536,7 @@ int do_direct_presentation(Ctx &c) {
   const void **H = c.out->opt_handles; int rc;
   const void *gs = c.out->opt_classes[OC_GAMESTATE], *svc = c.out->opt_classes[OC_PKINFO_SERVICE],
              *act = c.out->opt_classes[OC_ACTION];
-  if ((rc = typed_field(c, gs, "<IsActiveState>k__BackingField", 0x50, "System.Boolean", "direct-active-type", &H[H_DP_ACTIVE]))) return rc;
+  if ((rc = typed_field(c, gs, PGR_GAME_SHARED_METADATA_CPP_H_DP_ACTIVE_NAME, PGR_GAME_SHARED_METADATA_CPP_H_DP_ACTIVE_OFFSET, "System.Boolean", "direct-active-type", &H[H_DP_ACTIVE]))) return rc;
   H[H_DP_SERVICE] = svc;
   MParam sp[10] = {
     {"Holoholo.Rpc.PokemonProto", nullptr}, {"System.Boolean", nullptr}, {"System.Boolean", nullptr},
@@ -551,7 +545,7 @@ int do_direct_presentation(Ctx &c) {
     {"System.Boolean", nullptr}, {"System.Boolean", nullptr}, {"System.Boolean", nullptr}
   };
   if ((rc = check_method_ex(c, svc, "ShowPokemonInfo", "System.Void", nullptr, 10, sp, false, false,
-                            0x9b02374ULL, kDpShow, sizeof(kDpShow), &H[H_DP_SHOW], &H[H_DP_SHOW_CODE]))) return rc;
+                            PGR_GAME_SHARED_METADATA_CPP_KDPSHOW_RVA, kDpShow, sizeof(kDpShow), &H[H_DP_SHOW], &H[H_DP_SHOW_CODE]))) return rc;
   return check_method(c, act, "Invoke", "System.Void", 0, nullptr, nullptr, false, false,
                       0, nullptr, 0, &H[H_DP_CALLBACK], nullptr);
 }
@@ -565,29 +559,29 @@ int do_transfer(Ctx &c) {
   const void **H = c.out->opt_handles; int rc;
   const void *res_enum = nullptr, *costume_enum = nullptr, *art_enum = nullptr, *asset_enum = nullptr;
 
-  if ((rc = enum_i32_field(c, rel, "Status", 0x10, &H[H_TR_RESULT_STATUS], &res_enum))) return rc;
-  if ((rc = typed_field(c, view, "dsze", 0x70, "Niantic.Holoholo.IPokemonBag", "transfer-field", &H[H_TR_BAG]))) return rc;
-  if ((rc = typed_field(c, view, "dszj", 0x98, "IGameMasterData", "transfer-field", &H[H_TR_GM]))) return rc;
-  if ((rc = typed_field(c, pk, "pokemonId_", 0x28, "System.Int32", "transfer-field", &H[H_TR_SPECIES]))) return rc;
-  if ((rc = typed_field(c, pk, "individualAttack_", 0x70, "System.Int32", "transfer-field", &H[H_TR_ATTACK]))) return rc;
-  if ((rc = typed_field(c, pk, "individualDefense_", 0x74, "System.Int32", "transfer-field", &H[H_TR_DEFENSE]))) return rc;
-  if ((rc = typed_field(c, pk, "individualStamina_", 0x78, "System.Int32", "transfer-field", &H[H_TR_STAMINA]))) return rc;
-  if ((rc = typed_field(c, pk, "favorite_", 0xb0, "System.Boolean", "transfer-field", &H[H_TR_FAVORITE]))) return rc;
-  if ((rc = typed_field(c, pk, "isEgg_", 0x50, "System.Boolean", "transfer-field", &H[H_TR_EGG]))) return rc;
-  if ((rc = typed_field(c, pk, "pokemonDisplay_", 0xd8, "Holoholo.Rpc.PokemonDisplayProto", "transfer-field", &H[H_TR_DISPLAY]))) return rc;
-  if ((rc = ref_field(c, pk, "originEvents_", 0x188, &H[H_TR_EVENTS], &H[H_TR_EVENT_CLASS]))) return rc;
-  if ((rc = typed_field(c, pk, "limitedPokemonIdentifier_", 0x130, "System.String", "transfer-field", &H[H_TR_LIMITED]))) return rc;
-  if ((rc = enum_i32_field(c, disp, "Costume", 0x10, &H[H_TR_COSTUME], &costume_enum))) return rc;
-  if ((rc = enum_i32_field(c, disp, "OriginalCostume", 0x40, &H[H_TR_ORIG_COSTUME]))) return rc;
-  if ((rc = ref_field(c, disp, "LocationCard", 0x58, &H[H_TR_BACKGROUND]))) return rc;
-  if ((rc = enum_i32_field(c, disp, "NaturalArtType", 0x70, &H[H_TR_ART], &art_enum))) return rc;
-  if ((rc = enum_i32_field(c, disp, "NaturalArtBackgroundAsset", 0x74, &H[H_TR_ART_ASSET], &asset_enum))) return rc;
+  if ((rc = enum_i32_field(c, rel, PGR_GAME_SHARED_METADATA_CPP_H_TR_RESULT_STATUS_NAME, PGR_GAME_SHARED_METADATA_CPP_H_TR_RESULT_STATUS_OFFSET, &H[H_TR_RESULT_STATUS], &res_enum))) return rc;
+  if ((rc = typed_field(c, view, PGR_GAME_SHARED_METADATA_CPP_H_TR_BAG_NAME, PGR_GAME_SHARED_METADATA_CPP_H_TR_BAG_OFFSET, "Niantic.Holoholo.IPokemonBag", "transfer-field", &H[H_TR_BAG]))) return rc;
+  if ((rc = typed_field(c, view, PGR_GAME_SHARED_METADATA_CPP_H_TR_GM_NAME, PGR_GAME_SHARED_METADATA_CPP_H_TR_GM_OFFSET, "IGameMasterData", "transfer-field", &H[H_TR_GM]))) return rc;
+  if ((rc = typed_field(c, pk, PGR_GAME_SHARED_METADATA_CPP_H_TR_SPECIES_NAME, PGR_GAME_SHARED_METADATA_CPP_H_TR_SPECIES_OFFSET, "System.Int32", "transfer-field", &H[H_TR_SPECIES]))) return rc;
+  if ((rc = typed_field(c, pk, PGR_GAME_SHARED_METADATA_CPP_H_TR_ATTACK_NAME, PGR_GAME_SHARED_METADATA_CPP_H_TR_ATTACK_OFFSET, "System.Int32", "transfer-field", &H[H_TR_ATTACK]))) return rc;
+  if ((rc = typed_field(c, pk, PGR_GAME_SHARED_METADATA_CPP_H_TR_DEFENSE_NAME, PGR_GAME_SHARED_METADATA_CPP_H_TR_DEFENSE_OFFSET, "System.Int32", "transfer-field", &H[H_TR_DEFENSE]))) return rc;
+  if ((rc = typed_field(c, pk, PGR_GAME_SHARED_METADATA_CPP_H_TR_STAMINA_NAME, PGR_GAME_SHARED_METADATA_CPP_H_TR_STAMINA_OFFSET, "System.Int32", "transfer-field", &H[H_TR_STAMINA]))) return rc;
+  if ((rc = typed_field(c, pk, PGR_GAME_SHARED_METADATA_CPP_H_TR_FAVORITE_NAME, PGR_GAME_SHARED_METADATA_CPP_H_TR_FAVORITE_OFFSET, "System.Boolean", "transfer-field", &H[H_TR_FAVORITE]))) return rc;
+  if ((rc = typed_field(c, pk, PGR_GAME_SHARED_METADATA_CPP_H_TR_EGG_NAME, PGR_GAME_SHARED_METADATA_CPP_H_TR_EGG_OFFSET, "System.Boolean", "transfer-field", &H[H_TR_EGG]))) return rc;
+  if ((rc = typed_field(c, pk, PGR_GAME_SHARED_METADATA_CPP_H_TR_DISPLAY_NAME, PGR_GAME_SHARED_METADATA_CPP_H_TR_DISPLAY_OFFSET, "Holoholo.Rpc.PokemonDisplayProto", "transfer-field", &H[H_TR_DISPLAY]))) return rc;
+  if ((rc = ref_field(c, pk, PGR_GAME_SHARED_METADATA_CPP_H_TR_EVENT_CLASS_NAME, PGR_GAME_SHARED_METADATA_CPP_H_TR_EVENT_CLASS_OFFSET, &H[H_TR_EVENTS], &H[H_TR_EVENT_CLASS]))) return rc;
+  if ((rc = typed_field(c, pk, PGR_GAME_SHARED_METADATA_CPP_H_TR_LIMITED_NAME, PGR_GAME_SHARED_METADATA_CPP_H_TR_LIMITED_OFFSET, "System.String", "transfer-field", &H[H_TR_LIMITED]))) return rc;
+  if ((rc = enum_i32_field(c, disp, PGR_GAME_SHARED_METADATA_CPP_H_TR_COSTUME_NAME, PGR_GAME_SHARED_METADATA_CPP_H_TR_COSTUME_OFFSET, &H[H_TR_COSTUME], &costume_enum))) return rc;
+  if ((rc = enum_i32_field(c, disp, PGR_GAME_SHARED_METADATA_CPP_H_TR_ORIG_COSTUME_NAME, PGR_GAME_SHARED_METADATA_CPP_H_TR_ORIG_COSTUME_OFFSET, &H[H_TR_ORIG_COSTUME]))) return rc;
+  if ((rc = ref_field(c, disp, PGR_GAME_SHARED_METADATA_CPP_H_TR_BACKGROUND_NAME, PGR_GAME_SHARED_METADATA_CPP_H_TR_BACKGROUND_OFFSET, &H[H_TR_BACKGROUND]))) return rc;
+  if ((rc = enum_i32_field(c, disp, PGR_GAME_SHARED_METADATA_CPP_H_TR_ART_NAME, PGR_GAME_SHARED_METADATA_CPP_H_TR_ART_OFFSET, &H[H_TR_ART], &art_enum))) return rc;
+  if ((rc = enum_i32_field(c, disp, PGR_GAME_SHARED_METADATA_CPP_H_TR_ART_ASSET_NAME, PGR_GAME_SHARED_METADATA_CPP_H_TR_ART_ASSET_OFFSET, &H[H_TR_ART_ASSET], &asset_enum))) return rc;
 
   const void *cb = nullptr;
-  if ((rc = nested_suffix(c, bag, "hwh", 256, true, "transfer-callback-class", &cb))) return rc;
+  if ((rc = nested_suffix(c, bag, PGR_GAME_SHARED_METADATA_CPP_HWH_NAME, 256, true, "transfer-callback-class", &cb))) return rc;
   H[H_TR_CB_CLASS] = cb;
-  if ((rc = typed_field(c, cb, "pokemon", 0x20, "Holoholo.Rpc.PokemonProto", "transfer-field", &H[H_TR_CB_POKEMON]))) return rc;
-  if ((rc = typed_field(c, cb, "<>4__this", 0x10, "Niantic.Holoholo.Internal.PokemonBagImpl", "transfer-field", &H[H_TR_CB_BAG]))) return rc;
+  if ((rc = typed_field(c, cb, PGR_GAME_SHARED_METADATA_CPP_H_TR_CB_POKEMON_NAME, PGR_GAME_SHARED_METADATA_CPP_H_TR_CB_POKEMON_OFFSET, "Holoholo.Rpc.PokemonProto", "transfer-field", &H[H_TR_CB_POKEMON]))) return rc;
+  if ((rc = typed_field(c, cb, PGR_GAME_SHARED_METADATA_CPP_H_TR_CB_BAG_NAME, PGR_GAME_SHARED_METADATA_CPP_H_TR_CB_BAG_OFFSET, "Niantic.Holoholo.Internal.PokemonBagImpl", "transfer-field", &H[H_TR_CB_BAG]))) return rc;
 
   static const char *const sz_names[5] = {"Xxs", "Xs", "M", "Xl", "Xxl"};
   for (int i = 0; i < 5; i++)
@@ -597,10 +591,10 @@ int do_transfer(Ctx &c) {
   if ((rc = enum_literal(c, art_enum, "NaturalArtUnset", true, "transfer-enum", &c.out->opt_ints[I_TR_ART_NONE]))) return rc;
   if ((rc = enum_literal(c, asset_enum, "NaturalBackgroundUnset", true, "transfer-enum", &c.out->opt_ints[I_TR_ASSET_NONE]))) return rc;
 
-  if ((rc = check_method(c, cb, "crsu", "System.Void", 1, "Holoholo.Rpc.ReleasePokemonOutProto", nullptr, false, false,
-                         0x92fb1f0ULL, kTrResult, sizeof(kTrResult), &H[H_TR_RESULT_M], &H[H_TR_RESULT_CODE]))) return rc;
-  if ((rc = check_method(c, cb, "crsv", "System.Void", 1, "System.String", nullptr, false, false,
-                         0x92fb604ULL, kTrError, sizeof(kTrError), &H[H_TR_ERROR_M], &H[H_TR_ERROR_CODE]))) return rc;
+  if ((rc = check_method(c, cb, PGR_GAME_SHARED_METADATA_CPP_CRSU_NAME, "System.Void", 1, "Holoholo.Rpc.ReleasePokemonOutProto", nullptr, false, false,
+                         PGR_GAME_SHARED_METADATA_CPP_KTRRESULT_RVA, kTrResult, sizeof(kTrResult), &H[H_TR_RESULT_M], &H[H_TR_RESULT_CODE]))) return rc;
+  if ((rc = check_method(c, cb, PGR_GAME_SHARED_METADATA_CPP_CRSV_NAME, "System.Void", 1, "System.String", nullptr, false, false,
+                         PGR_GAME_SHARED_METADATA_CPP_KTRERROR_RVA, kTrError, sizeof(kTrError), &H[H_TR_ERROR_M], &H[H_TR_ERROR_CODE]))) return rc;
   if ((rc = check_method(c, pk, "PokemonCharacterSize", "Holoholo.Rpc.CharacterSize", 1, "IGameMasterData", nullptr, false, false,
                          0, nullptr, 0, &H[H_TR_SIZE_M], nullptr))) return rc;
   if ((rc = check_method(c, pk, "IsLegendaryOrMythicOrUltraBeast", "System.Boolean", 1, "IGameMasterData", nullptr, false, false,
@@ -613,7 +607,7 @@ int do_transfer(Ctx &c) {
                          0, nullptr, 0, &H[H_TR_GET_M], nullptr))) return rc;
   MParam rel_p[1] = {{"Holoholo.Rpc.PokemonProto", nullptr}};
   return check_method_ex(c, bag, "ReleasePokemon", nullptr, pred_release_promise, 1, rel_p, false, false,
-                         0x92f4e6cULL, kTrRelease, sizeof(kTrRelease), &H[H_TR_RELEASE_M], &H[H_TR_RELEASE_CODE]);
+                         PGR_GAME_SHARED_METADATA_CPP_KTRRELEASE_RVA, kTrRelease, sizeof(kTrRelease), &H[H_TR_RELEASE_M], &H[H_TR_RELEASE_CODE]);
 }
 
 int do_spin(Ctx &c) {
@@ -627,22 +621,22 @@ int do_spin(Ctx &c) {
   }
   const void *spinstate = cls[0], *spingui = cls[1], *gesture = cls[2], *spinner = cls[3], *spinbase = cls[4], *spinresult = cls[5];
 
-  if ((rc = typed_field(c, spinstate, "dffs", 0x128, "Niantic.Holoholo.Pokestop.IPokestopSpinnerInteractionGuiController", "spin-field", &H[H_SPIN_GUI_F]))) return rc;
-  if ((rc = typed_field(c, spinstate, "dffr", 0x120, "Niantic.Holoholo.GameInput.ItemSpinnerGestureHandler", "spin-field", &H[H_SPIN_GESTURE_F]))) return rc;
-  if ((rc = typed_field(c, gesture, "dkhy", 0x60, "Niantic.Holoholo.Map.IPoiSpinner", "spin-field", &H[H_SPIN_SPINNER_F]))) return rc;
+  if ((rc = typed_field(c, spinstate, PGR_GAME_SHARED_METADATA_CPP_H_SPIN_GUI_F_NAME, PGR_GAME_SHARED_METADATA_CPP_H_SPIN_GUI_F_OFFSET, "Niantic.Holoholo.Pokestop.IPokestopSpinnerInteractionGuiController", "spin-field", &H[H_SPIN_GUI_F]))) return rc;
+  if ((rc = typed_field(c, spinstate, PGR_GAME_SHARED_METADATA_CPP_H_SPIN_GESTURE_F_NAME, PGR_GAME_SHARED_METADATA_CPP_H_SPIN_GESTURE_F_OFFSET, "Niantic.Holoholo.GameInput.ItemSpinnerGestureHandler", "spin-field", &H[H_SPIN_GESTURE_F]))) return rc;
+  if ((rc = typed_field(c, gesture, PGR_GAME_SHARED_METADATA_CPP_H_SPIN_SPINNER_F_NAME, PGR_GAME_SHARED_METADATA_CPP_H_SPIN_SPINNER_F_OFFSET, "Niantic.Holoholo.Map.IPoiSpinner", "spin-field", &H[H_SPIN_SPINNER_F]))) return rc;
   const void *result_enum = nullptr;
-  if ((rc = enum_i32_field(c, spinresult, "Result", 0x10, &H[H_SPIN_RESULT_F], &result_enum))) return rc;
+  if ((rc = enum_i32_field(c, spinresult, PGR_GAME_SHARED_METADATA_CPP_H_SPIN_RESULT_F_NAME, PGR_GAME_SHARED_METADATA_CPP_H_SPIN_RESULT_F_OFFSET, &H[H_SPIN_RESULT_F], &result_enum))) return rc;
   H[H_SPIN_RESULT_ENUM] = result_enum;
   if ((rc = enum_literal(c, result_enum, "Success", true, "spin-success-literal", &c.out->opt_ints[I_SPIN_SUCCESS]))) return rc;
 
-  if ((rc = check_method(c, spinstate, "EnterState", "System.Void", 0, nullptr, nullptr, false, false, 0xa442610ULL, kSpinEnter, sizeof(kSpinEnter), &H[H_SPIN_ENTER], &H[H_SPIN_ENTER_CODE]))) return rc;
-  if ((rc = check_method(c, spinstate, "ExitState", "System.Void", 0, nullptr, nullptr, false, false, 0xa443b34ULL, kSpinExit, sizeof(kSpinExit), &H[H_SPIN_EXIT], &H[H_SPIN_EXIT_CODE]))) return rc;
-  if ((rc = check_method(c, spinstate, "bgdc", "System.Void", 1, "Holoholo.Rpc.FortSearchOutProto", nullptr, false, false, 0xa44475cULL, kSpinResult, sizeof(kSpinResult), &H[H_SPIN_RESULT_M], &H[H_SPIN_RESULT_CODE]))) return rc;
-  if ((rc = check_method(c, spingui, "ClickExit", "System.Void", 0, nullptr, nullptr, false, false, 0xa43e098ULL, kSpinClose, sizeof(kSpinClose), &H[H_SPIN_CLOSE], &H[H_SPIN_CLOSE_CODE]))) return rc;
-  if ((rc = check_method(c, spinner, "Spin", "System.Void", 1, "System.Single", nullptr, false, false, 0x9eebfb8ULL, kSpinSpin, sizeof(kSpinSpin), &H[H_SPIN_SPIN_M], &H[H_SPIN_SPIN_CODE]))) return rc;
-  if ((rc = check_method(c, spinner, "cnly", "System.Void", 0, nullptr, nullptr, false, false, 0x9eebfd8ULL, kSpinRequest, sizeof(kSpinRequest), &H[H_SPIN_REQUEST], &H[H_SPIN_REQUEST_CODE]))) return rc;
-  if ((rc = check_method(c, spinbase, "get_CanSpin", "System.Boolean", 0, nullptr, nullptr, false, false, 0x9ed9060ULL, kSpinCan, sizeof(kSpinCan), &H[H_SPIN_CAN], &H[H_SPIN_CAN_CODE]))) return rc;
-  return check_method(c, gesture, "get_IsActive", "System.Boolean", 0, nullptr, nullptr, false, false, 0xa78a06cULL, kSpinActive, sizeof(kSpinActive), &H[H_SPIN_ACTIVE], &H[H_SPIN_ACTIVE_CODE]);
+  if ((rc = check_method(c, spinstate, "EnterState", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KSPINENTER_RVA, kSpinEnter, sizeof(kSpinEnter), &H[H_SPIN_ENTER], &H[H_SPIN_ENTER_CODE]))) return rc;
+  if ((rc = check_method(c, spinstate, "ExitState", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KSPINEXIT_RVA, kSpinExit, sizeof(kSpinExit), &H[H_SPIN_EXIT], &H[H_SPIN_EXIT_CODE]))) return rc;
+  if ((rc = check_method(c, spinstate, PGR_GAME_SHARED_METADATA_CPP_H_SPIN_RESULT_CODE_NAME, "System.Void", 1, "Holoholo.Rpc.FortSearchOutProto", nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KSPINRESULT_RVA, kSpinResult, sizeof(kSpinResult), &H[H_SPIN_RESULT_M], &H[H_SPIN_RESULT_CODE]))) return rc;
+  if ((rc = check_method(c, spingui, "ClickExit", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KSPINCLOSE_RVA, kSpinClose, sizeof(kSpinClose), &H[H_SPIN_CLOSE], &H[H_SPIN_CLOSE_CODE]))) return rc;
+  if ((rc = check_method(c, spinner, "Spin", "System.Void", 1, "System.Single", nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KSPINSPIN_RVA, kSpinSpin, sizeof(kSpinSpin), &H[H_SPIN_SPIN_M], &H[H_SPIN_SPIN_CODE]))) return rc;
+  if ((rc = check_method(c, spinner, PGR_GAME_SHARED_METADATA_CPP_H_SPIN_REQUEST_CODE_NAME, "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KSPINREQUEST_RVA, kSpinRequest, sizeof(kSpinRequest), &H[H_SPIN_REQUEST], &H[H_SPIN_REQUEST_CODE]))) return rc;
+  if ((rc = check_method(c, spinbase, "get_CanSpin", "System.Boolean", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KSPINCAN_RVA, kSpinCan, sizeof(kSpinCan), &H[H_SPIN_CAN], &H[H_SPIN_CAN_CODE]))) return rc;
+  return check_method(c, gesture, "get_IsActive", "System.Boolean", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KSPINACTIVE_RVA, kSpinActive, sizeof(kSpinActive), &H[H_SPIN_ACTIVE], &H[H_SPIN_ACTIVE_CODE]);
 }
 
 int do_spin_camera(Ctx &c) {
@@ -653,22 +647,22 @@ int do_spin_camera(Ctx &c) {
   const char *const SPLINE_NAME = "Niantic.Holoholo.CameraRig.SplineCameraController";
 
   const void *iterator = nullptr;
-  if ((rc = nested_suffix(c, spline, "crj", 256, true, "spin-camera-iterator", &iterator))) return rc;
+  if ((rc = nested_suffix(c, spline, PGR_GAME_SHARED_METADATA_CPP_CRJ_NAME, 256, true, "spin-camera-iterator", &iterator))) return rc;
   H[H_SC_ITER] = iterator;
-  if ((rc = typed_field(c, iterator, "<>4__this", 0x28, SPLINE_NAME, "spin-camera-field", &H[H_SC_THIS_F]))) return rc;
-  if ((rc = typed_field(c, iterator, "djsk", 0x10, "System.Int32", "spin-camera-field", &H[H_SC_STATE_F]))) return rc;
-  if ((rc = typed_field(c, iterator, "djsq", 0x50, "System.Single", "spin-camera-field", nullptr))) return rc;
-  if ((rc = check_method(c, iterator, "MoveNext", "System.Boolean", 0, nullptr, nullptr, false, false, 0xa74ac24ULL, kScMove, sizeof(kScMove), &H[H_SC_MOVE], &H[H_SC_MOVE_CODE]))) return rc;
+  if ((rc = typed_field(c, iterator, PGR_GAME_SHARED_METADATA_CPP_H_SC_THIS_F_NAME, PGR_GAME_SHARED_METADATA_CPP_H_SC_THIS_F_OFFSET, SPLINE_NAME, "spin-camera-field", &H[H_SC_THIS_F]))) return rc;
+  if ((rc = typed_field(c, iterator, PGR_GAME_SHARED_METADATA_CPP_H_SC_STATE_F_NAME, PGR_GAME_SHARED_METADATA_CPP_H_SC_STATE_F_OFFSET, "System.Int32", "spin-camera-field", &H[H_SC_STATE_F]))) return rc;
+  if ((rc = typed_field(c, iterator, PGR_GAME_SHARED_METADATA_CPP_DJSQ_NAME, PGR_GAME_SHARED_METADATA_CPP_DJSQ_OFFSET, "System.Single", "spin-camera-field", nullptr))) return rc;
+  if ((rc = check_method(c, iterator, "MoveNext", "System.Boolean", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KSCMOVE_RVA, kScMove, sizeof(kScMove), &H[H_SC_MOVE], &H[H_SC_MOVE_CODE]))) return rc;
 
   H[H_SC_APPROACH] = approach;
-  if ((rc = typed_field(c, approach, "splineCam", 0x78, SPLINE_NAME, "spin-camera-field", &H[H_SC_APP_CAM]))) return rc;
-  if ((rc = check_method(c, approach, "EnterState", "System.Void", 0, nullptr, nullptr, false, false, 0xa429960ULL, kScAppEnter, sizeof(kScAppEnter), &H[H_SC_APP_ENTER], &H[H_SC_APP_ENTER_CODE]))) return rc;
-  if ((rc = check_method(c, approach, "ExitState", "System.Void", 0, nullptr, nullptr, false, false, 0xa42a468ULL, kScAppExit, sizeof(kScAppExit), &H[H_SC_APP_EXIT], &H[H_SC_APP_EXIT_CODE]))) return rc;
+  if ((rc = typed_field(c, approach, PGR_GAME_SHARED_METADATA_CPP_H_SC_APP_CAM_NAME, PGR_GAME_SHARED_METADATA_CPP_H_SC_APP_CAM_OFFSET, SPLINE_NAME, "spin-camera-field", &H[H_SC_APP_CAM]))) return rc;
+  if ((rc = check_method(c, approach, "EnterState", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KSCAPPENTER_RVA, kScAppEnter, sizeof(kScAppEnter), &H[H_SC_APP_ENTER], &H[H_SC_APP_ENTER_CODE]))) return rc;
+  if ((rc = check_method(c, approach, "ExitState", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KSCAPPEXIT_RVA, kScAppExit, sizeof(kScAppExit), &H[H_SC_APP_EXIT], &H[H_SC_APP_EXIT_CODE]))) return rc;
 
   H[H_SC_RESOLVE] = resolve;
-  if ((rc = typed_field(c, resolve, "splineCam", 0x58, SPLINE_NAME, "spin-camera-field", &H[H_SC_RES_CAM]))) return rc;
-  if ((rc = check_method(c, resolve, "EnterState", "System.Void", 0, nullptr, nullptr, false, false, 0xa46bd30ULL, kScResEnter, sizeof(kScResEnter), &H[H_SC_RES_ENTER], &H[H_SC_RES_ENTER_CODE]))) return rc;
-  return check_method(c, resolve, "ExitState", "System.Void", 0, nullptr, nullptr, false, false, 0xa46c49cULL, kScResExit, sizeof(kScResExit), &H[H_SC_RES_EXIT], &H[H_SC_RES_EXIT_CODE]);
+  if ((rc = typed_field(c, resolve, PGR_GAME_SHARED_METADATA_CPP_H_SC_RES_CAM_NAME, PGR_GAME_SHARED_METADATA_CPP_H_SC_RES_CAM_OFFSET, SPLINE_NAME, "spin-camera-field", &H[H_SC_RES_CAM]))) return rc;
+  if ((rc = check_method(c, resolve, "EnterState", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KSCRESENTER_RVA, kScResEnter, sizeof(kScResEnter), &H[H_SC_RES_ENTER], &H[H_SC_RES_ENTER_CODE]))) return rc;
+  return check_method(c, resolve, "ExitState", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KSCRESEXIT_RVA, kScResExit, sizeof(kScResExit), &H[H_SC_RES_EXIT], &H[H_SC_RES_EXIT_CODE]);
 }
 
 void format_item_enum_name(const std::string &raw, char *out, size_t cap) {
@@ -745,10 +739,10 @@ int do_items_lookup(Ctx &c) {
   const void *singleton = nullptr;
   if ((rc = nested_suffix(c, gui, "<>c", 256, true, "item-filter-singleton", &singleton))) return rc;
   MParam tp[1] = {{nullptr, pred_item_tuple}};
-  if ((rc = check_method_ex(c, gui, "cjkj", "System.Boolean", nullptr, 1, tp, false, false,
-                            163461484ULL, kItCjpm, sizeof(kItCjpm), &H[H_IL_USABLE_M], &H[H_IL_USABLE_CODE]))) return rc;
-  if ((rc = check_method_ex(c, singleton, "cjka", "System.Boolean", nullptr, 1, tp, false, false,
-                            163464128ULL, kItCjpd, sizeof(kItCjpd), &H[H_IL_SHOW_M], &H[H_IL_SHOW_CODE]))) return rc;
+  if ((rc = check_method_ex(c, gui, PGR_GAME_SHARED_METADATA_CPP_CJKJ_NAME, "System.Boolean", nullptr, 1, tp, false, false,
+                            PGR_GAME_SHARED_METADATA_CPP_KITCJPM_RVA, kItCjpm, sizeof(kItCjpm), &H[H_IL_USABLE_M], &H[H_IL_USABLE_CODE]))) return rc;
+  if ((rc = check_method_ex(c, singleton, PGR_GAME_SHARED_METADATA_CPP_CJKA_NAME, "System.Boolean", nullptr, 1, tp, false, false,
+                            PGR_GAME_SHARED_METADATA_CPP_KITCJPD_RVA, kItCjpd, sizeof(kItCjpd), &H[H_IL_SHOW_M], &H[H_IL_SHOW_CODE]))) return rc;
 
   auto field_from_name = reinterpret_cast<void *(*)(const void *, const char *)>(c.core->class_get_field_from_name);
   auto field_parent = reinterpret_cast<void *(*)(const void *)>(c.core->field_get_parent);
@@ -791,8 +785,8 @@ int do_items(Ctx &c) {
     {nullptr, pred_item_filter}, {"System.Boolean", nullptr}, {nullptr, pred_item_filter},
     {nullptr, pred_item_func_bool}, {nullptr, pred_item_action}
   };
-  if ((rc = check_method_ex(c, isvc, "cjkx", nullptr, pred_item_data_list, 5, lp, false, false,
-                            163471988ULL, kItCjpz, sizeof(kItCjpz), &H[H_IT_LIST_M], &H[H_IT_LIST_CODE]))) return rc;
+  if ((rc = check_method_ex(c, isvc, PGR_GAME_SHARED_METADATA_CPP_CJKX_NAME, nullptr, pred_item_data_list, 5, lp, false, false,
+                            PGR_GAME_SHARED_METADATA_CPP_KITCJPZ_RVA, kItCjpz, sizeof(kItCjpz), &H[H_IT_LIST_M], &H[H_IT_LIST_CODE]))) return rc;
 
   auto m_ret = reinterpret_cast<void *(*)(const void *)>(c.core->method_get_return_type);
   auto c_from_t = reinterpret_cast<void *(*)(const void *)>(c.core->class_from_type);
@@ -807,25 +801,25 @@ int do_items(Ctx &c) {
   H[H_IT_DK] = dk;
 
   const void *cb = nullptr;
-  if ((rc = nested_suffix(c, ibag, "hwb", 256, true, "item-callback-class", &cb))) return rc;
+  if ((rc = nested_suffix(c, ibag, PGR_GAME_SHARED_METADATA_CPP_HWB_NAME, 256, true, "item-callback-class", &cb))) return rc;
   H[H_IT_CB] = cb;
 
   const void *pk = nullptr;
-  if ((rc = typed_field(c, cb, "prediction", 0x18, "Holoholo.Rpc.HoloInventoryItemProto", "item-field", &H[H_IT_PREDICTION], &pk))) return rc;
+  if ((rc = typed_field(c, cb, PGR_GAME_SHARED_METADATA_CPP_H_IT_PREDICTION_NAME, PGR_GAME_SHARED_METADATA_CPP_H_IT_PREDICTION_OFFSET, "Holoholo.Rpc.HoloInventoryItemProto", "item-field", &H[H_IT_PREDICTION], &pk))) return rc;
   if ((rc = check_method(c, pk, "get_Item", "Holoholo.Rpc.ItemProto", 0, nullptr, nullptr, false, false,
                          0, nullptr, 0, &H[H_IT_PROTO_M], nullptr))) return rc;
   void *ik = c_from_t(m_ret(H[H_IT_PROTO_M]));
 
-  if ((rc = raw_field(c, del, "method", 0x28, &H[H_IT_DEL_METHOD]))) return rc;
-  if ((rc = raw_field(c, del, "m_target", 0x20, &H[H_IT_DEL_TARGET]))) return rc;
-  if ((rc = typed_field(c, isvc, "ehyz", 0x60, "Niantic.Holoholo.IItemBag", "item-field", &H[H_IT_BAG]))) return rc;
-  if ((rc = enum_i32_field(c, dk, "item", 0x10, &H[H_IT_ID]))) return rc;
-  if ((rc = typed_field(c, dk, "count", 0x1c, "System.Int32", "item-field", &H[H_IT_COUNT_F]))) return rc;
-  if ((rc = typed_field(c, dk, "recyclable", 0x21, "System.Boolean", "item-field", &H[H_IT_RECYCLABLE]))) return rc;
-  if ((rc = typed_field(c, cb, "<>4__this", 0x10, "Niantic.Holoholo.Internal.ItemBagImpl", "item-field", &H[H_IT_CB_BAG]))) return rc;
-  if ((rc = typed_field(c, ik, "Item", 0x10, "Holoholo.Rpc.Item", "item-field", &H[H_IT_PROTO_ID]))) return rc;
+  if ((rc = raw_field(c, del, PGR_GAME_SHARED_METADATA_CPP_H_IT_DEL_METHOD_NAME, PGR_GAME_SHARED_METADATA_CPP_H_IT_DEL_METHOD_OFFSET, &H[H_IT_DEL_METHOD]))) return rc;
+  if ((rc = raw_field(c, del, PGR_GAME_SHARED_METADATA_CPP_H_IT_DEL_TARGET_NAME, PGR_GAME_SHARED_METADATA_CPP_H_IT_DEL_TARGET_OFFSET, &H[H_IT_DEL_TARGET]))) return rc;
+  if ((rc = typed_field(c, isvc, PGR_GAME_SHARED_METADATA_CPP_H_IT_BAG_NAME, PGR_GAME_SHARED_METADATA_CPP_H_IT_BAG_OFFSET, "Niantic.Holoholo.IItemBag", "item-field", &H[H_IT_BAG]))) return rc;
+  if ((rc = enum_i32_field(c, dk, PGR_GAME_SHARED_METADATA_CPP_H_IT_ID_NAME, PGR_GAME_SHARED_METADATA_CPP_H_IT_ID_OFFSET, &H[H_IT_ID]))) return rc;
+  if ((rc = typed_field(c, dk, PGR_GAME_SHARED_METADATA_CPP_H_IT_COUNT_F_NAME, PGR_GAME_SHARED_METADATA_CPP_H_IT_COUNT_F_OFFSET, "System.Int32", "item-field", &H[H_IT_COUNT_F]))) return rc;
+  if ((rc = typed_field(c, dk, PGR_GAME_SHARED_METADATA_CPP_H_IT_RECYCLABLE_NAME, PGR_GAME_SHARED_METADATA_CPP_H_IT_RECYCLABLE_OFFSET, "System.Boolean", "item-field", &H[H_IT_RECYCLABLE]))) return rc;
+  if ((rc = typed_field(c, cb, PGR_GAME_SHARED_METADATA_CPP_H_IT_CB_BAG_NAME, PGR_GAME_SHARED_METADATA_CPP_H_IT_CB_BAG_OFFSET, "Niantic.Holoholo.Internal.ItemBagImpl", "item-field", &H[H_IT_CB_BAG]))) return rc;
+  if ((rc = typed_field(c, ik, PGR_GAME_SHARED_METADATA_CPP_H_IT_PROTO_ID_NAME, PGR_GAME_SHARED_METADATA_CPP_H_IT_PROTO_ID_OFFSET, "Holoholo.Rpc.Item", "item-field", &H[H_IT_PROTO_ID]))) return rc;
   const void *status_enum = nullptr;
-  if ((rc = enum_i32_field(c, iresp, "Result", 0x10, &H[H_IT_STATUS], &status_enum))) return rc;
+  if ((rc = enum_i32_field(c, iresp, PGR_GAME_SHARED_METADATA_CPP_H_IT_STATUS_NAME, PGR_GAME_SHARED_METADATA_CPP_H_IT_STATUS_OFFSET, &H[H_IT_STATUS], &status_enum))) return rc;
   if ((rc = enum_literal(c, status_enum, "Success", false, "item-success", &c.out->opt_ints[I_ITEMS_SUCCESS]))) return rc;
 
   if (!c.ex->class_get_fields || !c.ex->field_get_name)
@@ -860,23 +854,23 @@ int do_items(Ctx &c) {
   if (lrc) std::snprintf(c.out->optional_reason[OPT_ITEMS_LOOKUP], kReasonMax, "%s", c.reason);
   std::memcpy(c.reason, saved_reason, sizeof(saved_reason));
 
-  if ((rc = check_method(c, isvc, "cjkv", "System.Void", 0, nullptr, nullptr, false, false,
-                         163467060ULL, kItCjpx, sizeof(kItCjpx), &H[H_IT_INIT_M], &H[H_IT_INIT_CODE]))) return rc;
+  if ((rc = check_method(c, isvc, PGR_GAME_SHARED_METADATA_CPP_CJKV_NAME, "System.Void", 0, nullptr, nullptr, false, false,
+                         PGR_GAME_SHARED_METADATA_CPP_KITCJPX_RVA, kItCjpx, sizeof(kItCjpx), &H[H_IT_INIT_M], &H[H_IT_INIT_CODE]))) return rc;
   if ((rc = check_method(c, lk, "get_Count", "System.Int32", 0, nullptr, nullptr, false, true,
                          0, nullptr, 0, &H[H_IT_COUNT_M], nullptr))) return rc;
   if ((rc = check_method(c, lk, "get_Item", dn.c_str(), 1, "System.Int32", nullptr, false, true,
                          0, nullptr, 0, &H[H_IT_GET_M], nullptr))) return rc;
   if ((rc = check_method_ex(c, isvc, "get_ExpiringItemsCopy", nullptr, pred_item_set, 0, nullptr, false, false,
-                            163467052ULL, kItExpiring, sizeof(kItExpiring), &H[H_IT_EXPIRING_M], &H[H_IT_EXPIRING_CODE]))) return rc;
+                            PGR_GAME_SHARED_METADATA_CPP_KITEXPIRING_RVA, kItExpiring, sizeof(kItExpiring), &H[H_IT_EXPIRING_M], &H[H_IT_EXPIRING_CODE]))) return rc;
   if ((rc = check_method(c, ibag, "GetItemCount", "System.Int32", 1, "Holoholo.Rpc.Item", nullptr, false, false,
-                         154017464ULL, kItGetCount, sizeof(kItGetCount), &H[H_IT_QUANTITY_M], &H[H_IT_QUANTITY_CODE]))) return rc;
+                         PGR_GAME_SHARED_METADATA_CPP_KITGETCOUNT_RVA, kItGetCount, sizeof(kItGetCount), &H[H_IT_QUANTITY_M], &H[H_IT_QUANTITY_CODE]))) return rc;
   MParam rec_p[3] = {{dn.c_str(), nullptr}, {"System.Int32", nullptr}, {nullptr, pred_item_set}};
   if ((rc = check_method_ex(c, ibag, "RecycleItem", nullptr, pred_recycle_promise, 3, rec_p, false, false,
-                            154051388ULL, kItRecycle, sizeof(kItRecycle), &H[H_IT_RECYCLE_M], &H[H_IT_RECYCLE_CODE]))) return rc;
-  if ((rc = check_method(c, cb, "crrk", "System.Void", 1, "Holoholo.Rpc.RecycleItemOutProto", nullptr, false, false,
-                         154080828ULL, kItZid, sizeof(kItZid), &H[H_IT_RESULT_M], &H[H_IT_RESULT_CODE]))) return rc;
-  return check_method(c, cb, "crrl", "System.Void", 1, "System.String", nullptr, false, false,
-                      154081652ULL, kItZie, sizeof(kItZie), &H[H_IT_ERROR_M], &H[H_IT_ERROR_CODE]);
+                            PGR_GAME_SHARED_METADATA_CPP_KITRECYCLE_RVA, kItRecycle, sizeof(kItRecycle), &H[H_IT_RECYCLE_M], &H[H_IT_RECYCLE_CODE]))) return rc;
+  if ((rc = check_method(c, cb, PGR_GAME_SHARED_METADATA_CPP_CRRK_NAME, "System.Void", 1, "Holoholo.Rpc.RecycleItemOutProto", nullptr, false, false,
+                         PGR_GAME_SHARED_METADATA_CPP_KITZID_RVA, kItZid, sizeof(kItZid), &H[H_IT_RESULT_M], &H[H_IT_RESULT_CODE]))) return rc;
+  return check_method(c, cb, PGR_GAME_SHARED_METADATA_CPP_CRRL_NAME, "System.Void", 1, "System.String", nullptr, false, false,
+                      PGR_GAME_SHARED_METADATA_CPP_KITZIE_RVA, kItZie, sizeof(kItZie), &H[H_IT_ERROR_M], &H[H_IT_ERROR_CODE]);
 }
 
 int do_rocket(Ctx &c) {
@@ -889,18 +883,18 @@ int do_rocket(Ctx &c) {
   const void *rvui = c.out->opt_classes[OC_RVUI], *rvgest = c.out->opt_classes[OC_RVGEST],
              *rvbase = c.out->opt_classes[OC_RVBASE], *rvcharge = c.out->opt_classes[OC_RVCHARGE];
 
-  if ((rc = ref_field(c, rvui, "epff", 0x260, &H[H_RK_VN_GESTURE]))) return rc;
-  if ((rc = typed_field(c, rvbase, "FastAttackInputEnabled", 0x9a, "System.Boolean", "rocket-field", &H[H_RK_VN_ENABLED]))) return rc;
-  if ((rc = ref_field(c, rvbase, "tapGesture", 0x70, &H[H_RK_VN_TAP]))) return rc;
-  if ((rc = ref_field(c, rvcharge, "attackButton", 0x28, &H[H_RK_VN_BUTTON]))) return rc;
-  if ((rc = check_method(c, rvui, "UpdateUiWidgets", "System.Void", 1, "Niantic.Holoholo.VNext.BattleState", nullptr, false, false, 154545040ULL, kRvUpdate, sizeof(kRvUpdate), &H[H_RK_VN_UPDATE_M], &H[H_RK_VN_UPDATE_CODE]))) return rc;
-  if ((rc = check_method(c, rvui, "HandleDismiss", "System.Void", 0, nullptr, nullptr, false, false, 154537536ULL, kRvClose, sizeof(kRvClose), &H[H_RK_VN_CLOSE_M], &H[H_RK_VN_CLOSE_CODE]))) return rc;
-  if ((rc = check_method(c, rvui, "get_IsInputBlocked", "System.Boolean", 0, nullptr, nullptr, false, false, 154540360ULL, kRvBlocked, sizeof(kRvBlocked), &H[H_RK_VN_BLOCKED_M], &H[H_RK_VN_BLOCKED_CODE]))) return rc;
-  if ((rc = check_method(c, rvgest, "cqsw", "System.Void", 1, "System.Object", nullptr, false, false, 155286372ULL, kRvFast, sizeof(kRvFast), &H[H_RK_VN_FAST_M], &H[H_RK_VN_FAST_CODE]))) return rc;
-  if ((rc = check_method(c, rvcharge, "ObserveBattleState", "System.Void", 1, "Niantic.Holoholo.VNext.BattleState", nullptr, false, false, 155664444ULL, kRvObserve, sizeof(kRvObserve), &H[H_RK_VN_OBSERVE_M], &H[H_RK_VN_OBSERVE_CODE]))) return rc;
-  if ((rc = check_method(c, rvcharge, "ChargeAttackButtonTapped", "System.Void", 0, nullptr, nullptr, false, false, 155682572ULL, kRvCharge, sizeof(kRvCharge), &H[H_RK_VN_CHARGE_M], &H[H_RK_VN_CHARGE_CODE]))) return rc;
-  if ((rc = check_method(c, rvcharge, "get_IsCharged", "System.Boolean", 0, nullptr, nullptr, false, false, 155655952ULL, kRvCharged, sizeof(kRvCharged), &H[H_RK_VN_CHARGED_M], &H[H_RK_VN_CHARGED_CODE]))) return rc;
-  if ((rc = check_method(c, rvcharge, "get_IsVisible", "System.Boolean", 0, nullptr, nullptr, false, false, 155656016ULL, kRvVisible, sizeof(kRvVisible), &H[H_RK_VN_VISIBLE_M], &H[H_RK_VN_VISIBLE_CODE]))) return rc;
+  if ((rc = ref_field(c, rvui, PGR_GAME_SHARED_METADATA_CPP_H_RK_VN_GESTURE_NAME, PGR_GAME_SHARED_METADATA_CPP_H_RK_VN_GESTURE_OFFSET, &H[H_RK_VN_GESTURE]))) return rc;
+  if ((rc = typed_field(c, rvbase, PGR_GAME_SHARED_METADATA_CPP_H_RK_VN_ENABLED_NAME, PGR_GAME_SHARED_METADATA_CPP_H_RK_VN_ENABLED_OFFSET, "System.Boolean", "rocket-field", &H[H_RK_VN_ENABLED]))) return rc;
+  if ((rc = ref_field(c, rvbase, PGR_GAME_SHARED_METADATA_CPP_H_RK_VN_TAP_NAME, PGR_GAME_SHARED_METADATA_CPP_H_RK_VN_TAP_OFFSET, &H[H_RK_VN_TAP]))) return rc;
+  if ((rc = ref_field(c, rvcharge, PGR_GAME_SHARED_METADATA_CPP_H_RK_VN_BUTTON_NAME, PGR_GAME_SHARED_METADATA_CPP_H_RK_VN_BUTTON_OFFSET, &H[H_RK_VN_BUTTON]))) return rc;
+  if ((rc = check_method(c, rvui, "UpdateUiWidgets", "System.Void", 1, "Niantic.Holoholo.VNext.BattleState", nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRVUPDATE_RVA, kRvUpdate, sizeof(kRvUpdate), &H[H_RK_VN_UPDATE_M], &H[H_RK_VN_UPDATE_CODE]))) return rc;
+  if ((rc = check_method(c, rvui, "HandleDismiss", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRVCLOSE_RVA, kRvClose, sizeof(kRvClose), &H[H_RK_VN_CLOSE_M], &H[H_RK_VN_CLOSE_CODE]))) return rc;
+  if ((rc = check_method(c, rvui, "get_IsInputBlocked", "System.Boolean", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRVBLOCKED_RVA, kRvBlocked, sizeof(kRvBlocked), &H[H_RK_VN_BLOCKED_M], &H[H_RK_VN_BLOCKED_CODE]))) return rc;
+  if ((rc = check_method(c, rvgest, PGR_GAME_SHARED_METADATA_CPP_H_RK_VN_FAST_CODE_NAME, "System.Void", 1, "System.Object", nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRVFAST_RVA, kRvFast, sizeof(kRvFast), &H[H_RK_VN_FAST_M], &H[H_RK_VN_FAST_CODE]))) return rc;
+  if ((rc = check_method(c, rvcharge, "ObserveBattleState", "System.Void", 1, "Niantic.Holoholo.VNext.BattleState", nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRVOBSERVE_RVA, kRvObserve, sizeof(kRvObserve), &H[H_RK_VN_OBSERVE_M], &H[H_RK_VN_OBSERVE_CODE]))) return rc;
+  if ((rc = check_method(c, rvcharge, "ChargeAttackButtonTapped", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRVCHARGE_RVA, kRvCharge, sizeof(kRvCharge), &H[H_RK_VN_CHARGE_M], &H[H_RK_VN_CHARGE_CODE]))) return rc;
+  if ((rc = check_method(c, rvcharge, "get_IsCharged", "System.Boolean", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRVCHARGED_RVA, kRvCharged, sizeof(kRvCharged), &H[H_RK_VN_CHARGED_M], &H[H_RK_VN_CHARGED_CODE]))) return rc;
+  if ((rc = check_method(c, rvcharge, "get_IsVisible", "System.Boolean", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRVVISIBLE_RVA, kRvVisible, sizeof(kRvVisible), &H[H_RK_VN_VISIBLE_M], &H[H_RK_VN_VISIBLE_CODE]))) return rc;
 
   const void *vec3 = c.out->opt_classes[OC_VECTOR3];
   int align = 0;
@@ -910,12 +904,12 @@ int do_rocket(Ctx &c) {
   const void *rmini = c.out->opt_classes[OC_RMINI], *rminibase = c.out->opt_classes[OC_RMINIBASE],
              *comp = c.out->opt_classes[OC_COMPONENT], *trans = c.out->opt_classes[OC_TRANSFORM],
              *go = c.out->opt_classes[OC_GAMEOBJECT];
-  if ((rc = ref_field(c, rmini, "tapCollider", 0xd8, &H[H_RK_MN_COLLIDER]))) return rc;
-  if ((rc = typed_field(c, rminibase, "combatIsRunning", 0xb0, "System.Boolean", "rocket-field", &H[H_RK_MN_RUNNING]))) return rc;
-  if ((rc = check_method(c, rmini, "UpdateMinigame", "System.Void", 1, "System.Int64", nullptr, false, false, 178291424ULL, kRmUpdate, sizeof(kRmUpdate), &H[H_RK_MN_UPDATE_M], &H[H_RK_MN_UPDATE_CODE]))) return rc;
-  if ((rc = check_method(c, rmini, "ExitGame", "System.Void", 0, nullptr, nullptr, false, false, 178297700ULL, kRmExit, sizeof(kRmExit), &H[H_RK_MN_EXIT_M], &H[H_RK_MN_EXIT_CODE]))) return rc;
-  if ((rc = check_method(c, rmini, "Hide", "System.Void", 0, nullptr, nullptr, false, false, 178286976ULL, kRmHide, sizeof(kRmHide), &H[H_RK_MN_HIDE_M], &H[H_RK_MN_HIDE_CODE]))) return rc;
-  if ((rc = check_method(c, rmini, "OnDestroy", "System.Void", 0, nullptr, nullptr, false, false, 178287692ULL, kRmDestroy, sizeof(kRmDestroy), &H[H_RK_MN_DESTROY_M], &H[H_RK_MN_DESTROY_CODE]))) return rc;
+  if ((rc = ref_field(c, rmini, PGR_GAME_SHARED_METADATA_CPP_H_RK_MN_COLLIDER_NAME, PGR_GAME_SHARED_METADATA_CPP_H_RK_MN_COLLIDER_OFFSET, &H[H_RK_MN_COLLIDER]))) return rc;
+  if ((rc = typed_field(c, rminibase, PGR_GAME_SHARED_METADATA_CPP_H_RK_MN_RUNNING_NAME, PGR_GAME_SHARED_METADATA_CPP_H_RK_MN_RUNNING_OFFSET, "System.Boolean", "rocket-field", &H[H_RK_MN_RUNNING]))) return rc;
+  if ((rc = check_method(c, rmini, "UpdateMinigame", "System.Void", 1, "System.Int64", nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRMUPDATE_RVA, kRmUpdate, sizeof(kRmUpdate), &H[H_RK_MN_UPDATE_M], &H[H_RK_MN_UPDATE_CODE]))) return rc;
+  if ((rc = check_method(c, rmini, "ExitGame", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRMEXIT_RVA, kRmExit, sizeof(kRmExit), &H[H_RK_MN_EXIT_M], &H[H_RK_MN_EXIT_CODE]))) return rc;
+  if ((rc = check_method(c, rmini, "Hide", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRMHIDE_RVA, kRmHide, sizeof(kRmHide), &H[H_RK_MN_HIDE_M], &H[H_RK_MN_HIDE_CODE]))) return rc;
+  if ((rc = check_method(c, rmini, "OnDestroy", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRMDESTROY_RVA, kRmDestroy, sizeof(kRmDestroy), &H[H_RK_MN_DESTROY_M], &H[H_RK_MN_DESTROY_CODE]))) return rc;
   if ((rc = check_method(c, comp, "get_transform", "UnityEngine.Transform", 0, nullptr, nullptr, false, false, 0, nullptr, 0, &H[H_RK_MN_TRANSFORM_M], nullptr))) return rc;
   if ((rc = check_method(c, comp, "get_gameObject", "UnityEngine.GameObject", 0, nullptr, nullptr, false, false, 0, nullptr, 0, &H[H_RK_MN_GAMEOBJ_M], nullptr))) return rc;
   if ((rc = check_method(c, trans, "get_localScale", "UnityEngine.Vector3", 0, nullptr, nullptr, false, false, 0, nullptr, 0, &H[H_RK_MN_SCALE_M], nullptr))) return rc;
@@ -923,104 +917,104 @@ int do_rocket(Ctx &c) {
   if ((rc = check_method(c, go, "get_activeSelf", "System.Boolean", 0, nullptr, nullptr, false, false, 0, nullptr, 0, &H[H_RK_MN_ACTIVE_M], nullptr))) return rc;
   if ((rc = check_method(c, go, "SetActive", "System.Void", 1, "System.Boolean", nullptr, false, false, 0, nullptr, 0, &H[H_RK_MN_SETACTIVE_M], nullptr))) return rc;
 
-  if ((rc = ref_field(c, rui, "domi", 0x2c0, &H[H_RK_FIRST]))) return rc;
-  if ((rc = ref_field(c, rui, "domj", 0x2c8, &H[H_RK_SECOND]))) return rc;
-  if ((rc = typed_field(c, rcharge, "<IsCharged>k__BackingField", 0x1a0, "System.Boolean", "rocket-field", &H[H_RK_CHARGED]))) return rc;
-  if ((rc = typed_field(c, rcharge, "<InputEnabled>k__BackingField", 0x1a3, "System.Boolean", "rocket-field", &H[H_RK_INPUT]))) return rc;
-  if ((rc = typed_field(c, rshield, "dobz", 0x178, "System.Int32", "rocket-field", &H[H_RK_SHIELDS]))) return rc;
-  if ((rc = ref_field(c, rshield, "shieldButton", 0x118, &H[H_RK_BUTTON]))) return rc;
+  if ((rc = ref_field(c, rui, PGR_GAME_SHARED_METADATA_CPP_H_RK_FIRST_NAME, PGR_GAME_SHARED_METADATA_CPP_H_RK_FIRST_OFFSET, &H[H_RK_FIRST]))) return rc;
+  if ((rc = ref_field(c, rui, PGR_GAME_SHARED_METADATA_CPP_H_RK_SECOND_NAME, PGR_GAME_SHARED_METADATA_CPP_H_RK_SECOND_OFFSET, &H[H_RK_SECOND]))) return rc;
+  if ((rc = typed_field(c, rcharge, PGR_GAME_SHARED_METADATA_CPP_H_RK_CHARGED_NAME, PGR_GAME_SHARED_METADATA_CPP_H_RK_CHARGED_OFFSET, "System.Boolean", "rocket-field", &H[H_RK_CHARGED]))) return rc;
+  if ((rc = typed_field(c, rcharge, PGR_GAME_SHARED_METADATA_CPP_H_RK_INPUT_NAME, PGR_GAME_SHARED_METADATA_CPP_H_RK_INPUT_OFFSET, "System.Boolean", "rocket-field", &H[H_RK_INPUT]))) return rc;
+  if ((rc = typed_field(c, rshield, PGR_GAME_SHARED_METADATA_CPP_H_RK_SHIELDS_NAME, PGR_GAME_SHARED_METADATA_CPP_H_RK_SHIELDS_OFFSET, "System.Int32", "rocket-field", &H[H_RK_SHIELDS]))) return rc;
+  if ((rc = ref_field(c, rshield, PGR_GAME_SHARED_METADATA_CPP_H_RK_BUTTON_NAME, PGR_GAME_SHARED_METADATA_CPP_H_RK_BUTTON_OFFSET, &H[H_RK_BUTTON]))) return rc;
 
-  if ((rc = check_method(c, rocket, "EnterState", "System.Void", 2, "Niantic.Platform.GameStates.StateLogic.IStateApi", "Niantic.Holoholo.Combat.Contexts.InvasionCombatState.Data", false, false, 178563264ULL, kRkEnter, sizeof(kRkEnter), &H[H_RK_ENTER_M], &H[H_RK_ENTER_CODE]))) return rc;
-  if ((rc = check_method(c, rocket, "ExitState", "System.Void", 0, nullptr, nullptr, false, false, 178578012ULL, kRkExit, sizeof(kRkExit), &H[H_RK_EXIT_M], &H[H_RK_EXIT_CODE]))) return rc;
-  if ((rc = check_method(c, rui, "UpdateActionsUI", "System.Void", 1, "System.Boolean", nullptr, false, false, 178515312ULL, kRkUpdate, sizeof(kRkUpdate), &H[H_RK_UPDATE_M], &H[H_RK_UPDATE_CODE]))) return rc;
-  if ((rc = check_method(c, rui, "Initialize", "System.Void", 1, "Niantic.Holoholo.Combat.UI.CombatUI.Data", nullptr, false, false, 178500584ULL, kRkUi, sizeof(kRkUi), &H[H_RK_UI_M], &H[H_RK_UI_CODE]))) return rc;
-  if ((rc = check_method(c, rui, "HandleDismiss", "System.Void", 0, nullptr, nullptr, false, false, 178502188ULL, kRkClose, sizeof(kRkClose), &H[H_RK_CLOSE_M], &H[H_RK_CLOSE_CODE]))) return rc;
-  if ((rc = check_method(c, rui, "bpog", "Niantic.Holoholo.Combat.ICombatDirectorV2", 0, nullptr, nullptr, false, false, 178494048ULL, kRkDirector, sizeof(kRkDirector), &H[H_RK_DIRECTOR_M], &H[H_RK_DIRECTOR_CODE]))) return rc;
-  if ((rc = check_method(c, rdir, "get_IsInActiveState", "System.Boolean", 0, nullptr, nullptr, false, false, 177423432ULL, kRkActive, sizeof(kRkActive), &H[H_RK_ACTIVE_M], &H[H_RK_ACTIVE_CODE]))) return rc;
-  if ((rc = check_method(c, rdir, "TryFastAttack", "Holoholo.Rpc.CombatActionProto", 0, nullptr, nullptr, false, false, 177435084ULL, kRkFast, sizeof(kRkFast), &H[H_RK_FAST_M], &H[H_RK_FAST_CODE]))) return rc;
-  if ((rc = check_method(c, rcharge, "OnTap", "System.Void", 0, nullptr, nullptr, false, false, 178435920ULL, kRkCharge, sizeof(kRkCharge), &H[H_RK_CHARGE_M], &H[H_RK_CHARGE_CODE]))) return rc;
-  if ((rc = check_method(c, rcharge, "get_IsVisible", "System.Boolean", 0, nullptr, nullptr, false, false, 178425188ULL, kRkVisible, sizeof(kRkVisible), &H[H_RK_VISIBLE_M], &H[H_RK_VISIBLE_CODE]))) return rc;
-  if ((rc = check_method(c, rshield, "ShowShieldPrompt", "System.Void", 1, "System.Boolean", nullptr, false, false, 178271520ULL, kRkPrompt, sizeof(kRkPrompt), &H[H_RK_PROMPT_M], &H[H_RK_PROMPT_CODE]))) return rc;
-  if ((rc = check_method(c, rshield, "ShieldUiClicked", "System.Void", 0, nullptr, nullptr, false, false, 178277084ULL, kRkShield, sizeof(kRkShield), &H[H_RK_SHIELD_M], &H[H_RK_SHIELD_CODE]))) return rc;
-  if ((rc = check_method(c, rshield, "HandleDismiss", "System.Void", 0, nullptr, nullptr, false, false, 178276856ULL, kRkShClose, sizeof(kRkShClose), &H[H_RK_SHIELD_CLOSE_M], &H[H_RK_SHIELD_CLOSE_CODE]))) return rc;
+  if ((rc = check_method(c, rocket, "EnterState", "System.Void", 2, "Niantic.Platform.GameStates.StateLogic.IStateApi", "Niantic.Holoholo.Combat.Contexts.InvasionCombatState.Data", false, false, PGR_GAME_SHARED_METADATA_CPP_KRKENTER_RVA, kRkEnter, sizeof(kRkEnter), &H[H_RK_ENTER_M], &H[H_RK_ENTER_CODE]))) return rc;
+  if ((rc = check_method(c, rocket, "ExitState", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRKEXIT_RVA, kRkExit, sizeof(kRkExit), &H[H_RK_EXIT_M], &H[H_RK_EXIT_CODE]))) return rc;
+  if ((rc = check_method(c, rui, "UpdateActionsUI", "System.Void", 1, "System.Boolean", nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRKUPDATE_RVA, kRkUpdate, sizeof(kRkUpdate), &H[H_RK_UPDATE_M], &H[H_RK_UPDATE_CODE]))) return rc;
+  if ((rc = check_method(c, rui, "Initialize", "System.Void", 1, "Niantic.Holoholo.Combat.UI.CombatUI.Data", nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRKUI_RVA, kRkUi, sizeof(kRkUi), &H[H_RK_UI_M], &H[H_RK_UI_CODE]))) return rc;
+  if ((rc = check_method(c, rui, "HandleDismiss", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRKCLOSE_RVA, kRkClose, sizeof(kRkClose), &H[H_RK_CLOSE_M], &H[H_RK_CLOSE_CODE]))) return rc;
+  if ((rc = check_method(c, rui, PGR_GAME_SHARED_METADATA_CPP_H_RK_DIRECTOR_CODE_NAME, "Niantic.Holoholo.Combat.ICombatDirectorV2", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRKDIRECTOR_RVA, kRkDirector, sizeof(kRkDirector), &H[H_RK_DIRECTOR_M], &H[H_RK_DIRECTOR_CODE]))) return rc;
+  if ((rc = check_method(c, rdir, "get_IsInActiveState", "System.Boolean", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRKACTIVE_RVA, kRkActive, sizeof(kRkActive), &H[H_RK_ACTIVE_M], &H[H_RK_ACTIVE_CODE]))) return rc;
+  if ((rc = check_method(c, rdir, "TryFastAttack", "Holoholo.Rpc.CombatActionProto", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRKFAST_RVA, kRkFast, sizeof(kRkFast), &H[H_RK_FAST_M], &H[H_RK_FAST_CODE]))) return rc;
+  if ((rc = check_method(c, rcharge, "OnTap", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRKCHARGE_RVA, kRkCharge, sizeof(kRkCharge), &H[H_RK_CHARGE_M], &H[H_RK_CHARGE_CODE]))) return rc;
+  if ((rc = check_method(c, rcharge, "get_IsVisible", "System.Boolean", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRKVISIBLE_RVA, kRkVisible, sizeof(kRkVisible), &H[H_RK_VISIBLE_M], &H[H_RK_VISIBLE_CODE]))) return rc;
+  if ((rc = check_method(c, rshield, "ShowShieldPrompt", "System.Void", 1, "System.Boolean", nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRKPROMPT_RVA, kRkPrompt, sizeof(kRkPrompt), &H[H_RK_PROMPT_M], &H[H_RK_PROMPT_CODE]))) return rc;
+  if ((rc = check_method(c, rshield, "ShieldUiClicked", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRKSHIELD_RVA, kRkShield, sizeof(kRkShield), &H[H_RK_SHIELD_M], &H[H_RK_SHIELD_CODE]))) return rc;
+  if ((rc = check_method(c, rshield, "HandleDismiss", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRKSHCLOSE_RVA, kRkShClose, sizeof(kRkShClose), &H[H_RK_SHIELD_CLOSE_M], &H[H_RK_SHIELD_CLOSE_CODE]))) return rc;
   return check_method(c, sel, "IsInteractable", "System.Boolean", 0, nullptr, nullptr, false, false, 0, nullptr, 0, &H[H_RK_INTERACTABLE_M], nullptr);
 }
 
 // ---------------------------------------------------------------------------------------------------
 // Prologues + resolvers for battles, berries, incubator, buddy (11..14).
 // ---------------------------------------------------------------------------------------------------
-constexpr unsigned char kBt9182En[24]    = P24(ff,83,01,d1,fe,13,00,f9,f8,5f,03,a9,f6,57,04,a9,f4,4f,05,a9,34,18,02,f0);
-constexpr unsigned char kBt9182Dis[24]   = P24(fe,0f,1d,f8,f6,57,01,a9,f4,4f,02,a9,34,18,02,f0,f3,03,00,aa,88,9e,72,39);
-constexpr unsigned char kBt9182Btns[24]  = P24(c8,29,02,b0,01,0c,0b,f8,08,e1,46,b9,a8,01,00,34,fe,0f,1f,f8,09,80,52,d3);
-constexpr unsigned char kBt9182Bwqr[24]  = P24(ff,03,03,d1,ea,23,00,fd,e9,23,05,6d,fd,7b,06,a9,fc,6f,07,a9,fa,67,08,a9);
-constexpr unsigned char kBt9308Chgd[24]  = P24(00,e0,46,39,c0,03,5f,d6,01,e0,06,39,c0,03,5f,d6,00,e4,46,39,c0,03,5f,d6);
-constexpr unsigned char kBt9308Init[24]  = P24(ff,83,02,d1,ea,13,00,fd,e9,23,03,6d,fd,7b,04,a9,fc,6f,05,a9,fa,67,06,a9);
-constexpr unsigned char kBt9308Tap[24]   = P24(e8,0f,19,fc,fd,7b,01,a9,fc,6f,02,a9,fa,67,03,a9,f8,5f,04,a9,f6,57,05,a9);
-constexpr unsigned char kBt10591En[24]   = P24(fd,7b,ba,a9,fc,6f,01,a9,fa,67,02,a9,f8,5f,03,a9,f6,57,04,a9,f4,4f,05,a9);
-constexpr unsigned char kBt10591Ex[24]   = P24(fd,7b,ba,a9,fc,6f,01,a9,fa,67,02,a9,f8,5f,03,a9,f6,57,04,a9,f4,4f,05,a9);
-constexpr unsigned char kBt31244En[24]   = P24(ff,03,02,d1,fd,7b,02,a9,fc,6f,03,a9,fa,67,04,a9,f8,5f,05,a9,f6,57,06,a9);
-constexpr unsigned char kBt31244Ex[24]   = P24(fe,57,be,a9,f4,4f,01,a9,54,ec,02,d0,f3,03,00,aa,88,5e,41,39,a8,01,00,37);
-constexpr unsigned char kBt31280Cln[24]  = P24(fe,0f,1c,f8,f8,5f,01,a9,f6,57,02,a9,f4,4f,03,a9,d4,eb,02,f0,f3,03,00,aa);
-constexpr unsigned char kBt31280Ref[24]  = P24(08,00,40,f9,02,39,41,f9,03,35,41,f9,60,00,1f,d6,e1,00,00,b4,08,18,41,b9);
-constexpr unsigned char kBt31285Cqjz[24] = P24(fe,4f,bf,a9,f3,03,00,aa,1e,6a,00,94,68,fa,40,b9,08,01,00,34,08,0d,00,51);
-constexpr unsigned char kBt31351Btns[24] = P24(c8,fc,02,90,01,8c,0e,f8,08,e1,46,b9,a8,01,00,34,fe,0f,1f,f8,09,80,52,d3);
-constexpr unsigned char kBt31351En[24]   = P24(fe,0f,1c,f8,f8,5f,01,a9,f6,57,02,a9,f4,4f,03,a9,f4,ea,02,b0,f3,03,00,aa);
-constexpr unsigned char kBt31351Dis[24]  = P24(fe,0f,1d,f8,f6,57,01,a9,f4,4f,02,a9,f4,ea,02,90,f3,03,00,aa,88,16,45,39);
-constexpr unsigned char kBt31499Cqjz[24] = P24(fe,4f,bf,a9,f3,03,00,aa,4d,b9,fe,97,e0,03,13,aa,e1,03,1f,aa,fe,4f,c1,a8);
-constexpr unsigned char kBt31514En[24]   = P24(fe,0f,1b,f8,fa,67,01,a9,f8,5f,02,a9,f6,57,03,a9,f4,4f,04,a9,36,e8,02,f0);
-constexpr unsigned char kBt31514Ex[24]   = P24(fe,57,be,a9,f4,4f,01,a9,14,e8,02,f0,f3,03,00,aa,88,ee,4b,39,a8,01,00,37);
-constexpr unsigned char kBt31351Cqpd[24] = P24(fe,5f,bd,a9,f6,57,01,a9,f4,4f,02,a9,d5,ea,02,f0,f3,03,01,2a,f4,03,00,aa);
-constexpr unsigned char kBt9182Bwqu[24]  = P24(e8,0f,1d,fc,fe,07,00,f9,f6,57,01,a9,f4,4f,02,a9,35,18,02,d0,f4,03,01,aa);
-constexpr unsigned char kBt31623Crlu[24] = P24(fe,57,be,a9,f4,4f,01,a9,d4,e5,02,f0,f3,03,00,aa,88,5a,51,39,48,02,00,37);
-constexpr unsigned char kBt31263Cqim[24] = P24(e8,0f,1e,fc,fe,4f,01,a9,03,40,40,bd,08,40,20,1e,01,e4,00,2f,02,10,2e,1e);
-constexpr unsigned char kBt9283Move[24]  = P24(ff,83,01,d1,e9,23,02,6d,fe,1b,00,f9,f6,57,04,a9,f4,4f,05,a9,f4,14,02,d0);
-constexpr unsigned char kBt31569Cur[24]  = P24(00,88,40,f9,c0,03,5f,d6,00,60,44,39,c0,03,5f,d6,01,60,04,39,c0,03,5f,d6);
-constexpr unsigned char kBt31351Cqpa[24] = P24(fe,67,bc,a9,f8,5f,01,a9,f6,57,02,a9,f4,4f,03,a9,d3,ea,02,f0,f4,03,00,aa);
-constexpr unsigned char kBt31351Dst[24]  = P24(fe,5f,bd,a9,f6,57,01,a9,f4,4f,02,a9,f4,ea,02,b0,f3,03,00,aa,88,12,45,39);
-constexpr unsigned char kBt9322Show[32]  = P32(fe,0f,1d,f8,f6,57,01,a9,f4,4f,02,a9,54,14,02,f0,f3,03,00,aa,88,2e,7d,39,08,01,00,37,40,ea,01,90);
-constexpr unsigned char kBt9322Dst[32]   = P32(fe,5f,bd,a9,f6,57,01,a9,f4,4f,02,a9,34,14,02,d0,f3,03,00,aa,88,82,7c,39,e8,02,00,37,80,e8,01,b0);
-constexpr unsigned char kBt9322Open[32]  = P32(fe,0f,1c,f8,f8,5f,01,a9,f6,57,02,a9,f4,4f,03,a9,34,14,02,d0,f3,03,00,aa,88,86,7c,39,08,01,00,37);
-constexpr unsigned char kBt9322Dism[32]  = P32(fe,0f,1d,f8,f6,57,01,a9,f4,4f,02,a9,54,14,02,f0,f3,03,00,aa,88,36,7d,39,08,01,00,37,40,ea,01,90);
-constexpr unsigned char kBt31337Show[32] = P32(00,44,42,39,c0,03,5f,d6,01,44,02,39,c0,03,5f,d6,ff,03,01,d1,fe,57,02,a9,f4,4f,03,a9,14,eb,02,d0);
-constexpr unsigned char kBt31337Cln[32]  = P32(ff,03,01,d1,fe,57,02,a9,f4,4f,03,a9,14,eb,02,d0,f3,03,00,aa,88,9a,44,39,88,03,00,37,c0,c2,02,d0);
-constexpr unsigned char kBt31337Open[32] = P32(fe,0f,1c,f8,f8,5f,01,a9,f6,57,02,a9,f4,4f,03,a9,14,eb,02,d0,f3,03,00,aa,88,a2,44,39,08,01,00,37);
-constexpr unsigned char kBt31337Hide[32] = P32(fe,5f,bd,a9,f6,57,01,a9,f4,4f,02,a9,14,eb,02,d0,f3,03,00,aa,88,ae,44,39,08,01,00,37,a0,c0,02,b0);
-constexpr unsigned char kBt31337Dism[32] = P32(07,ff,ff,17,fe,0f,1d,f8,f6,57,01,a9,f4,4f,02,a9,94,f3,02,b0,f3,03,00,aa,88,fe,6d,39,48,02,00,37);
-constexpr unsigned char kBt31639Show[32] = P32(fe,0f,1d,f8,f6,57,01,a9,f4,4f,02,a9,d4,e5,02,90,f3,03,00,aa,88,d2,52,39,08,01,00,37,e0,bb,02,b0);
-constexpr unsigned char kBt31639Dst[32]  = P32(fe,0f,1c,f8,f8,5f,01,a9,f6,57,02,a9,f4,4f,03,a9,74,e5,02,d0,f3,03,00,aa,88,3e,52,39,a8,01,00,37);
-constexpr unsigned char kBt31639Open[32] = P32(fe,67,bc,a9,f8,5f,01,a9,f6,57,02,a9,f4,4f,03,a9,74,e5,02,d0,f3,03,00,aa,88,d6,52,39,08,06,00,37);
-constexpr unsigned char kBt31639Dism[32] = P32(fe,0f,1d,f8,f6,57,01,a9,f4,4f,02,a9,d4,e5,02,90,f3,03,00,aa,88,de,52,39,08,01,00,37,e0,bb,02,b0);
+constexpr unsigned char kBt9182En[24]    = PGR_GAME_SHARED_METADATA_CPP_KBT9182EN_FINGERPRINT;
+constexpr unsigned char kBt9182Dis[24]   = PGR_GAME_SHARED_METADATA_CPP_KBT9182DIS_FINGERPRINT;
+constexpr unsigned char kBt9182Btns[24]  = PGR_GAME_SHARED_METADATA_CPP_KBT9182BTNS_FINGERPRINT;
+constexpr unsigned char kBt9182Bwqr[24]  = PGR_GAME_SHARED_METADATA_CPP_KBT9182BWQR_FINGERPRINT;
+constexpr unsigned char kBt9308Chgd[24]  = PGR_GAME_SHARED_METADATA_CPP_KBT9308CHGD_FINGERPRINT;
+constexpr unsigned char kBt9308Init[24]  = PGR_GAME_SHARED_METADATA_CPP_KBT9308INIT_FINGERPRINT;
+constexpr unsigned char kBt9308Tap[24]   = PGR_GAME_SHARED_METADATA_CPP_KBT9308TAP_FINGERPRINT;
+constexpr unsigned char kBt10591En[24]   = PGR_GAME_SHARED_METADATA_CPP_KBT10591EN_FINGERPRINT;
+constexpr unsigned char kBt10591Ex[24]   = PGR_GAME_SHARED_METADATA_CPP_KBT10591EX_FINGERPRINT;
+constexpr unsigned char kBt31244En[24]   = PGR_GAME_SHARED_METADATA_CPP_KBT31244EN_FINGERPRINT;
+constexpr unsigned char kBt31244Ex[24]   = PGR_GAME_SHARED_METADATA_CPP_KBT31244EX_FINGERPRINT;
+constexpr unsigned char kBt31280Cln[24]  = PGR_GAME_SHARED_METADATA_CPP_KBT31280CLN_FINGERPRINT;
+constexpr unsigned char kBt31280Ref[24]  = PGR_GAME_SHARED_METADATA_CPP_KBT31280REF_FINGERPRINT;
+constexpr unsigned char kBt31285Cqjz[24] = PGR_GAME_SHARED_METADATA_CPP_KBT31285CQJZ_FINGERPRINT;
+constexpr unsigned char kBt31351Btns[24] = PGR_GAME_SHARED_METADATA_CPP_KBT31351BTNS_FINGERPRINT;
+constexpr unsigned char kBt31351En[24]   = PGR_GAME_SHARED_METADATA_CPP_KBT31351EN_FINGERPRINT;
+constexpr unsigned char kBt31351Dis[24]  = PGR_GAME_SHARED_METADATA_CPP_KBT31351DIS_FINGERPRINT;
+constexpr unsigned char kBt31499Cqjz[24] = PGR_GAME_SHARED_METADATA_CPP_KBT31499CQJZ_FINGERPRINT;
+constexpr unsigned char kBt31514En[24]   = PGR_GAME_SHARED_METADATA_CPP_KBT31514EN_FINGERPRINT;
+constexpr unsigned char kBt31514Ex[24]   = PGR_GAME_SHARED_METADATA_CPP_KBT31514EX_FINGERPRINT;
+constexpr unsigned char kBt31351Cqpd[24] = PGR_GAME_SHARED_METADATA_CPP_KBT31351CQPD_FINGERPRINT;
+constexpr unsigned char kBt9182Bwqu[24]  = PGR_GAME_SHARED_METADATA_CPP_KBT9182BWQU_FINGERPRINT;
+constexpr unsigned char kBt31623Crlu[24] = PGR_GAME_SHARED_METADATA_CPP_KBT31623CRLU_FINGERPRINT;
+constexpr unsigned char kBt31263Cqim[24] = PGR_GAME_SHARED_METADATA_CPP_KBT31263CQIM_FINGERPRINT;
+constexpr unsigned char kBt9283Move[24]  = PGR_GAME_SHARED_METADATA_CPP_KBT9283MOVE_FINGERPRINT;
+constexpr unsigned char kBt31569Cur[24]  = PGR_GAME_SHARED_METADATA_CPP_KBT31569CUR_FINGERPRINT;
+constexpr unsigned char kBt31351Cqpa[24] = PGR_GAME_SHARED_METADATA_CPP_KBT31351CQPA_FINGERPRINT;
+constexpr unsigned char kBt31351Dst[24]  = PGR_GAME_SHARED_METADATA_CPP_KBT31351DST_FINGERPRINT;
+constexpr unsigned char kBt9322Show[32]  = PGR_GAME_SHARED_METADATA_CPP_KBT9322SHOW_FINGERPRINT;
+constexpr unsigned char kBt9322Dst[32]   = PGR_GAME_SHARED_METADATA_CPP_KBT9322DST_FINGERPRINT;
+constexpr unsigned char kBt9322Open[32]  = PGR_GAME_SHARED_METADATA_CPP_KBT9322OPEN_FINGERPRINT;
+constexpr unsigned char kBt9322Dism[32]  = PGR_GAME_SHARED_METADATA_CPP_KBT9322DISM_FINGERPRINT;
+constexpr unsigned char kBt31337Show[32] = PGR_GAME_SHARED_METADATA_CPP_KBT31337SHOW_FINGERPRINT;
+constexpr unsigned char kBt31337Cln[32]  = PGR_GAME_SHARED_METADATA_CPP_KBT31337CLN_FINGERPRINT;
+constexpr unsigned char kBt31337Open[32] = PGR_GAME_SHARED_METADATA_CPP_KBT31337OPEN_FINGERPRINT;
+constexpr unsigned char kBt31337Hide[32] = PGR_GAME_SHARED_METADATA_CPP_KBT31337HIDE_FINGERPRINT;
+constexpr unsigned char kBt31337Dism[32] = PGR_GAME_SHARED_METADATA_CPP_KBT31337DISM_FINGERPRINT;
+constexpr unsigned char kBt31639Show[32] = PGR_GAME_SHARED_METADATA_CPP_KBT31639SHOW_FINGERPRINT;
+constexpr unsigned char kBt31639Dst[32]  = PGR_GAME_SHARED_METADATA_CPP_KBT31639DST_FINGERPRINT;
+constexpr unsigned char kBt31639Open[32] = PGR_GAME_SHARED_METADATA_CPP_KBT31639OPEN_FINGERPRINT;
+constexpr unsigned char kBt31639Dism[32] = PGR_GAME_SHARED_METADATA_CPP_KBT31639DISM_FINGERPRINT;
 
 // berries (BERRY_CODE + BERRY_THROW_CODE)
-constexpr unsigned char kBrCan[24]       = P24(08,18,42,b9,1f,01,00,71,e0,17,9f,1a,c0,03,5f,d6,00,b0,4a,39,c0,03,5f,d6);
-constexpr unsigned char kBrPhoto[24]     = P24(fe,57,be,a9,f4,4f,01,a9,54,28,02,d0,f3,03,00,aa,88,a2,48,39,08,01,00,37);
-constexpr unsigned char kBrBall[24]      = P24(fe,57,be,a9,f4,4f,01,a9,54,28,02,d0,f3,03,00,aa,88,7a,4a,39,08,01,00,37);
-constexpr unsigned char kBrSelect[24]    = P24(fe,0f,1b,f8,fa,67,01,a9,f8,5f,02,a9,f6,57,03,a9,f4,4f,04,a9,34,28,02,d0);
-constexpr unsigned char kBrEnter[24]     = P24(fe,0f,1c,f8,f8,5f,01,a9,f6,57,02,a9,f4,4f,03,a9,34,28,02,b0,f3,03,00,aa);
-constexpr unsigned char kBrExit[24]      = P24(fe,67,bc,a9,f8,5f,01,a9,f6,57,02,a9,f4,4f,03,a9,14,28,02,d0,f3,03,00,aa);
-constexpr unsigned char kBrConfirm[24]   = P24(fe,67,bc,a9,f8,5f,01,a9,f6,57,02,a9,f4,4f,03,a9,54,ac,02,b0,f3,03,00,aa);
-constexpr unsigned char kBrBtdx[24]      = P24(fe,67,bc,a9,f8,5f,01,a9,f6,57,02,a9,f4,4f,03,a9,d5,27,02,f0,f4,03,01,2a);
-constexpr unsigned char kBrBtdy[24]      = P24(e8,0f,1c,fc,fe,07,00,f9,f8,5f,01,a9,f6,57,02,a9,f4,4f,03,a9,d5,27,02,f0);
-constexpr unsigned char kBrBtdz[24]      = P24(fe,57,be,a9,f4,4f,01,a9,d4,27,02,f0,f3,03,00,aa,88,c2,4a,39,08,01,00,37);
-constexpr unsigned char kBrBread[24]     = P24(00,00,49,39,c0,03,5f,d6,01,00,09,39,c0,03,5f,d6,ff,03,01,d1,e8,0b,00,fd);
-constexpr unsigned char kBrBallType[24]  = P24(00,74,43,b9,c0,03,5f,d6,01,74,03,b9,c0,03,5f,d6,e1,03,1f,aa,59,d9,b7,14);
-constexpr unsigned char kBrSubmit[24]    = P24(fe,5f,bd,a9,f6,57,01,a9,f4,4f,02,a9,76,23,02,90,f5,03,02,aa,f4,03,01,aa);
-constexpr unsigned char kBrPeek[24]      = P24(fe,0f,1d,f8,f6,57,01,a9,f4,4f,02,a9,b4,23,02,90,f3,03,00,aa,88,3a,56,39);
+constexpr unsigned char kBrCan[24]       = PGR_GAME_SHARED_METADATA_CPP_KBRCAN_FINGERPRINT;
+constexpr unsigned char kBrPhoto[24]     = PGR_GAME_SHARED_METADATA_CPP_KBRPHOTO_FINGERPRINT;
+constexpr unsigned char kBrBall[24]      = PGR_GAME_SHARED_METADATA_CPP_KBRBALL_FINGERPRINT;
+constexpr unsigned char kBrSelect[24]    = PGR_GAME_SHARED_METADATA_CPP_KBRSELECT_FINGERPRINT;
+constexpr unsigned char kBrEnter[24]     = PGR_GAME_SHARED_METADATA_CPP_KBRENTER_FINGERPRINT;
+constexpr unsigned char kBrExit[24]      = PGR_GAME_SHARED_METADATA_CPP_KBREXIT_FINGERPRINT;
+constexpr unsigned char kBrConfirm[24]   = PGR_GAME_SHARED_METADATA_CPP_KBRCONFIRM_FINGERPRINT;
+constexpr unsigned char kBrBtdx[24]      = PGR_GAME_SHARED_METADATA_CPP_KBRBTDX_FINGERPRINT;
+constexpr unsigned char kBrBtdy[24]      = PGR_GAME_SHARED_METADATA_CPP_KBRBTDY_FINGERPRINT;
+constexpr unsigned char kBrBtdz[24]      = PGR_GAME_SHARED_METADATA_CPP_KBRBTDZ_FINGERPRINT;
+constexpr unsigned char kBrBread[24]     = PGR_GAME_SHARED_METADATA_CPP_KBRBREAD_FINGERPRINT;
+constexpr unsigned char kBrBallType[24]  = PGR_GAME_SHARED_METADATA_CPP_KBRBALLTYPE_FINGERPRINT;
+constexpr unsigned char kBrSubmit[24]    = PGR_GAME_SHARED_METADATA_CPP_KBRSUBMIT_FINGERPRINT;
+constexpr unsigned char kBrPeek[24]      = PGR_GAME_SHARED_METADATA_CPP_KBRPEEK_FINGERPRINT;
 
 // incubator
-constexpr unsigned char kIncPut[32]      = P32(ff,c3,01,d1,fe,13,00,f9,fa,67,03,a9,f8,5f,04,a9,f6,57,05,a9,f4,4f,06,a9,d4,a7,02,f0,f6,03,02,aa);
-constexpr unsigned char kIncList[32]     = P32(fe,57,be,a9,f4,4f,01,a9,34,f3,02,90,f3,03,00,aa,88,be,72,39,08,01,00,37,e0,c9,02,b0,00,00,16,91);
-constexpr unsigned char kIncEggs[32]     = P32(fe,0f,1d,f8,f6,57,01,a9,f4,4f,02,a9,34,f2,02,f0,f3,03,00,aa,88,42,75,39,08,01,00,37,40,ca,02,b0);
+constexpr unsigned char kIncPut[32]      = PGR_GAME_SHARED_METADATA_CPP_KINCPUT_FINGERPRINT;
+constexpr unsigned char kIncList[32]     = PGR_GAME_SHARED_METADATA_CPP_KINCLIST_FINGERPRINT;
+constexpr unsigned char kIncEggs[32]     = PGR_GAME_SHARED_METADATA_CPP_KINCEGGS_FINGERPRINT;
 
 // buddy (BUDDY_CODE)
-constexpr unsigned char kBdRem[24]       = P24(fe,57,be,a9,f4,4f,01,a9,34,30,02,b0,f3,03,00,aa,88,12,71,39,08,01,00,37);
-constexpr unsigned char kBdFull[24]      = P24(00,e4,00,2f,80,00,00,b4,08,20,40,f9,48,00,00,b4,00,19,40,bd,c0,03,5f,d6);
-constexpr unsigned char kBdCool[24]      = P24(fe,57,be,a9,f4,4f,01,a9,34,30,02,b0,f3,03,00,aa,88,96,74,39,08,01,00,37);
-constexpr unsigned char kBdFeed[24]      = P24(fe,0f,1c,f8,f8,5f,01,a9,f6,57,02,a9,f4,4f,03,a9,35,30,02,90,f3,03,02,2a);
-constexpr unsigned char kBdPk[24]        = P24(00,b8,40,f9,c0,03,5f,d6,e8,3d,02,90,01,b8,00,f9,08,e1,46,b9,c8,01,00,34);
-constexpr unsigned char kBdHas[24]       = P24(00,e0,45,39,c0,03,5f,d6,01,e0,05,39,c0,03,5f,d6,fe,57,be,a9,f4,4f,01,a9);
-constexpr unsigned char kBdBrhd[24]      = P24(fe,0f,1d,f8,f6,57,01,a9,f4,4f,02,a9,15,30,02,f0,f3,03,01,aa,f4,03,00,aa);
-constexpr unsigned char kBdStats[24]     = P24(00,38,40,f9,c0,03,5f,d6,a8,41,02,f0,01,0c,07,f8,08,e1,46,b9,a8,01,00,34);
+constexpr unsigned char kBdRem[24]       = PGR_GAME_SHARED_METADATA_CPP_KBDREM_FINGERPRINT;
+constexpr unsigned char kBdFull[24]      = PGR_GAME_SHARED_METADATA_CPP_KBDFULL_FINGERPRINT;
+constexpr unsigned char kBdCool[24]      = PGR_GAME_SHARED_METADATA_CPP_KBDCOOL_FINGERPRINT;
+constexpr unsigned char kBdFeed[24]      = PGR_GAME_SHARED_METADATA_CPP_KBDFEED_FINGERPRINT;
+constexpr unsigned char kBdPk[24]        = PGR_GAME_SHARED_METADATA_CPP_KBDPK_FINGERPRINT;
+constexpr unsigned char kBdHas[24]       = PGR_GAME_SHARED_METADATA_CPP_KBDHAS_FINGERPRINT;
+constexpr unsigned char kBdBrhd[24]      = PGR_GAME_SHARED_METADATA_CPP_KBDBRHD_FINGERPRINT;
+constexpr unsigned char kBdStats[24]     = PGR_GAME_SHARED_METADATA_CPP_KBDSTATS_FINGERPRINT;
 
 int do_battles(Ctx &c) {
   if (c.out->optional[OPT_ROCKET] != PGR_SHARED_OPT_AVAILABLE)
@@ -1037,23 +1031,23 @@ int do_battles(Ctx &c) {
              *b31285 = c.out->opt_classes[OC_BATTLE_31285];
 
   H[H_BT_SC0_CLASS] = b31514;
-  if ((rc = check_method(c, b31514, "EnterState", "System.Void", 2, "Niantic.Platform.GameStates.StateLogic.IStateApi", "Niantic.Holoholo.Raid.RaidBattleLaunchData", false, false, 155404428ULL, kBt31514En, sizeof(kBt31514En), &H[H_BT_SC0_ENTER_M], &H[H_BT_SC0_ENTER_CODE]))) return rc;
-  if ((rc = check_method(c, b31514, "ExitState", "System.Void", 0, nullptr, nullptr, false, false, 155421076ULL, kBt31514Ex, sizeof(kBt31514Ex), &H[H_BT_SC0_EXIT_M], &H[H_BT_SC0_EXIT_CODE]))) return rc;
+  if ((rc = check_method(c, b31514, "EnterState", "System.Void", 2, "Niantic.Platform.GameStates.StateLogic.IStateApi", "Niantic.Holoholo.Raid.RaidBattleLaunchData", false, false, PGR_GAME_SHARED_METADATA_CPP_KBT31514EN_RVA, kBt31514En, sizeof(kBt31514En), &H[H_BT_SC0_ENTER_M], &H[H_BT_SC0_ENTER_CODE]))) return rc;
+  if ((rc = check_method(c, b31514, "ExitState", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT31514EX_RVA, kBt31514Ex, sizeof(kBt31514Ex), &H[H_BT_SC0_EXIT_M], &H[H_BT_SC0_EXIT_CODE]))) return rc;
 
   H[H_BT_SC1_CLASS] = b10591;
-  if ((rc = check_method(c, b10591, "EnterState", "System.Void", 0, nullptr, nullptr, false, false, 156963976ULL, kBt10591En, sizeof(kBt10591En), &H[H_BT_SC1_ENTER_M], &H[H_BT_SC1_ENTER_CODE]))) return rc;
-  if ((rc = check_method(c, b10591, "ExitState", "System.Void", 0, nullptr, nullptr, false, false, 156965616ULL, kBt10591Ex, sizeof(kBt10591Ex), &H[H_BT_SC1_EXIT_M], &H[H_BT_SC1_EXIT_CODE]))) return rc;
+  if ((rc = check_method(c, b10591, "EnterState", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT10591EN_RVA, kBt10591En, sizeof(kBt10591En), &H[H_BT_SC1_ENTER_M], &H[H_BT_SC1_ENTER_CODE]))) return rc;
+  if ((rc = check_method(c, b10591, "ExitState", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT10591EX_RVA, kBt10591Ex, sizeof(kBt10591Ex), &H[H_BT_SC1_EXIT_M], &H[H_BT_SC1_EXIT_CODE]))) return rc;
 
   H[H_BT_SC2_CLASS] = b31244;
-  if ((rc = check_method(c, b31244, "EnterState", "System.Void", 2, "Niantic.Platform.GameStates.StateLogic.IStateApi", "Niantic.Holoholo.Bread.BreadLaunchData", false, false, 154856152ULL, kBt31244En, sizeof(kBt31244En), &H[H_BT_SC2_ENTER_M], &H[H_BT_SC2_ENTER_CODE]))) return rc;
-  if ((rc = check_method(c, b31244, "ExitState", "System.Void", 0, nullptr, nullptr, false, false, 154867000ULL, kBt31244Ex, sizeof(kBt31244Ex), &H[H_BT_SC2_EXIT_M], &H[H_BT_SC2_EXIT_CODE]))) return rc;
+  if ((rc = check_method(c, b31244, "EnterState", "System.Void", 2, "Niantic.Platform.GameStates.StateLogic.IStateApi", "Niantic.Holoholo.Bread.BreadLaunchData", false, false, PGR_GAME_SHARED_METADATA_CPP_KBT31244EN_RVA, kBt31244En, sizeof(kBt31244En), &H[H_BT_SC2_ENTER_M], &H[H_BT_SC2_ENTER_CODE]))) return rc;
+  if ((rc = check_method(c, b31244, "ExitState", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT31244EX_RVA, kBt31244Ex, sizeof(kBt31244Ex), &H[H_BT_SC2_EXIT_M], &H[H_BT_SC2_EXIT_CODE]))) return rc;
 
   const void *max_enum = nullptr;
-  if ((rc = enum_i32_field(c, b31280, "<ActiveBreadMoveType>k__BackingField", 0x134, &H[H_BT_F_MAX_TYPE], &max_enum))) return rc;
+  if ((rc = enum_i32_field(c, b31280, PGR_GAME_SHARED_METADATA_CPP_H_BT_F_MAX_TYPE_NAME, PGR_GAME_SHARED_METADATA_CPP_H_BT_F_MAX_TYPE_OFFSET, &H[H_BT_F_MAX_TYPE], &max_enum))) return rc;
   if ((rc = enum_literal(c, max_enum, "BreadAttack", false, "max-attack-literal", &c.out->opt_ints[I_BAT_MAX_ATTACK]))) return rc;
 
   MParam dp[1] = {{nullptr, pred_direction_suffix}};
-  if ((rc = check_method_ex(c, b31351, "cqno", "System.Void", nullptr, 1, dp, false, false, 155061324ULL, kBt31351Cqpd, sizeof(kBt31351Cqpd), &H[H_BT_M_DODGE], &H[H_BT_M_DODGE_CODE]))) return rc;
+  if ((rc = check_method_ex(c, b31351, PGR_GAME_SHARED_METADATA_CPP_H_BT_M_DODGE_CODE_NAME, "System.Void", nullptr, 1, dp, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT31351CQPD_RVA, kBt31351Cqpd, sizeof(kBt31351Cqpd), &H[H_BT_M_DODGE], &H[H_BT_M_DODGE_CODE]))) return rc;
   auto m_param = reinterpret_cast<void *(*)(const void *, uint32_t)>(c.core->method_get_param);
   auto c_from_t = reinterpret_cast<void *(*)(const void *)>(c.core->class_from_type);
   auto is_enum = reinterpret_cast<bool (*)(const void *)>(c.core->class_is_enum);
@@ -1065,64 +1059,64 @@ int do_battles(Ctx &c) {
   if ((rc = enum_literal(c, dir_cls, "Left", false, "dodge-left-literal", &c.out->opt_ints[I_BAT_DODGE_LEFT]))) return rc;
 
   const void *gym_iter = nullptr;
-  if ((rc = nested_suffix(c, b9284, "emg", 64, false, "gym-warning-iterator", &gym_iter))) return rc;
+  if ((rc = nested_suffix(c, b9284, PGR_GAME_SHARED_METADATA_CPP_EMG_NAME, 64, false, "gym-warning-iterator", &gym_iter))) return rc;
   H[H_BT_GYM_ITER] = gym_iter;
-  if ((rc = check_method(c, gym_iter, "MoveNext", "System.Boolean", 0, nullptr, nullptr, false, false, 183131176ULL, kBt9283Move, sizeof(kBt9283Move), &H[H_BT_M_GYM_WARN], &H[H_BT_M_GYM_WARN_CODE]))) return rc;
-  if ((rc = raw_field(c, gym_iter, "dvad", 0x10, &H[H_BT_GYM_WARN_STATE]))) return rc;
+  if ((rc = check_method(c, gym_iter, "MoveNext", "System.Boolean", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT9283MOVE_RVA, kBt9283Move, sizeof(kBt9283Move), &H[H_BT_M_GYM_WARN], &H[H_BT_M_GYM_WARN_CODE]))) return rc;
+  if ((rc = raw_field(c, gym_iter, PGR_GAME_SHARED_METADATA_CPP_H_BT_GYM_WARN_STATE_NAME, PGR_GAME_SHARED_METADATA_CPP_H_BT_GYM_WARN_STATE_OFFSET, &H[H_BT_GYM_WARN_STATE]))) return rc;
 
   const void *status_cls = nullptr;
-  if ((rc = enum_i32_field(c, b44226, "BattleStatus", 0x64, &H[H_BT_F_BATTLE_STATUS], &status_cls))) return rc;
+  if ((rc = enum_i32_field(c, b44226, PGR_GAME_SHARED_METADATA_CPP_H_BT_F_BATTLE_STATUS_NAME, PGR_GAME_SHARED_METADATA_CPP_H_BT_F_BATTLE_STATUS_OFFSET, &H[H_BT_F_BATTLE_STATUS], &status_cls))) return rc;
 
   // swaps[0..2]
   H[H_BT_SW0_CLASS] = b9322;
-  if ((rc = check_method(c, b9322, "Open", "System.Void", 0, nullptr, nullptr, false, false, 183229256ULL, kBt9322Open, sizeof(kBt9322Open), &H[H_BT_SW0_OPEN_M], &H[H_BT_SW0_OPEN_CODE]))) return rc;
-  if ((rc = check_method(c, b9322, "Dismiss", "System.Void", 0, nullptr, nullptr, false, false, 183207576ULL, kBt9322Dism, sizeof(kBt9322Dism), &H[H_BT_SW0_CL0_M], &H[H_BT_SW0_CL0_CODE]))) return rc;
-  if ((rc = check_method(c, b9322, "OnDestroy", "System.Void", 0, nullptr, nullptr, false, false, 183228772ULL, kBt9322Dst, sizeof(kBt9322Dst), &H[H_BT_SW0_CL1_M], &H[H_BT_SW0_CL1_CODE]))) return rc;
-  if ((rc = check_method(c, b9322, "get_IsOpen", "System.Boolean", 0, nullptr, nullptr, false, false, 183207276ULL, kBt9322Show, sizeof(kBt9322Show), &H[H_BT_SW0_SHOW_M], &H[H_BT_SW0_SHOW_CODE]))) return rc;
+  if ((rc = check_method(c, b9322, "Open", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT9322OPEN_RVA, kBt9322Open, sizeof(kBt9322Open), &H[H_BT_SW0_OPEN_M], &H[H_BT_SW0_OPEN_CODE]))) return rc;
+  if ((rc = check_method(c, b9322, "Dismiss", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT9322DISM_RVA, kBt9322Dism, sizeof(kBt9322Dism), &H[H_BT_SW0_CL0_M], &H[H_BT_SW0_CL0_CODE]))) return rc;
+  if ((rc = check_method(c, b9322, "OnDestroy", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT9322DST_RVA, kBt9322Dst, sizeof(kBt9322Dst), &H[H_BT_SW0_CL1_M], &H[H_BT_SW0_CL1_CODE]))) return rc;
+  if ((rc = check_method(c, b9322, "get_IsOpen", "System.Boolean", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT9322SHOW_RVA, kBt9322Show, sizeof(kBt9322Show), &H[H_BT_SW0_SHOW_M], &H[H_BT_SW0_SHOW_CODE]))) return rc;
 
   H[H_BT_SW1_CLASS] = b31639;
-  if ((rc = check_method(c, b31639, "Open", "System.Void", 0, nullptr, nullptr, false, false, 155767256ULL, kBt31639Open, sizeof(kBt31639Open), &H[H_BT_SW1_OPEN_M], &H[H_BT_SW1_OPEN_CODE]))) return rc;
-  if ((rc = check_method(c, b31639, "Dismiss", "System.Void", 0, nullptr, nullptr, false, false, 155729120ULL, kBt31639Dism, sizeof(kBt31639Dism), &H[H_BT_SW1_CL0_M], &H[H_BT_SW1_CL0_CODE]))) return rc;
-  if ((rc = check_method(c, b31639, "OnDestroy", "System.Void", 0, nullptr, nullptr, false, false, 155766780ULL, kBt31639Dst, sizeof(kBt31639Dst), &H[H_BT_SW1_CL1_M], &H[H_BT_SW1_CL1_CODE]))) return rc;
-  if ((rc = check_method(c, b31639, "get_IsOpen", "System.Boolean", 0, nullptr, nullptr, false, false, 155728820ULL, kBt31639Show, sizeof(kBt31639Show), &H[H_BT_SW1_SHOW_M], &H[H_BT_SW1_SHOW_CODE]))) return rc;
+  if ((rc = check_method(c, b31639, "Open", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT31639OPEN_RVA, kBt31639Open, sizeof(kBt31639Open), &H[H_BT_SW1_OPEN_M], &H[H_BT_SW1_OPEN_CODE]))) return rc;
+  if ((rc = check_method(c, b31639, "Dismiss", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT31639DISM_RVA, kBt31639Dism, sizeof(kBt31639Dism), &H[H_BT_SW1_CL0_M], &H[H_BT_SW1_CL0_CODE]))) return rc;
+  if ((rc = check_method(c, b31639, "OnDestroy", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT31639DST_RVA, kBt31639Dst, sizeof(kBt31639Dst), &H[H_BT_SW1_CL1_M], &H[H_BT_SW1_CL1_CODE]))) return rc;
+  if ((rc = check_method(c, b31639, "get_IsOpen", "System.Boolean", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT31639SHOW_RVA, kBt31639Show, sizeof(kBt31639Show), &H[H_BT_SW1_SHOW_M], &H[H_BT_SW1_SHOW_CODE]))) return rc;
 
   H[H_BT_SW2_CLASS] = b31337;
-  if ((rc = check_method(c, b31337, "OpenSwapMenu", "System.Void", 0, nullptr, nullptr, false, false, 155031564ULL, kBt31337Open, sizeof(kBt31337Open), &H[H_BT_SW2_OPEN_M], &H[H_BT_SW2_OPEN_CODE]))) return rc;
-  if ((rc = check_method(c, b31337, "HideSwapMenu", "System.Void", 0, nullptr, nullptr, false, false, 155032648ULL, kBt31337Hide, sizeof(kBt31337Hide), &H[H_BT_SW2_CL0_M], &H[H_BT_SW2_CL0_CODE]))) return rc;
-  if ((rc = check_method(c, b31337, "Cleanup", "System.Void", 0, nullptr, nullptr, false, false, 155029804ULL, kBt31337Cln, sizeof(kBt31337Cln), &H[H_BT_SW2_CL1_M], &H[H_BT_SW2_CL1_CODE]))) return rc;
-  if ((rc = check_method(c, b31337, "get_IsShowing", "System.Boolean", 0, nullptr, nullptr, false, false, 155029788ULL, kBt31337Show, sizeof(kBt31337Show), &H[H_BT_SW2_SHOW_M], &H[H_BT_SW2_SHOW_CODE]))) return rc;
+  if ((rc = check_method(c, b31337, "OpenSwapMenu", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT31337OPEN_RVA, kBt31337Open, sizeof(kBt31337Open), &H[H_BT_SW2_OPEN_M], &H[H_BT_SW2_OPEN_CODE]))) return rc;
+  if ((rc = check_method(c, b31337, "HideSwapMenu", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT31337HIDE_RVA, kBt31337Hide, sizeof(kBt31337Hide), &H[H_BT_SW2_CL0_M], &H[H_BT_SW2_CL0_CODE]))) return rc;
+  if ((rc = check_method(c, b31337, "Cleanup", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT31337CLN_RVA, kBt31337Cln, sizeof(kBt31337Cln), &H[H_BT_SW2_CL1_M], &H[H_BT_SW2_CL1_CODE]))) return rc;
+  if ((rc = check_method(c, b31337, "get_IsShowing", "System.Boolean", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT31337SHOW_RVA, kBt31337Show, sizeof(kBt31337Show), &H[H_BT_SW2_SHOW_M], &H[H_BT_SW2_SHOW_CODE]))) return rc;
 
   if ((rc = enum_literal(c, status_cls, "Active", false, "battle-status", &c.out->opt_ints[I_BAT_STATUS_ACTIVE]))) return rc;
   if ((rc = enum_literal(c, status_cls, "Unset", false, "battle-status", &c.out->opt_ints[I_BAT_STATUS_UNSET]))) return rc;
 
-  if ((rc = ref_field(c, b31244, "eptu", 0x70, &H[H_BT_F_MAX_GESTURE]))) return rc;
-  if ((rc = ref_field(c, b31351, "eqec", 0x20, &H[H_BT_F_DIRECTOR]))) return rc;
-  if ((rc = ref_field(c, b9182, "horizontalFlickGesture", 0x60, &H[H_BT_F_LEG_FLICK]))) return rc;
-  if ((rc = ref_field(c, b9182, "tapGesture", 0x58, &H[H_BT_F_LEG_TAP]))) return rc;
-  if ((rc = ref_field(c, b9308, "attackButton", 0x28, &H[H_BT_F_LEG_BUTTON]))) return rc;
-  if ((rc = ref_field(c, b31280, "button", 0x98, &H[H_BT_F_MAX_BUTTON]))) return rc;
+  if ((rc = ref_field(c, b31244, PGR_GAME_SHARED_METADATA_CPP_H_BT_F_MAX_GESTURE_NAME, PGR_GAME_SHARED_METADATA_CPP_H_BT_F_MAX_GESTURE_OFFSET, &H[H_BT_F_MAX_GESTURE]))) return rc;
+  if ((rc = ref_field(c, b31351, PGR_GAME_SHARED_METADATA_CPP_H_BT_F_DIRECTOR_NAME, PGR_GAME_SHARED_METADATA_CPP_H_BT_F_DIRECTOR_OFFSET, &H[H_BT_F_DIRECTOR]))) return rc;
+  if ((rc = ref_field(c, b9182, PGR_GAME_SHARED_METADATA_CPP_H_BT_F_LEG_FLICK_NAME, PGR_GAME_SHARED_METADATA_CPP_H_BT_F_LEG_FLICK_OFFSET, &H[H_BT_F_LEG_FLICK]))) return rc;
+  if ((rc = ref_field(c, b9182, PGR_GAME_SHARED_METADATA_CPP_H_BT_F_LEG_TAP_NAME, PGR_GAME_SHARED_METADATA_CPP_H_BT_F_LEG_TAP_OFFSET, &H[H_BT_F_LEG_TAP]))) return rc;
+  if ((rc = ref_field(c, b9308, PGR_GAME_SHARED_METADATA_CPP_H_BT_F_LEG_BUTTON_NAME, PGR_GAME_SHARED_METADATA_CPP_H_BT_F_LEG_BUTTON_OFFSET, &H[H_BT_F_LEG_BUTTON]))) return rc;
+  if ((rc = ref_field(c, b31280, PGR_GAME_SHARED_METADATA_CPP_H_BT_F_MAX_BUTTON_NAME, PGR_GAME_SHARED_METADATA_CPP_H_BT_F_MAX_BUTTON_OFFSET, &H[H_BT_F_MAX_BUTTON]))) return rc;
 
-  if ((rc = check_method(c, b31569, "get_CurrentState", "Niantic.Holoholo.VNext.BattleState", 0, nullptr, nullptr, false, false, 155525828ULL, kBt31569Cur, sizeof(kBt31569Cur), &H[H_BT_M_CUR_STATE], &H[H_BT_M_CUR_STATE_CODE]))) return rc;
-  if ((rc = check_method(c, b31351, "cqnl", "System.Void", 0, nullptr, nullptr, false, false, 155058984ULL, kBt31351Cqpa, sizeof(kBt31351Cqpa), &H[H_BT_M_RAID_FAST_ACT], &H[H_BT_M_RAID_FAST_ACT_CODE]))) return rc;
-  if ((rc = check_method(c, b31351, "OnDestroy", "System.Void", 0, nullptr, nullptr, false, false, 155052352ULL, kBt31351Dst, sizeof(kBt31351Dst), &H[H_BT_M_DESTROY], &H[H_BT_M_DESTROY_CODE]))) return rc;
-  if ((rc = check_method(c, b31623, "crkp", "System.Void", 0, nullptr, nullptr, false, false, 155714604ULL, kBt31623Crlu, sizeof(kBt31623Crlu), &H[H_BT_M_RAID_WARN], &H[H_BT_M_RAID_WARN_CODE]))) return rc;
-  if ((rc = check_method(c, b31263, "cqgx", "System.Void", 1, "System.Single", nullptr, false, false, 154907080ULL, kBt31263Cqim, sizeof(kBt31263Cqim), &H[H_BT_M_MAX_WARN], &H[H_BT_M_MAX_WARN_CODE]))) return rc;
-  if ((rc = check_method(c, b9182, "bwjn", "System.Void", 2, "System.Object", "System.EventArgs", false, false, 182706060ULL, kBt9182Bwqu, sizeof(kBt9182Bwqu), &H[H_BT_M_LEG_DODGE], &H[H_BT_M_LEG_DODGE_CODE]))) return rc;
-  if ((rc = check_method(c, b31351, "OnEnable", "System.Void", 0, nullptr, nullptr, false, false, 155052708ULL, kBt31351En, sizeof(kBt31351En), &H[H_BT_M_ENABLE], &H[H_BT_M_ENABLE_CODE]))) return rc;
-  if ((rc = check_method(c, b31351, "OnDisable", "System.Void", 0, nullptr, nullptr, false, false, 155054100ULL, kBt31351Dis, sizeof(kBt31351Dis), &H[H_BT_M_DISABLE], &H[H_BT_M_DISABLE_CODE]))) return rc;
-  if ((rc = check_method(c, b31351, "SetChargeAttackButtons", "System.Void", 1, "Niantic.Holoholo.VNext.ChargeAttackDisplayVNext[]", nullptr, false, false, 155052216ULL, kBt31351Btns, sizeof(kBt31351Btns), &H[H_BT_M_BUTTONS], &H[H_BT_M_BUTTONS_CODE]))) return rc;
-  if ((rc = check_method(c, b31499, "cqik", "System.Void", 2, "System.Object", "System.EventArgs", false, false, 155389124ULL, kBt31499Cqjz, sizeof(kBt31499Cqjz), &H[H_BT_M_RAID_FAST], &H[H_BT_M_RAID_FAST_CODE]))) return rc;
-  if ((rc = check_method(c, b31285, "cqik", "System.Void", 2, "System.Object", "System.EventArgs", false, false, 154945920ULL, kBt31285Cqjz, sizeof(kBt31285Cqjz), &H[H_BT_M_MAX_FAST], &H[H_BT_M_MAX_FAST_CODE]))) return rc;
-  if ((rc = check_method(c, b9182, "OnEnable", "System.Void", 0, nullptr, nullptr, false, false, 182700248ULL, kBt9182En, sizeof(kBt9182En), &H[H_BT_M_LEG_ENABLE], &H[H_BT_M_LEG_ENABLE_CODE]))) return rc;
-  if ((rc = check_method(c, b9182, "OnDisable", "System.Void", 0, nullptr, nullptr, false, false, 182701964ULL, kBt9182Dis, sizeof(kBt9182Dis), &H[H_BT_M_LEG_DISABLE], &H[H_BT_M_LEG_DISABLE_CODE]))) return rc;
-  if ((rc = check_method(c, b9182, "SetChargeAttackButtons", "System.Void", 1, "Niantic.Holoholo.Battle.ChargeAttackDisplay[]", nullptr, false, false, 182702516ULL, kBt9182Btns, sizeof(kBt9182Btns), &H[H_BT_M_LEG_BUTTONS], &H[H_BT_M_LEG_BUTTONS_CODE]))) return rc;
-  if ((rc = check_method(c, b9182, "bwjk", "System.Void", 2, "System.Object", "System.EventArgs", false, false, 182702584ULL, kBt9182Bwqr, sizeof(kBt9182Bwqr), &H[H_BT_M_LEG_FAST], &H[H_BT_M_LEG_FAST_CODE]))) return rc;
+  if ((rc = check_method(c, b31569, "get_CurrentState", "Niantic.Holoholo.VNext.BattleState", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT31569CUR_RVA, kBt31569Cur, sizeof(kBt31569Cur), &H[H_BT_M_CUR_STATE], &H[H_BT_M_CUR_STATE_CODE]))) return rc;
+  if ((rc = check_method(c, b31351, PGR_GAME_SHARED_METADATA_CPP_H_BT_M_RAID_FAST_ACT_CODE_NAME, "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT31351CQPA_RVA, kBt31351Cqpa, sizeof(kBt31351Cqpa), &H[H_BT_M_RAID_FAST_ACT], &H[H_BT_M_RAID_FAST_ACT_CODE]))) return rc;
+  if ((rc = check_method(c, b31351, "OnDestroy", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT31351DST_RVA, kBt31351Dst, sizeof(kBt31351Dst), &H[H_BT_M_DESTROY], &H[H_BT_M_DESTROY_CODE]))) return rc;
+  if ((rc = check_method(c, b31623, PGR_GAME_SHARED_METADATA_CPP_H_BT_M_RAID_WARN_CODE_NAME, "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT31623CRLU_RVA, kBt31623Crlu, sizeof(kBt31623Crlu), &H[H_BT_M_RAID_WARN], &H[H_BT_M_RAID_WARN_CODE]))) return rc;
+  if ((rc = check_method(c, b31263, PGR_GAME_SHARED_METADATA_CPP_H_BT_M_MAX_WARN_CODE_NAME, "System.Void", 1, "System.Single", nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT31263CQIM_RVA, kBt31263Cqim, sizeof(kBt31263Cqim), &H[H_BT_M_MAX_WARN], &H[H_BT_M_MAX_WARN_CODE]))) return rc;
+  if ((rc = check_method(c, b9182, PGR_GAME_SHARED_METADATA_CPP_H_BT_M_LEG_DODGE_CODE_NAME, "System.Void", 2, "System.Object", "System.EventArgs", false, false, PGR_GAME_SHARED_METADATA_CPP_KBT9182BWQU_RVA, kBt9182Bwqu, sizeof(kBt9182Bwqu), &H[H_BT_M_LEG_DODGE], &H[H_BT_M_LEG_DODGE_CODE]))) return rc;
+  if ((rc = check_method(c, b31351, "OnEnable", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT31351EN_RVA, kBt31351En, sizeof(kBt31351En), &H[H_BT_M_ENABLE], &H[H_BT_M_ENABLE_CODE]))) return rc;
+  if ((rc = check_method(c, b31351, "OnDisable", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT31351DIS_RVA, kBt31351Dis, sizeof(kBt31351Dis), &H[H_BT_M_DISABLE], &H[H_BT_M_DISABLE_CODE]))) return rc;
+  if ((rc = check_method(c, b31351, "SetChargeAttackButtons", "System.Void", 1, "Niantic.Holoholo.VNext.ChargeAttackDisplayVNext[]", nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT31351BTNS_RVA, kBt31351Btns, sizeof(kBt31351Btns), &H[H_BT_M_BUTTONS], &H[H_BT_M_BUTTONS_CODE]))) return rc;
+  if ((rc = check_method(c, b31499, PGR_GAME_SHARED_METADATA_CPP_H_BT_M_RAID_FAST_CODE_NAME, "System.Void", 2, "System.Object", "System.EventArgs", false, false, PGR_GAME_SHARED_METADATA_CPP_KBT31499CQJZ_RVA, kBt31499Cqjz, sizeof(kBt31499Cqjz), &H[H_BT_M_RAID_FAST], &H[H_BT_M_RAID_FAST_CODE]))) return rc;
+  if ((rc = check_method(c, b31285, PGR_GAME_SHARED_METADATA_CPP_H_BT_M_MAX_FAST_CODE_NAME, "System.Void", 2, "System.Object", "System.EventArgs", false, false, PGR_GAME_SHARED_METADATA_CPP_KBT31285CQJZ_RVA, kBt31285Cqjz, sizeof(kBt31285Cqjz), &H[H_BT_M_MAX_FAST], &H[H_BT_M_MAX_FAST_CODE]))) return rc;
+  if ((rc = check_method(c, b9182, "OnEnable", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT9182EN_RVA, kBt9182En, sizeof(kBt9182En), &H[H_BT_M_LEG_ENABLE], &H[H_BT_M_LEG_ENABLE_CODE]))) return rc;
+  if ((rc = check_method(c, b9182, "OnDisable", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT9182DIS_RVA, kBt9182Dis, sizeof(kBt9182Dis), &H[H_BT_M_LEG_DISABLE], &H[H_BT_M_LEG_DISABLE_CODE]))) return rc;
+  if ((rc = check_method(c, b9182, "SetChargeAttackButtons", "System.Void", 1, "Niantic.Holoholo.Battle.ChargeAttackDisplay[]", nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT9182BTNS_RVA, kBt9182Btns, sizeof(kBt9182Btns), &H[H_BT_M_LEG_BUTTONS], &H[H_BT_M_LEG_BUTTONS_CODE]))) return rc;
+  if ((rc = check_method(c, b9182, PGR_GAME_SHARED_METADATA_CPP_H_BT_M_LEG_FAST_CODE_NAME, "System.Void", 2, "System.Object", "System.EventArgs", false, false, PGR_GAME_SHARED_METADATA_CPP_KBT9182BWQR_RVA, kBt9182Bwqr, sizeof(kBt9182Bwqr), &H[H_BT_M_LEG_FAST], &H[H_BT_M_LEG_FAST_CODE]))) return rc;
   MParam li_p[3] = {{"Niantic.Holoholo.Battle.BattlePokemon", nullptr}, {"Niantic.Holoholo.Battle.BattlePokemon", nullptr}, {"UnityEngine.Vector3", nullptr}};
-  if ((rc = check_method_ex(c, b9308, "Init", "System.Void", nullptr, 3, li_p, false, false, 183169816ULL, kBt9308Init, sizeof(kBt9308Init), &H[H_BT_M_LEG_INIT], &H[H_BT_M_LEG_INIT_CODE]))) return rc;
-  if ((rc = check_method(c, b9308, "get_IsCharged", "System.Boolean", 0, nullptr, nullptr, false, false, 183169720ULL, kBt9308Chgd, sizeof(kBt9308Chgd), &H[H_BT_M_LEG_CHARGED], &H[H_BT_M_LEG_CHARGED_CODE]))) return rc;
-  if ((rc = check_method(c, b9308, "ChargeAttackButtonTapped", "System.Void", 0, nullptr, nullptr, false, false, 183190768ULL, kBt9308Tap, sizeof(kBt9308Tap), &H[H_BT_M_LEG_CHARGE], &H[H_BT_M_LEG_CHARGE_CODE]))) return rc;
-  if ((rc = check_method(c, b31280, "Refresh", "System.Void", 1, "Niantic.Holoholo.Bread.BreadAbilityWidget.Data", nullptr, false, false, 154933908ULL, kBt31280Ref, sizeof(kBt31280Ref), &H[H_BT_M_MAX_REFRESH], &H[H_BT_M_MAX_REFRESH_CODE]))) return rc;
-  if ((rc = check_method(c, b31280, "Cleanup", "System.Void", 0, nullptr, nullptr, false, false, 154928672ULL, kBt31280Cln, sizeof(kBt31280Cln), &H[H_BT_M_MAX_CLEANUP], &H[H_BT_M_MAX_CLEANUP_CODE]))) return rc;
+  if ((rc = check_method_ex(c, b9308, "Init", "System.Void", nullptr, 3, li_p, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT9308INIT_RVA, kBt9308Init, sizeof(kBt9308Init), &H[H_BT_M_LEG_INIT], &H[H_BT_M_LEG_INIT_CODE]))) return rc;
+  if ((rc = check_method(c, b9308, "get_IsCharged", "System.Boolean", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT9308CHGD_RVA, kBt9308Chgd, sizeof(kBt9308Chgd), &H[H_BT_M_LEG_CHARGED], &H[H_BT_M_LEG_CHARGED_CODE]))) return rc;
+  if ((rc = check_method(c, b9308, "ChargeAttackButtonTapped", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT9308TAP_RVA, kBt9308Tap, sizeof(kBt9308Tap), &H[H_BT_M_LEG_CHARGE], &H[H_BT_M_LEG_CHARGE_CODE]))) return rc;
+  if ((rc = check_method(c, b31280, "Refresh", "System.Void", 1, "Niantic.Holoholo.Bread.BreadAbilityWidget.Data", nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT31280REF_RVA, kBt31280Ref, sizeof(kBt31280Ref), &H[H_BT_M_MAX_REFRESH], &H[H_BT_M_MAX_REFRESH_CODE]))) return rc;
+  if ((rc = check_method(c, b31280, "Cleanup", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBT31280CLN_RVA, kBt31280Cln, sizeof(kBt31280Cln), &H[H_BT_M_MAX_CLEANUP], &H[H_BT_M_MAX_CLEANUP_CODE]))) return rc;
   if ((rc = check_method(c, c.out->opt_classes[OC_BEHAVIOUR], "get_isActiveAndEnabled", "System.Boolean", 0, nullptr, nullptr, false, false, 0, nullptr, 0, &H[H_BT_M_ACTIVE], nullptr))) return rc;
   return check_method(c, c.out->opt_classes[OC_BUTTON], "Press", "System.Void", 0, nullptr, nullptr, false, false, 0, nullptr, 0, &H[H_BT_M_PRESS], nullptr);
 }
@@ -1134,24 +1128,24 @@ int do_berries(Ctx &c) {
   const void *berry = c.out->opt_classes[OC_BERRY], *feedgui = c.out->opt_classes[OC_FEEDGUI],
              *beh = c.out->opt_classes[OC_BEHAVIOUR], *ball = c.out->opt_classes[OC_POKEBALL],
              *throw_cls = c.out->opt_classes[OC_POKEBALL_THROW];
-  if ((rc = typed_field(c, feedgui, "confirmationDelay", 0x108, "System.Single", "berry-delay-type", nullptr))) return rc;
-  if ((rc = typed_field(c, feedgui, "postConfirmationDelay", 0x10c, "System.Single", "berry-delay-type", nullptr))) return rc;
+  if ((rc = typed_field(c, feedgui, PGR_GAME_SHARED_METADATA_CPP_CONFIRMATIONDELAY_NAME, PGR_GAME_SHARED_METADATA_CPP_CONFIRMATIONDELAY_OFFSET, "System.Single", "berry-delay-type", nullptr))) return rc;
+  if ((rc = typed_field(c, feedgui, PGR_GAME_SHARED_METADATA_CPP_POSTCONFIRMATIONDELAY_NAME, PGR_GAME_SHARED_METADATA_CPP_POSTCONFIRMATIONDELAY_OFFSET, "System.Single", "berry-delay-type", nullptr))) return rc;
 
-  if ((rc = ref_field(c, feedgui, "itemImage", 0xf0, &H[H_BR_F_IMAGE]))) return rc;
-  if ((rc = ref_field(c, berry, "druh", 0x148, &H[H_BR_F_BAG]))) return rc;
-  if ((rc = ref_field(c, berry, "drvr", 0x248, &H[H_BR_F_GUI]))) return rc;
-  if ((rc = ref_field(c, berry, "<EncounterUI>k__BackingField", 0x298, &H[H_BR_F_UI]))) return rc;
-  if ((rc = enum_i32_field(c, berry, "<CurrentItem>k__BackingField", 0x2a8, &H[H_BR_F_CURRENT]))) return rc;
+  if ((rc = ref_field(c, feedgui, PGR_GAME_SHARED_METADATA_CPP_H_BR_F_IMAGE_NAME, PGR_GAME_SHARED_METADATA_CPP_H_BR_F_IMAGE_OFFSET, &H[H_BR_F_IMAGE]))) return rc;
+  if ((rc = ref_field(c, berry, PGR_GAME_SHARED_METADATA_CPP_H_BR_F_BAG_NAME, PGR_GAME_SHARED_METADATA_CPP_H_BR_F_BAG_OFFSET, &H[H_BR_F_BAG]))) return rc;
+  if ((rc = ref_field(c, berry, PGR_GAME_SHARED_METADATA_CPP_H_BR_F_GUI_NAME, PGR_GAME_SHARED_METADATA_CPP_H_BR_F_GUI_OFFSET, &H[H_BR_F_GUI]))) return rc;
+  if ((rc = ref_field(c, berry, PGR_GAME_SHARED_METADATA_CPP_H_BR_F_UI_NAME, PGR_GAME_SHARED_METADATA_CPP_H_BR_F_UI_OFFSET, &H[H_BR_F_UI]))) return rc;
+  if ((rc = enum_i32_field(c, berry, PGR_GAME_SHARED_METADATA_CPP_H_BR_F_CURRENT_NAME, PGR_GAME_SHARED_METADATA_CPP_H_BR_F_CURRENT_OFFSET, &H[H_BR_F_CURRENT]))) return rc;
 
   if ((rc = check_method(c, beh, "get_enabled", "System.Boolean", 0, nullptr, nullptr, false, false, 0, nullptr, 0, &H[H_BR_M_VISIBLE], nullptr))) return rc;
   if ((rc = check_method(c, beh, "set_enabled", "System.Void", 1, "System.Boolean", nullptr, false, false, 0, nullptr, 0, &H[H_BR_M_SET_VISIBLE], nullptr))) return rc;
-  if ((rc = check_method(c, berry, "EnterState", "System.Void", 0, nullptr, nullptr, false, false, 180609296ULL, kBrEnter, sizeof(kBrEnter), &H[H_BR_M_ENTER], &H[H_BR_M_ENTER_CODE]))) return rc;
-  if ((rc = check_method(c, berry, "ExitState", "System.Void", 0, nullptr, nullptr, false, false, 180623100ULL, kBrExit, sizeof(kBrExit), &H[H_BR_M_EXIT], &H[H_BR_M_EXIT_CODE]))) return rc;
-  if ((rc = check_method(c, berry, "SelectBerry", "System.Void", 1, "Holoholo.Rpc.Item", nullptr, false, false, 180606856ULL, kBrSelect, sizeof(kBrSelect), &H[H_BR_M_SELECT], &H[H_BR_M_SELECT_CODE]))) return rc;
-  if ((rc = check_method(c, berry, "get_CanUseBerry", "System.Boolean", 0, nullptr, nullptr, false, false, 180588608ULL, kBrCan, sizeof(kBrCan), &H[H_BR_M_CAN], &H[H_BR_M_CAN_CODE]))) return rc;
-  if ((rc = check_method(c, berry, "get_PokeballInPlay", "System.Boolean", 0, nullptr, nullptr, false, false, 180588792ULL, kBrBall, sizeof(kBrBall), &H[H_BR_M_BALL], &H[H_BR_M_BALL_CODE]))) return rc;
-  if ((rc = check_method(c, berry, "get_IsInPhotoMode", "System.Boolean", 0, nullptr, nullptr, false, false, 180588656ULL, kBrPhoto, sizeof(kBrPhoto), &H[H_BR_M_PHOTO], &H[H_BR_M_PHOTO_CODE]))) return rc;
-  if ((rc = check_method(c, feedgui, "ClickConfirm", "System.Void", 0, nullptr, nullptr, false, false, 163268208ULL, kBrConfirm, sizeof(kBrConfirm), &H[H_BR_M_CONFIRM], &H[H_BR_M_CONFIRM_CODE]))) return rc;
+  if ((rc = check_method(c, berry, "EnterState", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBRENTER_RVA, kBrEnter, sizeof(kBrEnter), &H[H_BR_M_ENTER], &H[H_BR_M_ENTER_CODE]))) return rc;
+  if ((rc = check_method(c, berry, "ExitState", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBREXIT_RVA, kBrExit, sizeof(kBrExit), &H[H_BR_M_EXIT], &H[H_BR_M_EXIT_CODE]))) return rc;
+  if ((rc = check_method(c, berry, "SelectBerry", "System.Void", 1, "Holoholo.Rpc.Item", nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBRSELECT_RVA, kBrSelect, sizeof(kBrSelect), &H[H_BR_M_SELECT], &H[H_BR_M_SELECT_CODE]))) return rc;
+  if ((rc = check_method(c, berry, "get_CanUseBerry", "System.Boolean", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBRCAN_RVA, kBrCan, sizeof(kBrCan), &H[H_BR_M_CAN], &H[H_BR_M_CAN_CODE]))) return rc;
+  if ((rc = check_method(c, berry, "get_PokeballInPlay", "System.Boolean", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBRBALL_RVA, kBrBall, sizeof(kBrBall), &H[H_BR_M_BALL], &H[H_BR_M_BALL_CODE]))) return rc;
+  if ((rc = check_method(c, berry, "get_IsInPhotoMode", "System.Boolean", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBRPHOTO_RVA, kBrPhoto, sizeof(kBrPhoto), &H[H_BR_M_PHOTO], &H[H_BR_M_PHOTO_CODE]))) return rc;
+  if ((rc = check_method(c, feedgui, "ClickConfirm", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBRCONFIRM_RVA, kBrConfirm, sizeof(kBrConfirm), &H[H_BR_M_CONFIRM], &H[H_BR_M_CONFIRM_CODE]))) return rc;
 
   auto is_val = reinterpret_cast<bool (*)(const void *)>(c.core->class_is_valuetype);
   auto val_sz = reinterpret_cast<int (*)(const void *, int *)>(c.core->class_value_size);
@@ -1165,17 +1159,17 @@ int do_berries(Ctx &c) {
   if ((rc = typed_field(c, throw_cls, "Missed", 26, "System.Boolean", "berry-impact-throw-field", nullptr))) return rc;
 
   const void *cb = nullptr;
-  if ((rc = nested_suffix(c, berry, "dyo", 64, true, "berry-confirm-callback", &cb))) return rc;
+  if ((rc = nested_suffix(c, berry, PGR_GAME_SHARED_METADATA_CPP_DYO_NAME, 64, true, "berry-confirm-callback", &cb))) return rc;
   H[H_BR_CALLBACK] = cb;
-  if ((rc = ref_field(c, cb, "<>4__this", 0x10, &H[H_BR_F_CB_SCOPE]))) return rc;
-  if ((rc = enum_i32_field(c, cb, "berryType", 0x18, &H[H_BR_F_CB_BERRY]))) return rc;
-  if ((rc = check_method(c, cb, "bswx", "System.Void", 1, "System.Boolean", nullptr, false, false, 180649968ULL, kBrBtdx, sizeof(kBrBtdx), &H[H_BR_M_DIRECT], &H[H_BR_M_DIRECT_CODE]))) return rc;
-  if ((rc = check_method(c, cb, "bswy", "System.Void", 1, "Holoholo.Rpc.UseItemEncounterOutProto", nullptr, false, false, 180651492ULL, kBrBtdy, sizeof(kBrBtdy), &H[H_BR_M_RESULT], &H[H_BR_M_RESULT_CODE]))) return rc;
-  if ((rc = check_method(c, cb, "bswz", "System.Void", 1, "System.String", nullptr, false, false, 180652432ULL, kBrBtdz, sizeof(kBrBtdz), &H[H_BR_M_ERROR], &H[H_BR_M_ERROR_CODE]))) return rc;
-  if ((rc = check_method(c, ball, "btrl", "System.Void", 1, "Niantic.Holoholo.Encounter.PokeballThrow", nullptr, false, false, 181237848ULL, kBrSubmit, sizeof(kBrSubmit), &H[H_BR_M_SUBMIT], &H[H_BR_M_SUBMIT_CODE]))) return rc;
-  if ((rc = check_method(c, ball, "btqu", "Holoholo.Rpc.CatchPokemonOutProto", 0, nullptr, nullptr, false, false, 181206508ULL, kBrPeek, sizeof(kBrPeek), &H[H_BR_M_PEEK], &H[H_BR_M_PEEK_CODE]))) return rc;
-  if ((rc = check_method(c, ball, "get_HoldingBreadBall", "System.Boolean", 0, nullptr, nullptr, false, false, 181199328ULL, kBrBread, sizeof(kBrBread), &H[H_BR_M_BREAD], &H[H_BR_M_BREAD_CODE]))) return rc;
-  return check_method(c, ball, "get_BallType", "Holoholo.Rpc.Item", 0, nullptr, nullptr, false, false, 181207944ULL, kBrBallType, sizeof(kBrBallType), &H[H_BR_M_BALL_TYPE], &H[H_BR_M_BALL_TYPE_CODE]);
+  if ((rc = ref_field(c, cb, PGR_GAME_SHARED_METADATA_CPP_H_BR_F_CB_SCOPE_NAME, PGR_GAME_SHARED_METADATA_CPP_H_BR_F_CB_SCOPE_OFFSET, &H[H_BR_F_CB_SCOPE]))) return rc;
+  if ((rc = enum_i32_field(c, cb, PGR_GAME_SHARED_METADATA_CPP_H_BR_F_CB_BERRY_NAME, PGR_GAME_SHARED_METADATA_CPP_H_BR_F_CB_BERRY_OFFSET, &H[H_BR_F_CB_BERRY]))) return rc;
+  if ((rc = check_method(c, cb, PGR_GAME_SHARED_METADATA_CPP_H_BR_M_DIRECT_CODE_NAME, "System.Void", 1, "System.Boolean", nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBRBTDX_RVA, kBrBtdx, sizeof(kBrBtdx), &H[H_BR_M_DIRECT], &H[H_BR_M_DIRECT_CODE]))) return rc;
+  if ((rc = check_method(c, cb, PGR_GAME_SHARED_METADATA_CPP_H_BR_M_RESULT_CODE_NAME, "System.Void", 1, "Holoholo.Rpc.UseItemEncounterOutProto", nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBRBTDY_RVA, kBrBtdy, sizeof(kBrBtdy), &H[H_BR_M_RESULT], &H[H_BR_M_RESULT_CODE]))) return rc;
+  if ((rc = check_method(c, cb, PGR_GAME_SHARED_METADATA_CPP_H_BR_M_ERROR_CODE_NAME, "System.Void", 1, "System.String", nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBRBTDZ_RVA, kBrBtdz, sizeof(kBrBtdz), &H[H_BR_M_ERROR], &H[H_BR_M_ERROR_CODE]))) return rc;
+  if ((rc = check_method(c, ball, PGR_GAME_SHARED_METADATA_CPP_H_BR_M_SUBMIT_CODE_NAME, "System.Void", 1, "Niantic.Holoholo.Encounter.PokeballThrow", nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBRSUBMIT_RVA, kBrSubmit, sizeof(kBrSubmit), &H[H_BR_M_SUBMIT], &H[H_BR_M_SUBMIT_CODE]))) return rc;
+  if ((rc = check_method(c, ball, PGR_GAME_SHARED_METADATA_CPP_H_BR_M_PEEK_CODE_NAME, "Holoholo.Rpc.CatchPokemonOutProto", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBRPEEK_RVA, kBrPeek, sizeof(kBrPeek), &H[H_BR_M_PEEK], &H[H_BR_M_PEEK_CODE]))) return rc;
+  if ((rc = check_method(c, ball, "get_HoldingBreadBall", "System.Boolean", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBRBREAD_RVA, kBrBread, sizeof(kBrBread), &H[H_BR_M_BREAD], &H[H_BR_M_BREAD_CODE]))) return rc;
+  return check_method(c, ball, "get_BallType", "Holoholo.Rpc.Item", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBRBALLTYPE_RVA, kBrBallType, sizeof(kBrBallType), &H[H_BR_M_BALL_TYPE], &H[H_BR_M_BALL_TYPE_CODE]);
 }
 
 int do_incubator(Ctx &c) {
@@ -1192,22 +1186,22 @@ int do_incubator(Ctx &c) {
              *ienumerator = c.out->opt_classes[OC_IENUMERATOR], *idisp = c.out->opt_classes[OC_IDISPOSABLE],
              *item = c.out->opt_classes[OC_ITEM];
 
-  if ((rc = typed_field(c, pk, "isEgg_", 0x50, "System.Boolean", "incubator-field", &H[H_INC_F_EGG]))) return rc;
-  if ((rc = typed_field(c, pk, "id_", 0x20, "System.UInt64", "incubator-field", &H[H_INC_F_ID]))) return rc;
-  if ((rc = typed_field(c, pk, "eggKmWalkedTarget_", 0x58, "System.Double", "incubator-field", &H[H_INC_F_TARGET]))) return rc;
-  if ((rc = typed_field(c, pk, "eggKmWalkedStart_", 0x60, "System.Double", "incubator-field", &H[H_INC_F_START]))) return rc;
-  if ((rc = typed_field(c, pk, "eggIncubatorId_", 0x98, "System.String", "incubator-field", &H[H_INC_F_ASSIGNMENT]))) return rc;
+  if ((rc = typed_field(c, pk, PGR_GAME_SHARED_METADATA_CPP_H_INC_F_EGG_NAME, PGR_GAME_SHARED_METADATA_CPP_H_INC_F_EGG_OFFSET, "System.Boolean", "incubator-field", &H[H_INC_F_EGG]))) return rc;
+  if ((rc = typed_field(c, pk, PGR_GAME_SHARED_METADATA_CPP_H_INC_F_ID_NAME, PGR_GAME_SHARED_METADATA_CPP_H_INC_F_ID_OFFSET, "System.UInt64", "incubator-field", &H[H_INC_F_ID]))) return rc;
+  if ((rc = typed_field(c, pk, PGR_GAME_SHARED_METADATA_CPP_H_INC_F_TARGET_NAME, PGR_GAME_SHARED_METADATA_CPP_H_INC_F_TARGET_OFFSET, "System.Double", "incubator-field", &H[H_INC_F_TARGET]))) return rc;
+  if ((rc = typed_field(c, pk, PGR_GAME_SHARED_METADATA_CPP_H_INC_F_START_NAME, PGR_GAME_SHARED_METADATA_CPP_H_INC_F_START_OFFSET, "System.Double", "incubator-field", &H[H_INC_F_START]))) return rc;
+  if ((rc = typed_field(c, pk, PGR_GAME_SHARED_METADATA_CPP_H_INC_F_ASSIGNMENT_NAME, PGR_GAME_SHARED_METADATA_CPP_H_INC_F_ASSIGNMENT_OFFSET, "System.String", "incubator-field", &H[H_INC_F_ASSIGNMENT]))) return rc;
   const void *egg_type_enum = nullptr;
-  if ((rc = enum_i32_field(c, pk, "eggType_", 0x154, &H[H_INC_F_EGG_TYPE], &egg_type_enum))) return rc;
-  if ((rc = typed_field(c, inc, "Item", 0x18, "Holoholo.Rpc.Item", "incubator-field", &H[H_INC_F_ITEM]))) return rc;
-  if ((rc = typed_field(c, inc, "ItemId", 0x10, "System.String", "incubator-field", &H[H_INC_F_INC_ID]))) return rc;
-  if ((rc = typed_field(c, inc, "PokemonId", 0x28, "System.Int64", "incubator-field", &H[H_INC_F_PK_ID]))) return rc;
-  if ((rc = typed_field(c, inc, "UnconvertedLocalExpirationTimeMs", 0x40, "System.Int64", "incubator-field", &H[H_INC_F_EXPIRY]))) return rc;
+  if ((rc = enum_i32_field(c, pk, PGR_GAME_SHARED_METADATA_CPP_H_INC_F_EGG_TYPE_NAME, PGR_GAME_SHARED_METADATA_CPP_H_INC_F_EGG_TYPE_OFFSET, &H[H_INC_F_EGG_TYPE], &egg_type_enum))) return rc;
+  if ((rc = typed_field(c, inc, PGR_GAME_SHARED_METADATA_CPP_H_INC_F_ITEM_NAME, PGR_GAME_SHARED_METADATA_CPP_H_INC_F_ITEM_OFFSET, "Holoholo.Rpc.Item", "incubator-field", &H[H_INC_F_ITEM]))) return rc;
+  if ((rc = typed_field(c, inc, PGR_GAME_SHARED_METADATA_CPP_H_INC_F_INC_ID_NAME, PGR_GAME_SHARED_METADATA_CPP_H_INC_F_INC_ID_OFFSET, "System.String", "incubator-field", &H[H_INC_F_INC_ID]))) return rc;
+  if ((rc = typed_field(c, inc, PGR_GAME_SHARED_METADATA_CPP_H_INC_F_PK_ID_NAME, PGR_GAME_SHARED_METADATA_CPP_H_INC_F_PK_ID_OFFSET, "System.Int64", "incubator-field", &H[H_INC_F_PK_ID]))) return rc;
+  if ((rc = typed_field(c, inc, PGR_GAME_SHARED_METADATA_CPP_H_INC_F_EXPIRY_NAME, PGR_GAME_SHARED_METADATA_CPP_H_INC_F_EXPIRY_OFFSET, "System.Int64", "incubator-field", &H[H_INC_F_EXPIRY]))) return rc;
 
   MParam put_p[2] = {{"System.Int64", nullptr}, {"Holoholo.Rpc.EggIncubatorProto", nullptr}};
-  if ((rc = check_method_ex(c, svc, "PutEggInIncubator", nullptr, pred_put_egg_promise, 2, put_p, false, false, 163850028ULL, kIncPut, sizeof(kIncPut), &H[H_INC_M_PUT], &H[H_INC_M_PUT_CODE]))) return rc;
-  if ((rc = check_method_ex(c, player, "get_Incubators", nullptr, pred_incubators_enum, 0, nullptr, false, false, 153971796ULL, kIncList, sizeof(kIncList), &H[H_INC_M_INCUBATORS], &H[H_INC_M_INCUBATORS_CODE]))) return rc;
-  if ((rc = check_method_ex(c, bag, "get_AllPokemon", nullptr, pred_all_pokemon_coll, 0, nullptr, false, false, 154089152ULL, kIncEggs, sizeof(kIncEggs), &H[H_INC_M_EGGS], &H[H_INC_M_EGGS_CODE]))) return rc;
+  if ((rc = check_method_ex(c, svc, "PutEggInIncubator", nullptr, pred_put_egg_promise, 2, put_p, false, false, PGR_GAME_SHARED_METADATA_CPP_KINCPUT_RVA, kIncPut, sizeof(kIncPut), &H[H_INC_M_PUT], &H[H_INC_M_PUT_CODE]))) return rc;
+  if ((rc = check_method_ex(c, player, "get_Incubators", nullptr, pred_incubators_enum, 0, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KINCLIST_RVA, kIncList, sizeof(kIncList), &H[H_INC_M_INCUBATORS], &H[H_INC_M_INCUBATORS_CODE]))) return rc;
+  if ((rc = check_method_ex(c, bag, "get_AllPokemon", nullptr, pred_all_pokemon_coll, 0, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KINCEGGS_RVA, kIncEggs, sizeof(kIncEggs), &H[H_INC_M_EGGS], &H[H_INC_M_EGGS_CODE]))) return rc;
   if ((rc = check_method(c, ienum, "GetEnumerator", "System.Collections.IEnumerator", 0, nullptr, nullptr, false, false, 0, nullptr, 0, &H[H_INC_M_ENUMERATE], nullptr))) return rc;
   if ((rc = check_method(c, ienumerator, "MoveNext", "System.Boolean", 0, nullptr, nullptr, false, false, 0, nullptr, 0, &H[H_INC_M_MOVE], nullptr))) return rc;
   if ((rc = check_method(c, ienumerator, "get_Current", "System.Object", 0, nullptr, nullptr, false, false, 0, nullptr, 0, &H[H_INC_M_CURRENT], nullptr))) return rc;
@@ -1228,31 +1222,31 @@ int do_buddy(Ctx &c) {
              *bpk = c.out->opt_classes[OC_BUDDY_PK_PROTO];
 
   const void *cb = nullptr;
-  if ((rc = nested_suffix(c, b7768, "dsh", 64, true, "buddy-feed-callback", &cb))) return rc;
+  if ((rc = nested_suffix(c, b7768, PGR_GAME_SHARED_METADATA_CPP_DSH_NAME, 64, true, "buddy-feed-callback", &cb))) return rc;
   H[H_BD_CALLBACK] = cb;
   H[H_BD_CONTRACT] = c.out->opt_classes[OC_IBUDDY_STATS];
 
   const void *res_enum = nullptr;
-  if ((rc = enum_i32_field(c, fout, "Result", 0x10, &H[H_BD_F_RESULT], &res_enum))) return rc;
+  if ((rc = enum_i32_field(c, fout, PGR_GAME_SHARED_METADATA_CPP_H_BD_F_RESULT_NAME, PGR_GAME_SHARED_METADATA_CPP_H_BD_F_RESULT_OFFSET, &H[H_BD_F_RESULT], &res_enum))) return rc;
   if ((rc = enum_literal(c, res_enum, "Success", false, "buddy-feed-success", &c.out->opt_ints[I_BUDDY_SUCCESS]))) return rc;
 
-  if ((rc = ref_field(c, b7769, "dpwd", 0x58, &H[H_BD_F_RPC]))) return rc;
-  if ((rc = ref_field(c, b7769, "dpwc", 0x50, &H[H_BD_F_POKEMON]))) return rc;
-  if ((rc = ref_field(c, b7768, "dpwb", 0x40, &H[H_BD_F_BAG]))) return rc;
-  if ((rc = ref_field(c, cb, "<>4__this", 0x18, &H[H_BD_F_CB_RPC]))) return rc;
+  if ((rc = ref_field(c, b7769, PGR_GAME_SHARED_METADATA_CPP_H_BD_F_RPC_NAME, PGR_GAME_SHARED_METADATA_CPP_H_BD_F_RPC_OFFSET, &H[H_BD_F_RPC]))) return rc;
+  if ((rc = ref_field(c, b7769, PGR_GAME_SHARED_METADATA_CPP_H_BD_F_POKEMON_NAME, PGR_GAME_SHARED_METADATA_CPP_H_BD_F_POKEMON_OFFSET, &H[H_BD_F_POKEMON]))) return rc;
+  if ((rc = ref_field(c, b7768, PGR_GAME_SHARED_METADATA_CPP_H_BD_F_BAG_NAME, PGR_GAME_SHARED_METADATA_CPP_H_BD_F_BAG_OFFSET, &H[H_BD_F_BAG]))) return rc;
+  if ((rc = ref_field(c, cb, PGR_GAME_SHARED_METADATA_CPP_H_BD_F_CB_RPC_NAME, PGR_GAME_SHARED_METADATA_CPP_H_BD_F_CB_RPC_OFFSET, &H[H_BD_F_CB_RPC]))) return rc;
   const void *buddy_id_type = nullptr;
-  if ((rc = raw_field(c, bpk, "BuddyPokemonId", 0x10, &H[H_BD_F_BUDDY_ID], &buddy_id_type))) return rc;
-  if ((rc = ref_field(c, obs, "BuddyFeedStats", 0x40, &H[H_BD_F_FEED_STATS]))) return rc;
+  if ((rc = raw_field(c, bpk, PGR_GAME_SHARED_METADATA_CPP_H_BD_F_BUDDY_ID_NAME, PGR_GAME_SHARED_METADATA_CPP_H_BD_F_BUDDY_ID_OFFSET, &H[H_BD_F_BUDDY_ID], &buddy_id_type))) return rc;
+  if ((rc = ref_field(c, obs, PGR_GAME_SHARED_METADATA_CPP_H_BD_F_FEED_STATS_NAME, PGR_GAME_SHARED_METADATA_CPP_H_BD_F_FEED_STATS_OFFSET, &H[H_BD_F_FEED_STATS]))) return rc;
 
-  if ((rc = check_method(c, b7769, "get_BuddyStats", "Holoholo.Rpc.BuddyObservedData", 0, nullptr, nullptr, false, false, 179567464ULL, kBdStats, sizeof(kBdStats), &H[H_BD_M_STATS], &H[H_BD_M_STATS_CODE]))) return rc;
-  if ((rc = check_method(c, b8109, "get_HasBuddy", "System.Boolean", 0, nullptr, nullptr, false, false, 180069628ULL, kBdHas, sizeof(kBdHas), &H[H_BD_M_HAS], &H[H_BD_M_HAS_CODE]))) return rc;
-  if ((rc = check_method(c, b8109, "get_BuddyPokemon", "Holoholo.Rpc.BuddyPokemonProto", 0, nullptr, nullptr, false, false, 180069540ULL, kBdPk, sizeof(kBdPk), &H[H_BD_M_POKEMON], &H[H_BD_M_POKEMON_CODE]))) return rc;
-  if ((rc = check_method(c, b7757, "OnMapRemainingSec", "System.Single", 1, "Holoholo.Rpc.BuddyObservedData", nullptr, true, false, 179558140ULL, kBdRem, sizeof(kBdRem), &H[H_BD_M_REMAINING], &H[H_BD_M_REMAINING_CODE]))) return rc;
-  if ((rc = check_method(c, b7757, "PreMapFullnessPercentage", "System.Single", 1, "Holoholo.Rpc.BuddyObservedData", nullptr, true, false, 179558284ULL, kBdFull, sizeof(kBdFull), &H[H_BD_M_FULLNESS], &H[H_BD_M_FULLNESS_CODE]))) return rc;
-  if ((rc = check_method(c, b7757, "InFullnessCooldown", "System.Boolean", 1, "Holoholo.Rpc.BuddyObservedData", nullptr, true, false, 179558308ULL, kBdCool, sizeof(kBdCool), &H[H_BD_M_COOLDOWN], &H[H_BD_M_COOLDOWN_CODE]))) return rc;
+  if ((rc = check_method(c, b7769, "get_BuddyStats", "Holoholo.Rpc.BuddyObservedData", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBDSTATS_RVA, kBdStats, sizeof(kBdStats), &H[H_BD_M_STATS], &H[H_BD_M_STATS_CODE]))) return rc;
+  if ((rc = check_method(c, b8109, "get_HasBuddy", "System.Boolean", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBDHAS_RVA, kBdHas, sizeof(kBdHas), &H[H_BD_M_HAS], &H[H_BD_M_HAS_CODE]))) return rc;
+  if ((rc = check_method(c, b8109, "get_BuddyPokemon", "Holoholo.Rpc.BuddyPokemonProto", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBDPK_RVA, kBdPk, sizeof(kBdPk), &H[H_BD_M_POKEMON], &H[H_BD_M_POKEMON_CODE]))) return rc;
+  if ((rc = check_method(c, b7757, "OnMapRemainingSec", "System.Single", 1, "Holoholo.Rpc.BuddyObservedData", nullptr, true, false, PGR_GAME_SHARED_METADATA_CPP_KBDREM_RVA, kBdRem, sizeof(kBdRem), &H[H_BD_M_REMAINING], &H[H_BD_M_REMAINING_CODE]))) return rc;
+  if ((rc = check_method(c, b7757, "PreMapFullnessPercentage", "System.Single", 1, "Holoholo.Rpc.BuddyObservedData", nullptr, true, false, PGR_GAME_SHARED_METADATA_CPP_KBDFULL_RVA, kBdFull, sizeof(kBdFull), &H[H_BD_M_FULLNESS], &H[H_BD_M_FULLNESS_CODE]))) return rc;
+  if ((rc = check_method(c, b7757, "InFullnessCooldown", "System.Boolean", 1, "Holoholo.Rpc.BuddyObservedData", nullptr, true, false, PGR_GAME_SHARED_METADATA_CPP_KBDCOOL_RVA, kBdCool, sizeof(kBdCool), &H[H_BD_M_COOLDOWN], &H[H_BD_M_COOLDOWN_CODE]))) return rc;
   MParam fp[2] = {{"Holoholo.Rpc.Item", nullptr}, {"System.Int32", nullptr}};
-  if ((rc = check_method_ex(c, b7768, "Feed", nullptr, pred_buddy_feed_promise, 2, fp, false, false, 179562480ULL, kBdFeed, sizeof(kBdFeed), &H[H_BD_M_FEED], &H[H_BD_M_FEED_CODE]))) return rc;
-  if ((rc = check_method(c, cb, "bqzv", "System.Void", 1, "Holoholo.Rpc.BuddyFeedingOutProto", nullptr, false, false, 179565836ULL, kBdBrhd, sizeof(kBdBrhd), &H[H_BD_M_RESULT], &H[H_BD_M_RESULT_CODE]))) return rc;
+  if ((rc = check_method_ex(c, b7768, "Feed", nullptr, pred_buddy_feed_promise, 2, fp, false, false, PGR_GAME_SHARED_METADATA_CPP_KBDFEED_RVA, kBdFeed, sizeof(kBdFeed), &H[H_BD_M_FEED], &H[H_BD_M_FEED_CODE]))) return rc;
+  if ((rc = check_method(c, cb, PGR_GAME_SHARED_METADATA_CPP_H_BD_M_RESULT_CODE_NAME, "System.Void", 1, "Holoholo.Rpc.BuddyFeedingOutProto", nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KBDBRHD_RVA, kBdBrhd, sizeof(kBdBrhd), &H[H_BD_M_RESULT], &H[H_BD_M_RESULT_CODE]))) return rc;
 
   std::string bid_tn;
   if (!get_type_name(c, buddy_id_type, &bid_tn) || bid_tn != "System.UInt64")

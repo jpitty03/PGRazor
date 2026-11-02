@@ -1,3 +1,4 @@
+#include "game_bindings.h"
 #include "catch_presentation.h"
 #include "hook_engine.h"
 #include <atomic>
@@ -41,10 +42,10 @@ void replacement(void *instance, void *pokemon, uint64_t confirm, uint64_t persi
            config.object_class(dismissed) == config.action_class &&
            config.object_class(pokemon) == config.pokemon_class) {
             void *response = response_root ? config.target(response_root) : nullptr;
-            void *view = field<void *>(dismissed, 0x20);
+            void *view = field<void *>(dismissed, PGR_GAME_CATCH_PRESENTATION_CPP_DISMISSED_FIELD_OFFSET);
             if(response && view && config.object_class(view) == config.view_class &&
-               field<void *>(view, 0xe0) == response &&
-               field<uint64_t>(pokemon, 0x20) == field<uint64_t>(response, 0x20)) {
+               field<void *>(view, PGR_GAME_CATCH_PRESENTATION_CPP_VIEW_FIELD_OFFSET) == response &&
+               field<uint64_t>(pokemon, PGR_GAME_CATCH_PRESENTATION_CPP_POKEMON_FIELD_OFFSET) == field<uint64_t>(response, PGR_GAME_CATCH_PRESENTATION_CPP_RESPONSE_FIELD_OFFSET)) {
                 void *hs = config.root(instance, 0), *hp = config.root(pokemon, 0),
                      *hc = config.root(dismissed, 0);
                 if(hs && hp && hc) {

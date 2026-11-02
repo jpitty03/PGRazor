@@ -1,3 +1,4 @@
+#include "game_bindings.h"
 #include "spin_camera.h"
 #include "hook_engine.h"
 #include "interaction_observer.h"
@@ -14,7 +15,7 @@ namespace {
 constexpr uint64_t kMaxLeaseMs = 2500ULL;
 constexpr uint64_t kNsPerMs = 1000000ULL;
 constexpr uint64_t kPhaseExpiryNs = 15000ULL * kNsPerMs;
-constexpr uintptr_t kIteratorSpeedOffset = 0x50U;
+constexpr uintptr_t kIteratorSpeedOffset = PGR_GAME_SPIN_CAMERA_CPP_KITERATORSPEEDOFFSET;
 constexpr float kTargetMinSpeed = 25.0f;
 
 enum PhaseId : uint32_t {

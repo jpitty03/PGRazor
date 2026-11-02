@@ -1,4 +1,5 @@
 #pragma once
+#include "game_bindings.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -58,9 +59,9 @@ enum PgrRoutesTrackingInfo {
   PGR_RT_API_VERSION         = 1,
   PGR_RT_CONFIG_VERSION      = 1,
   PGR_RT_PTR_COUNT           = 5,     // config pointer slots 0..4, all mandatory (non-null)
-  PGR_RT_WAYPOINT_LAT_OFFSET = 0x18,  // expected RouteWaypointProto.LatDegrees byte offset (fields.txt L501)
-  PGR_RT_WAYPOINT_LNG_OFFSET = 0x20,  // expected RouteWaypointProto.LngDegrees byte offset (fields.txt L502)
-  PGR_RT_MAX_FIELD_OFFSET    = 0x1000 // sanity ceiling on the validated field offsets
+  PGR_RT_WAYPOINT_LAT_OFFSET = PGR_GAME_ROUTES_TRACKING_H_PGR_RT_WAYPOINT_LAT_OFFSET,  // expected RouteWaypointProto.LatDegrees byte offset (fields.txt L501)
+  PGR_RT_WAYPOINT_LNG_OFFSET = PGR_GAME_ROUTES_TRACKING_H_PGR_RT_WAYPOINT_LNG_OFFSET,  // expected RouteWaypointProto.LngDegrees byte offset (fields.txt L502)
+  PGR_RT_MAX_FIELD_OFFSET    = PGR_GAME_ROUTES_TRACKING_H_PGR_RT_MAX_FIELD_OFFSET // sanity ceiling on the validated field offsets
 };
 
 // install() returns 0 on success; negatives are faults. installed() returns 1/0.

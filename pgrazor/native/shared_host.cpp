@@ -1,3 +1,4 @@
+#include "game_bindings.h"
 #include "shared_host.h"
 #include "shared_catch.h"
 #include "summary_completion.h"
@@ -423,9 +424,9 @@ int install_summary_alpha(){
  auto klass=[&](const char *ns,const char *name)->const void*{PgrMetaClassQuery q{1,sizeof(q)};q.name_space=ns;q.name=name;PgrMetaClassResult r{};return meta->resolve_class(&q,&r)?nullptr:r.klass;};
  const void *group=klass("UnityEngine","CanvasGroup"),*object=klass("UnityEngine","Object");
  if(!group||!object)return -1;
- PgrMetaFieldQuery q{1,sizeof(q)};q.owner=c(0);q.name="cachedRootCanvasGroup";q.offset=0x40;q.forbidden_mask=0x50;q.kind=PGR_MD_FIELD_REF;q.type_name="UnityEngine.CanvasGroup";
+ PgrMetaFieldQuery q{1,sizeof(q)};q.owner=c(0);q.name="cachedRootCanvasGroup";q.offset=PGR_GAME_SHARED_HOST_CPP_CACHEDROOTCANVASGROUP_OFFSET;q.forbidden_mask=0x50;q.kind=PGR_MD_FIELD_REF;q.type_name="UnityEngine.CanvasGroup";
  PgrMetaFieldResult root{},native{};if(meta->validate_field(&q,&root))return -2;
- q.owner=object;q.name="m_CachedPtr";q.offset=0x10;q.kind=PGR_MD_FIELD_VALUE;q.value_size=8;q.type_name="System.IntPtr";
+ q.owner=object;q.name="m_CachedPtr";q.offset=PGR_GAME_SHARED_HOST_CPP_M_CACHEDPTR_OFFSET;q.kind=PGR_MD_FIELD_VALUE;q.value_size=8;q.type_name="System.IntPtr";
  if(meta->validate_field(&q,&native))return -3;
  PgrBootBinding binding{};if(table<PgrBootApi>(pgrazor_runtime_bootstrap_api(1))->snapshot(&binding)||!binding.handle)return -4;
  auto resolve=reinterpret_cast<void*(*)(const char*)>(dlsym(binding.handle,"il2cpp_resolve_icall"));if(!resolve)return -5;

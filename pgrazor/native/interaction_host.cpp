@@ -1,3 +1,4 @@
+#include "game_bindings.h"
 #include "interaction_host.h"
 #include "interaction_observer.h"
 
@@ -180,10 +181,10 @@ static int call_pgrazor_unhook(void *target) {
 }
 
 /* Exact 20-word (80-byte) prologue for il2cpp_debug_get_method_info */
-static const uint32_t kDebugWords[PGR_IH_DEBUG_PROLOGUE_WORDS] = {0xd0051268,0xf9405508,0xb4000148,0xd0051269,0xf9405929,0xb40000e9,0xf940040a,0xeb0a011f,0x2a1f03e8,0x54000128,0xeb0a013f,0x540000e3,0xb40000a1,0xf9400408,0xb900083f,0xf900083f,0xf9000028,0x52800028,0x2a0803e0,0xd65f03c0};
+static const uint32_t kDebugWords[PGR_IH_DEBUG_PROLOGUE_WORDS] = PGR_GAME_INTERACTION_HOST_CPP_KDEBUGWORDS_FINGERPRINT;
 
 /* Exact 8-word (32-byte) prologue for Pokeball::btxu at RVA 0xaccfdec */
-static const uint32_t kBtxuWords[PGR_IH_BTXU_PROLOGUE_WORDS] = {0xf81d0ffe,0xa90157f6,0xa9024ff4,0x900223b4,0xaa0003f3,0x39563a88,0x37000428,0xb001f7c0};
+static const uint32_t kBtxuWords[PGR_IH_BTXU_PROLOGUE_WORDS] = PGR_GAME_INTERACTION_HOST_CPP_KBTXUWORDS_FINGERPRINT;
 
 struct ClassDesc {
     const char *ns;
@@ -255,13 +256,13 @@ static const TargetDesc kTargets[PGR_IH_TOTAL_TARGETS] = {
      "System.Void", 0, nullptr, false, false, -1, 0, nullptr, 0},
     {9, 3, "Niantic.Holoholo.Pokestop.PokestopResolveState", "ExitState",
      "System.Void", 0, nullptr, false, false, -1, 0, nullptr, 0},
-    {10, 0, "Niantic.Holoholo.Encounter.EncounterCaptureState", "bswd",
+    {10, 0, "Niantic.Holoholo.Encounter.EncounterCaptureState", PGR_GAME_INTERACTION_HOST_CPP_BSWD_NAME,
      "System.Void", 1, "Holoholo.Rpc.CatchPokemonOutProto", false, false, 0, 0, nullptr, 0},
-    {11, 0, "Niantic.Holoholo.Encounter.EncounterCaptureState", "bswf",
+    {11, 0, "Niantic.Holoholo.Encounter.EncounterCaptureState", PGR_GAME_INTERACTION_HOST_CPP_BSWF_NAME,
      "System.Void", 1, "Holoholo.Rpc.CatchPokemonOutProto", false, false, -1, 0, nullptr, 0},
     {12, 0, "Niantic.Holoholo.Encounter.EncounterCaptureState", "btdi",
      "System.Void", 1, "Holoholo.Rpc.CatchPokemonOutProto", false, false, -1, 0, nullptr, 0},
-    {13, 2, "Niantic.Holoholo.Pokestop.PokestopSpinnerInteractionState", "bgdc",
+    {13, 2, "Niantic.Holoholo.Pokestop.PokestopSpinnerInteractionState", PGR_GAME_INTERACTION_HOST_CPP_BGDC_NAME,
      "System.Void", 1, "Holoholo.Rpc.FortSearchOutProto", false, false, 1, 0, nullptr, 0},
 
     /* 6 Optional Targets (14..19) */
@@ -275,7 +276,7 @@ static const TargetDesc kTargets[PGR_IH_TOTAL_TARGETS] = {
      "System.Void", 0, nullptr, true, false, -1, 0, nullptr, 0},
     {18, 9, "Niantic.Holoholo.Encounter.EncounterSummaryState", "ExitState",
      "System.Void", 0, nullptr, true, false, -1, 0, nullptr, 0},
-    {19, 10, "Niantic.Holoholo.Encounter.Pokeball", "btqu",
+    {19, 10, "Niantic.Holoholo.Encounter.Pokeball", PGR_GAME_INTERACTION_HOST_CPP_BTQU_NAME,
      "Holoholo.Rpc.CatchPokemonOutProto", 0, nullptr, true, true, 0,
      PGR_IH_BTXU_RVA, kBtxuWords, PGR_IH_BTXU_PROLOGUE_BYTES},
 };
@@ -1100,7 +1101,7 @@ static InspectResultKind run_inspect_locked(char *out_reason, size_t reason_cap)
                 mq.version = PGR_MD_QUERY_VERSION;
                 mq.size = sizeof(mq);
                 mq.owner = klass;
-                mq.name = "btqu";
+                mq.name = PGR_GAME_INTERACTION_HOST_CPP_BTQU_NAME;
                 mq.return_type = "Holoholo.Rpc.CatchPokemonOutProto";
                 mq.return_match = PGR_MD_MATCH_EXACT;
                 mq.param_count = 0;

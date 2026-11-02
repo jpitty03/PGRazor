@@ -1,3 +1,4 @@
+#include "game_bindings.h"
 #include "account_host.h"
 
 #include "runtime_transport.h"
@@ -18,45 +19,45 @@ namespace {
 using namespace pgr_shared_meta;
 
 // --- Pokémon GO 0.435.1 ARM64 method RVAs and checked 24-byte prologues ---
-constexpr uint64_t kRvaPlayerGetId        = 153925936ULL; // 0x92cb930
-constexpr uint64_t kRvaPlayerGetName      = 153926580ULL; // 0x92cbbb4
-constexpr uint64_t kRvaAuthIsConnected    = 205203712ULL; // 0xc3b2900
-constexpr uint64_t kRvaAuthCachedCreds    = 205203932ULL; // 0xc3b29dc
-constexpr uint64_t kRvaWrapperLogout      = 175518608ULL; // 0xa763390
-constexpr uint64_t kRvaAuthLogout         = 205221980ULL; // 0xc3b705c
-constexpr uint64_t kRvaPrefsHasKey        = 229353148ULL; // 0xdaba6bc
-constexpr uint64_t kRvaPrefsDeleteKey     = 229353620ULL; // 0xdaba894
-constexpr uint64_t kRvaPrefsSave          = 229354068ULL; // 0xdabaa54
+constexpr uint64_t kRvaPlayerGetId        = PGR_GAME_ACCOUNT_HOST_CPP_KRVAPLAYERGETID_RVA; // 0x92cb930
+constexpr uint64_t kRvaPlayerGetName      = PGR_GAME_ACCOUNT_HOST_CPP_KRVAPLAYERGETNAME_RVA; // 0x92cbbb4
+constexpr uint64_t kRvaAuthIsConnected    = PGR_GAME_ACCOUNT_HOST_CPP_KRVAAUTHISCONNECTED_RVA; // 0xc3b2900
+constexpr uint64_t kRvaAuthCachedCreds    = PGR_GAME_ACCOUNT_HOST_CPP_KRVAAUTHCACHEDCREDS_RVA; // 0xc3b29dc
+constexpr uint64_t kRvaWrapperLogout      = PGR_GAME_ACCOUNT_HOST_CPP_KRVAWRAPPERLOGOUT_RVA; // 0xa763390
+constexpr uint64_t kRvaAuthLogout         = PGR_GAME_ACCOUNT_HOST_CPP_KRVAAUTHLOGOUT_RVA; // 0xc3b705c
+constexpr uint64_t kRvaPrefsHasKey        = PGR_GAME_ACCOUNT_HOST_CPP_KRVAPREFSHASKEY_RVA; // 0xdaba6bc
+constexpr uint64_t kRvaPrefsDeleteKey     = PGR_GAME_ACCOUNT_HOST_CPP_KRVAPREFSDELETEKEY_RVA; // 0xdaba894
+constexpr uint64_t kRvaPrefsSave          = PGR_GAME_ACCOUNT_HOST_CPP_KRVAPREFSSAVE_RVA; // 0xdabaa54
 
-constexpr uint64_t kRvaAdvInitInitial     = 203012952ULL; // 0xc19bb58
-constexpr uint64_t kRvaAdvInitInstruction = 203015140ULL; // 0xc19c3e4
-constexpr uint64_t kRvaAdvInitResult      = 203019732ULL; // 0xc19d5d4
-constexpr uint64_t kRvaAdvOnConfirm       = 203024432ULL; // 0xc19e830
-constexpr uint64_t kRvaAdvOnDecline       = 203024460ULL; // 0xc19e84c
-constexpr uint64_t kRvaAdvUpdate          = 203024488ULL; // 0xc19e868
+constexpr uint64_t kRvaAdvInitInitial     = PGR_GAME_ACCOUNT_HOST_CPP_KRVAADVINITINITIAL_RVA; // 0xc19bb58
+constexpr uint64_t kRvaAdvInitInstruction = PGR_GAME_ACCOUNT_HOST_CPP_KRVAADVINITINSTRUCTION_RVA; // 0xc19c3e4
+constexpr uint64_t kRvaAdvInitResult      = PGR_GAME_ACCOUNT_HOST_CPP_KRVAADVINITRESULT_RVA; // 0xc19d5d4
+constexpr uint64_t kRvaAdvOnConfirm       = PGR_GAME_ACCOUNT_HOST_CPP_KRVAADVONCONFIRM_RVA; // 0xc19e830
+constexpr uint64_t kRvaAdvOnDecline       = PGR_GAME_ACCOUNT_HOST_CPP_KRVAADVONDECLINE_RVA; // 0xc19e84c
+constexpr uint64_t kRvaAdvUpdate          = PGR_GAME_ACCOUNT_HOST_CPP_KRVAADVUPDATE_RVA; // 0xc19e868
 
-constexpr unsigned char kPrefixPlayerGetId[24] = {0x08,0x84,0x40,0xf9,0x88,0x00,0x00,0xb4,0x00,0x79,0x40,0xf9,0x40,0x00,0x00,0xb4,0xc0,0x03,0x5f,0xd6,0xc8,0xf4,0x02,0x90};
-constexpr unsigned char kPrefixPlayerGetName[24] = {0x08,0x84,0x40,0xf9,0x88,0x00,0x00,0xb4,0x00,0x0d,0x40,0xf9,0x40,0x00,0x00,0xb4,0xc0,0x03,0x5f,0xd6,0xc8,0xf4,0x02,0x90};
-constexpr unsigned char kPrefixAuthIsConnected[24] = {0x00,0x60,0x40,0x39,0xc0,0x03,0x5f,0xd6,0x01,0x60,0x00,0x39,0xc0,0x03,0x5f,0xd6,0xfe,0x57,0xbe,0xa9,0xf4,0x4f,0x01,0xa9};
-constexpr unsigned char kPrefixAuthCachedCreds[24] = {0xfe,0x0f,0x1f,0xf8,0x0a,0x00,0x00,0x94,0xc0,0x00,0x00,0xb4,0x08,0x10,0x40,0xb9,0x88,0x00,0x00,0x34,0x20,0x00,0x80,0x52};
-constexpr unsigned char kPrefixWrapperLogout[24] = {0xfe,0x57,0xbe,0xa9,0xf4,0x4f,0x01,0xa9,0xf4,0x4e,0x02,0xd0,0xf3,0x03,0x00,0xaa,0x88,0x26,0x56,0x39,0xa8,0x01,0x00,0x37};
-constexpr unsigned char kPrefixAuthLogout[24] = {0xfe,0x0f,0x1c,0xf8,0xf8,0x5f,0x01,0xa9,0xf6,0x57,0x02,0xa9,0xf4,0x4f,0x03,0xa9,0xb3,0x6c,0x01,0xd0,0xf4,0x03,0x00,0xaa};
-constexpr unsigned char kPrefixPrefsHasKey[24] = {0xff,0xc3,0x00,0xd1,0xfe,0x57,0x01,0xa9,0xf4,0x4f,0x02,0xa9,0x14,0xb5,0x00,0xb0,0xf3,0x03,0x00,0xaa,0x88,0xf2,0x5d,0x39};
-constexpr unsigned char kPrefixPrefsDeleteKey[24] = {0xff,0xc3,0x00,0xd1,0xfe,0x57,0x01,0xa9,0xf4,0x4f,0x02,0xa9,0x14,0xb5,0x00,0xb0,0xf3,0x03,0x00,0xaa,0x88,0xf6,0x5d,0x39};
-constexpr unsigned char kPrefixPrefsSave[24] = {0xfe,0x4f,0xbf,0xa9,0x13,0xb5,0x00,0xb0,0x60,0xc2,0x43,0xf9,0x60,0x00,0x00,0xb4,0xfe,0x4f,0xc1,0xa8,0x00,0x00,0x1f,0xd6};
+constexpr unsigned char kPrefixPlayerGetId[24] = PGR_GAME_ACCOUNT_HOST_CPP_KPREFIXPLAYERGETID_FINGERPRINT;
+constexpr unsigned char kPrefixPlayerGetName[24] = PGR_GAME_ACCOUNT_HOST_CPP_KPREFIXPLAYERGETNAME_FINGERPRINT;
+constexpr unsigned char kPrefixAuthIsConnected[24] = PGR_GAME_ACCOUNT_HOST_CPP_KPREFIXAUTHISCONNECTED_FINGERPRINT;
+constexpr unsigned char kPrefixAuthCachedCreds[24] = PGR_GAME_ACCOUNT_HOST_CPP_KPREFIXAUTHCACHEDCREDS_FINGERPRINT;
+constexpr unsigned char kPrefixWrapperLogout[24] = PGR_GAME_ACCOUNT_HOST_CPP_KPREFIXWRAPPERLOGOUT_FINGERPRINT;
+constexpr unsigned char kPrefixAuthLogout[24] = PGR_GAME_ACCOUNT_HOST_CPP_KPREFIXAUTHLOGOUT_FINGERPRINT;
+constexpr unsigned char kPrefixPrefsHasKey[24] = PGR_GAME_ACCOUNT_HOST_CPP_KPREFIXPREFSHASKEY_FINGERPRINT;
+constexpr unsigned char kPrefixPrefsDeleteKey[24] = PGR_GAME_ACCOUNT_HOST_CPP_KPREFIXPREFSDELETEKEY_FINGERPRINT;
+constexpr unsigned char kPrefixPrefsSave[24] = PGR_GAME_ACCOUNT_HOST_CPP_KPREFIXPREFSSAVE_FINGERPRINT;
 
-constexpr unsigned char kPrefixAdvInitInitial[24] = {0xfe,0x0f,0x1a,0xf8,0xfc,0x6f,0x01,0xa9,0xfa,0x67,0x02,0xa9,0xf8,0x5f,0x03,0xa9,0xf6,0x57,0x04,0xa9,0xf4,0x4f,0x05,0xa9};
-constexpr unsigned char kPrefixAdvInitInstruction[24] = {0xfd,0x7b,0xba,0xa9,0xfc,0x6f,0x01,0xa9,0xfa,0x67,0x02,0xa9,0xf8,0x5f,0x03,0xa9,0xf6,0x57,0x04,0xa9,0xf4,0x4f,0x05,0xa9};
-constexpr unsigned char kPrefixAdvInitResult[24] = {0xff,0xc3,0x01,0xd1,0xfd,0x7b,0x01,0xa9,0xfc,0x6f,0x02,0xa9,0xfa,0x67,0x03,0xa9,0xf8,0x5f,0x04,0xa9,0xf6,0x57,0x05,0xa9};
-constexpr unsigned char kPrefixAdvOnConfirm[24] = {0x08,0x54,0x40,0xf9,0xa8,0x00,0x00,0xb4,0x00,0x21,0x40,0xf9,0x01,0x15,0x40,0xf9,0x02,0x0d,0x40,0xf9,0x40,0x00,0x1f,0xd6};
-constexpr unsigned char kPrefixAdvOnDecline[24] = {0x08,0x58,0x40,0xf9,0xa8,0x00,0x00,0xb4,0x00,0x21,0x40,0xf9,0x01,0x15,0x40,0xf9,0x02,0x0d,0x40,0xf9,0x40,0x00,0x1f,0xd6};
-constexpr unsigned char kPrefixAdvUpdate[24] = {0xfe,0x0f,0x1e,0xf8,0xf4,0x4f,0x01,0xa9,0xf4,0x7d,0x01,0xf0,0xf3,0x03,0x00,0xaa,0x88,0xd2,0x47,0xf9,0xa8,0x00,0x00,0xb4};
+constexpr unsigned char kPrefixAdvInitInitial[24] = PGR_GAME_ACCOUNT_HOST_CPP_KPREFIXADVINITINITIAL_FINGERPRINT;
+constexpr unsigned char kPrefixAdvInitInstruction[24] = PGR_GAME_ACCOUNT_HOST_CPP_KPREFIXADVINITINSTRUCTION_FINGERPRINT;
+constexpr unsigned char kPrefixAdvInitResult[24] = PGR_GAME_ACCOUNT_HOST_CPP_KPREFIXADVINITRESULT_FINGERPRINT;
+constexpr unsigned char kPrefixAdvOnConfirm[24] = PGR_GAME_ACCOUNT_HOST_CPP_KPREFIXADVONCONFIRM_FINGERPRINT;
+constexpr unsigned char kPrefixAdvOnDecline[24] = PGR_GAME_ACCOUNT_HOST_CPP_KPREFIXADVONDECLINE_FINGERPRINT;
+constexpr unsigned char kPrefixAdvUpdate[24] = PGR_GAME_ACCOUNT_HOST_CPP_KPREFIXADVUPDATE_FINGERPRINT;
 
-constexpr uint64_t kOffAuthActiveProvider = 0x98ULL;
-constexpr uint64_t kOffFutureStatus       = 0x40ULL;
-constexpr uint64_t kOffFutureIsDisposed   = 0x30ULL;
-constexpr uint64_t kOffAdvOnConfirm       = 0xa8ULL;
-constexpr uint64_t kOffAdvOnDecline       = 0xb0ULL;
+constexpr uint64_t kOffAuthActiveProvider = PGR_GAME_ACCOUNT_HOST_CPP_KOFFAUTHACTIVEPROVIDER;
+constexpr uint64_t kOffFutureStatus       = PGR_GAME_ACCOUNT_HOST_CPP_KOFFFUTURESTATUS;
+constexpr uint64_t kOffFutureIsDisposed   = PGR_GAME_ACCOUNT_HOST_CPP_KOFFFUTUREISDISPOSED;
+constexpr uint64_t kOffAdvOnConfirm       = PGR_GAME_ACCOUNT_HOST_CPP_KOFFADVONCONFIRM;
+constexpr uint64_t kOffAdvOnDecline       = PGR_GAME_ACCOUNT_HOST_CPP_KOFFADVONDECLINE;
 
 constexpr uint64_t kMaxTokenI64 = 9223372036854775807ULL;
 

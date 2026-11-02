@@ -1,4 +1,5 @@
 #pragma once
+#include "game_bindings.h"
 #include "runtime_metadata.h"
 #include <stddef.h>
 #include <stdint.h>
@@ -40,35 +41,35 @@ inline constexpr ClassSpec kClasses[] = {
 inline constexpr size_t kClassCount = sizeof(kClasses) / sizeof(kClasses[0]);
 
 inline constexpr FieldSpec kFields[] = {
-  {3u, "CapturedPokemonId", 0x20ULL, PGR_MD_FIELD_VALUE,    "System.UInt64", 8u}, // 0  RESP.CapturedPokemonId
-  {0u, "currentState",      0x70ULL, PGR_MD_FIELD_ENUM_I32, nullptr,         4u}, // 1  GUI.currentState
-  {1u, "OnDismissed",       0x2a0ULL,PGR_MD_FIELD_REF,      nullptr,         0u}, // 2  SGUI.OnDismissed
-  {2u, "dsgu",              0xc8ULL, PGR_MD_FIELD_REF,      nullptr,         0u}, // 3  SSTATE.dscx
-  {2u, "dsgv",              0xd0ULL, PGR_MD_FIELD_REF,      nullptr,         0u}, // 4  SSTATE.dscy
-  {3u, "Status",            0x10ULL, PGR_MD_FIELD_ENUM_I32, nullptr,         4u}, // 5  RESP.Status
+  {3u, PGR_GAME_SHARED_METADATA_H_CAPTUREDPOKEMONID_NAME, PGR_GAME_SHARED_METADATA_H_CAPTUREDPOKEMONID_OFFSET, PGR_MD_FIELD_VALUE,    "System.UInt64", 8u}, // 0  RESP.CapturedPokemonId
+  {0u, PGR_GAME_SHARED_METADATA_H_CURRENTSTATE_NAME,      PGR_GAME_SHARED_METADATA_H_CURRENTSTATE_OFFSET, PGR_MD_FIELD_ENUM_I32, nullptr,         4u}, // 1  GUI.currentState
+  {1u, PGR_GAME_SHARED_METADATA_H_ONDISMISSED_NAME,       PGR_GAME_SHARED_METADATA_H_ONDISMISSED_OFFSET,PGR_MD_FIELD_REF,      nullptr,         0u}, // 2  SGUI.OnDismissed
+  {2u, PGR_GAME_SHARED_METADATA_H_DSGU_NAME,              PGR_GAME_SHARED_METADATA_H_DSGU_OFFSET, PGR_MD_FIELD_REF,      nullptr,         0u}, // 3  SSTATE.dscx
+  {2u, PGR_GAME_SHARED_METADATA_H_DSGV_NAME,              PGR_GAME_SHARED_METADATA_H_DSGV_OFFSET, PGR_MD_FIELD_REF,      nullptr,         0u}, // 4  SSTATE.dscy
+  {3u, PGR_GAME_SHARED_METADATA_H_STATUS_NAME,            PGR_GAME_SHARED_METADATA_H_STATUS_OFFSET, PGR_MD_FIELD_ENUM_I32, nullptr,         4u}, // 5  RESP.Status
 };
 inline constexpr size_t kFieldCount = sizeof(kFields) / sizeof(kFields[0]);
 inline constexpr uint32_t kStatusFieldIndex = 5u;
 
-inline constexpr unsigned char kExitState[] = {0xfe,0x67,0xbc,0xa9,0xf8,0x5f,0x01,0xa9,0xf6,0x57,0x02,0xa9,0xf4,0x4f,0x03,0xa9,0xb4,0x24,0x02,0xb0,0xf3,0x03,0x00,0xaa,0x88,0x26,0x53,0x39,0x68,0x05,0x00,0x37};
-inline constexpr unsigned char kDismiss[] = {0xfe,0x0f,0x1d,0xf8,0xf6,0x57,0x01,0xa9,0xf4,0x4f,0x02,0xa9,0x54,0x70,0x02,0xf0,0xf3,0x03,0x00,0xaa,0x88,0xa2,0x7e,0x39,0x68,0x02,0x00,0x36,0x54,0x70,0x02,0xf0};
-inline constexpr unsigned char kInitialize[] = {0xfe,0x0f,0x1a,0xf8,0xfc,0x6f,0x01,0xa9,0xfa,0x67,0x02,0xa9,0xf8,0x5f,0x03,0xa9,0xf6,0x57,0x04,0xa9,0xf4,0x4f,0x05,0xa9,0xb6,0x24,0x02,0x90,0xf5,0x03,0x02,0x2a};
-inline constexpr unsigned char kSetScores[] = {0xff,0x43,0x05,0xd1,0xef,0x3b,0x0b,0x6d,0xed,0x33,0x0c,0x6d,0xeb,0x2b,0x0d,0x6d,0xe9,0x23,0x0e,0x6d,0xfd,0x7b,0x0f,0xa9,0xfc,0x6f,0x10,0xa9,0xfa,0x67,0x11,0xa9};
-inline constexpr unsigned char kHandleOpenComplete[] = {0xfe,0x67,0xbc,0xa9,0xf8,0x5f,0x01,0xa9,0xf6,0x57,0x02,0xa9,0xf4,0x4f,0x03,0xa9,0xf4,0x24,0x02,0xf0,0xf3,0x03,0x00,0xaa,0x88,0xee,0x54,0x39,0x08,0x01,0x00,0x37};
-inline constexpr unsigned char kOpImplicit[] = {0xfe,0x0f,0x1d,0xf8,0xf6,0x57,0x01,0xa9,0xf4,0x4f,0x02,0xa9,0x14,0xb4,0x00,0xf0,0xf3,0x03,0x00,0xaa,0x88,0x6e,0x6f,0x39,0x88,0x02,0x00,0x36,0x14,0x89,0x00,0xf0};
+inline constexpr unsigned char kExitState[] = PGR_GAME_SHARED_METADATA_H_KEXITSTATE_FINGERPRINT;
+inline constexpr unsigned char kDismiss[] = PGR_GAME_SHARED_METADATA_H_KDISMISS_FINGERPRINT;
+inline constexpr unsigned char kInitialize[] = PGR_GAME_SHARED_METADATA_H_KINITIALIZE_FINGERPRINT;
+inline constexpr unsigned char kSetScores[] = PGR_GAME_SHARED_METADATA_H_KSETSCORES_FINGERPRINT;
+inline constexpr unsigned char kHandleOpenComplete[] = PGR_GAME_SHARED_METADATA_H_KHANDLEOPENCOMPLETE_FINGERPRINT;
+inline constexpr unsigned char kOpImplicit[] = PGR_GAME_SHARED_METADATA_H_KOPIMPLICIT_FINGERPRINT;
 
 inline constexpr MethodSpec kMethods[] = {
-  {"exitState",          2u,"ExitState",          "System.Void",   0u,nullptr,                            nullptr,            0u,0xacaeea8ULL,kExitState,         sizeof(kExitState)},          // 0
-  {"dismiss",            0u,"Dismiss",             "System.Void",   0u,nullptr,                            nullptr,            0u,0xa334284ULL,kDismiss,           sizeof(kDismiss)},            // 1
-  {"initialize",         2u,"Initialize",          "System.Void",   2u,"Holoholo.Rpc.CatchPokemonOutProto","System.Boolean",            0u,0xacaf2c8ULL,kInitialize,        sizeof(kInitialize)},         // 2
-  {"setScores",          1u,"SetScores",           "System.Void",   2u,"Holoholo.Rpc.CatchPokemonOutProto","Holoholo.Rpc.Item",0u,0xaca675cULL,kSetScores,         sizeof(kSetScores)},          // 3
-  {"handleOpenComplete", 1u,"HandleOpenComplete",  "System.Void",   0u,nullptr,                            nullptr,            0u,0xaca43d0ULL,kHandleOpenComplete,sizeof(kHandleOpenComplete)}, // 4
-  {"alive",              4u,"op_Implicit",         "System.Boolean",1u,"UnityEngine.Object",                nullptr,            1u,0xdad86c8ULL,kOpImplicit,        sizeof(kOpImplicit)},         // 5
+  {"exitState",          2u,"ExitState",          "System.Void",   0u,nullptr,                            nullptr,            0u,PGR_GAME_SHARED_METADATA_H_KEXITSTATE_RVA,kExitState,         sizeof(kExitState)},          // 0
+  {"dismiss",            0u,"Dismiss",             "System.Void",   0u,nullptr,                            nullptr,            0u,PGR_GAME_SHARED_METADATA_H_KDISMISS_RVA,kDismiss,           sizeof(kDismiss)},            // 1
+  {"initialize",         2u,"Initialize",          "System.Void",   2u,"Holoholo.Rpc.CatchPokemonOutProto","System.Boolean",            0u,PGR_GAME_SHARED_METADATA_H_KINITIALIZE_RVA,kInitialize,        sizeof(kInitialize)},         // 2
+  {"setScores",          1u,"SetScores",           "System.Void",   2u,"Holoholo.Rpc.CatchPokemonOutProto","Holoholo.Rpc.Item",0u,PGR_GAME_SHARED_METADATA_H_KSETSCORES_RVA,kSetScores,         sizeof(kSetScores)},          // 3
+  {"handleOpenComplete", 1u,"HandleOpenComplete",  "System.Void",   0u,nullptr,                            nullptr,            0u,PGR_GAME_SHARED_METADATA_H_KHANDLEOPENCOMPLETE_RVA,kHandleOpenComplete,sizeof(kHandleOpenComplete)}, // 4
+  {"alive",              4u,"op_Implicit",         "System.Boolean",1u,"UnityEngine.Object",                nullptr,            1u,PGR_GAME_SHARED_METADATA_H_KOPIMPLICIT_RVA,kOpImplicit,        sizeof(kOpImplicit)},         // 5
   {"execute",            5u,"ExecuteTasks",        "System.Void",   0u,nullptr,                            nullptr,            1u,0x0ULL,       nullptr,            0u},                          // 6
 };
 inline constexpr size_t kMethodCount = sizeof(kMethods) / sizeof(kMethods[0]);
 
-inline constexpr unsigned char kDebugPrologue[] = {0x68,0x12,0x05,0xd0,0x08,0x55,0x40,0xf9,0x48,0x01,0x00,0xb4,0x69,0x12,0x05,0xd0,0x29,0x59,0x40,0xf9,0xe9,0x00,0x00,0xb4,0x0a,0x04,0x40,0xf9,0x1f,0x01,0x0a,0xeb,0xe8,0x03,0x1f,0x2a,0x28,0x01,0x00,0x54,0x3f,0x01,0x0a,0xeb,0xe3,0x00,0x00,0x54,0xa1,0x00,0x00,0xb4,0x08,0x04,0x40,0xf9,0x3f,0x08,0x00,0xb9,0x3f,0x08,0x00,0xf9,0x28,0x00,0x00,0xf9,0x28,0x00,0x80,0x52,0xe0,0x03,0x08,0x2a,0xc0,0x03,0x5f,0xd6};
+inline constexpr unsigned char kDebugPrologue[] = PGR_GAME_SHARED_METADATA_H_KDEBUGPROLOGUE_FINGERPRINT;
 inline constexpr uint32_t kDebugPrologueLen = sizeof(kDebugPrologue);
 
 // ---------------------------------------------------------------------------------------------------
@@ -144,7 +145,7 @@ inline constexpr ClassSpec kOptClasses[] = {
   {"IENUMERATOR",         "System.Collections",                          "IEnumerator",                               "System.Collections.IEnumerator"},                   // 30
   {"IDISPOSABLE",         "System",                                      "IDisposable",                               "System.IDisposable"},                               // 31
   {"GIFT_BOX_PROTO",      "Holoholo.Rpc",                                "GiftBoxProto",                              "Holoholo.Rpc.GiftBoxProto"},                        // 32
-  {"GIFT_OPEN_SEQ",       "Niantic.Holoholo.Social.Gifting.UI.OpenGiftGuiController", "dbn",                          "Niantic.Holoholo.Social.Gifting.UI.OpenGiftGuiController.dbn"}, // 33
+  {"GIFT_OPEN_SEQ",       "Niantic.Holoholo.Social.Gifting.UI.OpenGiftGuiController", PGR_GAME_SHARED_METADATA_H_DBN_NAME,                          "Niantic.Holoholo.Social.Gifting.UI.OpenGiftGuiController.dbn"}, // 33
   {"OPEN_GIFT_OUT",       "Holoholo.Rpc",                                "OpenGiftOutProto",                          "Holoholo.Rpc.OpenGiftOutProto"},                    // 34
   {"SEND_GIFT_OUT",       "Holoholo.Rpc",                                "SendGiftOutProto",                          "Holoholo.Rpc.SendGiftOutProto"},                    // 35
   {"BUDDY_7757",          "Niantic.Holoholo.Buddy",                      "BuddyObservedDataExt",                      "Niantic.Holoholo.Buddy.BuddyObservedDataExt"},      // 36

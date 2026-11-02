@@ -1,10 +1,10 @@
 """Fetch the private, pinned game input and decode the CI signing key without logging secrets."""
 import base64
-import hashlib
 import os
 from pathlib import Path
 import urllib.parse
 import urllib.request
+from game_update import current_profile, verify_input
 ROOT = Path(__file__).resolve().parents[1]/'pgrazor'
 class HttpsRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
@@ -32,9 +32,7 @@ def main():
                 if total>2_000_000_000: raise ValueError('Input too large')
                 dest.write(chunk)
     except Exception: raise SystemExit('Private game input download failed; check the secret URL') from None
-    expected='7642787f991a30a6249b9225ee1d224a0e6465ba0c85f9f0e2ff781a97f089f3'
-    with output.open('rb') as stream:
-        if hashlib.file_digest(stream,'sha256').hexdigest()!=expected: raise SystemExit('Unsupported game input checksum')
+    verify_input(output, current_profile())
     key=Path(os.environ['PGRAZOR_KEYSTORE']);key.parent.mkdir(parents=True,exist_ok=True)
     key.write_bytes(base64.b64decode(os.environ['PGRAZOR_KEYSTORE_BASE64'],validate=True))
 if __name__=='__main__': main()

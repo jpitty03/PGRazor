@@ -1,3 +1,4 @@
+#include "game_bindings.h"
 #include "buddy_emotion_policy.h"
 #include "shared_metadata.h"
 #include "runtime_bootstrap.h"
@@ -150,7 +151,7 @@ Root start_photo_session(const Permission &p){
 }
 Root photo_request(const Permission &p){
  Root service=resolve("Niantic.Holoholo.ARPhoto","IARPhotoRpcService");require(bool(service),"snapshot service unavailable");
- Root rpc(field<void*>(service.get(),"ejbd","Niantic.Holoholo.Rpc.IRpcHandler"));require(bool(rpc),"snapshot RPC");
+ Root rpc(field<void*>(service.get(),PGR_GAME_BUDDY_EMOTION_CPP_EJBD_NAME,"Niantic.Holoholo.Rpc.IRpcHandler"));require(bool(rpc),"snapshot RPC");
  Root req(fn<void*(*)(void*)>(boot.runtime.object_new)(cls("Holoholo.Rpc","CompleteSnapshotSessionProto")));call(req.get(),".ctor");
  put(req.get(),"PhotoPokemonId","System.UInt64",history.buddy);put(req.get(),"NumPhotosTaken","System.Int32",1);put(req.get(),"SnapshotSessionStartTime","System.Int64",pending.snapshot_started);
  void *open=method(klass(rpc.get()),"SendRpc",5);require(fn<bool(*)(void*)>(boot.meta.method_is_generic)(open),"generic snapshot RPC");

@@ -7,6 +7,7 @@ ROOT=Path(__file__).resolve().parents[1]
 BLOCKED={'.apk','.apkm','.apks','.aab','.jks','.keystore','.p12','.key','.pem','.log','.pyc','.so','.a','.o','.dex'}
 DENIED={'build','input','.artifacts','.local','hermes-swarm','frida-monitor','__pycache__','node_modules','.git'}
 NEW_MODULES={'pgrazor/art_build.py','pgrazor/dex_bridges.py','pgrazor/native_build.py',
+ 'tools/game_update.py','tools/game_bindings.py','docs/GAME_UPDATES.md','pgrazor/native/schema/game/catch_wait.h.in',
  'pgrazor/native_harness.py','pgrazor/runtime_audit.py','tools/native_routes_schema.py','tools/native_gift_schema.py','tools/prepare_native.py',
  'docs/NATIVE_MIGRATION.md','pgrazor/research/README.txt',
  'pgrazor/runtime/compiled-google-signin.js','pgrazor/runtime/compiled-location.js',
