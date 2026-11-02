@@ -113,7 +113,7 @@ public final class TransferKeepDialog {
                 .create();
             dialog.setOnDismissListener(d -> closed = true);
             dialog.setOnShowListener(d -> {
-                MapTheme.style(body); MapTheme.styleButtons(dialog);
+                MapTheme.style(body); MapTheme.styleButtons(dialog); MapTheme.gameFooter(dialog, null);
                 // Clear only empties the selection; the user can still Save or Cancel afterwards.
                 dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
                     selected.clear(); adapter.notifyDataSetChanged(); updateCount();

@@ -9,7 +9,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
- * Immutable snapshot of the LivePokeMap display-filter set shared by the viewport and My Shinies
+ * Immutable snapshot of the PoGoCoordinates display-filter set shared by the viewport and My Shinies
  * requests. Exactly the 21 filter keys observed on the wire are modelled; every default is broad/off
  * so a freshly constructed instance hides nothing it has not been told to hide.
  *
@@ -161,6 +161,21 @@ public final class LiveFeedFilters {
         f.put("filter_xxl", filterXxl);
         return f;
     }
+
+    public boolean isShinyOnly() { return shinyOnly; }
+    public boolean isShowMyShinies() { return showMyShinies; }
+    public boolean isFilterXxs() { return filterXxs; }
+    public boolean isBackgroundOnly() { return backgroundOnly; }
+    public boolean isShowPvpGreat() { return showPvpGreat; }
+    public boolean isShowPvpUltra() { return showPvpUltra; }
+    public int getPvpMaxRank() { return pvpMaxRank; }
+    public boolean isFilterXxl() { return filterXxl; }
+    public int getMinIv() { return minIv; }
+    public int getMaxIv() { return maxIv; }
+    public int getMinLevel() { return minLevel; }
+    public int getMaxLevel() { return maxLevel; }
+    public String getSpeciesMode() { return speciesMode; }
+    public List<Integer> getSpeciesList() { return speciesList; }
 
     private JSONArray speciesJson() {
         JSONArray array = new JSONArray();

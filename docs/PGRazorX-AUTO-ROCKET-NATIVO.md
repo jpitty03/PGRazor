@@ -1,0 +1,19 @@
+# Auto Rocket nativo — 0.1.8 (sin publicar)
+
+Port del parche original `0007-PGRazorX-Full-auto-Team-Rocket.patch` de 0.1.6. Usa el combate C++ existente (rápidos, cargados, escudos y minijuego); añade un controlador nativo de flujo, sin instalar nuevos hooks en los métodos de combate.
+
+En **Ajustes → Team Rocket** aparecen **Full auto Rocket** y **Fight leaders too**, junto a los tres controles manuales. Full auto empieza apagado. La opción Skip rescue encounter se ha retirado: Full auto siempre intenta rescatar y capturar al Pokémon oscuro; el antiguo bit 32 se elimina al cargar o importar ajustes.
+
+Con Full auto activado, el módulo abre una parada invadida al alcance mientras el mapa está disponible, sale de ella sin solicitar un giro, avanza los diálogos conocidos, pulsa BATTLE y envía el equipo que ya tienes seleccionado. Tras el combate solicita Rescue; Done se conserva como salida de respaldo si Rescue no abre el encuentro. En el rescate selecciona Premier Ball y solicita un gesto de lanzamiento, uno cada cuatro segundos como máximo y nunca mientras haya una bola en juego. La calificación y la curva siguen los ajustes de Throws; no se promete Excelente si no lo has seleccionado allí.
+
+Los líderes tienen una espera adicional al salir de su parada. Se identifica su personaje por los nombres de las constantes del enum del juego, no por números inventados. Los personajes desconocidos se omiten si no se han autorizado líderes. La confirmación de radar sólo se considera durante el flujo iniciado por BATTLE y con líderes habilitados. No pulsa botones Battle de pantallas arbitrarias ajenas al flujo.
+
+La política aplica una acción por paso; espera a que los diálogos y el equipo se estabilicen; envía cada equipo una sola vez por batalla; y evita reabrir una parada intentada durante 90 segundos. Mantiene un contexto de flujo de dos minutos, renovado mientras observa el combate o rescate. Quick Spin queda bloqueado durante la salida de la parada propia del flujo.
+
+Las clases, firmas, tipos de campos, herencia y sobrecargas de Unity se comprueban antes de usar sus métodos. Se invocan a través de `il2cpp_runtime_invoke`, sin llamadas a direcciones supuestas. Las referencias administradas usan handles LP64 fijados, se liberan en el hilo propietario y se contabilizan durante la limpieza. Un contrato ausente deja el flujo indisponible; una excepción administrada lo pausa. La captura es opcional si su contrato no está disponible: en ese caso la fase de lanzamiento necesita intervención manual.
+
+Los gestos viajan por la trama nativa 17, acción 59 `rocketAutoSwipe(command, expires)`. Java comprueba generación, vencimiento máximo de 200 ms, primer plano, soporte y panel cerrado antes de encolar y ejecutar. El gesto se comprueba de nuevo en cada paso y se cancela si pierde autorización. El contador se invalida al cambiar opciones o abrir/cerrar ajustes. Una lectura de transporte transitoria revoca acciones sin conservar una autorización caducada.
+
+Registros: canal `rocket-auto` (`ready`, `unavailable`, `status`, `error`), `rocket-options`, `rocket-auto-swipe` y `rocket-auto-touch-error`. El estado se muestra en la sección Team Rocket. Las entradas indican soporte y últimas acciones, no garantizan que el servidor haya aceptado la operación.
+
+Validación sin móvil: pruebas de política C++ ejecutada en el host, máscara 0–63 y combinación con combate manual, esperas, envío único de equipo, Rescue/Done, Premier Ball, cadencia y bola en vuelo, caché acotada y revocación. Pruebas Java reales de persistencia, primer plano, pausa del panel, apagado y caducidad. Protocolo de configuración y gesto con enteros de 64 bits. Compilación Java Android y pruebas de políticas nativas del host. El contribuidor informa prueba en HONOR WIN con Android 17; los resultados de fixtures se registran por separado de la observación móvil.

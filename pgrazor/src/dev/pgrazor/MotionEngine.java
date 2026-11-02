@@ -68,6 +68,8 @@ public final class MotionEngine {
     private boolean looping;
     private boolean plannedRoute;
     private long routeGeneration;
+    /** PGRazorX: completed laps of a looping route (0 during the first lap). */
+    private int laps;
     /** Nonzero only for an active planned route, including a one-stop GPX/Autowalk. */
     public synchronized long activeRouteToken() {return walking&&plannedRoute?routeGeneration:0;}
     /** Retains ownership after arrival; changes on cancellation or replacement. */
@@ -85,6 +87,35 @@ public final class MotionEngine {
         RouteProgress(int total, int visited, boolean active, double remainingMeters) {
             this.total=total; this.visited=visited; this.active=active; this.remainingMeters=remainingMeters;
         }
+    }
+    /**
+     * PGRazorX: what the world map draws for the active planned route. {@code points} is a copy of the
+     * route, or null when the caller already holds the route of {@code token} (routes can be large).
+     */
+    public static final class RouteView {
+        public final long token;
+        public final double[][] points;
+        /** Index of the stop being walked to; earlier stops are done in this lap. */
+        public final int next, lap;
+        public final boolean looping;
+        /** To the last stop, plus the closing leg back to the first stop for a loop. */
+        public final double remainingMeters, lapMeters;
+        RouteView(long token,double[][] points,int next,int lap,boolean looping,double remainingMeters,double lapMeters) {
+            this.token=token;this.points=points;this.next=next;this.lap=lap;this.looping=looping;
+            this.remainingMeters=remainingMeters;this.lapMeters=lapMeters;
+        }
+    }
+    /** Null when no planned route (Autowalk or GPX) is running. */
+    public synchronized RouteView routeView(long knownToken) {
+        long token=activeRouteToken();
+        if(token==0||route.length==0||visitedStops>=route.length)return null;
+        double[][] copy=null;
+        if(knownToken!=token){copy=new double[route.length][];for(int i=0;i<route.length;i++)copy[i]=route[i].clone();}
+        double closing=looping&&route.length>1
+            ?angle(unit(route[route.length-1][0],route[route.length-1][1]),unit(route[0][0],route[0][1]))*EARTH_RADIUS_METERS:0;
+        double remaining=remainingLegMeters[visitedStops]
+            +angle(unit(latitude,longitude),unit(route[visitedStops][0],route[visitedStops][1]))*EARTH_RADIUS_METERS+closing;
+        return new RouteView(token,copy,visitedStops,laps+1,looping,remaining,remainingLegMeters[0]+closing);
     }
     public synchronized RouteProgress routeProgress() {
         // Only the current leg changes each tick; GPX routes can have thousands of points.
@@ -128,7 +159,7 @@ public final class MotionEngine {
         double[] legs=new double[copy.length];
         for(int i=copy.length-2;i>=0;i--)legs[i]=legs[i+1]
             +angle(unit(copy[i][0],copy[i][1]),unit(copy[i+1][0],copy[i+1][1]))*EARTH_RADIUS_METERS;
-        resetIdle();route=copy; remainingLegMeters=legs; visitedStops=0; looping=loop;plannedRoute=true;routeGeneration++;
+        resetIdle();route=copy; remainingLegMeters=legs; visitedStops=0; looping=loop;plannedRoute=true;routeGeneration++;laps=0;
         targetLatitude=route[0][0]; targetLongitude=route[0][1];
         east = north = 0;
         enabled = true;
@@ -149,7 +180,7 @@ public final class MotionEngine {
         if (Math.hypot(east, north) > 0.05)
             bearing = (Math.toDegrees(Math.atan2(east, north)) + 360) % 360;
     }
-    private void clearRoute() { plannedRoute=false;routeGeneration++;walking=false; route=new double[0][]; remainingLegMeters=new double[0]; visitedStops=0; looping=false; }
+    private void clearRoute() { plannedRoute=false;routeGeneration++;walking=false; route=new double[0][]; remainingLegMeters=new double[0]; visitedStops=0; looping=false; laps=0; }
     public synchronized void stop() { resetIdle();clearRoute(); east = north = 0; }
     /** Camera invalidation stops manual velocity without cancelling a walk or its arrival ownership. */
     public synchronized void stopManualMotion() { east = north = 0; }
@@ -193,7 +224,7 @@ public final class MotionEngine {
     private void arrive() {
         latitude = targetLatitude; longitude = targetLongitude;
         visitedStops++;
-        if (visitedStops>=route.length) visitedStops = looping ? 0 : route.length;
+        if (visitedStops>=route.length) { if (looping) { visitedStops=0; laps++; } else visitedStops=route.length; }
         walking = looping ? route.length>0 : visitedStops<route.length;
         if (walking) { targetLatitude=route[visitedStops][0]; targetLongitude=route[visitedStops][1]; }
         east = north = 0;

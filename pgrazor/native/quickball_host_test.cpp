@@ -104,6 +104,7 @@ QFORWARD(pgrazor_always_hit_api,7)
 QFORWARD(pgrazor_ar_throw_api,5)
 QFORWARD(pgrazor_map_tap_api,13)
 QFORWARD(pgrazor_iv_display_api,15)
+QFORWARD(pgrazor_runtime_metadata_api,47)
 QFORWARD(pgrazor_runtime_transport_api,52)
 QFORWARD(pgrazor_runtime_bootstrap_api,54)
 QFORWARD(pgrazor_unity_scheduler_api,48)
@@ -152,8 +153,16 @@ int main(int argc,char **argv){
   if(!std::strcmp(event_out.kind,"map-tap")){saw_map=true;assert(std::strstr(event_out.json,"12.250000")&&std::strstr(event_out.json,"\"epoch\":17"));}
   if(!std::strcmp(event_out.kind,"speed-applied"))saw_speed=true;
  }assert(saw_outcome&&saw_map&&saw_speed);
+ // Mode 4 reaches the real native throws leaf through the production host.
+ auto random_settings=settings;random_settings.grade=PGR_THROW_RANDOM;
+ assert(host->set_options(&random_settings)==0&&host->tick(gettid())==0);
+ value={1,0.5f,0,0,0,0xa5};assert(host->rewrite_submit(&ball,&value)==0);
+ auto throws_api=static_cast<const PgrThrowApi*>(core->query_feature(1,1));PgrThrowSample random_sample{};
+ assert(throws_api&&throws_api->sample(&random_sample)==0&&random_sample.grade>=1&&random_sample.grade<=3);
+ call_hit(&encounter,value,nullptr);assert(!std::memcmp(&value,&last_hit,sizeof(value)));
+ assert(host->set_options(&settings)==0&&host->tick(gettid())==0);
  // Invalid settings revoke and cannot revive an earlier deadline on the next tick.
- bad=config;auto invalid=settings;invalid.grade=4;assert(host->set_options(&invalid)==PGR_QBH_BAD_CONFIG);assert(host->tick(gettid())==0);
+ bad=config;auto invalid=settings;invalid.grade=5;assert(host->set_options(&invalid)==PGR_QBH_BAD_CONFIG);assert(host->tick(gettid())==0);
  PgrThrowValue unchanged{1,0.5f,0,0,0,0};value=unchanged;host->rewrite_submit(&ball,&value);assert(!std::memcmp(&value,&unchanged,sizeof(value)));
  assert(root_count==0);
  // Deadline belongs to settings, never to repeated ticks.

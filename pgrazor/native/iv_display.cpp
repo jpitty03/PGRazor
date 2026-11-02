@@ -1,4 +1,6 @@
+#include "patch_work_budget.h"
 #include "iv_display.h"
+#include "pvp_rank.h"
 #include "hook_engine.h"
 
 #include <atomic>
@@ -33,7 +35,7 @@ static_assert(offsetof(PgrIvDisplayConfig, reserved) == 8 + 77 * 8 + 12, "layout
 namespace {
 
 constexpr uint64_t kMaxLeaseMs = PGR_IV_MAX_LEASE_MS;
-constexpr int kLabelCap = PGR_IV_LABEL_CAP;
+constexpr int kLabelCap = 2048; // internal UI buffers; API1 telemetry remains 256 bytes
 
 // --- il2cpp runtime ABI typedefs ---------------------------------------------------
 using GcNew = uintptr_t (*)(void *obj, int pinned);
@@ -59,6 +61,12 @@ using OwnedFn = void (*)(void *self, void *proto, const void *method);
 std::mutex g_install_mutex;
 std::mutex g_state_mutex;
 PgrIvDisplayConfig g_cfg{};
+PgrIvPvpConfig g_pvp{};
+std::atomic<bool> g_pvp_ready{false};
+PgrIvCellConfig g_cells_cfg{};
+std::atomic<bool> g_cells_configured{false},g_cells_hooked{false},g_cells_fault{false};
+using CellFn=void(*)(void*,void*,const void*);
+std::atomic<CellFn> g_orig_cell{nullptr};
 bool g_outline_available = false;
 std::atomic<bool> g_installed{false};
 bool g_install_attempted = false;
@@ -105,14 +113,19 @@ struct Record {
   uintptr_t text;    // durable GC root to the UI.Text
   uintptr_t outline; // durable GC root to the UI.Outline (0 when none)
   bool applied;
+  bool cell;
+  bool cell_stale;
+  uint64_t cell_warm_until;
   bool outline_created;
   bool outline_enabled;  // snapshotted enabled state (restore target)
   int32_t font_size, rich, fit, overflow, alignment;
+  int32_t vertical;bool pvp_lines;
   float outline_color[4];
   float outline_distance[2];
   char original[kLabelCap];  // the game's authentic label (restore target)
   char label[kLabelCap];     // the overlay label we write (ownership proof on restore)
 };
+Record g_cell_recs[96]{};uint32_t g_cell_count=0,g_cell_audit_cursor=0;uint64_t g_cell_next=0;
 Record g_catch_rec{};
 std::atomic<bool> g_catch_present{false};
 Record g_owned_recs[PGR_IV_MAX_OWNED]{};
@@ -485,7 +498,7 @@ void build_labels(bool owned, const char *original, int32_t cp, int32_t level_ha
   char iv[16], color[8], lv[8];
   iv_color(attack, defense, stamina, valid_iv, iv, color);
   fmt_level(level_half, lv);
-  char suffix[128];
+  char suffix[256];
   std::snprintf(suffix, sizeof(suffix), " \xc2\xb7 Lv %s \xc2\xb7 <color=\"%s\">IV %s</color>", lv,
                 color, iv);
   char cp_part[16];
@@ -493,6 +506,7 @@ void build_labels(bool owned, const char *original, int32_t cp, int32_t level_ha
     std::snprintf(cp_part, sizeof(cp_part), "%d", cp);
   else
     std::snprintf(cp_part, sizeof(cp_part), "--");
+  if(valid_iv){const size_t at=std::strlen(suffix);std::snprintf(suffix+at,sizeof(suffix)-at," \xc2\xb7 <color=\"#a8f0c6\">%d/%d/%d</color>",attack,defense,stamina);}
   std::snprintf(full_out, kLabelCap, "%s%s", cp_part, suffix);
   if (owned)
     std::snprintf(overlay_out, kLabelCap, "<b>%s%s</b>", original, suffix);
@@ -774,11 +788,44 @@ void prepare_outline(Record &r) {
 
 // --- overlay apply / restore (owner thread) ----------------------------------------
 void render(Record &r, bool enabled, Ctx &c) {
-  if (r.applied == enabled) return;
+  if (r.applied == enabled) {
+    if (!r.cell || !enabled || !c.ok) return;
+    // Initial layout/name refresh can replace our text after Initialize.
+    // Audit live cells even when the cached applied flag is already true.
+    char current[kLabelCap];void *obj=refresh_durable(r.text,c);
+    if(!obj||!get_text(obj,current,sizeof(current),c))return;
+    if(std::strcmp(current,r.label)==0){
+      obj=refresh_durable(r.text,c);bool styled=obj&&boxed_bool(g_cfg.m_get_rich,obj,nullptr,c);
+      if(r.pvp_lines){obj=refresh_durable(r.text,c);if(obj)styled=styled&&boxed_enum(g_pvp.get_vertical,obj,g_pvp.vertical_class,c)==g_pvp.vertical_overflow;}
+      if(!c.ok||styled)return;
+    }else if(std::strcmp(current,r.original)!=0){r.cell_stale=true;return;}
+    r.applied=false; // repair only our label or the authentic same-Pokemon name
+  }
   if (!c.ok) return;
   if ((r.text ? gc_get()(r.text) : nullptr) == nullptr) {
     // A dead target is not a channel fault; the caller drops the record on the next pass.
     r.applied = false;
+    return;
+  }
+  if(r.cell){
+    if(enabled){
+      if(!check_apply_gate(c))return;
+      char current[kLabelCap];void *obj=refresh_durable(r.text,c);
+      if(!obj||!get_text(obj,current,sizeof(current),c))return;
+      if(std::strcmp(current,r.original)!=0&&std::strcmp(current,r.label)!=0){r.cell_stale=true;return;}
+      r.applied=true;
+      set_i32_rooted(g_cfg.m_set_rich,r.text,1,c);
+      if(r.pvp_lines)set_i32_rooted(g_pvp.set_vertical,r.text,g_pvp.vertical_overflow,c);
+      set_text_rooted(r.text,r.label,c);
+      if(c.ok&&g_apply_scope.active&&g_apply_scope.revoked){ApplyScope saved=g_apply_scope;g_apply_scope={};render(r,false,c);g_apply_scope=saved;}
+    }else{
+      ApplyScope saved=g_apply_scope;g_apply_scope={};char current[kLabelCap];Ctx read;
+      void *obj=gc_get()(r.text);bool got=obj&&get_text(obj,current,sizeof(current),read);
+      set_i32_rooted(g_cfg.m_set_rich,r.text,r.rich,c);
+      if(r.pvp_lines)set_i32_rooted(g_pvp.set_vertical,r.text,r.vertical,c);
+      if(got&&std::strcmp(current,r.label)==0)set_text_rooted(r.text,r.original,c);
+      r.applied=false;g_apply_scope=saved;
+    }
     return;
   }
   if (enabled) {
@@ -794,6 +841,7 @@ void render(Record &r, bool enabled, Ctx &c) {
     set_i32_rooted(g_cfg.m_set_font, r.text, fs, c);
     set_i32_rooted(g_cfg.m_set_overflow, r.text, g_cfg.overflow_value, c);
     set_i32_rooted(g_cfg.m_set_alignment, r.text, g_cfg.alignment_value, c);
+    if(r.pvp_lines)set_i32_rooted(g_pvp.set_vertical,r.text,g_pvp.vertical_overflow,c);
     set_text_rooted(r.text, r.label, c);
     // A revocation part-way through leaves a half-styled label: restore the authentic style
     // (as an ungated restore) without faulting the channel -- cancellation is not an error.
@@ -817,6 +865,7 @@ void render(Record &r, bool enabled, Ctx &c) {
     set_i32_rooted(g_cfg.m_set_font, r.text, r.font_size, c);
     set_i32_rooted(g_cfg.m_set_overflow, r.text, r.overflow, c);
     set_i32_rooted(g_cfg.m_set_alignment, r.text, r.alignment, c);
+    if(r.pvp_lines)set_i32_rooted(g_pvp.set_vertical,r.text,r.vertical,c);
     // Only restore our label if the game has not independently refreshed it.
     if (got && std::strcmp(cur, r.label) == 0) set_text_rooted(r.text, r.original, c);
     r.applied = false;
@@ -893,7 +942,7 @@ void evict_oldest_owned() {
 // Snapshot the authentic UI state, build the overlay and apply/restore per the gate. On
 // any error the partial record's roots are freed and the channel faults.
 void capture_overlay(bool is_catch, void *text_obj, int32_t cp, int32_t level_half, int atk,
-                     int def, int sta, uint64_t tid) {
+                     int def, int sta, uint64_t tid, int dex=0,int form=0,double multiplier=0) {
   // Use the generation pinned at hook entry, including an explicitly disabled zero value.
   // Only callers without a pinned generation take a fresh snapshot. A zero result
   // means the channel was disabled/expired: the record is still captured, just left un-applied
@@ -958,6 +1007,21 @@ void capture_overlay(bool is_catch, void *text_obj, int32_t cp, int32_t level_ha
     return;
   }
 
+  if(g_pvp_ready.load(std::memory_order_acquire)&&dex>0){
+    char lines[kLabelCap]{};
+    if(pgr_pvp::lines(dex,form,atk,def,sta,multiplier,!is_catch,lines,sizeof(lines))){
+      Ctx optional;void *text=refresh_durable(r.text,optional);
+      if(text)r.vertical=boxed_enum(g_pvp.get_vertical,text,g_pvp.vertical_class,optional);
+      if(optional.ok){
+        size_t length=std::strlen(r.label),extra=std::strlen(lines);
+        const bool bold=!is_catch&&length>=4&&std::strcmp(r.label+length-4,"</b>")==0;
+        if(length+extra<sizeof(r.label)){
+          if(bold)length-=4;std::memcpy(r.label+length,lines,extra+1);
+          if(bold)std::memcpy(r.label+length+extra,"</b>",5);r.pvp_lines=true;
+        }
+      }
+    }
+  }
   // Open the apply scope (AddComponent in prepare_outline and every setter in render are now
   // gated/revocable). apply_gen == 0 => born-revoked (captured while disabled/expired).
   g_apply_scope = ApplyScope{true, is_catch, apply_gen, apply_gen == 0};
@@ -1034,6 +1098,12 @@ int32_t resolve_level(void *gm, float cpmul, float addcpmul, Ctx &c) {
   return level_half;
 }
 
+bool pvp_identity(void *pokemon,int &dex,int &form){
+  dex=0;form=0;if(!g_pvp_ready.load(std::memory_order_acquire))return false;
+  const int id=field_i32(pokemon,g_pvp.species);void *display=field_ptr(pokemon,g_pvp.display);
+  if(display&&obj_class()(display)!=g_pvp.display_class)return false;
+  const int f=display?field_i32(display,g_pvp.form):0;if(id<=0||f<0)return false;dex=id;form=f;return true;
+}
 // --- capture bodies (onLeave halves) -----------------------------------------------
 void capture_catch(void *plate, void *map, uint64_t tid) {
   Ctx c;
@@ -1111,6 +1181,7 @@ void capture_catch(void *plate, void *map, uint64_t tid) {
     return;
   }
 
+  int dex=0,form=0;pvp_identity(pokemon_root.target(),dex,form);
   void *text_obj = field_ptr(plate, g_cfg.f_plate_text);
   ScopedRoot text_root;
   text_root.acquire(text_obj);
@@ -1131,7 +1202,7 @@ void capture_catch(void *plate, void *map, uint64_t tid) {
     publish_catch_unavailable(c.reason, tid);
     return;
   }
-  capture_overlay(true, text_obj, cp, level_half, atk, def, sta, tid);
+  capture_overlay(true, text_obj, cp, level_half, atk, def, sta, tid,dex,form,float(cpmul+addcpmul));
 }
 
 void capture_owned(void *panel, void *proto, uint64_t tid) {
@@ -1153,6 +1224,7 @@ void capture_owned(void *panel, void *proto, uint64_t tid) {
     return;
   }
 
+  int dex=0,form=0;pvp_identity(proto,dex,form);
   void *text_obj = field_ptr(panel, g_cfg.f_panel_cptext);
   ScopedRoot text_root;
   text_root.acquire(text_obj);
@@ -1173,7 +1245,7 @@ void capture_owned(void *panel, void *proto, uint64_t tid) {
     publish_owned_unavailable(c.reason, tid);
     return;
   }
-  capture_overlay(false, text_obj, cp, level_half, atk, def, sta, tid);
+  capture_overlay(false, text_obj, cp, level_half, atk, def, sta, tid,dex,form,float(cpmul+addcpmul));
 }
 
 // --- hooks -------------------------------------------------------------------------
@@ -1396,6 +1468,60 @@ bool validate_config(const PgrIvDisplayConfig *c, int *out_rc) {
   return true;
 }
 
+
+// Inventory-grid labels have independent records and faults; the panel/catch overlays keep working.
+void drop_cell_at(uint32_t at){
+  Record rec=g_cell_recs[at];for(uint32_t j=at;j+1<g_cell_count;++j)g_cell_recs[j]=g_cell_recs[j+1];
+  g_cell_recs[--g_cell_count]={};drop_record(rec);
+}
+void drop_cells_matching(void *text){
+  for(uint32_t i=0;i<g_cell_count;)if(!text||gc_get()(g_cell_recs[i].text)==text)drop_cell_at(i);else ++i;
+}
+void capture_cell(ScopedRoot &cell,ScopedRoot &initializer,uint64_t generation){
+  ScopedRoot text,pokemon;
+  text.acquire(field_ptr(cell.target(),g_cells_cfg.name_text));
+  if(!text.ok()||!assignable()(g_cfg.class_text,obj_class()(text.target())))return;
+  pokemon.acquire(field_ptr(initializer.target(),g_cells_cfg.pokemon_proto));
+  if(!pokemon.ok()||!is_exact(pokemon.target(),g_cfg.class_pokemon))return;
+  int cp=field_i32(pokemon.target(),g_cfg.f_cp),a=field_i32(pokemon.target(),g_cfg.f_atk),d=field_i32(pokemon.target(),g_cfg.f_def),s=field_i32(pokemon.target(),g_cfg.f_sta);
+  if(cp<=0||a<0||a>15||d<0||d>15||s<0||s>15)return;
+  float multiplier=field_f32(pokemon.target(),g_cfg.f_cpmul)+field_f32(pokemon.target(),g_cfg.f_addcpmul);
+  int dex=0,form=0;pvp_identity(pokemon.target(),dex,form);char extra[256]{};
+  if(!pgr_pvp::cell_summary(dex,form,a,d,s,multiplier,extra,sizeof(extra)))return;
+  if(g_cell_count==96)drop_cell_at(0);
+  Record rec{};rec.cell=true;uint64_t born=0;if(read_boottime_ms(&born))rec.cell_warm_until=born+1000;rec.text=hold_durable(text.target());if(!rec.text){g_cells_fault.store(true);return;}
+  Ctx c;void *obj=refresh_durable(rec.text,c);if(obj)get_text(obj,rec.original,sizeof(rec.original),c);
+  obj=refresh_durable(rec.text,c);if(obj)rec.font_size=boxed_int(g_cfg.m_get_font,obj,nullptr,c);
+  obj=refresh_durable(rec.text,c);if(obj)rec.rich=boxed_bool(g_cfg.m_get_rich,obj,nullptr,c)?1:0;
+  if(g_pvp_ready.load(std::memory_order_acquire)){
+    obj=refresh_durable(rec.text,c);if(obj)rec.vertical=boxed_enum(g_pvp.get_vertical,obj,g_pvp.vertical_class,c);rec.pvp_lines=c.ok;
+  }
+  int draw=static_cast<int>(std::floor(rec.font_size*0.56+0.5));if(draw<7)draw=7;
+  int length=std::snprintf(rec.label,sizeof(rec.label),"%s\n<size=%d>%s</size>",rec.original,draw,extra);
+  if(!c.ok||length<0||static_cast<size_t>(length)>=sizeof(rec.label)){free_record(rec);if(!c.ok)g_cells_fault.store(true);return;}
+  g_apply_scope={true,false,generation,generation==0};bool enabled=check_apply_gate(c);if(c.ok)render(rec,enabled,c);g_apply_scope={};
+  if(!c.ok){drop_record(rec);g_cells_fault.store(true);return;}
+  if(rec.cell_stale){free_record(rec);return;}
+  g_cell_recs[g_cell_count++]=rec;
+}
+void hook_cell(void *self,void *initializer,const void *method){
+  CellFn original=load_orig(g_orig_cell);const uint64_t tid=current_tid(),generation=snapshot_apply_gen(false),stop_serial=g_stop_serial.load();
+  ScopedRoot cell,init;bool claimed=false,valid=false;
+  if(g_installed.load(std::memory_order_acquire)&&g_active_depth.load()==0&&owner_ready(tid)&&self&&initializer&&
+     is_exact(self,g_cells_cfg.cell_class)&&is_exact(initializer,g_cells_cfg.initializer_class)){
+    g_active_depth.fetch_add(1);claimed=true;cell.acquire(self);init.acquire(initializer);valid=cell.ok()&&init.ok();
+    if(valid){void *text=field_ptr(cell.target(),g_cells_cfg.name_text);if(text)drop_cells_matching(text);}
+    if(cell.ok())self=cell.target();if(init.ok())initializer=init.target();
+  }
+  original(self,initializer,method); // exactly once, even when disabled, foreign-thread or reentrant
+  if(claimed){
+    // Retain initial cells across a closed/expired apply gate. Rendering remains
+    // gated, and the next authorized owner tick paints them without scrolling.
+    if(valid&&!g_cells_fault.load()&&stop_serial==g_stop_serial.load())capture_cell(cell,init,generation);
+    init.reset();cell.reset();g_active_depth.fetch_sub(1);
+  }
+}
+
 int api_install(const PgrIvDisplayConfig *config) {
   int rc = PGR_IV_OK;
   if (!validate_config(config, &rc)) return rc;
@@ -1446,6 +1572,12 @@ int api_install(const PgrIvDisplayConfig *config) {
   }
   g_orig_owned.store(reinterpret_cast<OwnedFn>(orig_owned), std::memory_order_release);
 
+  if(g_cells_configured.load(std::memory_order_acquire)){
+    void *original=nullptr;const bool duplicate=g_cells_cfg.initialize_code==config->setup_address||g_cells_cfg.initialize_code==config->owned_update_address;
+    int hook=duplicate?-1:pgrazor_hook(g_cells_cfg.initialize_code,reinterpret_cast<void*>(hook_cell),&original);
+    if(!hook&&original){g_orig_cell.store(reinterpret_cast<CellFn>(original),std::memory_order_release);g_cells_hooked.store(true,std::memory_order_release);}
+    else{if(!hook&&!original)pgrazor_unhook(g_cells_cfg.initialize_code);g_cells_fault.store(true);}
+  }
   g_installed.store(true, std::memory_order_release);
   return g_install_error = PGR_IV_OK;
 }
@@ -1517,6 +1649,20 @@ int api_tick(uint64_t proven_tid, int stopping) {
   const bool clock_ok = read_boottime_ms(&now);
   const bool stop = stopping != 0;
 
+  const uint64_t cell_generation=clock_ok?snapshot_apply_gen(false):0;
+  if(stop||!cell_generation||g_cells_fault.load()||!clock_ok||now>=g_cell_next){
+    g_cell_next=now+PGR_IV_REFRESH_MS;
+    for(uint32_t i=0;i<g_cell_count;){
+      const bool urgent=stop||!cell_generation||g_cells_fault.load()||!clock_ok;
+      if(!pgr_perf::audit_cell(i,g_cell_count,g_cell_audit_cursor,now,g_cell_recs[i].cell_warm_until,g_cell_recs[i].applied,urgent)){++i;continue;}
+      Ctx c;void *obj=gc_get()(g_cell_recs[i].text);bool alive=obj&&is_alive(obj,c)&&c.ok;
+      if(stop||!clock_ok||!alive||g_cells_fault.load()){drop_cell_at(i);continue;}
+      g_apply_scope={true,false,cell_generation,cell_generation==0};bool enabled=check_apply_gate(c);if(c.ok)render(g_cell_recs[i],enabled,c);g_apply_scope={};
+      if(!c.ok){g_cells_fault.store(true);drop_cell_at(i);continue;}
+      if(g_cell_recs[i].cell_stale){drop_cell_at(i);continue;}++i;
+    }
+    g_cell_audit_cursor=pgr_perf::next_cursor(g_cell_audit_cursor,g_cell_count);
+  }
   // Catch record. The apply direction runs under a revocation scope (so a disable that
   // reenters during a setter cancels it); restore is always permitted.
   if (g_catch_present) {
@@ -1606,8 +1752,8 @@ int api_sample(PgrIvDisplaySample *out) {
   out->owned_stamina = g_owned_sta;
   out->owned_cp = g_owned_cp;
   out->owned_reason = g_owned_reason;
-  std::memcpy(out->catch_label, g_catch_label, kLabelCap);
-  std::memcpy(out->owned_label, g_owned_label, kLabelCap);
+  std::snprintf(out->catch_label,sizeof(out->catch_label),"%s",g_catch_label);
+  std::snprintf(out->owned_label,sizeof(out->owned_label),"%s",g_owned_label);
   return PGR_IV_OK;
 }
 
@@ -1647,9 +1793,30 @@ const PgrIvDisplayApi kApiTable = {
     &api_end_catch,
 };
 
+int configure_pvp(const PgrIvPvpConfig *c){
+  if(!c||c->version!=1||c->size!=sizeof(*c)||c->reserved)return PGR_IV_ERR_INVALID_ARG;
+  const void *ptrs[]={c->species,c->display,c->form,c->display_class,c->get_vertical,c->set_vertical,c->vertical_class};
+  for(auto p:ptrs)if(!p)return PGR_IV_ERR_MISSING_PTR;
+  std::lock_guard<std::mutex> lock(g_install_mutex);
+  if(g_pvp_ready.load())return std::memcmp(&g_pvp,c,sizeof(*c))==0?PGR_IV_OK:PGR_IV_ERR_RECONFIG_MISMATCH;
+  if(g_install_attempted)return PGR_IV_ERR_RECONFIG_MISMATCH;
+  g_pvp=*c;g_pvp_ready.store(true,std::memory_order_release);return PGR_IV_OK;
+}
+const PgrIvDisplayApiV2 kApiV2={{2,sizeof(PgrIvDisplayApiV2),api_install,api_update,api_tick,api_sample,api_disable,api_begin_catch,api_end_catch},configure_pvp};
+int configure_cells(const PgrIvCellConfig *c){
+  if(!c||c->version!=1||c->size!=sizeof(*c))return PGR_IV_ERR_INVALID_ARG;
+  if(!c->cell_class||!c->initializer_class||!c->name_text||!c->pokemon_proto||!c->initialize_code)return PGR_IV_ERR_MISSING_PTR;
+  std::lock_guard<std::mutex> lock(g_install_mutex);
+  if(g_cells_configured.load())return std::memcmp(&g_cells_cfg,c,sizeof(*c))==0?0:PGR_IV_ERR_RECONFIG_MISMATCH;
+  if(g_install_attempted)return PGR_IV_ERR_RECONFIG_MISMATCH;g_cells_cfg=*c;g_cells_configured.store(true,std::memory_order_release);return 0;
+}
+int cells_ready(){return g_installed.load()&&g_cells_hooked.load()&&!g_cells_fault.load()?1:0;}
+const PgrIvDisplayApiV3 kApiV3={{{3,sizeof(PgrIvDisplayApiV3),api_install,api_update,api_tick,api_sample,api_disable,api_begin_catch,api_end_catch},configure_pvp},configure_cells,cells_ready};
 }  // namespace
 
 extern "C" const void *pgrazor_iv_display_api(uint32_t version) {
+  if(version==3)return &kApiV3;
+  if(version==2)return &kApiV2;
   if (version != PGR_IV_API_VERSION) return nullptr;
   return &kApiTable;
 }

@@ -135,6 +135,7 @@ public final class Control {
     // Independent of throw rating, curveball and Quick Catch. Defaults off.
     private static volatile boolean throwAlwaysHit, throwAlwaysHitReady;
     private static volatile int throwGrade;
+    private static volatile boolean throwRandom;
     // Optional IV/level overlays rendered by the ball-animation agent. Catch screen
     // defaults ON (prior behavior); owned Pokemon details defaults OFF. ivOwnedReady
     // is runtime only: whether the agent resolved the owned-details metadata.
@@ -220,6 +221,56 @@ public final class Control {
 
     public static boolean vgpAllowed(){if(!locationKnown())return false;guardVgpCooldown();return vgpEnabled&&vgpReady&&itemAccessAllowed();}
     public static void vgpResult(String action,boolean success){vgp.result(action,success);}
+    private static volatile boolean eggSkip,eggKeepSpecial=true,eggReady;
+    private static volatile String eggStatus="Waiting for hatch support";
+    private static final java.util.concurrent.atomic.AtomicLong eggCommand=new java.util.concurrent.atomic.AtomicLong();
+    private static volatile long syntheticTouchAt=-1000000,eggPauseUntil;
+    private static volatile boolean manualFree,manualReady;
+    private static volatile String manualStatus="Waiting for manual transfer support";
+    public static boolean manualTransferFree(){return manualFree;}
+    public static void setManualTransferFree(boolean value){manualFree=value;saveSettings();event("manual-transfer-setting",String.valueOf(value));}
+    public static boolean manualTransferAllowed(){return manualFree&&!eggSettingsOpen&&quickSummaryReady()&&hostLive();}
+    public static String manualTransferStatus(){return manualFree?manualStatus:"Off";}
+    public static boolean manualTransferReady(){return manualReady;}
+    public static void manualTransferUpdate(boolean available,String status){manualReady=available;manualStatus=status==null?"Unavailable":status;}
+    private static volatile boolean eggSettingsOpen;
+    private static volatile boolean eggObserveOnly=false;
+    private static volatile String eggLastGate="";
+    private static volatile long eggLastGateAt;
+    public static boolean eggObserveOnly(){return eggObserveOnly;}
+    public static void setEggObserveOnly(boolean v){if(v==eggObserveOnly)return;eggCommand.incrementAndGet();eggObserveOnly=v;saveSettings();event("egg-hatch-setting","observeOnly="+v);}
+    public static boolean eggSkip(){return eggSkip;}
+    public static boolean eggKeepSpecial(){return eggKeepSpecial;}
+    public static void setEggSkip(boolean v){eggCommand.incrementAndGet();eggSkip=v;saveSettings();event("egg-hatch-setting","skip="+v+"; command="+eggCommand.get());}
+    public static void setEggKeepSpecial(boolean v){
+        if(v==eggKeepSpecial)return;
+        eggCommand.incrementAndGet();eggPauseUntil=SystemClock.elapsedRealtime()+1000;
+        eggKeepSpecial=v;saveSettings();event("egg-hatch-setting","keepSpecial="+v+"; actions suspended while changing settings");
+    }
+    static void setEggSettingsOpen(boolean open){
+        if(open==eggSettingsOpen)return;
+        eggCommand.incrementAndGet();eggSettingsOpen=open;event("egg-hatch-setting","settingsOpen="+open);
+        eggPauseUntil=SystemClock.elapsedRealtime()+1000;
+    }
+    public static boolean eggHatchAllowed(){
+        long now=SystemClock.elapsedRealtime();boolean summary=quickSummaryReady(),live=hostLive();
+        String reason=!eggSkip?"skip-off":eggSettingsOpen?"settings-open":now<eggPauseUntil?"pause-window":!summary?"summary-not-ready":!live?"host-not-live":"allowed";
+        if(!reason.equals(eggLastGate)||now-eggLastGateAt>=30000){eggLastGate=reason;eggLastGateAt=now;event("egg-hatch-java-gate","reason="+reason+"; skip="+eggSkip+"; settingsOpen="+eggSettingsOpen+"; pauseRemainingMs="+Math.max(0,eggPauseUntil-now)+"; summaryReady="+summary+"; hostLive="+live+"; observeOnly="+eggObserveOnly);}
+        return reason.equals("allowed");
+    }
+    public static String eggHatchStatus(){return eggSkip?eggStatus:"Off";}
+    static void markSyntheticTouch(){syntheticTouchAt=SystemClock.elapsedRealtime();}
+    private static boolean nearSyntheticTouch(double at){return Math.abs(at-syntheticTouchAt)<=600;}
+    static boolean eggTapValid(long command,long expires){
+        long now=SystemClock.elapsedRealtime();
+        return !eggObserveOnly&&command==eggCommand.get()&&eggReady&&eggHatchAllowed()&&expires>=now&&expires-now<=200;
+    }
+    public static void eggHatchUpdate(boolean ready,boolean active,boolean tap,long expires,String status){
+        eggReady=ready;eggStatus=status==null?"Unavailable":status;
+        final long command=eggCommand.incrementAndGet();
+        if(!ready||!active||!tap||!eggTapValid(command,expires))return;
+        main.post(() -> {Pad p=pad;if(p!=null&&eggTapValid(command,expires))p.tapEggScreen(command,expires);});
+    }
     private static volatile boolean autoIncubate, incubateLongest, incubatorReady;
     private static volatile String incubatorStatus="Waiting for incubation support";
     public static boolean autoIncubate(){return autoIncubate;}
@@ -236,7 +287,8 @@ public final class Control {
     private static volatile long buddyMapSample;
     private static volatile String buddyStatus="Waiting for buddy support";
     public static int buddyBerry(){return buddyBerry;}
-    public static void setBuddyBerry(int id){if(id!=0&&id!=701&&id!=703&&id!=705&&id!=706&&id!=707)return;buddyBerry=id;saveSettings();}
+    public static boolean validBuddyTreat(int id){return id==0||id==701||id==703||id==705||id==706||id==708||id==709;}
+    public static void setBuddyBerry(int id){if(!validBuddyTreat(id))return;buddyBerry=id;saveSettings();}
     public static void setBuddyReady(boolean ready,String status){buddyReady=ready;buddyStatus=status;}
     public static void setBuddyStatus(String status){buddyStatus=status;}
     public static String buddyStatus(){return buddyStatus;}
@@ -286,7 +338,8 @@ public final class Control {
     public static void selectBerryPriority(int id){if(id!=0&&!BerryPriority.validId(id))return;berryPriority=BerryPriority.select(berryPriority,id);saveSettings();}
     public static void setBerryReady(boolean ready){berryReady=ready;}
     public static boolean berriesAllowed(){return berryReady&&itemAccessAllowed();}
-    public static int berryCount(int id){for(String row:itemCatalog.split("\n")){String[] b=row.split("\\|",-1);try{if(b.length==3&&Integer.parseInt(b[0])==id)return Integer.parseInt(b[2]);}catch(NumberFormatException ignored){}}return 0;}
+    private static volatile int poffinCount;
+    public static int berryCount(int id){if(id==709)return poffinCount;for(String row:itemCatalog.split("\n")){String[] b=row.split("\\|",-1);try{if(b.length==3&&Integer.parseInt(b[0])==id)return Integer.parseInt(b[2]);}catch(NumberFormatException ignored){}}return 0;}
     private static volatile int battleOptions;
     private static volatile boolean battlesReady;
     private static volatile String battleStatus="Waiting for battle support";
@@ -296,15 +349,36 @@ public final class Control {
     public static void setBattlesReady(boolean ready,String status){battlesReady=ready;battleStatus=status;}
     public static void setBattleStatus(String status){battleStatus=status;}
     public static boolean battlesAllowed(){return battlesReady&&quickSummaryReady()&&hostLive();}
+    private static volatile boolean autoHeal,autoHealBelowHalf,autoHealPanelOpen;
+    private static volatile String autoHealStatus="Off";
+    private static final java.util.concurrent.atomic.AtomicLong autoHealCommand=new java.util.concurrent.atomic.AtomicLong();
+    public static boolean autoHeal(){return autoHeal;}
+    public static boolean autoHealBelowHalf(){return autoHealBelowHalf;}
+    public static void setAutoHeal(boolean value){if(value==autoHeal)return;autoHeal=value;autoHealCommand.incrementAndGet();saveSettings();}
+    public static void setAutoHealBelowHalf(boolean value){if(value==autoHealBelowHalf)return;autoHealBelowHalf=value;autoHealCommand.incrementAndGet();saveSettings();}
+    static void setAutoHealPanelOpen(boolean open){if(open==autoHealPanelOpen)return;autoHealPanelOpen=open;autoHealCommand.incrementAndGet();}
+    public static String autoHealConfig(){int mask=(autoHeal?1:0)|(autoHealBelowHalf?2:0);boolean allowed=mask!=0&&foreground&&hostLive()&&quickSummaryReady()&&!autoHealPanelOpen;return "v1:"+autoHealCommand.get()+":"+mask+":"+(allowed?1:0);}
+    public static String autoHealStatus(){return autoHeal||autoHealBelowHalf?autoHealStatus:"Off";}
     private static volatile int rocketOptions;
     private static volatile boolean rocketReady;
     private static volatile String rocketStatus="Waiting for battle support";
+    private static final java.util.concurrent.atomic.AtomicLong rocketAutoCommand=new java.util.concurrent.atomic.AtomicLong();
+    private static volatile boolean rocketAutoPanelOpen;
+    private static volatile long rocketAutoPauseUntil;
     public static int rocketOptions(){return rocketOptions;}
+    public static int rocketCombatOptions(){return (rocketOptions&7)|((rocketOptions&8)!=0?7:0);}
+    public static boolean rocketAutoAllowed(){return (rocketOptions&8)!=0&&!rocketAutoPanelOpen&&SystemClock.elapsedRealtime()>=rocketAutoPauseUntil&&rocketAllowed();}
+    public static String rocketAutoConfig(){return "v1:"+rocketAutoCommand.get()+":"+rocketOptions+":"+(rocketAutoAllowed()?1:0);}
+    static void setRocketAutoPanelOpen(boolean open){if(open==rocketAutoPanelOpen)return;rocketAutoPanelOpen=open;rocketAutoPauseUntil=SystemClock.elapsedRealtime()+1000;rocketAutoCommand.incrementAndGet();cancelRocketGesture();}
+    private static void cancelRocketGesture(){main.post(()->{Pad p=pad;if(p!=null)p.cancelRocketSwipeIfInvalid();});}
+    static boolean rocketAutoTouchValid(long command,long expires){long now=SystemClock.elapsedRealtime();return command==rocketAutoCommand.get()&&foreground&&rocketAutoAllowed()&&expires>=now&&expires-now<=200;}
+    static boolean rocketAutoGestureValid(long command,long started){long now=SystemClock.elapsedRealtime();return command==rocketAutoCommand.get()&&foreground&&rocketAutoAllowed()&&now>=started&&now-started<=600;}
+    public static void rocketAutoSwipe(long command,long expires){if(!rocketAutoTouchValid(command,expires))return;main.post(()->{Pad p=pad;if(p!=null&&rocketAutoTouchValid(command,expires))p.swipeRocket(command,expires);});}
     public static String rocketStatus(){return rocketStatus;}
-    public static void setRocketOptions(int value){if(value<0||value>7)return;rocketOptions=value;saveSettings();event("rocket-options",String.valueOf(value));}
+    public static void setRocketOptions(int value){if(value<0||value>63)return;value&=31;if(value==rocketOptions)return;rocketAutoCommand.incrementAndGet();rocketOptions=value;rocketAutoPauseUntil=SystemClock.elapsedRealtime()+500;cancelRocketGesture();saveSettings();event("rocket-options",String.valueOf(value));}
     public static void setRocketReady(boolean ready,String status){rocketReady=ready;rocketStatus=status;}
     public static void setRocketStatus(String status){rocketStatus=status;}
-    public static boolean rocketAllowed(){return rocketReady&&quickSummaryReady()&&hostLive();}
+    public static boolean rocketAllowed(){return rocketReady&&quickSummaryReady()&&hostLive()&&((rocketOptions&8)==0||!rocketAutoPanelOpen);}
     private static volatile boolean itemTransferEnabled,itemTransferReady;
     private static volatile String itemRules="",itemLimits="",itemCatalog="",itemStatus="Waiting for item bag";
     public static boolean itemTransferEnabled(){return itemTransferEnabled;}
@@ -316,7 +390,7 @@ public final class Control {
     private static volatile long itemCatalogUntil,berryCatalogUntil;
     public static void requestItemCatalog(){itemCatalogUntil=SystemClock.elapsedRealtime()+5000;}
     public static void requestBerryCatalog(){berryCatalogUntil=SystemClock.elapsedRealtime()+5000;}
-    /** 0: idle, 1: five berry counts only, 2: explicit inventory settings catalog. */
+    /** 0: idle, 1: buddy treat counts only, 2: explicit inventory settings catalog. */
     public static int itemCatalogMode(){
         if(!hostLive())return 0;
         long now=SystemClock.elapsedRealtime();
@@ -328,13 +402,14 @@ public final class Control {
     public static void setItemCatalog(String value){
         if(value==null||value.length()>100000)return;
         TreeMap<Integer,String> rows=new TreeMap<>();
+        int nextPoffinCount=0;
         for(String row:itemCatalog.split("\n")){String[] bits=row.split("\\|",-1);try{if(bits.length==3)rows.put(Integer.parseInt(bits[0]),bits[0]+"|"+bits[1]+"|0");}catch(NumberFormatException ignored){}}
-        for(String row:value.split("\n")){String[] bits=row.split("\\|",-1);try{if(bits.length==3&&Integer.parseInt(bits[0])>0&&Integer.parseInt(bits[2])>=0)rows.put(Integer.parseInt(bits[0]),row);}catch(NumberFormatException ignored){}}
-        itemCatalog=String.join("\n",rows.values());itemStatus="Ready: "+rows.size()+" recyclable item types";
+        for(String row:value.split("\n")){String[] bits=row.split("\\|",-1);try{if(bits.length==3&&Integer.parseInt(bits[0])>0&&Integer.parseInt(bits[2])>=0){int id=Integer.parseInt(bits[0]),count=Integer.parseInt(bits[2]);if(id==709){if(count<=100000)nextPoffinCount=count;}else rows.put(id,row);}}catch(NumberFormatException ignored){}}
+        poffinCount=nextPoffinCount;itemCatalog=String.join("\n",rows.values());itemStatus="Ready: "+rows.size()+" recyclable item types";
     }
     private static boolean validItemRules(String value){
         if(value==null||value.length()>30000)return false;HashSet<Integer> seen=new HashSet<>();
-        for(String row:value.split(";")){if(row.isEmpty())continue;if(!row.matches("[0-9]{1,7}:[0-9]{1,6}"))return false;String[] b=row.split(":");int id=Integer.parseInt(b[0]),cap=Integer.parseInt(b[1]);if(id<=0||cap>100000||!seen.add(id))return false;}return true;
+        for(String row:value.split(";")){if(row.isEmpty())continue;if(!row.matches("[0-9]{1,7}:[0-9]{1,6}"))return false;String[] b=row.split(":");int id=Integer.parseInt(b[0]),cap=Integer.parseInt(b[1]);if(id<=0||id==709||cap>100000||!seen.add(id))return false;}return true;
     }
     public static void saveItemRules(boolean enabled,String rules,String limits){
         if(!validItemRules(rules)||!validItemRules(limits))throw new IllegalArgumentException("Invalid item limit");
@@ -356,6 +431,8 @@ public final class Control {
         detail -> event("quick-ball-toast",detail));
     private static final Object stateLock = new Object();
     private static final Object logLock = new Object();
+    private static final SimpleDateFormat logTimestamp=new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX",Locale.US);
+    private static long lastCameraLog,logZoneAt;
     private static AtomicFile stateFile, settingsFile;
     private static String lastSaved;
     private static long lastCheckpoint;
@@ -532,11 +609,13 @@ public final class Control {
     public static void setMapTapMode(int mode) { mapTapEpoch++; mapTapMode=mode>=0 && mode<=3 ? mode : 0; saveSettings(); event("map-tap-mode",""+mapTapMode); }
     public static boolean mapTapAllowed() { return desiredEnabled && mapTapMode!=0 && mapTapReady() && hostLive(); }
     public static void applyMapTap(double latitude,double longitude,int mode,int epoch,double sampledAt) {
+        if(nearSyntheticTouch(sampledAt)||nearSyntheticTouch(SystemClock.elapsedRealtime()))return;
         double age=SystemClock.elapsedRealtime()-sampledAt;
         if(!Double.isFinite(age)||age<0||age>750)return;
         if(!Double.isFinite(latitude)||!Double.isFinite(longitude)||Math.abs(latitude)>90||Math.abs(longitude)>180)return;
         final long received=SystemClock.elapsedRealtime();
         main.post(() -> {
+            if(nearSyntheticTouch(sampledAt)||nearSyntheticTouch(SystemClock.elapsedRealtime()))return;
             if(!mapTapAllowed()||mode!=mapTapMode||epoch!=mapTapEpoch||SystemClock.elapsedRealtime()-received>750)return;
             if(engine.activeRouteToken()!=0){
                 mapTapEpoch++; // discard queued taps and any pre-dialog double-tap pairing
@@ -551,7 +630,11 @@ public final class Control {
     }
     public static boolean throwReady() { return quickBallReady() && throwReady; }
     public static void setThrowReady(boolean ready) { throwReady=ready; }
-    public static int throwGrade() { return throwGrade; }
+    /** Runtime mode: 0 Off, 1 Nice, 2 Great, 3 Excellent, 4 Random. */
+    public static int throwGrade() { return throwRandom ? 4 : throwGrade; }
+    public static int throwFixedGrade() { return throwGrade; }
+    public static boolean throwRandom() { return throwRandom; }
+    public static void setThrowRandom(boolean value) { throwRandom=value; saveSettings(); event("throw-random",String.valueOf(value)); }
     public static boolean throwCurve() { return throwCurve; }
     public static boolean throwAr() { return throwAr; }
     public static boolean throwArReady() { return throwArReady && throwReady(); }
@@ -772,8 +855,12 @@ public final class Control {
         if (activity.isFinishing() || activity.isDestroyed()) return;
         if (pad != null && pad.activity == activity) return;
         if (pad != null) pad.close();
-        foreground = true;
-        restoreRuntime("foreground");
+        foreground = true; main.removeCallbacks(awayTick); awayTickAt=0;
+        // PGRazorX: a lease that lapsed while away is marked expired first, so the next heartbeat restores the
+        // spoof instead of leaving it off; otherwise a spoof (and route) kept through the background continues.
+        checkLease();
+        if (engine.enabled && canEnable()) event("state-activation", "foreground; desiredEnabled=" + desiredEnabled + "; runtimeEnabled=true; kept through background; route=" + engine.walking);
+        else restoreRuntime("foreground");
         try { pad = new Pad(activity); event("panel-ready", activity.getClass().getName()); }
         catch (RuntimeException error) { suspendForBackground(); event("panel-error", error.toString()); }
     }
@@ -827,18 +914,35 @@ public final class Control {
         requestInteractionStop();
         OneShotAutomation.reset();
         GiftBatchSettings.reset();
-        foreground = false; autoWalkPlanning=false;mapPoiOpen=false;mapPoiSnapshot="";mapPoiAt=0; mapTapEpoch++; invalidateQuickBallOutcome(); cameraSampleRequest.set(false); invalidateCameraHeading("App backgrounded");
-        // Losing the foreground switches VGP off, clears any target, and never auto-resumes.
-        vgp.suspend();
-        engine.pause(); saveState();
+        eggCommand.incrementAndGet();foreground = false; autoWalkPlanning=false;mapPoiOpen=false;mapPoiSnapshot="";mapPoiAt=0; mapTapEpoch++; invalidateQuickBallOutcome(); cameraSampleRequest.set(false); invalidateCameraHeading("App backgrounded");
+        // PGRazorX: VGP stays on while away (the game is not drawing, so it simply waits) and carries on when the
+        // game is back in front. The location override and any route or autowalk stay too; the joystick was released
+        // by the panel. The panel's tick is gone, so a route keeps moving on the away tick below.
+        saveState();
+        main.removeCallbacks(awayTick); awayTickAt=SystemClock.elapsedRealtime(); if(engine.walking)main.postDelayed(awayTick,AWAY_TICK_MS);
         // Best effort: give any queued settings a bounded window to reach disk before a possible kill.
         // Writes already run off-thread, so this only waits briefly; failures are logged, never thrown.
         try { flushSettings(SETTINGS_BACKGROUND_FLUSH_MS); }
         catch (IOException pending) { event("settings-save-error",pending.toString()); }
     }
+    /** PGRazorX: while away from the game, a route or autowalk keeps advancing (the panel's tick only runs in front). */
+    private static final long AWAY_TICK_MS=250;
+    private static long awayTickAt;
+    private static final Runnable awayTick=new Runnable(){public void run(){
+        if(foreground||pad!=null){awayTickAt=0;return;}
+        long now=SystemClock.elapsedRealtime();double seconds=Math.max(0,Math.min(2.0,(now-awayTickAt)/1000.0));awayTickAt=now;
+        checkLease();
+        boolean wasWalking=engine.walking;MotionEngine.RouteProgress before=engine.routeProgress();
+        engine.step(seconds);
+        MotionEngine.RouteProgress after=engine.routeProgress();
+        if(before.total>1&&after.total==before.total&&after.visited>before.visited)event("route-progress","visited="+after.visited+"/"+after.total+"; away");
+        if(wasWalking&&!engine.walking&&engine.enabled){event(before.total>1?"route-completed":"walk-arrived",String.format(Locale.US,"lat=%.7f lon=%.7f; holding destination; away",engine.latitude,engine.longitude));saveState();}
+        checkpoint(now);
+        if(engine.walking)main.postDelayed(this,AWAY_TICK_MS);else{awayTickAt=0;saveState();}
+    }};
     private static void restoreRuntime(String reason) {
         if (!registered) return;
-        LocationState.capture(engine, desiredEnabled).restoreStationary(engine, canEnable(), foreground);
+        LocationState.capture(engine, desiredEnabled).restoreStationary(engine, canEnable(), true); // PGRazorX: not tied to the foreground
         event("state-activation", reason + "; desiredEnabled=" + desiredEnabled + "; runtimeEnabled=" + engine.enabled + "; stationary");
     }
 
@@ -895,7 +999,7 @@ public final class Control {
         }
         saveState();
     }
-    private static boolean darkTheme=true, joystickVisible=true;
+    private static boolean darkTheme=false, joystickVisible=true;
     // Visibility only. Bits are stable menu-entry IDs, independent of feature settings.
     private static volatile int quickMenuHidden;
     public static int quickMenuHidden(){return quickMenuHidden;}
@@ -905,9 +1009,15 @@ public final class Control {
         quickMenuHidden=visible?quickMenuHidden&~bit:quickMenuHidden|bit;
         saveSettings();
     }
+    /** Opacity of the on-map overlays (launcher, quick menu, cooldown, berry picker, joystick), 30-100 %. */
+    private static int overlayOpacity=100;
+    public static int overlayOpacity(){return overlayOpacity;}
+    public static void setOverlayOpacity(int percent){overlayOpacity=Math.max(30,Math.min(100,Math.round(percent/5f)*5));saveSettings();}
     private static volatile int uiScalePercent=100;
     public static int uiScalePercent(){return uiScalePercent;}
-    public static void setUiScalePercent(int value){if(value!=25&&value!=50&&value!=75&&value!=100)return;uiScalePercent=value;saveSettings();}
+    /** PGRazorX: any 5 % step from 25 to 100 %. */
+    public static boolean validUiScale(int value){return value>=25&&value<=100&&value%5==0;}
+    public static void setUiScalePercent(int value){value=Math.round(value/5f)*5;if(!validUiScale(value))return;uiScalePercent=value;saveSettings();}
     public static boolean darkTheme(){return darkTheme;}
     private static volatile boolean idleWalking;
     public static boolean idleWalking(){return idleWalking;}
@@ -953,12 +1063,13 @@ public final class Control {
                 GymAutomationSettings.read(p);
                 BuddyEmotionSettings.read(p);
                 desiredEnabled=Boolean.parseBoolean(p.getProperty("locationSpoofing","true"));
-                darkTheme=Boolean.parseBoolean(p.getProperty("darkTheme","true"));
+                darkTheme=Boolean.parseBoolean(p.getProperty("darkTheme","false"));
                 quickMenuHidden=boundedSetting(p,"quickMenuHidden",2047);
                 try{uiScalePercent=Integer.parseInt(p.getProperty("uiScalePercent","100"));}catch(NumberFormatException invalid){uiScalePercent=100;}
-                if(uiScalePercent!=25&&uiScalePercent!=50&&uiScalePercent!=75&&uiScalePercent!=100)uiScalePercent=100;
+                if(!validUiScale(uiScalePercent))uiScalePercent=100;
                 joystickVisible=Boolean.parseBoolean(p.getProperty("joystickVisible","true"));
                 idleWalking=Boolean.parseBoolean(p.getProperty("idleWalking","false"));engine.setIdleWalking(idleWalking);
+                try{overlayOpacity=Math.max(30,Math.min(100,Integer.parseInt(p.getProperty("overlayOpacity","100"))));}catch(NumberFormatException ignored){overlayOpacity=100;}
                 cooldownOverlay=Boolean.parseBoolean(p.getProperty("cooldownOverlay","false"));
                 quickSummaryEnabled=Boolean.parseBoolean(p.getProperty("autoDismiss","false"));
                 spawnBooster=Boolean.parseBoolean(p.getProperty("spawnBooster","false"));
@@ -967,12 +1078,15 @@ public final class Control {
                 // VGP active state is runtime only: always start OFF, ignoring any legacy persisted vgpEnabled.
                 autoIncubate=Boolean.parseBoolean(p.getProperty("autoIncubate","false"));
                 incubateLongest=Boolean.parseBoolean(p.getProperty("incubateLongest","false"));
+                eggSkip=Boolean.parseBoolean(p.getProperty("eggSkip","false"));
+                eggObserveOnly=Boolean.parseBoolean(p.getProperty("eggObserveOnly","false"));
+                eggKeepSpecial=Boolean.parseBoolean(p.getProperty("eggKeepSpecial","true"));
                 vgpEnabled=false;vgp.clearTarget();
                 vgpOverlay=Boolean.parseBoolean(p.getProperty("vgpOverlay","false"));
                 vgpStopOnCooldown=Boolean.parseBoolean(p.getProperty("vgpStopOnCooldown","false"));
                 try{vgpOptions=Integer.parseInt(p.getProperty("vgpOptions","3"))&7;}catch(NumberFormatException ignored){vgpOptions=3;}
                 try{buddyBerry=Integer.parseInt(p.getProperty("buddyBerry","0"));}catch(NumberFormatException ignored){buddyBerry=0;}
-                if(buddyBerry!=701&&buddyBerry!=703&&buddyBerry!=705&&buddyBerry!=706&&buddyBerry!=707)buddyBerry=0;
+                if(!validBuddyTreat(buddyBerry))buddyBerry=0;
                 int legacyBerry;try{legacyBerry=Integer.parseInt(p.getProperty("autoBerry","0"));}catch(NumberFormatException ignored){legacyBerry=0;}
                 if(!BerryPriority.validId(legacyBerry))legacyBerry=0;
                 berryPriority=p.getProperty("berryPriority",legacyBerry==0?"":String.valueOf(legacyBerry));
@@ -981,8 +1095,9 @@ public final class Control {
                 encounterBerryEnabled=Boolean.parseBoolean(p.getProperty("encounterBerry",String.valueOf(!berryPriority.isEmpty())));
                 try{battleOptions=Integer.parseInt(p.getProperty("battleOptions","0"));}catch(NumberFormatException ignored){battleOptions=0;}
                 if(battleOptions<0||battleOptions>1023)battleOptions=0;
+                autoHeal=Boolean.parseBoolean(p.getProperty("autoHeal","false"));autoHealBelowHalf=Boolean.parseBoolean(p.getProperty("autoHealBelowHalf","false"));autoHealCommand.incrementAndGet();
                 try{rocketOptions=Integer.parseInt(p.getProperty("rocketOptions","0"));}catch(NumberFormatException ignored){rocketOptions=0;}
-                if(rocketOptions<0||rocketOptions>7)rocketOptions=0;
+                if(rocketOptions<0||rocketOptions>63)rocketOptions=0;else rocketOptions&=31;
                 itemTransferEnabled=Boolean.parseBoolean(p.getProperty("itemTransfer","false"));
                 itemRules=p.getProperty("itemRules","");itemLimits=p.getProperty("itemLimits","");itemCatalog=p.getProperty("itemCatalog","");
                 if(!validItemRules(itemRules)||!validItemRules(itemLimits)){itemTransferEnabled=false;itemRules="";itemLimits="";}
@@ -1003,6 +1118,8 @@ public final class Control {
                 throwCurve=Boolean.parseBoolean(p.getProperty("curve","false"));
                 throwAlwaysHit=Boolean.parseBoolean(p.getProperty("throwAlwaysHit","false"));
                 throwAr=Boolean.parseBoolean(p.getProperty("throwAr","false"));
+                manualFree=Boolean.parseBoolean(p.getProperty("manualTransferFree","false"));
+                throwRandom=Boolean.parseBoolean(p.getProperty("throwRandom","false"));
                 throwGrade=boundedSetting(p,"grade",3); mapTapMode=boundedSetting(p,"mapTap",3);
                 event("settings-restored","dismiss="+quickSummaryEnabled+" fastBall="+quickBallEnabled+" grade="+throwGrade+" curve="+throwCurve+" mapTap="+mapTapMode+" cameraRelative=true");
             } catch(FileNotFoundException missing) {
@@ -1055,6 +1172,7 @@ public final class Control {
         BuddyEmotionSettings.write(p);
         p.setProperty("locationSpoofing",String.valueOf(desiredEnabled));
         p.setProperty("darkTheme",String.valueOf(darkTheme));p.setProperty("uiScalePercent",String.valueOf(uiScalePercent));
+        p.setProperty("overlayOpacity",String.valueOf(overlayOpacity));
         p.setProperty("joystickVisible",String.valueOf(joystickVisible));
         p.setProperty("quickMenuHidden",String.valueOf(quickMenuHidden));
         p.setProperty("idleWalking",String.valueOf(idleWalking));
@@ -1066,9 +1184,13 @@ public final class Control {
         p.setProperty("buddyBerry",String.valueOf(buddyBerry));
         p.setProperty("autoIncubate",String.valueOf(autoIncubate));
         p.setProperty("incubateLongest",String.valueOf(incubateLongest));
+        p.setProperty("eggObserveOnly",String.valueOf(eggObserveOnly));
+        p.setProperty("eggSkip",String.valueOf(eggSkip));
+        p.setProperty("eggKeepSpecial",String.valueOf(eggKeepSpecial));
         p.setProperty("cooldownOverlay",String.valueOf(cooldownOverlay));p.setProperty("berryPriority",berryPriority);
         p.setProperty("encounterBerry",String.valueOf(encounterBerryEnabled));
         p.setProperty("battleOptions",String.valueOf(battleOptions));
+        p.setProperty("autoHeal",String.valueOf(autoHeal));p.setProperty("autoHealBelowHalf",String.valueOf(autoHealBelowHalf));
         p.setProperty("rocketOptions",String.valueOf(rocketOptions));
         p.setProperty("itemTransfer",String.valueOf(itemTransferEnabled));p.setProperty("itemRules",itemRules);p.setProperty("itemLimits",itemLimits);p.setProperty("itemCatalog",itemCatalog);
         p.setProperty("quickSpin",String.valueOf(quickSpinEnabled));
@@ -1076,7 +1198,8 @@ public final class Control {
         p.setProperty("transferKeepAll",String.valueOf(transferKeepAll)); p.setProperty("transferOverlay",String.valueOf(transferOverlayEnabled)); p.setProperty("transferKeepSpecies",transferKeepSpecies);
         p.setProperty("ivCatch",String.valueOf(ivCatchEnabled)); p.setProperty("ivOwned",String.valueOf(ivOwnedEnabled));
         p.setProperty("autoDismiss",String.valueOf(quickSummaryEnabled)); p.setProperty("fastBall",String.valueOf(quickBallEnabled));
-        p.setProperty("throwAr",String.valueOf(throwAr)); p.setProperty("curve",String.valueOf(throwCurve)); p.setProperty("grade",String.valueOf(throwGrade));
+        p.setProperty("manualTransferFree",String.valueOf(manualFree));
+        p.setProperty("throwAr",String.valueOf(throwAr)); p.setProperty("curve",String.valueOf(throwCurve)); p.setProperty("grade",String.valueOf(throwGrade)); p.setProperty("throwRandom",String.valueOf(throwRandom));
         p.setProperty("throwAlwaysHit",String.valueOf(throwAlwaysHit));
         p.setProperty("mapTap",String.valueOf(mapTapMode));
         return p;
@@ -1095,6 +1218,7 @@ public final class Control {
         if(writer!=null) writer.flush(timeoutMillis);
     }
     public static void event(String kind, String detail) {
+        if("auto-heal".equals(kind))autoHealStatus=detail;
         if("gym-automation".equals(kind))GymAutomationSettings.publish(detail);
         if("gym-spin".equals(kind)&&SmartCatchSettings.gymSpinActive()){
             try{setVgpStatus(new org.json.JSONObject(detail).optString("message","Waiting for gym disc"));}catch(Exception ignored){}
@@ -1110,7 +1234,10 @@ public final class Control {
             dev.pgrazor.events.EventSettings.publishBoxCollectorCapability(available);
         }
         synchronized (logLock) {
-            String line = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.US).format(new Date()) + " [" + kind + "] " + detail;
+            long now=SystemClock.elapsedRealtime();
+            if("camera-heading".equals(kind)&&detail!=null&&detail.contains("\"kind\":\"camera-sample\"")){if(lastCameraLog!=0&&now-lastCameraLog<5000)return;lastCameraLog=now;}
+            if(now>=logZoneAt){logZoneAt=now+60000;logTimestamp.setTimeZone(java.util.TimeZone.getDefault());}
+            String line = logTimestamp.format(new Date()) + " [" + kind + "] " + detail;
             Log.i("PGRazor", line);
             if (log != null) {
                 try {
@@ -1168,7 +1295,12 @@ public final class Control {
     }
     public static File currentLog() { return logFile; }
     // The staged profile's stationary fix is needed before login/map identity is available.
-    public static boolean active() { return desiredEnabled && foreground && backendReady && connected() && engine.enabled; }
+    /**
+     * PGRazorX: the synthetic location stays on while the game is behind another screen or app (backup menu,
+     * file picker, app switch), so the game never receives the real GPS meanwhile. It still needs a live adapter:
+     * a late heartbeat hands the game its real location again, as before.
+     */
+    public static boolean active() { return desiredEnabled && backendReady && connected() && engine.enabled; }
     public static double latitude() { latitudeReads++; return currentLatitude(); }
     public static double longitude() { longitudeReads++; return currentLongitude(); }
     public static float speed() { return (float)engine.metersPerSecond(); }

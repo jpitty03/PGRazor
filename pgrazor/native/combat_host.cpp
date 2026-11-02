@@ -4,6 +4,7 @@
 #include "hook_engine.h"
 #include "rocket_actions.h"
 #include "rocket_combat.h"
+#include "rocket_auto.h"
 #include "rocket_minigame.h"
 #include "runtime_bootstrap.h"
 #include "runtime_metadata.h"
@@ -890,6 +891,10 @@ bool configure_and_install_rocket(uint64_t tid) {
         return false;
     }
 
+    const auto *rocket_boot=api_table<PgrBootApi>(pgrazor_runtime_bootstrap_api(1));
+    PgrBootBinding rocket_binding{};
+    if(rocket_boot && rocket_boot->snapshot(&rocket_binding)==0) {pgr_rocket_auto::install(rocket_binding,rc_cfg);}
+
     const HookEntry rk_entries[10] = {
         {HK_RK_ENTER,        md_h(H_RK_ENTER_CODE),        reinterpret_cast<void *>(hook_rk_enter)},
         {HK_RK_EXIT,         md_h(H_RK_EXIT_CODE),         reinterpret_cast<void *>(hook_rk_exit)},
@@ -1489,8 +1494,8 @@ void poll_transport_options() {
     const uint32_t b_mask = (b_raw >= 0 && b_raw <= PGR_CBH_BATTLE_MASK_ALL)
                                 ? static_cast<uint32_t>(b_raw)
                                 : 0u;
-    const uint32_t r_mask = (r_raw >= 0 && r_raw <= PGR_CBH_ROCKET_MASK_ALL)
-                                ? static_cast<uint32_t>(r_raw)
+    const uint32_t r_mask = (r_raw >= 0 && r_raw <= 63)
+                                ? ((static_cast<uint32_t>(r_raw)&7u)|((r_raw&8)?7u:0u))
                                 : 0u;
 
     PgrCombatHostOptions opts{};
@@ -1545,6 +1550,9 @@ int api_tick(uint64_t proven_tid) {
     if((caps&PGR_CBH_CAP_ROCKET_MINIGAME)&&g_rocket_mini){refresh_leaf_gates();if(terminal())g_rocket_mini->restore();g_rocket_mini->tick(1);}
     if((caps&PGR_CBH_CAP_BATTLES)&&g_battles){refresh_leaf_gates();g_battles->tick(proven_tid,terminal()?1:0);}
     tick_gym_next();
+    pgr_rocket_combat_sample_v1 auto_rocket_sample{};
+    bool auto_rocket_ready=g_rocket_combat&&g_rocket_combat->sample(&auto_rocket_sample)==0;
+    if(auto_rocket_ready||terminal())pgr_rocket_auto::tick(proven_tid,auto_rocket_sample.scope_active!=0,auto_rocket_sample.scope_active!=0&&auto_rocket_sample.ui_active!=0,terminal());
     g_leaves_latched.store(true, std::memory_order_release);
     drain_leaf_events(proven_tid);
     return PGR_CBH_OK;
@@ -1553,6 +1561,7 @@ int api_tick(uint64_t proven_tid) {
 int api_stop(uint64_t proven_tid) {
     if (!g_configured.load(std::memory_order_acquire)) return PGR_CBH_ERR_NOT_CONFIGURED;
     g_stopping.store(true, std::memory_order_release);
+    pgr_rocket_auto::stop(proven_tid);
     if(self_tid()==g_owner_tid.load()&&thread_attached())clear_gym_next();
     api_revoke();
 
@@ -1633,7 +1642,7 @@ int api_sample(PgrCombatHostSample *out) {
     out->stopping             = g_stopping.load(std::memory_order_acquire) ? 1u : 0u;
     out->failed               = failed ? 1u : 0u;
     out->last_error           = g_last_error.load(std::memory_order_acquire);
-    out->roots                = b_roots + r_roots;
+    out->roots                = b_roots + r_roots + pgr_rocket_auto::roots();
     out->battle_roots         = b_roots;
     out->rocket_roots         = r_roots;
     out->battle_scope_active  = b_scope;

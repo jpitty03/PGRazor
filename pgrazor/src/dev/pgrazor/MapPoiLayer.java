@@ -218,8 +218,7 @@ final class MapPoiLayer {
         if (closed || hits.isEmpty()) return;
         if (hits.size() == 1) { showPoiDetails(hits.get(0)); return; }
         String[] labels = new String[hits.size()]; for (int i = 0; i < labels.length; i++) labels[i] = poiShortLabel(hits.get(i));
-        AlertDialog chooser = new AlertDialog.Builder(dialogContext).setTitle("Nearby here (" + hits.size() + ")")
-            .setItems(labels, (d, which) -> showPoiDetails(hits.get(which))).setNegativeButton("Close", null).create();
+        AlertDialog chooser = MapTheme.showListDialog(dialogContext, "Nearby here (" + hits.size() + ")", labels, (d, which) -> showPoiDetails(hits.get(which)));
         registerPoiDialog(chooser); chooser.show();
     }
     private String poiShortLabel(JSONObject point) {
@@ -266,7 +265,7 @@ final class MapPoiLayer {
             main.postDelayed(refresh[0], 1000);
         };
         dialog.setOnDismissListener(d -> { poiDialogs.remove(dialog); main.removeCallbacks(refresh[0]); });
-        poiDialogs.add(dialog); dialog.show(); refresh[0].run();
+        poiDialogs.add(dialog); dialog.show(); MapTheme.styleButtons(dialog); body.setTextColor(MapTheme.dlgInk()); refresh[0].run();
     }
     private JSONObject findPoi(String id) {
         for (int i = 0; i < pois.length(); i++) { JSONObject point = pois.optJSONObject(i); if (point != null && id.equals(point.optString("id"))) return point; }

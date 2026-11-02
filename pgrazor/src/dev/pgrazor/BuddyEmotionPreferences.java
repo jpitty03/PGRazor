@@ -14,7 +14,7 @@ public final class BuddyEmotionPreferences {
         if(value.isEmpty())return true;
         java.util.HashSet<String> seen=new java.util.HashSet<>();
         for(String id:value.split(",",-1)){
-            if(!id.equals("701")&&!id.equals("703")&&!id.equals("705")&&!id.equals("706")&&!id.equals("708"))return false;
+            if(!id.equals("701")&&!id.equals("703")&&!id.equals("705")&&!id.equals("706")&&!id.equals("708")&&!id.equals("709"))return false;
             if(!seen.add(id))return false;
         }
         return true;

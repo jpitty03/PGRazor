@@ -87,7 +87,10 @@ constexpr ActionSchema kActions[PGR_TRANSPORT_ACTIONS] = {
   {4, 0, {ST_B, ST_D, ST_D, ST_B}}, // 55 setVgpTarget(boolean,double,double,boolean)
   {0, 1, {}},                       // 56 transferResult(String)
   {4, 0, {ST_D, ST_I, ST_B, ST_L}}, // 57 updateCameraHeadingAt(double,int,boolean,long)
-  {1, 1, {ST_B}}                    // 58 vgpResult(String,boolean)
+  {1, 1, {ST_B}},                   // 58 vgpResult(String,boolean)
+  {2, 0, {ST_L, ST_L}},             // 59 rocketAutoSwipe(command, expires)
+  {4, 1, {ST_B, ST_B, ST_B, ST_L}}, // 60 eggHatchUpdate(ready,active,tap,expires,status)
+  {1, 1, {ST_B}} // 61 manualTransferUpdate
 };
 
 // Validate one scalar against its compiled type. Returns PGR_TRANSPORT_OK or PGR_TRANSPORT_ERR_DOMAIN. Longs are NOT bounded
@@ -136,6 +139,7 @@ constexpr bool kGuardedBool[PGR_TRANSPORT_BOOLS] = {
   true,  false, true,  false, true,  false, true,  false, false, true,  // 10..19
   false, true,  true,  true,  true,  true,  true,  true,  false, true,  // 20..29
   false, false, false, false, false, false, true,  true,  false, true, // 30..39 (eventBoxesAllowed)
+  true, false, false, true, // 40 eggHatchAllowed, 41 eggKeepSpecial, 42 eggObserveOnly
 };
 
 // --- little-endian frame accessors (the wire is LE; ARM64 is LE, so these are plain loads/stores) ---------

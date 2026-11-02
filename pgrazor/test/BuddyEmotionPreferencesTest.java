@@ -20,6 +20,10 @@ public final class BuddyEmotionPreferencesTest {
   legacy.setProperty("buddyBerry","0");p.read(legacy);eq(false,p.enabled());eq("",p.berries());
   legacy.setProperty("buddyEmotionEnabled","false");legacy.setProperty("buddyEmotionBerry","705");legacy.setProperty("buddyEmotionReserve","37");p.read(legacy);eq("2;0;705;0;0;0;0;37;0",p.config());
   legacy.setProperty("buddyEmotionBerries","708,706,703,701,705");p.read(legacy);eq("708,706,703,701,705",p.berries());
+  p.read(new Properties());eq(false,p.berries().contains("709"));
+  p.set("Berries","709,708");p.set("Enabled","true");p.set("Reserve","0");eq("2;1;709;708;0;0;0;0;0",p.config());
+  Properties poffin=new Properties();p.write(poffin);BuddyEmotionPreferences copy=new BuddyEmotionPreferences();copy.read(poffin);eq(p.config(),copy.config());
+  reject(()->p.set("Berries","701,703,705,706,708,709"));
   System.out.println("BuddyEmotionPreferences: ordered berries, migration, account reset, reserves and invalid settings passed");
  }
 }

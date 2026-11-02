@@ -44,6 +44,8 @@ public class Handler {
  public static boolean accept=true;
  public Handler(Looper l){}
  public boolean post(Runnable r){if(accept)queue.add(r);return accept;}
+ public boolean postDelayed(Runnable r,long delay){return post(r);}
+ public void removeCallbacks(Runnable r){queue.remove(r);}
  public static void drain(){while(!queue.isEmpty())queue.remove(0).run();}
 }''',
     'android/widget/Toast.java': '''package android.widget;
@@ -124,7 +126,7 @@ public class AccountProfiles {
  public static void logoutFailed(){} static void signInResetComplete(){} static void sessionSaved(){}
 }""",
     'dev/pgrazor/Pad.java': '''package dev.pgrazor;
-public class Pad {public final android.app.Activity activity; public Pad(android.app.Activity a){activity=a;} public void close(){} public void confirmStopRoute(){} public void confirmMapTeleport(double lat,double lon,int mode,int epoch){}}''',
+public class Pad {public final android.app.Activity activity; public Pad(android.app.Activity a){activity=a;} public static int eggTaps;public void tapEggScreen(long command,long expires){eggTaps++;}public void close(){} public void confirmStopRoute(){} public void cancelRocketSwipeIfInvalid(){} public void swipeRocket(long command,long expires){rocketSwipes++;} public static int rocketSwipes; public void confirmMapTeleport(double lat,double lon,int mode,int epoch){}}''',
     'dev/pgrazor/LogActivity.java': 'package dev.pgrazor; public class LogActivity extends android.app.Activity {}',
     'dev/pgrazor/BatchEvolutionSettings.java': 'package dev.pgrazor; public final class BatchEvolutionSettings { public static String config(){return "1|0|0|Evolve";} public static boolean enabled(){return false;} public static void reset(){} public static void publish(String s){} }',
     'dev/pgrazor/OneShotAutomation.java': '''package dev.pgrazor;
@@ -210,14 +212,14 @@ class ControlJavaTests(unittest.TestCase):
                 source.write_text(text, encoding='utf-8')
                 sources.append(source)
             sources.extend(ROOT / 'src/dev/pgrazor' / name for name in (
-                'Control.java', 'MotionEngine.java', 'LocationState.java', 'GameRoutesController.java',
+                'Control.java', 'NativeRuntimeTransport.java', 'MotionEngine.java', 'LocationState.java', 'GameRoutesController.java',
                 'CameraHeadingState.java', 'CameraSteering.java',
                 'BerryPriority.java', 'MapTapSequence.java', 'CooldownState.java',
                 'VgpController.java', 'CatchOutcomeController.java', 'SettingsWriter.java', 'SmartCatchPreferences.java', 'GymAutomationPreferences.java', 'BuddyEmotionPreferences.java'))
             sources.extend([ROOT / 'test/ControlLogRetentionTest.java', ROOT / 'test/ControlQuickSummaryTest.java',ROOT / 'test/ControlQuickBallTest.java',
                             ROOT / 'test/ControlQuickBallOutcomeTest.java',ROOT / 'test/ControlSettingsTest.java',
                             ROOT / 'test/VgpControllerTest.java',ROOT / 'test/CooldownTest.java',ROOT / 'test/ControlCooldownTest.java',
-                            ROOT / 'test/ControlSettingsReloadTest.java',ROOT / 'test/ControlItemCatalogTest.java',ROOT / 'test/ControlIdleWalkingTest.java'])
+                            ROOT / 'test/ControlSettingsReloadTest.java',ROOT / 'test/ControlItemCatalogTest.java',ROOT / 'test/ControlIdleWalkingTest.java',ROOT / 'test/ControlBackgroundSpoofTest.java', ROOT / 'test/ControlSilverPinapTest.java', ROOT / 'test/ControlPoffinTest.java', ROOT / 'test/ControlRandomThrowTest.java', ROOT / 'test/ControlRocketAutoTest.java', ROOT / 'test/ControlEggHatchTest.java', ROOT / 'test/ControlAutoHealTest.java', ROOT / 'test/ControlManualTransferTest.java'])
             classes = work / 'classes'
             sdk = Path(os.environ.get('ANDROID_HOME', str(Path(os.environ['LOCALAPPDATA']) / 'Android/Sdk')))
             json_sources = sorted((sdk / 'sources').glob('android-*/org/json'), reverse=True)
@@ -263,6 +265,39 @@ class ControlJavaTests(unittest.TestCase):
             self.assertEqual(tested.returncode, 0, tested.stdout + tested.stderr)
             tested = subprocess.run([str(runtime), '-cp', str(classes), 'dev.pgrazor.ControlIdleWalkingTest'], capture_output=True, text=True, timeout=15)
             self.assertEqual(tested.returncode, 0, tested.stdout + tested.stderr)
+            tested = subprocess.run([str(runtime), '-cp', str(classes), 'dev.pgrazor.ControlBackgroundSpoofTest'], capture_output=True, text=True, timeout=15)
+            self.assertEqual(tested.returncode, 0, tested.stdout + tested.stderr)
+            silver_settings = work / 'silver-settings'
+            silver_settings.mkdir()
+            tested = subprocess.run([str(runtime), '-cp', str(classes), 'dev.pgrazor.ControlSilverPinapTest', str(silver_settings)], capture_output=True, text=True, timeout=15)
+            self.assertEqual(tested.returncode, 0, tested.stdout + tested.stderr)
+            rocket_settings=work / "rocket-settings";rocket_settings.mkdir()
+            for phase in ("save","load"):
+                tested=subprocess.run([str(runtime),"-cp",str(classes),"dev.pgrazor.ControlRocketAutoTest",str(rocket_settings),phase],capture_output=True,text=True,timeout=15)
+                self.assertEqual(tested.returncode,0,tested.stdout+tested.stderr)
+            random_settings=work/'random-settings'
+            random_settings.mkdir()
+            for phase in ('save','load'):
+                tested=subprocess.run([str(runtime),'-cp',str(classes),'dev.pgrazor.ControlRandomThrowTest',str(random_settings),phase],capture_output=True,text=True,timeout=15)
+                self.assertEqual(tested.returncode,0,tested.stdout+tested.stderr)
+            manual_settings=work/'manual-settings';manual_settings.mkdir()
+            for phase in ('save','load'):
+                tested=subprocess.run([str(runtime),'-cp',str(classes),'dev.pgrazor.ControlManualTransferTest',str(manual_settings),phase],capture_output=True,text=True,timeout=15)
+                self.assertEqual(tested.returncode,0,tested.stdout+tested.stderr)
+            heal_settings=work/'heal-settings';heal_settings.mkdir()
+            for phase in ('save','load'):
+                tested=subprocess.run([str(runtime),'-cp',str(classes),'dev.pgrazor.ControlAutoHealTest',str(heal_settings),phase],capture_output=True,text=True,timeout=15)
+                self.assertEqual(tested.returncode,0,tested.stdout+tested.stderr)
+            egg_settings=work/'egg-settings'
+            egg_settings.mkdir()
+            for phase in ('save','load'):
+                tested=subprocess.run([str(runtime),'-cp',str(classes),'dev.pgrazor.ControlEggHatchTest',str(egg_settings),phase],capture_output=True,text=True,timeout=15)
+                self.assertEqual(tested.returncode,0,tested.stdout+tested.stderr)
+            poffin_settings=work/'poffin-settings'
+            poffin_settings.mkdir()
+            for phase in ('save','load'):
+                tested=subprocess.run([str(runtime),'-cp',str(classes),'dev.pgrazor.ControlPoffinTest',str(poffin_settings),phase],capture_output=True,text=True,timeout=15)
+                self.assertEqual(tested.returncode,0,tested.stdout+tested.stderr)
             for phase in ('save','load'):
                 tested=subprocess.run([str(runtime),'-cp',str(classes),'dev.pgrazor.ControlSettingsTest',phase,str(work)],capture_output=True,text=True,timeout=15)
                 self.assertEqual(tested.returncode,0,tested.stdout+tested.stderr)

@@ -12,7 +12,7 @@ public final class ControlSettingsTest {
         if(args[0].equals("save")) {
             Control.setGiftOptions(7);
             Control.setSpawnBooster(true);Control.setIdleWalking(true);
-            Control.setAutoBerry(705); Control.setEncounterBerryEnabled(true); Control.setBuddyBerry(703);
+            Control.setAutoBerry(705); Control.setEncounterBerryEnabled(true); Control.setBuddyBerry(708);
             Control.setBattleOptions(111); Control.setBattleOptions(981); // Rapid change: the newest value must win after coalescing.
             Control.setRocketOptions(5);
             Control.setItemCatalog("1|Poke Ball|150\n101|Potion|4");
@@ -28,7 +28,7 @@ public final class ControlSettingsTest {
         if(!Control.idleWalking()||Control.engine.idleWalkingActive())throw new AssertionError("Idle preference persistence without active motion");
         if(!Control.spawnBooster()||Control.spawnAllowed())throw new AssertionError("Spawn persistence/readiness");
         if(Control.giftOptions()!=7||Control.giftsAllowed())throw new AssertionError("Gift persistence/readiness");
-        if(Control.buddyBerry()!=703||Control.buddyAllowed())throw new AssertionError("Buddy preference/readiness");
+        if(Control.buddyBerry()!=708||Control.buddyAllowed())throw new AssertionError("Buddy preference/readiness");
         if(!Control.encounterBerryEnabled()||!Control.berryPriority().equals("705")||Control.autoBerry()!=705)
             throw new AssertionError("Berry choice/overlay not persisted");
         if(Control.battleOptions()!=981||Control.battlesAllowed())throw new AssertionError("Other battle persistence/readiness");

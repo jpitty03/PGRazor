@@ -28,7 +28,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
- * Scrollable, themed modal that edits a LivePokeMap display-filter set. It never talks to the network
+ * Scrollable, themed modal that edits a PoGoCoordinates display-filter set. It never talks to the network
  * or constructs request bodies; it only mutates a caller-owned {@link JSONObject} copy of the current
  * filters and hands it back on Apply so the owner can validate it through
  * {@code LiveFeedFilters.fromJson(...)}, persist it and refetch.
@@ -78,6 +78,7 @@ public final class LiveFeedFilterDialog {
         private final List<NumField> numbers = new ArrayList<>();
         private Button speciesButton;   // "Choose species (N)"; label refreshed on change
         private Button[] speciesModeButtons;
+        private String editingPreset;   // PGRazorX: the saved preset being edited (Edit in Saved presets), or null
 
         Editor(Activity activity, Context ui, boolean myShinies, JSONObject working,
                JSONObject speciesNames, SharedPreferences prefs, DialogSink sink, ApplyHandler onApply) {
@@ -103,8 +104,11 @@ public final class LiveFeedFilterDialog {
                 .setNegativeButton("Cancel", null)   // default dismiss: no change applied
                 .create();
             if (sink != null) sink.track(dialog);
+            MapTheme.style(scroll); MapTheme.styleGameButtons(scroll);
+            android.view.Window w = dialog.getWindow();
+            if (w != null) w.setBackgroundDrawable(MapTheme.dialogBackground(ui));
             dialog.setOnShowListener(d -> {
-                MapTheme.style(scroll); MapTheme.styleButtons(dialog);
+                MapTheme.styleButtons(dialog); MapTheme.gameFooter(dialog, null);
                 refreshSpeciesMode();
                 dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> onApplyClicked());
                 dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> onResetClicked());
@@ -138,7 +142,7 @@ public final class LiveFeedFilterDialog {
                 pvpSection();
                 shiniesSection();
             }
-            MapTheme.style(content);
+            MapTheme.style(content); MapTheme.styleGameButtons(content);
             refreshSpeciesMode();
         }
 
@@ -173,15 +177,13 @@ public final class LiveFeedFilterDialog {
             header("PvP");
             content.addView(checkbox("Great League", "show_pvp_great"));
             content.addView(checkbox("Ultra League", "show_pvp_ultra"));
-            content.addView(checkbox("Little Cup", "show_pvp_little"));
             content.addView(numberRow("Max PvP rank", "pvp_max_rank", 1, LiveFeedFilters.MAX_PVP_RANK));
+            content.addView(caption("With a league ticked, each refresh searches one by one, 10 s apart: first by IV, then Great League, then Ultra League. All results are added to the feed."));
         }
 
         private void shiniesSection() {
-            header("Shinies & backgrounds");
-            content.addView(checkbox("Show my shinies", "show_my_shinies"));
+            header("Shiny");
             content.addView(checkbox("Shiny only", "shiny_only"));
-            content.addView(checkbox("Show my backgrounds", "show_my_backgrounds"));
             content.addView(checkbox("Background only", "background_only"));
         }
 
@@ -211,6 +213,36 @@ public final class LiveFeedFilterDialog {
             Button presets = button("Saved presets…");
             presets.setOnClickListener(v -> openPresets());
             content.addView(presets, new LinearLayout.LayoutParams(-1, dp(44)));
+            // PGRazorX: while a saved preset is being edited, its changes are written back to it here.
+            if (editingPreset != null) {
+                final String n = editingPreset;
+                content.addView(caption("Editing \"" + n + "\": change the filters below, then save."));
+                LinearLayout row = new LinearLayout(ui);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                Button saveTo = button("Save to \"" + n + "\""), stop = button("Stop editing");
+                row.addView(saveTo, new LinearLayout.LayoutParams(0, dp(44), 1));
+                row.addView(stop, new LinearLayout.LayoutParams(0, dp(44), 1));
+                content.addView(row, new LinearLayout.LayoutParams(-1, -2));
+                saveTo.setOnClickListener(v -> {
+                    JSONObject saved = readPresets();
+                    if (!saved.has(n)) { toast("That preset no longer exists."); editingPreset = null; populate(); return; }
+                    if (savePreset(saved, n)) { status.setText("Preset \"" + n + "\" updated."); toast("Preset updated."); }
+                });
+                stop.setOnClickListener(v -> { editingPreset = null; populate(); status.setText("Stopped editing the preset; the filters stay as they are."); });
+            }
+        }
+
+        /** Validates the working filters and stores them under {@code n}; false (with a toast) when it cannot. */
+        private boolean savePreset(JSONObject presets, String n) {
+            collectNumbers();
+            try {
+                JSONObject validated = LiveFeedFilters.fromJson(working).toViewportJson();
+                JSONObject next = new JSONObject(presets.toString()); next.put(n, validated);
+                if (next.toString().length() > 150000) { toast("Saved presets are too large."); return false; }
+                presets.put(n, validated);
+                writePresets(presets);
+                return true;
+            } catch (JSONException e) { toast("Couldn't save that preset."); return false; }
         }
 
         // ------------------------------------------------------------------ species mode state
@@ -340,7 +372,7 @@ public final class LiveFeedFilterDialog {
                 .setNegativeButton("Cancel", null)
                 .create();
             if (sink != null) sink.track(picker);
-            picker.setOnShowListener(d -> { MapTheme.style(body); MapTheme.styleButtons(picker); });
+            picker.setOnShowListener(d -> { MapTheme.style(body); MapTheme.styleGameButtons(body); MapTheme.styleButtons(picker); MapTheme.gameFooter(picker, null); });
             picker.show();
         }
 
@@ -410,50 +442,86 @@ public final class LiveFeedFilterDialog {
                 listCol.removeAllViews();
                 if (names.isEmpty()) { listCol.addView(caption("No saved presets yet.")); }
                 for (String n : new ArrayList<>(names)) {
+                    // PGRazorX: name on its own line, then Apply / Edit / Rename / Delete.
                     LinearLayout row = new LinearLayout(ui);
-                    row.setOrientation(LinearLayout.HORIZONTAL);
-                    row.setGravity(Gravity.CENTER_VERTICAL);
+                    row.setOrientation(LinearLayout.VERTICAL);
+                    row.setPadding(0, dp(4), 0, dp(6));
                     TextView nameView = label(n, 14);
-                    row.addView(nameView, new LinearLayout.LayoutParams(0, -2, 1));
-                    Button apply = button("Apply"), del = button("Delete");
-                    row.addView(apply, new LinearLayout.LayoutParams(-2, dp(40)));
-                    row.addView(del, new LinearLayout.LayoutParams(-2, dp(40)));
+                    row.addView(nameView, new LinearLayout.LayoutParams(-1, -2));
+                    LinearLayout actions = new LinearLayout(ui);
+                    actions.setOrientation(LinearLayout.HORIZONTAL);
+                    Button apply = button("Apply"), edit = button("Edit"), rename = button("Rename"), del = button("Delete");
+                    for (Button b : new Button[]{apply, edit, rename, del}) actions.addView(b, new LinearLayout.LayoutParams(0, dp(40), 1));
+                    row.addView(actions, new LinearLayout.LayoutParams(-1, -2));
                     listCol.addView(row, new LinearLayout.LayoutParams(-1, -2));
                     apply.setOnClickListener(v -> {
                         JSONObject p = presets.optJSONObject(n);
                         if (p != null) {
+                            editingPreset = null;
                             copyAll(p, working); populate();
                             status.setText("Preset \"" + n + "\" loaded. Apply to use it.");
                         }
                         manager.dismiss();
                     });
+                    edit.setOnClickListener(v -> {
+                        JSONObject p = presets.optJSONObject(n);
+                        if (p != null) {
+                            editingPreset = n;
+                            copyAll(p, working); populate();
+                            status.setText("Editing preset \"" + n + "\". Change the filters, then tap Save to \"" + n + "\".");
+                        }
+                        manager.dismiss();
+                    });
+                    rename.setOnClickListener(v -> {
+                        final EditText field = new EditText(ui);
+                        field.setSingleLine(true); field.setText(n); field.setSelection(n.length());
+                        AlertDialog ask = new AlertDialog.Builder(ui)
+                            .setTitle("Rename preset")
+                            .setView(field)
+                            .setPositiveButton("Rename", null)
+                            .setNegativeButton("Cancel", null)
+                            .create();
+                        if (sink != null) sink.track(ask);
+                        ask.setOnShowListener(d2 -> {
+                            MapTheme.styleButtons(ask); MapTheme.gameFooter(ask, null);
+                            ask.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v2 -> {
+                                String next = field.getText().toString().trim();
+                                if (next.isEmpty() || next.length() > 40) { toast("Use a preset name of 1 to 40 characters."); return; }
+                                if (next.equals(n)) { ask.dismiss(); return; }
+                                if (presets.has(next)) { toast("A preset with that name already exists."); return; }
+                                try {
+                                    JSONObject value = presets.optJSONObject(n);
+                                    if (value == null) { ask.dismiss(); return; }
+                                    presets.remove(n); presets.put(next, value); writePresets(presets);
+                                    names.remove(n); names.add(next); java.util.Collections.sort(names);
+                                    if (n.equals(editingPreset)) { editingPreset = next; populate(); }
+                                    rebuild[0].run(); ask.dismiss(); toast("Preset renamed.");
+                                } catch (JSONException e) { toast("Couldn't rename that preset."); }
+                            });
+                        });
+                        ask.show();
+                    });
                     del.setOnClickListener(v -> {
                         presets.remove(n); names.remove(n); writePresets(presets);
+                        if (n.equals(editingPreset)) { editingPreset = null; populate(); }
                         rebuild[0].run();
                     });
-                    MapTheme.style(row);
+                    MapTheme.style(row); MapTheme.styleGameButtons(row);
                 }
             };
             save.setOnClickListener(v -> {
                 String n = name.getText().toString().trim();
                 if (n.isEmpty() || n.length() > 40) { toast("Use a preset name of 1 to 40 characters."); return; }
                 if (!presets.has(n) && presets.length() >= 25) { toast("You can save up to 25 presets."); return; }
-                collectNumbers();
-                try {
-                    JSONObject validated = LiveFeedFilters.fromJson(working).toViewportJson();
-                    JSONObject next = new JSONObject(presets.toString()); next.put(n, validated);
-                    if (next.toString().length() > 150000) { toast("Saved presets are too large."); return; }
-                    presets.put(n, validated);
-                    writePresets(presets);
-                    if (!names.contains(n)) names.add(n);
-                    java.util.Collections.sort(names);
-                    name.setText("");
-                    rebuild[0].run();
-                    toast("Preset saved.");
-                } catch (JSONException e) { toast("Couldn't save that preset."); }
+                if (!savePreset(presets, n)) return;
+                if (!names.contains(n)) names.add(n);
+                java.util.Collections.sort(names);
+                name.setText("");
+                rebuild[0].run();
+                toast("Preset saved.");
             });
 
-            manager.setOnShowListener(d -> { MapTheme.style(body); MapTheme.styleButtons(manager); rebuild[0].run(); });
+            manager.setOnShowListener(d -> { MapTheme.style(body); MapTheme.styleGameButtons(body); MapTheme.styleButtons(manager); MapTheme.gameFooter(manager, null); rebuild[0].run(); });
             manager.show();
         }
 
@@ -512,8 +580,7 @@ public final class LiveFeedFilterDialog {
         }
 
         private void highlight(Button b, boolean on) {
-            b.setTextColor(on ? MapTheme.accent() : MapTheme.ink());
-            b.setTypeface(null, on ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
+            MapTheme.gameSelected(b, on);
         }
 
         private int dp(float v) { return Math.round(v * activity.getResources().getDisplayMetrics().density); }

@@ -580,6 +580,7 @@ void enumerate_and_recycle(uint64_t now, uint64_t deadline) {
         int32_t id = read_s32(d, g_cfg.f_id);
         int32_t qty = read_s32(d, g_cfg.f_count);
         uint8_t rec = read_u8(d, g_cfg.f_recyclable);
+        if (id == 709) { if (qty >= 0 && qty <= kMaxQty) row_update(id, qty); continue; } // Poffin is count-only, never recyclable.
         if (rec != 1 || id <= 0 || qty < 0 || qty > kMaxQty) continue;
         row_update(id, qty);
         // A latched fail-closed quarantine overflow suppresses ALL recycle selection; the catalog
@@ -707,9 +708,9 @@ void refresh_berries(uint64_t now, uint64_t deadline) {
     void *b = read_ref(service, g_cfg.f_bag);
     if (!exact(b, g_cfg.class_bag)) return;
     bag.set(b, &err);
-    int32_t counts[5] = {};
-    const int32_t ids[5] = {701,703,705,706,707};
-    for (int i = 0; i < 5 && !err; ++i) {
+    int32_t counts[6] = {};
+    const int32_t ids[6] = {701,703,705,706,708,709};
+    for (int i = 0; i < 6 && !err; ++i) {
         uint64_t t = boottime_ms();
         if (g_revoke || !t || t >= deadline) return;
         b = bag.target();
@@ -721,7 +722,7 @@ void refresh_berries(uint64_t now, uint64_t deadline) {
     if (err) { note_fault(); emit_error(PGR_ITEMS_REASON_NATIVE, 0, 0); g_st.next_ms = now + kBackoffMs; return; }
     uint64_t t = boottime_ms();
     if (g_revoke || !t || t >= deadline) return;
-    for (int i = 0; i < 5; ++i) row_update(ids[i], counts[i]);
+    for (int i = 0; i < 6; ++i) row_update(ids[i], counts[i]);
     publish_catalog();
 }
 
@@ -751,7 +752,7 @@ int probe_selected(uint64_t now, uint64_t deadline) {
                 (processed && t - now >= 4)) { g_st.next_ms = 0; return 2; }
             const auto entry = g_snapshot.entries[g_st.probe_cursor];
             ++processed;
-            if (entry.id <= 0 || item_paused(entry.id)) { ++g_st.probe_cursor; continue; }
+            if (entry.id <= 0 || entry.id == 709 || item_paused(entry.id)) { ++g_st.probe_cursor; continue; }
             int32_t quantity = 0, id = entry.id; void *args[] = {&id};
             if (!invoke_int(g_cfg.m_quantity, bag.target(), args, &quantity, &err) ||
                 quantity < 0 || quantity > kMaxQty) goto fail;
@@ -812,7 +813,7 @@ void orchestrate(uint64_t now, uint64_t deadline, uint32_t force_poll) {
     g_st.next_ms = now + kPollMs;
     const bool explicit_catalog = (force_poll & 2u) != 0;
     if (explicit_catalog) release_probe();
-    // The berry overlay explicitly requests these five IDs independently of cleanup.
+    // The berry overlay explicitly requests these six treat IDs independently of cleanup.
     if (force_poll & 4u) {
         if (!g_st.service_handle && g_cfg.has_lookup) do_lookup(now);
         if (g_st.service_handle) refresh_berries(now, deadline);

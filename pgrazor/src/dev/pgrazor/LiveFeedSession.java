@@ -13,7 +13,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 
 /**
- * App-private persistence for the LivePokeMap bearer token only. The token is encrypted with an
+ * App-private persistence for the PoGoCoordinates session token/cookies. The token is encrypted with an
  * AES/GCM key held in the AndroidKeyStore and stored in a {@code MODE_PRIVATE} SharedPreferences
  * file; the password is never persisted and the token never appears in logs or exceptions.
  *

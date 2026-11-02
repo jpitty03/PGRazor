@@ -31,6 +31,7 @@ struct PgrQuickballHostConfig {
 struct PgrQuickballHostOptions {
  uint32_t version,size;
  uint32_t quick_allowed,throw_allowed,ar_allowed,map_allowed,iv_allowed;
+ // grade: 0 Off, 1 Nice, 2 Great, 3 Excellent, 4 Random (same wire layout).
  uint32_t grade,curve,always_hit,ar_enabled,map_mode,iv_catch,iv_owned;
  uint32_t lease_ms,reserved;
  uint64_t map_epoch;

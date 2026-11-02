@@ -72,6 +72,12 @@ TABLE(flow_encounter_api,flow_encounter) TABLE(flow_interaction_api,flow_interac
 #define pgrazor_encounter_host_api flow_encounter_api
 #define pgrazor_interaction_host_api flow_interaction_api
 #define pgrazor_runtime_host_api flow_manager_api
+void pgr_egg_hatch_tick(uint64_t,uint64_t,bool){} // gameplay boundary spy
+void pgr_egg_hatch_stop(){}
+void pgr_auto_heal_tick(uint64_t,uint64_t,bool){}
+void pgr_auto_heal_stop(){}
+void pgr_manual_transfer_tick(uint64_t,uint64_t,bool){}
+void pgr_manual_transfer_stop(){}
 #include "runtime_host.cpp"
 
 // Collector is another gameplay boundary spy. The real transport still supplies

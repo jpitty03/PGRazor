@@ -58,15 +58,14 @@ function fixture(){
 const f=fixture(),{control}=f.bridge;
 for(const group of ['BOOL_READERS','INT_READERS','DOUBLE_READERS','STRING_READERS','PULSE_READERS','ACTIONS']){
  const current=javaArray(group);
- if(group==='BOOL_READERS'){assert.equal(current.pop(),'eventBoxesAllowed','v2 native-only collector gate');}
  assert.deepEqual(Array.from(f.schema[group]),current,group+' stable research adapter wire order');
 }
 const names=[...f.schema.BOOL_READERS,...f.schema.INT_READERS,...f.schema.DOUBLE_READERS,...f.schema.STRING_READERS,'accountCommandSnapshot'];
 const oldReaders=legacy.match(/const readers='([^']+)'/)[1].split(' ').concat('accountCommandSnapshot');
-assert.equal(names.length,57);assert.deepEqual([...names].sort(),oldReaders.sort());
+assert.equal(names.length,62);assert.deepEqual(names.filter(n=>!['eventBoxesAllowed','eggHatchAllowed','eggKeepSpecial','eggObserveOnly','manualTransferAllowed'].includes(n)).sort(),oldReaders.sort());
 assert.deepEqual(Array.from(f.schema.PULSE_READERS),legacy.match(/const pulses='([^']+)'/)[1].split(' '));
-assert.deepEqual(Array.from(f.schema.ACTIONS,s=>s.split(':')[0]),legacy.match(/const actions='([^']+)'/)[1].split(' '));
-assert.equal(f.schema.PULSE_READERS.length,3);assert.equal(f.schema.ACTIONS.length,59);
+assert.deepEqual(Array.from(f.schema.ACTIONS.slice(0,59),s=>s.split(':')[0]),legacy.match(/const actions='([^']+)'/)[1].split(' '));
+assert.equal(f.schema.PULSE_READERS.length,3);assert.equal(f.schema.ACTIONS.length,62);
 for(const name of [...names,...f.schema.PULSE_READERS,...Array.from(f.schema.ACTIONS,s=>s.split(':')[0])])assert.equal(typeof control[name],'function',name);
 f.schema.BOOL_READERS.forEach((name,id)=>assert.equal(control[name](),!!(id%2)));
 f.schema.INT_READERS.forEach((name,id)=>assert.equal(control[name](),-100-id));
@@ -75,7 +74,7 @@ f.schema.STRING_READERS.forEach((name,id)=>assert.equal(control[name](),'reader-
 let before=f.calls.length;assert.deepEqual(Array.from(control.accountCommandSnapshot()),['command-1\0\u96ea','18446744073709551615']);
 assert.deepEqual(f.calls.slice(before),['command'],'command/token pair is one atomic native call');
 f.schema.PULSE_READERS.forEach((name,id)=>assert.equal(control[name](),id===1));
-console.log('PASS native transport all57 readers/3 pulses/59 schema entries, exact atomic command strings');
+console.log('PASS native transport all60 readers/3 pulses/62 schema entries, exact atomic command strings');
 
 // Exercise EVERY action, preserving scalar order/bits and length-prefixed UTF8.
 const valid=type=>type==='String'?'value\0\u96ea\ud83d\ude42':type==='boolean'?true:type==='double'?-123.25:type==='long'?Number.MAX_SAFE_INTEGER:-2147483648;

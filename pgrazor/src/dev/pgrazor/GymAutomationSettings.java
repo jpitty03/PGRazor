@@ -4,7 +4,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.text.InputType;
-import android.widget.CheckBox;
+import android.widget.Switch;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -99,13 +99,17 @@ public final class GymAutomationSettings {
         TextView description=new TextView(ui);
         TextView progress=new TextView(ui);progress.setText(status());body.addView(progress);
         description.setText("Acts only within 80 m of a Gym while the game is on the map screen. It slots eligible #Gym-tagged Pokémon first; the lowest-CP fallback is used only when enabled and no eligible #Gym defender is available, and it never picks favorite, buddy, or protected Pokémon. Feeding uses Nanab before Razz and only above the reserves you set. It obeys the game's own server limits, so some actions may be declined. No dust or coin payout is promised.");body.addView(description);
-        CheckBox master=new CheckBox(ui);master.setText("Run Gym Slotter & Berry Feeder");body.addView(master);
-        CheckBox deploy=new CheckBox(ui);deploy.setText("Auto-deploy to open Gym slots");deploy.setChecked(preferences.deploy());body.addView(deploy);
+        Switch master=new Switch(ui);master.setText("Run Gym Slotter & Berry Feeder");body.addView(master);
+        Switch deploy=new Switch(ui);deploy.setText("Auto-deploy to open Gym slots");deploy.setChecked(preferences.deploy());body.addView(deploy);
 
-        CheckBox feed=new CheckBox(ui);feed.setText("Auto-feed berries to your Gym defenders");feed.setChecked(preferences.feed());body.addView(feed);
-        CheckBox overlay=new CheckBox(ui);overlay.setText("Show gym automation overlay");overlay.setChecked(preferences.overlay());body.addView(overlay);
+        Switch feed=new Switch(ui);feed.setText("Auto-feed berries to your Gym defenders");feed.setChecked(preferences.feed());body.addView(feed);
+        Switch overlay=new Switch(ui);overlay.setText("Show gym automation overlay");overlay.setChecked(preferences.overlay());body.addView(overlay);
 
-        CheckBox fallback=new CheckBox(ui);fallback.setText("Allow lowest-CP fallback when no eligible #Gym defenders");fallback.setChecked(preferences.fallback());body.addView(fallback);
+        Switch hideText=new Switch(ui);hideText.setText("Hide Gym status text");
+        hideText.setContentDescription("Hide the status text and keep the Gym icon visible");
+        hideText.setChecked(OverlayTextSettings.hidden(activity,"gym-feed"));body.addView(hideText);
+        hideText.setOnCheckedChangeListener((v,on)->OverlayTextSettings.setHidden(activity,"gym-feed",on));
+        Switch fallback=new Switch(ui);fallback.setText("Allow lowest-CP fallback when no eligible #Gym defenders");fallback.setChecked(preferences.fallback());body.addView(fallback);
         fallback.setOnCheckedChangeListener((v,on)->{set("Fallback",on);});
         LinearLayout reserves=new LinearLayout(ui);reserves.setOrientation(LinearLayout.VERTICAL);body.addView(reserves);
         input(activity,reserves,"Nanab Berry reserve (0–1000)",String.valueOf(preferences.nanabReserve()),value->{int n=bounded(value,1000);set("NanabReserve",n);});

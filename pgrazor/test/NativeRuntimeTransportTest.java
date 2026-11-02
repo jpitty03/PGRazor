@@ -11,7 +11,7 @@ import java.nio.charset.StandardCharsets;
  */
 public final class NativeRuntimeTransportTest {
     // Wire constants mirror runtime_transport.h / NativeRuntimeTransport.
-    private static final int MAGIC_SNAPSHOT = 0x53524750, MAGIC_EVENTS = 0x45524750, VERSION = 9;
+    private static final int MAGIC_SNAPSHOT = 0x53524750, MAGIC_EVENTS = 0x45524750, VERSION = 17;
     private static final int OFF_BOOLS = 32, OFF_INTS = 80, OFF_DOUBLES = 120, OFF_PULSES = 136, OFF_STRINGS = 160;
     private static final int EVENT_HEADER = 32;
 
@@ -101,7 +101,8 @@ public final class NativeRuntimeTransportTest {
         require(readString(snap, at).isEmpty()); at += 4; // Batch evolution slot 11.
         require(readString(snap, at).equals("1|123|0|0|0|0|0|0"));
         at += 4 + "1|123|0|0|0|0|0|0".length(); // One-shot automation slot 12.
-        require(at == fake.lastSnapshot.length);
+        require(readString(snap, at).equals("v1:7:13:1")); at += 4+"v1:7:13:1".length(); // Auto Rocket slot 14.
+        require(readString(snap, at).equals("v1:9:3:1")); // Auto heal slot 15.
 
         // 3. A valid event batch dispatches to Control exactly once (no replay on the next tick).
         fake.nextEvents = new FrameBuilder()
@@ -225,6 +226,14 @@ public final class NativeRuntimeTransportTest {
         t.tick();
         require(t.isStopped() && Control.disconnects == 2);
 
+        fake = new Fake(); t = fresh(fake);
+        fake.nextEvents = new FrameBuilder().event(59,new long[]{Long.MAX_VALUE,12345},new String[0]).build();
+        t.tick(); require(!t.isStopped() && Control.lastRocketCommand==Long.MAX_VALUE && Control.timestamp==12345);t.stop();
+        fake = new Fake(); t = fresh(fake);
+        fake.nextEvents = new FrameBuilder().event(60,new long[]{1,1,0,123456},new String[]{"Hatch detected"}).build();
+        t.tick(); require(!t.isStopped() && Control.timestamp==123456 && Control.lastDiagnostic.equals("Hatch detected"));
+        fake.nextEvents=new FrameBuilder().baseSeq(2).event(61,new long[]{1},new String[]{"Manual filters ready"}).build();
+        t.tick();require(!t.isStopped()&&Control.lastDiagnostic.equals("Manual filters ready"));t.stop();
         System.out.println("PASS NativeRuntimeTransport: inert factory, typed binary snapshot (bool/int/NaN-coord/"
             + "pulse/command-pair), valid batch dispatch + no replay, exact 64-bit scalars (incl. Long.MAX_VALUE), "
             + "type/domain/arity rejection, malformed-frame + negative-status fault, reentry guard, stop during "

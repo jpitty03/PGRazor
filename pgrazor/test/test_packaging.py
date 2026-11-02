@@ -106,6 +106,18 @@ class PackageTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'clean original'):
                 nonroot.require_clean_game_certificate([signer])
 
+    def test_preview_input_may_carry_country_borders(self):
+        # PGRazorX: the preview APK bundles the cooldown history's country borders; any other PGRazor asset is refused.
+        with tempfile.TemporaryDirectory() as temp:
+            source=Path(temp)/'preview.apk';output=Path(temp)/'out.apk'
+            with zipfile.ZipFile(source,'w') as z:
+                z.writestr('assets/pgrazor/country-borders.dat',b'x');z.writestr('assets/pgrazor/map-icons/stop.png',b'y')
+            nonroot.rewrite_apk(source,output,preview=True)
+            with zipfile.ZipFile(output) as z:self.assertEqual(z.read('assets/pgrazor/country-borders.dat'),b'x')
+            with self.assertRaisesRegex(ValueError,'already has PGRazor assets'):nonroot.rewrite_apk(source,output,preview=False)
+            with zipfile.ZipFile(source,'a') as z:z.writestr('assets/pgrazor/mode.json',b'{}')
+            with self.assertRaisesRegex(ValueError,'already has PGRazor assets'):nonroot.rewrite_apk(source,output,preview=True)
+
     def test_rewrite_preserves_app_payload_and_original(self):
         source=ROOT/'build/pgrazor-preview.apk'
         if not source.exists(): self.skipTest('Preview APK not built')

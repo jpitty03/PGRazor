@@ -29,16 +29,16 @@ Features listed here include unreleased changes on `main`; check your release no
 
 | Area | Controls |
 | --- | --- |
-| Map | Optional location spoofing, including with app location permission denied; camera-relative joystick, saved locations, GPX import/export and saved routes, Autowalk, tap-to-walk/teleport, nearby stop/gym/raid layers |
-| Catching | Quick Catch; Always Hit; Nice/Great/Excellent throws; always curveball; optional AR+ flag; optional level and color-graded IV display; berry selector |
-| Inventory | Optional IV/level on Pokémon details; transfer newly caught Pokémon below 90% IV; configurable item limits |
+| Map | Optional location spoofing and background location delivery; camera-relative joystick, saved locations, GPX, Autowalk, tap-to-walk/teleport, nearby map layers |
+| Catching | Quick Catch; Always Hit; fixed or random throw grade; curveball; optional AR+; IV and PvP ranks; prioritized berries including Silver Pinap |
+| Inventory | IV/level and best PvP under names; transfer-on-catch rules; optional manual batch transfer of special Pokemon with favorites, eggs and Gym defenders protected; item limits |
 | Keep rules | Legendary/mythical/Ultra Beasts, shiny, event/costume, background, **XXS**, **XXL**, searchable custom species keep list, and a persistent Keep All overlay; favorites and eggs always kept |
 | Virtual Go Plus | Nearby wild catches with red balls, nearby stop spins, optional notifications, target marker and activity status |
-| Eggs | Unlimited incubator only; shortest- or longest-distance priority |
-| LivePokeMap | Remote Pokémon, stops, gyms, raids, and stations; requires a LivePokeMap subscription |
-| Battles | Rocket quick/charged attacks, charged minigame and shields; raid/gym/Dynamax attacks, Max attacks and dodging |
-| Other automation | Selectable buddy berry, gift opening/sending with optional stickers, quick spin, local spawn booster |
-| Interface | Quick menu, full-screen settings, separate joystick, cooldown history, light/dark themes, settings export/import, scrollable Quick Menu and window-safe overlays |
+| Eggs | Unlimited incubator with shortest/longest priority; optional hatch skipping for normal and Daily Adventure Eggs; Keep shiny & 100%; bounded summary-close retries |
+| LivePokeMap | Remote map feeds; PoGoCoordinates integration with authentication, country/mode filters, presets and refresh controls |
+| Battles | Optional Full Auto Rocket flow and rescue throw; Rocket attacks, charged minigame and shields; raid/gym/Dynamax attacks and dodging |
+| Other automation | Buddy berry priorities and optional Poffin; gifts; quick spin; native spawn booster; revive/heal to full with optional below-50% trigger |
+| Interface | Scrollable quick menu, full-screen settings, joystick, cooldown history, themed status cards, global map-overlay opacity, optional VGP/Gym status text, light/dark themes, settings export/import |
 | Accounts (experimental) | Quick Menu switching, remembered Google/PTC sessions, deletion of saved accounts, and separate settings, location, cooldown history, favorites and saved GPX routes |
 
 **Accounts:** Open **Quick Menu → Switch account** or **Settings → Accounts** to manage profiles. Delete removes an inactive profile and its saved sign-in, settings, location, favorites and routes from this device; it does not delete the Pokémon GO account. Switch away before deleting the current profile. Switching stops movement and automation, saves the outgoing account, and restarts the game with the selected account's remembered session. Sign in once per account to establish a saved session; expired or revoked sessions may require sign-in again. Sessions are encrypted on-device using Android Keystore, excluded from settings exports and Android backups, and never include saved passwords. The signed-in game identity determines the profile, including when you choose a different account at login. Existing settings become the first profile; new profiles start with defaults. LivePokeMap authentication remains shared, while its filters are per profile. Settings export/import applies to the current profile and does not export the account list. If sign-in choices are missing while signed out, **Accounts → Reset sign-in choices** restarts the game and asks for your date of birth again. Enter your own date of birth; the game controls which providers are available.
@@ -69,7 +69,7 @@ Smart Catcher attempts loaded, visible wild Pokémon without the normal VGP's lo
 
 **Gym Slotter & Berry Feeder (local test build):** Open Settings > Raids, gyms & Dynamax > Gym Slotter & Berry Feeder. Deployment and feeding are independently enabled and default off; VGP need not be running. While the game is on the map, it considers friendly gyms within 80m, checks current defenders, and prioritizes eligible Pokémon tagged `Gym` or `#Gym`. The optional fallback chooses low CP and excludes shiny, lucky, and IV ≥90% Pokémon; all candidates exclude favorites, the current buddy, injured, deployed, and otherwise ineligible Pokémon. Choose deployment, feeding, or both, then use Run Gym Slotter & Berry Feeder or its draggable gym-and-berry icon to start. Show gym automation overlay controls visibility. The master starts off each session. Active cooldown stops the whole feature and blocks a new start; restart manually afterward. Stopping preserves both selections. Feeding uses surplus Nanab then Razz, with separate reserves (default 50), at least 1500ms between confirmed feeds, and bounded per-defender attempts. Server refusals and inventory updates govern subsequent requests; rewards are reported only from successful responses. Ambiguous timeouts pause the feature; switch both options off to reset the pause. Deployment and consecutive feeding with Stardust rewards have been verified on MuMu. Auto-spin Gym discs is a separate, default-off choice under Virtual Go Plus > VGP+: it works at any team's loaded gyms within 80 m, checks bag space, and respects each disc's cooldown. Enable VGP+ and the choice, then start VGP; Gym Slotter and feeding need not be enabled.
 
-**Buddy Emotion Engine (local test build):** Expand Settings ? Buddy Emotion Engine; it replaces Auto feed buddy. The master checkbox controls snapshots, petting, hunger-based berry feeding, and optional gift collection. Select berries and arrange their priority; each feed uses the first selected berry whose stock exceeds the per-berry reserve. New configurations start with Nanab, Razz, then Pinap and a reserve of 50; premium berries require explicit selection. Poffins are never used. Existing single-berry choices are preserved, and legacy-only Auto feed buddy settings migrate with their old no-reserve behavior. Disabling the engine grays its controls without clearing choices and does not reactivate the old feeder. The optional draggable status display shows game-reported EP/excitement and an estimated maintenance countdown. Use Show EP overlay to hide it without stopping buddy care. Recent action history is scoped to the current account and buddy and survives restart. Unknown request outcomes pause automation until toggled off. Snapshot/pet EP gains, a three-berry Nanab feed sequence, and restart history have been verified on MuMu. Ordered fallback has native fixture coverage; live fallback, gifts, and sustained excitement still need verification. The game reported 32 EP and Excited during a live run; gift result handling and buddy-swap pause recovery now have native regression coverage. Walking and battles remain manual; automatic battle forfeits are not implemented.
+**Buddy Emotion Engine (local test build):** Expand Settings ? Buddy Emotion Engine; it replaces Auto feed buddy. The master checkbox controls snapshots, petting, hunger-based berry feeding, and optional gift collection. Select berries and arrange their priority; each feed uses the first selected berry whose stock exceeds the per-berry reserve. New configurations start with Nanab, Razz, then Pinap and a reserve of 50; premium berries require explicit selection. Poffin use is opt-in in the local patch; see docs/PGRazorX-PAQUETE3.md. Existing single-berry choices are preserved, and legacy-only Auto feed buddy settings migrate with their old no-reserve behavior. Disabling the engine grays its controls without clearing choices and does not reactivate the old feeder. The optional draggable status display shows game-reported EP/excitement and an estimated maintenance countdown. Use Show EP overlay to hide it without stopping buddy care. Recent action history is scoped to the current account and buddy and survives restart. Unknown request outcomes pause automation until toggled off. Snapshot/pet EP gains, a three-berry Nanab feed sequence, and restart history have been verified on MuMu. Ordered fallback has native fixture coverage; live fallback, gifts, and sustained excitement still need verification. The game reported 32 EP and Excited during a live run; gift result handling and buddy-swap pause recovery now have native regression coverage. Walking and battles remain manual; automatic battle forfeits are not implemented.
 
 **LivePokeMap feeds:** Requires an active subscription to [LivePokeMap](https://play.livepokemap.com/), purchased separately from their service. Open **Feeds** and sign in with your own account on the phone. The feed lists remote Pokémon, stops, gyms, raids, and stations around your current location. Configure your friend code on the LivePokeMap website, then open **My Shinies** in Feed. My Shinies has its own 30-second refresh and is not limited by the Nearby radius. **Filters** provides species selection, IV/level ranges, size, always-show exceptions, PvP ranks, and shiny/background controls; My Shinies exposes the subset supported by its endpoint. Filter presets are saved locally. Rows show base-species sprites, gym team emblems, and raid bosses or eggs. Forms and shiny variants share the base-species image. Filter by category, radius, and minimum Pokémon IV; select a result for Map, Walk, or Teleport. The session token is stored encrypted with Android Keystore; the password is never saved. Logout removes the token. Refresh stops when the feed closes or the app leaves the foreground. Remote sightings can expire and are separate from locations loaded by the game. This uses LivePokeMap's observed web interface, which may change; access depends on your account and service availability.
 
@@ -134,15 +134,28 @@ Original PGRazor source is available under the [MIT License](LICENSE). Third-par
 
 Enable **Settings > Location & overlays > Idle walking** to walk a small closed loop after 3 seconds without movement. The 10 m-radius loop stays within 20 m of its starting point and uses your chosen speed up to 5 km/h. Speed 0 pauses it. Joystick, destination walking, autowalk and in-game Routes take priority; when they finish, a new loop starts at the current position. Backgrounding or unavailable location support stops it. The setting defaults off and is saved per account. Small loops may not earn walking distance consistently; the game decides what movement counts.
 
-### Responsive overlays (unreleased)
+## Unreleased contributions based on 0.1.8
 
-The Quick Menu scrolls vertically when its actions do not fit in the available window.
-Its viewport and draggable overlays respect system bars, display cutouts and the keyboard,
-including hosts whose content already fits inside those insets. Saved drag positions are
-restored relative to the safe area. Overlay sizes are capped to fit the current window;
-rotation and resizing re-evaluate the saved UI scale.
+Quick Spawn uses the official implementation; the former custom patch is excluded.
 
-Host geometry tests cover 3,360 combinations of window size, density, font-size estimates
-and UI scale. These tests verify bounds calculations, not Android rendering or touch
-accessibility. Small-window, rotation, keyboard, cutout and large-font device tests remain
-necessary before release.
+- Updated interface theme, overlay opacity and map/route presentation; official Quick Menu visibility and Automation retained.
+- Location and walking in the background; official idle walking retained.
+- Silver Pinap (708) support.
+- Opt-in Poffin (709) in Buddy Emotion Engine.
+- Random throws independent of the fixed throw grade.
+- Native PvP league ranks in encounters and inventory.
+- IV and best PvP under inventory names, including first visible rows.
+- Full Auto Rocket, including the corrected capture swipe; no Skip encounter option.
+- Skip Hatch with validated LP64 handles and shared tap for normal/Daily Adventure Eggs.
+- Revive and heal to full; optional trigger strictly below 50% HP.
+- Adaptive scan budgets and larger PvP cache.
+- Manual batch transfer of selected shiny/legendary/mythical Pokemon; favorites, eggs and Gym defenders remain protected.
+- Confirmed hatch summary closing with bounded retries; Keep shiny & 100% still protects matching summaries.
+- Responsive overlay bounds, scrollable quick menu, multiline settings rows and rounded status backgrounds.
+- Independent Hide VGP status text and Hide Gym status text switches, with icons left visible.
+
+These contributions are unreleased. Host checks and Java compilation are separate from phone
+observations. The viewport policy has a 3,360-case host matrix, but small-screen, large-font,
+rotation, keyboard and cutout layouts still need Android device/emulator validation.
+
+Current usage and runtime boundaries for these unreleased changes: [improvement guide](docs/UNRELEASED-IMPROVEMENTS.md).

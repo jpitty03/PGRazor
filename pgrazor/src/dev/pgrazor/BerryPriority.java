@@ -3,7 +3,7 @@ package dev.pgrazor;
 /** Ordered, unique catch-berry choices; no inventory data is persisted in the policy. */
 public final class BerryPriority {
     private BerryPriority() {}
-    public static boolean validId(int id) { return id==701||id==703||id==705||id==706||id==707; }
+    public static boolean validId(int id) { return id==701||id==703||id==705||id==706||id==708; }
     public static int[] parse(String value) {
         if(value==null||value.length()>11)throw new IllegalArgumentException("Invalid berry priorities");
         if(value.isEmpty())return new int[0];

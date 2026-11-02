@@ -170,6 +170,22 @@ public class MotionTest {
         longRoute[0][0]=70;
         check(imported.targetLatitude==1,"Imported route is copied");
         imported.stop();check(imported.routeProgress().total==0,"Long route cancels normally");
+        // PGRazorX: the world map's route snapshot, lap counter and loop distances.
+        MotionEngine lap=at(0,0);
+        check(lap.routeView(0)==null,"No route view without a planned route");
+        lap.walkRoute(new double[][]{{0,.0001},{.0001,.0001},{.0001,0}},true);
+        MotionEngine.RouteView v=lap.routeView(0);
+        check(v!=null&&v.points.length==3&&v.next==0&&v.lap==1&&v.looping,"Route view copies the active loop");
+        check(lap.routeView(v.token).points==null,"Known route is not copied again");
+        double side=meters(0,.0001,.0001,.0001),closing=meters(.0001,0,0,.0001);
+        near(v.lapMeters,2*side+closing,.01,"Lap length includes the closing leg");
+        near(v.remainingMeters,meters(0,0,0,.0001)+2*side+closing,.01,"Remaining counts to the end of the lap");
+        v.points[0][0]=50;check(lap.routeView(0).points[0][0]==0,"Route view is a copy");
+        for(int i=0;i<400&&lap.routeView(0).lap==1;i++)lap.step(.25);
+        v=lap.routeView(0);check(v!=null&&v.lap==2&&v.next<=1,"Lap counter advances after the last stop");
+        lap.walkRoute(new double[][]{{0,.0001}},false);check(lap.routeView(0).lap==1&&!lap.routeView(0).looping,"New route restarts laps");
+        lap.stop();check(lap.routeView(0)==null,"Stopped route has no view");
+        MotionEngine walk=at(0,0);walk.walkTo(0,.001);check(walk.routeView(0)==null,"A plain walk-to is not drawn as a route");
         System.out.println("PASS: joystick and walk regressions; multi-stop frame budget, turns, duplicates, ownership, progress, cancellation, dateline and atomic validation");
     }
 }

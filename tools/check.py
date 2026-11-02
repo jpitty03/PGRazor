@@ -15,6 +15,7 @@ def run(*args, **kwargs):
 
 
 def main():
+    run(sys.executable, '-B', ROOT / 'tools/pvp_native_data.py', '--check')
     run(sys.executable, '-B', ROOT / 'tools/native_routes_schema.py', '--check')
     run(sys.executable, '-B', ROOT / 'tools/native_gift_schema.py', '--check')
     run(sys.executable, '-B', PROJECT / 'build.py', '--test-only')

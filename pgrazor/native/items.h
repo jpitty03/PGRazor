@@ -11,7 +11,7 @@
 // is confirmed only by matching the generated completion/error callback (by callback class,
 // its captured bag field and the predicted item id), never by the returned promise. A manual
 // recycle by the player blocks attribution and backs off. Disabled recycling scans only for
-// explicit catalog demand; berry overlays read five quantities without listing inventory.
+// explicit catalog demand; berry overlays read six treat quantities without listing inventory.
 //
 // Five methods are hooked (ONLY these five), exactly as the JS Interceptor did:
 //   * init    -- IItemInventoryService ctor-ish init: capture the live service (onLeave).

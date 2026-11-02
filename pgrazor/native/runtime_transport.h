@@ -42,16 +42,16 @@ enum PgrRuntimeTransportInfo {
   PGR_TRANSPORT_API_VERSION     = 1,
   PGR_TRANSPORT_CONFIG_VERSION  = 1,
   PGR_TRANSPORT_SAMPLE_VERSION  = 1,
-  PGR_TRANSPORT_FRAME_VERSION   = 9,
+  PGR_TRANSPORT_FRAME_VERSION   = 17,
 
   // Version 9 appends one-shot automation commands at string slot 12.
   // 40+10+2+6 scalar readers plus accountCommandSnapshot; 3 pulses; 59 actions.
-  PGR_TRANSPORT_BOOLS           = 40,
+  PGR_TRANSPORT_BOOLS           = 44,
   PGR_TRANSPORT_INTS            = 10,
   PGR_TRANSPORT_DOUBLES         = 2,
-  PGR_TRANSPORT_STRINGS         = 13,   // 5 strings + account command/token pair + smart catch config
+  PGR_TRANSPORT_STRINGS         = 15,   // 5 strings + account command/token pair + smart catch config
   PGR_TRANSPORT_PULSES          = 3,
-  PGR_TRANSPORT_ACTIONS         = 59,
+  PGR_TRANSPORT_ACTIONS         = 62,
 
   // Bounded transport limits.
   PGR_TRANSPORT_MAX_LEASE_MS    = 2500,      // freshness-window ceiling (legacy default 500)
@@ -83,7 +83,7 @@ enum PgrRuntimeTransportLayout {
   PGR_TRANSPORT_OFF_FLAGS      = 12,
   PGR_TRANSPORT_OFF_SEQ        = 16,   // u64
   PGR_TRANSPORT_OFF_WALL_MS    = 24,   // u64 System.currentTimeMillis() (telemetry; native uses its own clock)
-  PGR_TRANSPORT_OFF_BOOLS      = 32,   // u8[40] +8 zero padding (0/1)
+  PGR_TRANSPORT_OFF_BOOLS      = 32,   // u8[42] +6 zero padding (0/1)
   PGR_TRANSPORT_OFF_INTS       = 80,   // i32[10]
   PGR_TRANSPORT_OFF_DOUBLES    = 120,  // f64[2]  (lat, lon; NaN == "null" coord)
   PGR_TRANSPORT_OFF_PULSES     = 136,  // u64[3]  monotonic pulse counts

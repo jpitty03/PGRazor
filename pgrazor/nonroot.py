@@ -106,9 +106,9 @@ def signature_entry(name):
 def rewrite_apk(source,destination,*,base=False,dex=None,assets=None,preview=False,google_browser_login=False,dex_replacements=None):
     with zipfile.ZipFile(source) as original,zipfile.ZipFile(destination,'w') as output:
         names=original.namelist()
-        # Bundled map-icon art may already ride along in our own preview input; any other pre-existing
+        # Bundled map-icon art (and PGRazorX's country borders) may already ride along in our own preview input; any other pre-existing
         # PGRazor asset means the input was already instrumented and must be refused.
-        if any(name.startswith('assets/pgrazor/') and not (preview and name.startswith(('assets/pgrazor/map-icons/','assets/pgrazor/feed-icons/pokemon/'))) for name in names): raise ValueError('Input already has PGRazor assets')
+        if any(name.startswith('assets/pgrazor/') and not (preview and (name.startswith(('assets/pgrazor/map-icons/','assets/pgrazor/feed-icons/pokemon/')) or name=='assets/pgrazor/country-borders.dat')) for name in names): raise ValueError('Input already has PGRazor assets')
         if base:
             indices=[int(match.group(1) or '1') for name in names if (match:=re.fullmatch(r'classes(\d*)\.dex',name))]
             nextdex='classes'+str(max(indices,default=0)+1)+'.dex'
@@ -255,6 +255,8 @@ def package(source, *,research_runtime=False,panel_only=False,download=False,pre
         for abi, binary in native_outputs.items():
             assets[f'assets/pgrazor/{abi}/libpgrazor-core.so'] = binary
         assets['assets/pgrazor/native-notices/Dobby-LICENSE'] = native_build.ensure_dobby(ROOT)/'LICENSE'
+        for name,path in build.pvp_notice_assets().items():
+            assets['assets/pgrazor/'+name] = path
     art_provenance = None
     if compiled_location:
         import art_build
@@ -290,6 +292,8 @@ def package(source, *,research_runtime=False,panel_only=False,download=False,pre
     # POI marker art loaded by the Java map via AssetManager at pgrazor/map-icons/<name>.
     for icon_name,icon_path in build.map_icon_assets().items(): assets['assets/pgrazor/map-icons/'+icon_name]=icon_path
     for icon_name,icon_path in build.feed_icon_assets().items(): assets['assets/pgrazor/feed-icons/pokemon/'+icon_name]=icon_path
+    # PGRazorX: offline country borders for the cooldown history flags (Natural Earth, public domain).
+    for name,path in build.country_assets().items(): assets['assets/pgrazor/'+name]=path
     certificates=[]
     for path,_ in rows:
         verified=command(build.TOOLS/'apksigner.bat','verify','--print-certs',path,capture=True)

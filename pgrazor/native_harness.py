@@ -87,6 +87,14 @@ def main(argv=None):
                 vendor = native_build.ensure_dobby(root, download=False)
                 extra_flags = ['-fexceptions', '-I'+str(vendor/'include'), '-llog']
                 entry['included_source_sha256'] = native_build.sha256(source.with_name(source.stem.removesuffix('_test')+'.cpp'))
+            if source.stem == 'manual_transfer_hooks_test':
+                vendor=native_build.ensure_dobby(root,download=False)
+                extra_flags=['-I'+str(vendor/'include')]
+            if source.stem == 'quickball_host_test':
+                pvp_metadata=root/'native/pvp_metadata.cpp'
+                extra_flags=[pvp_metadata,root/'native/iv_cells_metadata.cpp']
+                entry['iv_cells_metadata_sha256']=native_build.sha256(root/'native/iv_cells_metadata.cpp')
+                entry['pvp_metadata_sha256']=native_build.sha256(pvp_metadata)
             if source.stem in ('runtime_host_flow_test', 'buddy_emotion_runtime_test'):
                 extra_flags = ['-llog']
             if source.stem == 'code_patch_boundary_test':

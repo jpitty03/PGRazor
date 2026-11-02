@@ -8,7 +8,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.InputType;
 import android.widget.Button;
-import android.widget.CheckBox;
+import android.widget.Switch;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -67,8 +67,8 @@ public final class AutomationPanel {
         headingInput.setInputType(InputType.TYPE_CLASS_NUMBER); headingInput.setText(defaultHeading());
         body.addView(headingInput);
         TextView status = new TextView(ui); status.setText(OneShotAutomation.incenseStatus()); body.addView(status);
-        Button start = new Button(ui); start.setAllCaps(false); start.setText("Start session"); body.addView(start);
-        Button stop = new Button(ui); stop.setAllCaps(false); stop.setText("Stop session"); body.addView(stop);
+        Button start = SettingsUi.button(ui, "Start session"); SettingsUi.styleTree(ui, start); body.addView(start);
+        Button stop = SettingsUi.button(ui, "Stop session"); SettingsUi.styleTree(ui, stop); body.addView(stop);
         ScrollView scroll = new ScrollView(ui); scroll.addView(body);
         AlertDialog dialog = new AlertDialog.Builder(ui).setTitle("Daily Incense Session").setView(scroll)
             .setPositiveButton("Close", null).create();
@@ -114,12 +114,12 @@ public final class AutomationPanel {
         TextView nanabLabel = new TextView(ui); nanabLabel.setText("Nanab Berry reserve (0–1000)"); body.addView(nanabLabel); body.addView(nanab);
         EditText razz = numberField(ui, "20");
         TextView razzLabel = new TextView(ui); razzLabel.setText("Razz Berry reserve (0–1000)"); body.addView(razzLabel); body.addView(razz);
-        CheckBox pinap = new CheckBox(ui); pinap.setText("Also feed surplus Pinap berries"); pinap.setChecked(false); body.addView(pinap);
+        Switch pinap = new Switch(ui); pinap.setText("Also feed surplus Pinap berries"); pinap.setChecked(false); body.addView(pinap);
         EditText pinapReserve = numberField(ui, "50");
         TextView pinapLabel = new TextView(ui); pinapLabel.setText("Pinap Berry reserve (0–1000)"); body.addView(pinapLabel); body.addView(pinapReserve);
         TextView status = new TextView(ui); status.setText(OneShotAutomation.remoteFeedStatus()); body.addView(status);
-        Button start = new Button(ui); start.setAllCaps(false); start.setText("Start feed"); body.addView(start);
-        Button stop = new Button(ui); stop.setAllCaps(false); stop.setText("Stop feed"); body.addView(stop);
+        Button start = SettingsUi.button(ui, "Start feed"); SettingsUi.styleTree(ui, start); body.addView(start);
+        Button stop = SettingsUi.button(ui, "Stop feed"); SettingsUi.styleTree(ui, stop); body.addView(stop);
         ScrollView scroll = new ScrollView(ui); scroll.addView(body);
         AlertDialog dialog = new AlertDialog.Builder(ui).setTitle("Remote Gym Feeding").setView(scroll)
             .setPositiveButton("Close", null).create();
@@ -162,7 +162,7 @@ public final class AutomationPanel {
     }
 
     private static Button entry(Context ui, LinearLayout body, String label, Runnable action) {
-        Button b = new Button(ui); b.setAllCaps(false); b.setText(label); body.addView(b);
+        Button b = SettingsUi.button(ui, label); SettingsUi.styleTree(ui, b); body.addView(b);
         b.setOnClickListener(v -> action.run()); return b;
     }
 

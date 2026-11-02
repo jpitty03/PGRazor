@@ -68,14 +68,13 @@ public final class VgpControllerTest {
         Control.setVgpStopOnCooldown(false);
         check(Control.vgpStatus().equals("Ready"),"Disarming clears guard reason");
 
-        // Background switches VGP off with its own reason and never auto-resumes.
+        // PGRazorX: leaving the game keeps VGP on; it carries on when the game is back in front.
         Cooldown.remaining=0;
         Control.setVgpEnabled(true);
         check(Control.vgpEnabled(),"On before backgrounding");
         Control.suspendForBackground();
         android.os.Handler.drain();
-        check(!Control.vgpEnabled(),"Background switches VGP off");
-        check(Control.vgpStatus().equals("App left foreground; tap VGP to start"),"Background reason shown");
+        check(Control.vgpEnabled(),"Background keeps VGP on");
 
         // Returning to the foreground and turning the overlay off clears the runtime enable.
         foreground(true);

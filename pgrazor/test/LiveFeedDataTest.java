@@ -89,5 +89,15 @@ public final class LiveFeedDataTest {
         LiveFeedData.Snapshot gated=LiveFeedData.parseShinies(new JSONObject().put("shinies",new JSONArray()).put("shiny_access",false),now);
         check(gated.refreshSeconds==30&&!gated.note.isEmpty(),"Default shiny interval and access status");
         System.out.println("PASS: my shinies seconds-expiry, personal flag, 64-bit ids, individual IVs");
+        // PGRazorX: country flag from the place that ends a row's details.
+        check(LiveFeedData.countryFlag("CP 403 · Lv 20 · 100.0% IV · M · Male · Take Down / Stomp · Saint-Sébastien-sur-Loire, Loire-Atlantique, France").equals("\uD83C\uDDEB\uD83C\uDDF7"),"France flag");
+        check(LiveFeedData.countryFlag("CP 2513 · Lv 35 · Boosted · Roanoke, Texas, United States").equals("\uD83C\uDDFA\uD83C\uDDF8"),"United States flag");
+        check(LiveFeedData.countryFlag("CP 523 · Yongkang, Tainan City, Taiwan").equals("\uD83C\uDDF9\uD83C\uDDFC"),"Taiwan flag");
+        check(LiveFeedData.countryFlag("CP 274 · Bairro Silva Braga, Porto, Portugal").equals("\uD83C\uDDF5\uD83C\uDDF9"),"Portugal flag");
+        check(LiveFeedData.countryFlag("Seoul, South Korea").equals("\uD83C\uDDF0\uD83C\uDDF7"),"Alias: South Korea");
+        check(LiveFeedData.countryFlag("CP 10 · Singapore").equals("\uD83C\uDDF8\uD83C\uDDEC"),"A city-state without commas");
+        check(LiveFeedData.countryFlag("CP 403 · Lv 20 · Take Down / Stomp").isEmpty(),"Moves are not a country");
+        check(LiveFeedData.countryFlag("Somewhere, Atlantis").isEmpty()&&LiveFeedData.countryFlag(null).isEmpty()&&LiveFeedData.countryFlag("").isEmpty(),"Unknown place: no flag");
+        System.out.println("PASS: feed country flags");
     }
 }

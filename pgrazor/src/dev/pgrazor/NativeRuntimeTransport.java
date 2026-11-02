@@ -32,10 +32,10 @@ public final class NativeRuntimeTransport {
     private static final int MAX_BYTES = 1048576, MAX_CALLS = 128;
 
     // Wire constants, compiled identically in runtime_transport.h.
-    private static final int MAGIC_SNAPSHOT = 0x53524750, MAGIC_EVENTS = 0x45524750, FRAME_VERSION = 9, FLAG_INERT = 1;
+    private static final int MAGIC_SNAPSHOT = 0x53524750, MAGIC_EVENTS = 0x45524750, FRAME_VERSION = 17, FLAG_INERT = 1;
     private static final int OFF_MAGIC = 0, OFF_VERSION = 4, OFF_FRAME_SIZE = 8, OFF_FLAGS = 12, OFF_SEQ = 16,
         OFF_WALL = 24, OFF_BOOLS = 32, OFF_INTS = 80, OFF_DOUBLES = 120, OFF_PULSES = 136, OFF_STRINGS = 160;
-    private static final int EVENT_HEADER = 32, ACTION_COUNT = 59;
+    private static final int EVENT_HEADER = 32, ACTION_COUNT = 62;
 
     // Legacy translated.js reader order, split by compiled type group. Indices here equal the native field ids.
     private static final String[] BOOL_READERS = {
@@ -46,7 +46,7 @@ public final class NativeRuntimeTransport {
         "ivDisplayAllowed", "ivOwnedEnabled", "mapPoiAllowed", "mapTapAllowed", "quickBallAllowed",
         "quickSpinAllowed", "quickSummaryAllowed", "rocketAllowed", "spawnAllowed", "spawnBooster",
         "throwAllowed", "throwAlwaysHit", "throwAlwaysHitReady", "throwAr", "throwArReady", "throwCurve",
-        "transferKeepAll", "vgpAllowed", "vgpEnabled", "vgpMapVisible", "eventBoxesAllowed"
+        "transferKeepAll", "vgpAllowed", "vgpEnabled", "vgpMapVisible", "eventBoxesAllowed", "eggHatchAllowed", "eggKeepSpecial", "eggObserveOnly", "manualTransferAllowed"
     };
     private static final String[] INT_READERS = {
         "battleOptions", "buddyBerry", "giftOptions", "itemCatalogMode", "mapTapEpoch", "mapTapMode",
@@ -81,7 +81,8 @@ public final class NativeRuntimeTransport {
         "setSpawnRange:double,double:void", "setSpawnReady:boolean:void", "setThrowArReady:boolean:void",
         "setThrowAlwaysHitReady:boolean:void", "setThrowReady:boolean:void", "setVgpReady:boolean,String:void",
         "setVgpStatus:String:void", "setVgpTarget:boolean,double,double,boolean:void", "transferResult:String:void",
-        "updateCameraHeadingAt:double,int,boolean,long:void", "vgpResult:String,boolean:void"
+        "updateCameraHeadingAt:double,int,boolean,long:void", "vgpResult:String,boolean:void", "rocketAutoSwipe:long,long:void",
+        "eggHatchUpdate:boolean,boolean,boolean,long,String:void", "manualTransferUpdate:boolean,String:void"
     };
 
     /** The native exchange seam. Production wraps the RegisterNatives method; tests inject a pure-Java fake. */
@@ -295,6 +296,8 @@ public final class NativeRuntimeTransport {
         putString(buffer, buddyEmotionHistoryReader.invoke(null)); // slot 10
         putString(buffer, batchEvolutionReader.invoke(null)); // slot 11
         putString(buffer, automationReader.invoke(null)); // slot 12
+        putString(buffer, Control.rocketAutoConfig()); // slot 13
+        putString(buffer, Control.autoHealConfig()); // slot 14
         int frameSize = buffer.position();
         buffer.putInt(OFF_MAGIC, MAGIC_SNAPSHOT);
         buffer.putInt(OFF_VERSION, FRAME_VERSION);

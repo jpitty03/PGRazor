@@ -1,6 +1,7 @@
 // Executes ACTUAL production65 and real14/12/9 from dlopened core. Only complete56
 // metadata output and managed world are synthetic, supplied via the native config.
 #include "inventory_host.h"
+#include "buddy_feeding.h"
 #include "pgrazor_native_api.h"
 #include <cassert>
 #include <cstdio>
@@ -76,6 +77,16 @@ int inventory_run(int argc,char **argv){
  PgrInventoryHostOptions p{};p.version=1;p.size=sizeof(p);p.lease_ms=1500;p.item_rules="701:10;705:20";assert(api->update(&p)==0);assert(cleanup->request()==0&&!cleanup->pending(1));
  assert(api->tick(gettid()+1)==-5);assert(api->tick(gettid())==0);assert(api->tick(gettid())==0);assert(api->tick(gettid())==0);
  PgrInventoryHostSample s{};assert(api->sample(&s)==0);assert((s.capabilities&7)==7&&!s.ready&&s.roots==0);assert(calls==0);
+ // Actual inventory host65 must pass 708 to buddy12; 707 must stay OFF.
+ auto feeding=static_cast<const pgrazor_buddy_api_v1*>(core->query_feature(12,1));assert(feeding);
+ auto silver=p;silver.buddy_berry=708;silver.buddy_allowed=1;silver.lease_ms=0;
+ assert(api->update(&silver)==0&&api->tick(gettid())==0);
+ pgrazor_buddy_sample_v1 buddy_sample{};assert(feeding->sample(&buddy_sample)==0&&buddy_sample.status==PGR_BUDDY_STATUS_WAIT_MAP);
+ silver.buddy_berry=709;assert(api->update(&silver)==0&&api->tick(gettid())==0);
+ assert(feeding->sample(&buddy_sample)==0&&buddy_sample.status==PGR_BUDDY_STATUS_WAIT_MAP);
+ silver.buddy_berry=707;assert(api->update(&silver)==0&&api->tick(gettid())==0);
+ assert(feeding->sample(&buddy_sample)==0&&buddy_sample.status==PGR_BUDDY_STATUS_OFF);
+ assert(api->update(&p)==0);
  // Real7 Dobby-installed leaf sites still chain their manual originals exactly once.
  decltype(&init) volatile init_call=&init;decltype(&feed) volatile feed_call=&feed;init_call(nullptr,nullptr);feed_call(nullptr,701,1,nullptr);assert(original_calls==2);
  // Real native incubation resolves the map via configured56 slots, reports waiting,

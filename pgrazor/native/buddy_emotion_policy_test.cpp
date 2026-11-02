@@ -6,6 +6,9 @@
 using namespace pgr_buddy_ep;
 
 int main() {
+    { pgr_buddy_ep::Settings p;const char config[]="2;1;709;708;0;0;0;0;0";
+      assert(pgr_buddy_ep::parse(config,sizeof(config)-1,p));assert(p.berries[0]==709);int counts[5]={1,5,0,0,0};assert(pgr_buddy_ep::select_berry(p,counts)==709);counts[0]=0;assert(pgr_buddy_ep::select_berry(p,counts)==708); }
+
     Settings s;
     assert(!s.enabled && s.berry == 703 && s.reserve == 50 && !s.gifts);
     assert(s.berries[0] == 703 && s.berries[1] == 701 && s.berries[2] == 705 &&
@@ -47,7 +50,7 @@ int main() {
          "1;1;703; 50;0", "1;1;703;+50;0", "1;1;703;50",
          "1;1;706;50;0", "1;1;708;50;0", "2;1;703;703;0;0;0;50;0",
          "2;1;703;0;701;0;0;50;0", "2;1;0;701;0;0;0;50;0",
-         "2;1;709;0;0;0;0;50;0", "2;1;704;0;0;0;0;50;0",
+         "2;1;707;0;0;0;0;50;0", "2;1;704;0;0;0;0;50;0",
          "3;1;703;701;705;0;0;50;0", "02;1;703;701;705;0;0;50;0",
          "2;2;703;701;705;0;0;50;0", "2;1;703;701;705;0;0;1001;0",
          "2;1;703;701;705;0;0;50;2", "2;1;703;701;705;0;0;50;0;",
