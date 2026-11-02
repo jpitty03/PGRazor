@@ -146,7 +146,7 @@ public final class Pad {
     private void draggable(View handle,View target,boolean clickable){
         handle.setOnTouchListener(new View.OnTouchListener(){float downX,downY,originX,originY;boolean moved;
             public boolean onTouch(View v,MotionEvent e){int a=e.getActionMasked();if(a==MotionEvent.ACTION_DOWN){downX=e.getRawX();downY=e.getRawY();originX=target.getX();originY=target.getY();moved=false;return true;}
-                if(a==MotionEvent.ACTION_MOVE){float dx=e.getRawX()-downX,dy=e.getRawY()-downY;if(Math.hypot(dx,dy)>dp(6))moved=true;if(moved){target.setX(Math.max(0,Math.min(parent.getWidth()-OverlayDrag.visualWidth(target),originX+dx)));target.setY(Math.max(0,Math.min(parent.getHeight()-OverlayDrag.visualHeight(target),originY+dy)));}return true;}
+                if(a==MotionEvent.ACTION_MOVE){float dx=e.getRawX()-downX,dy=e.getRawY()-downY;if(Math.hypot(dx,dy)>dp(6))moved=true;if(moved){Rect safe=UiViewport.bounds(parent);target.setX(UiViewportPolicy.clamp(originX+dx,safe.left,safe.right,OverlayDrag.visualWidth(target)));target.setY(UiViewportPolicy.clamp(originY+dy,safe.top,safe.bottom,OverlayDrag.visualHeight(target)));}return true;}
                 if(a==MotionEvent.ACTION_UP){if(!moved&&clickable)v.performClick();return true;}return true;}
         });
     }
@@ -328,18 +328,20 @@ public final class Pad {
 
     private void applyMapScale(){
         if(launcher==null||launcher.getWidth()==0||parent.getWidth()==0)return;
-        android.graphics.Rect safe=UiViewport.bounds(parent);
-        int percent=Control.uiScalePercent();if(appliedUiScale==percent&&appliedWindowWidth==parent.getWidth()&&appliedWindowHeight==parent.getHeight()&&appliedWindowBounds.equals(safe))return;
+        Rect safe=UiViewport.bounds(parent);
+        int percent=Control.uiScalePercent();
+        if(appliedUiScale==percent&&appliedWindowWidth==parent.getWidth()&&appliedWindowHeight==parent.getHeight()&&appliedWindowBounds.equals(safe))return;
+        Rect previousSafe=appliedWindowBounds.isEmpty()?safe:new Rect(appliedWindowBounds);
         appliedWindowBounds.set(safe);appliedWindowWidth=parent.getWidth();appliedWindowHeight=parent.getHeight();
         appliedUiScale=percent;float scale=percent/100f;
         for(View view:new View[]{launcher,joystickOverlay,cooldownTimer,buddyEmotionStatus,vgpToggle,vgpActivity,vgpMarker,transferToggle,gameRoutesOverlay,gymFeedOverlay,gymAutomationStatus}){
             if(view==null)continue;
-            float fx=view.getX()/Math.max(1,parent.getWidth()-OverlayDrag.visualWidth(view));
-            float fy=view.getY()/Math.max(1,parent.getHeight()-OverlayDrag.visualHeight(view));
+            float x=view.getX(),y=view.getY();
+            int oldWidth=OverlayDrag.visualWidth(view),oldHeight=OverlayDrag.visualHeight(view);
             float fitted=UiViewportPolicy.fit(scale,view.getWidth(),view.getHeight(),safe.width(),safe.height());
             view.setPivotX(0);view.setPivotY(0);view.setScaleX(fitted);view.setScaleY(fitted);
-            view.setX(Math.max(0,Math.min(1,fx))*Math.max(0,parent.getWidth()-OverlayDrag.visualWidth(view)));
-            view.setY(Math.max(0,Math.min(1,fy))*Math.max(0,parent.getHeight()-OverlayDrag.visualHeight(view)));
+            view.setX(UiViewportPolicy.resizePosition(x,previousSafe.left,previousSafe.right,oldWidth,safe.left,safe.right,OverlayDrag.visualWidth(view)));
+            view.setY(UiViewportPolicy.resizePosition(y,previousSafe.top,previousSafe.bottom,oldHeight,safe.top,safe.bottom,OverlayDrag.visualHeight(view)));
         }
         if(cooldownDrag!=null)cooldownDrag.refreshBounds();if(vgpDrag!=null)vgpDrag.refreshBounds();
         if(transferDrag!=null)transferDrag.refreshBounds();
