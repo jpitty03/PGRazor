@@ -99,7 +99,7 @@ test('cooldown trigger and safe groups expand', async ({ page }) => {
 test('current stable release notes accompany the latest download', async ({ page }) => {
   await page.goto('./');
   const releaseNotes = page.locator(
-    'a[href="https://github.com/jpitty03/PGRazor/releases/tag/v0.1.8"]'
+    'a[href="https://github.com/jpitty03/PGRazor/releases/tag/v0.1.9"]'
   );
   await expect(releaseNotes).toHaveCount(1);
   await expect(releaseNotes).toBeVisible();
