@@ -4,7 +4,7 @@
 export const links = {
   releasesLatest: 'https://github.com/jpitty03/PGRazor/releases/latest',
   releasesCurrent:
-    'https://github.com/jpitty03/PGRazor/releases/tag/v0.1.8',
+    'https://github.com/jpitty03/PGRazor/releases/tag/v0.1.9',
   github: 'https://github.com/jpitty03/PGRazor',
   discord: 'https://discord.gg/9QqfkDSQX3',
   kofi: 'https://ko-fi.com/pgrazor',

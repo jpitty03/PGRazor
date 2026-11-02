@@ -254,7 +254,7 @@ int pgr_smart_ensure_bound(uint64_t owner) {
 
   // --- fields (offsets confirmed from catch-evolution-metadata.txt unless noted) ---
   void *status_enum_class = nullptr;
-  if (validate_field(md, b.class_wildmap, "eluq", 0x280, PGR_MD_FIELD_REF, 0, "Holoholo.Rpc.PokemonProto", &b.f_map_pokemon, nullptr) ||
+  if (validate_field(md, b.class_wildmap, "embt", 0x280, PGR_MD_FIELD_REF, 0, "Holoholo.Rpc.PokemonProto", &b.f_map_pokemon, nullptr) ||
       validate_field(md, b.class_pokemon_proto, "pokemonId_", 0x28, PGR_MD_FIELD_VALUE, 4, "System.Int32", &b.f_proto_id, nullptr) ||
       validate_field(md, b.class_pokemon_proto, "cp_", 0x2c, PGR_MD_FIELD_VALUE, 4, "System.Int32", &b.f_proto_cp, nullptr) ||
       validate_field(md, b.class_pokemon_proto, "individualAttack_", 0x70, PGR_MD_FIELD_VALUE, 4, "System.Int32", &b.f_proto_atk, nullptr) ||
@@ -272,7 +272,7 @@ int pgr_smart_ensure_bound(uint64_t owner) {
   // PokemonDisplayProto.shiny_ and the ItemBagImpl rpc-service field (cynr): offsets NOT pinned by the
   // artifact, so resolve structurally by name (parent==owner). Fail-closed. See smart-binding-notes.txt.
   if (validate_field(md,b.class_display_proto,"Shiny",0x18,PGR_MD_FIELD_VALUE,1,"System.Boolean",&b.f_display_shiny,nullptr) ||
-      validate_field(md,b.class_item_bag,"cynr",0x38,PGR_MD_FIELD_REF,0,"Niantic.Holoholo.Rpc.IRpcHandler",&b.f_bag_rpc,nullptr))
+      validate_field(md,b.class_item_bag,"erhp",0x38,PGR_MD_FIELD_REF,0,"Niantic.Holoholo.Rpc.IRpcHandler",&b.f_bag_rpc,nullptr))
     return PGR_SMARTBIND_ERR_FIELD;
 
   // --- methods ---
@@ -305,14 +305,14 @@ int pgr_smart_ensure_bound(uint64_t owner) {
   if(resolve_class(md,"","GameMasterData",&b.class_gm)||
      resolve_class(md,"System","Single",&b.class_single)||
      resolve_class(md,"Niantic.Holoholo","GameMasterDataExt_PlayerLevelSettings",&levels)||
-     validate_field(md,b.class_item_bag,"cynq",0x30,PGR_MD_FIELD_REF,0,"IGameMasterData",&b.f_bag_gm,nullptr)||
+     validate_field(md,b.class_item_bag,"erho",0x30,PGR_MD_FIELD_REF,0,"IGameMasterData",&b.f_bag_gm,nullptr)||
      validate_method(md,levels,"GetPokemonLevelOfCpMultiplier","System.Int32",2,"IGameMasterData",1,&b.m_gm_level,"System.Single")||
      validate_method(md,levels,"CpMultiplierAtLevel","System.Single",2,"IGameMasterData",1,&b.m_gm_mult,"System.Int32"))
     return PGR_SMARTBIND_ERR_METHOD;
 
   // Latch the spawn-freshness pointers (field-validated below) for pgr_smart_spawn_fresh.
   void *f_wild_proto = nullptr, *f_last = nullptr, *f_hidden = nullptr;
-  if (validate_field(md, b.class_wildmap, "eluo", 0x270, PGR_MD_FIELD_REF, 0, "Holoholo.Rpc.WildPokemonProto", &f_wild_proto, nullptr) ||
+  if (validate_field(md, b.class_wildmap, "embr", 0x270, PGR_MD_FIELD_REF, 0, "Holoholo.Rpc.WildPokemonProto", &f_wild_proto, nullptr) ||
       validate_field(md, class_wild_proto, "LastModifiedMs", 0x18, PGR_MD_FIELD_VALUE, 8, "System.Int64", &f_last, nullptr) ||
       validate_field(md, class_wild_proto, "TimeTillHiddenMs", 0x40, PGR_MD_FIELD_VALUE, 4, "System.Int32", &f_hidden, nullptr))
     return PGR_SMARTBIND_ERR_FIELD;
@@ -328,7 +328,7 @@ int pgr_smart_ensure_bound(uint64_t owner) {
   void *encounter_enum=nullptr;
   if(resolve_class(md,"Holoholo.Rpc","EncounterOutProto",&encounter_class)||
      resolve_class(md,"Niantic.Holoholo.Map","PokemonEncounterResponse",&encounter_wrapper)||
-     validate_field(md,b.class_wildmap,"elup",0x278,PGR_MD_FIELD_REF,0,"Holoholo.Rpc.EncounterOutProto",&map_encounter,nullptr)||
+     validate_field(md,b.class_wildmap,"embs",0x278,PGR_MD_FIELD_REF,0,"Holoholo.Rpc.EncounterOutProto",&map_encounter,nullptr)||
      validate_field(md,encounter_class,"Status",0x1c,PGR_MD_FIELD_ENUM_I32,4,nullptr,&encounter_status,&encounter_enum)||
      validate_field(md,encounter_class,"Pokemon",0x10,PGR_MD_FIELD_REF,0,"Holoholo.Rpc.WildPokemonProto",&encounter_pokemon,nullptr)||
      !read_enum_literal(ex,rt,encounter_enum,"EncounterSuccess",&encounter_success))return PGR_SMARTBIND_ERR_FIELD;

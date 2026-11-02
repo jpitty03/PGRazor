@@ -15,7 +15,7 @@ PgrBootBinding binding{};PgrCatchWaitConfig config{};
 FClass klass[5]{};FType types[5]{};
 FType int_type{"System.Int32",nullptr},bool_type{"System.Boolean",nullptr},float_type{"System.Single",nullptr},void_type{"System.Void",nullptr};
 FField field[7],literal;FMethod methods[4];
-unsigned char *module;constexpr size_t module_size=0xe130000;
+unsigned char *module;constexpr size_t module_size=0xe1a0000;
 struct Object {alignas(8) unsigned char bytes[256]{};};
 Object coroutine,capture,response,wait_object;
 std::map<uintptr_t,void *> roots;uintptr_t next_root=1;unsigned makes=0,frees=0,original_calls=0;
@@ -35,7 +35,7 @@ size_t width(const FField *f){return f->type->name=="System.Boolean"?1:(f->type-
 void field_get(void *o,const void *f,void *out){auto v=static_cast<const FField *>(f);std::memcpy(out,static_cast<unsigned char *>(o)+v->offset,width(v));}
 void field_set(void *o,const void *f,void *in){auto v=static_cast<const FField *>(f);std::memcpy(static_cast<unsigned char *>(o)+v->offset,in,width(v));}
 void static_get(const void *f,void *out){assert(f==&literal);*static_cast<int32_t *>(out)=73;}
-const char *class_name(const void *k){return k==&klass[0]?"ebk":"other";}
+const char *class_name(const void *k){return k==&klass[0]?"dyl":"other";}
 void *nested_class(const void *k,void **it){if(k!=&klass[1]||*it)return nullptr;*it=&klass[0];return &klass[0];}
 const void *declaring(const void *k){return k==&klass[0]?&klass[1]:nullptr;}
 int segment(void *,const void *p,uint64_t n,PgrMetaSegment *out){*out={};auto a=reinterpret_cast<uintptr_t>(p),b=reinterpret_cast<uintptr_t>(module);
@@ -53,7 +53,7 @@ extern "C" __attribute__((noinline)) uint8_t cw_move(void *self,const void *meth
 void setup(){
  module=static_cast<unsigned char *>(mmap(nullptr,module_size,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0));assert(module!=MAP_FAILED);
  g_classes.clear();g_fields.clear();g_methods.clear();g_asms[0]=IMGA;g_asms[1]=IMGB;g_asm_count=2;
- types[0]={"Niantic.Holoholo.Encounter.EncounterCaptureState.ebk",&klass[0]};klass[0].type=&types[0];
+ types[0]={"Niantic.Holoholo.Encounter.EncounterCaptureState.dyl",&klass[0]};klass[0].type=&types[0];
  for(const auto &s:kClasses){types[s.owner]={s.canonical,&klass[s.owner]};klass[s.owner].type=&types[s.owner];g_classes.push_back({IMGA,s.name_space,s.name,&klass[s.owner]});}
  types[4]={kStatusEnum,&klass[4]};klass[4]={&types[4],true,true,&int_type,4,4};
  for(unsigned i=0;i<7;i++){const auto &s=kFields[i];FType *t=nullptr;
@@ -63,7 +63,7 @@ void setup(){
  for(unsigned i=0;i<4;i++){const auto &s=kMethods[i];methods[i]={};auto &m=methods[i];m.name=s.name;m.klass=&klass[s.owner];m.ret=i==0?&bool_type:(i==1?&float_type:&void_type);m.code=module+s.rva;g_methods.push_back(&m);std::memcpy(module+s.rva,s.prologue,s.prologue_size);}
  for(const auto &s:{kYieldTailSite,kYieldReturnSite,kStepSite})std::memcpy(module+s.rva,s.bytes,s.size);
  // Independent source-known constants guard accidental descriptor drift.
- assert(field[0].name=="drny"&&field[0].offset==0x10&&field[4].offset==0x60&&methods[0].code==module+0xacf24fc);
+ assert(field[0].name=="drru"&&field[0].offset==0x10&&field[4].offset==0x60&&methods[0].code==module+0xac35a94);
  binding.version=1;binding.size=sizeof(binding);binding.module_base=module;binding.module_size=module_size;binding.domain=&g_domain_tok;binding.meta=make_exports();
  binding.meta.class_get_nested_types=reinterpret_cast<void *>(nested_class);binding.meta.class_get_declaring_type=reinterpret_cast<void *>(declaring);
  binding.runtime.thread_current=reinterpret_cast<void *>(current);binding.runtime.object_get_class=reinterpret_cast<void *>(object_class);
@@ -87,7 +87,7 @@ int main(int argc,char **argv){using namespace cw;assert(argc==2);auto lib=dlope
  run("status offset bound",[]{field[6].offset=4097;assert(api->install(&config)<0);});
  run("generic method",[]{methods[0].generic=true;assert(api->install(&config)<0);});
  run("method return",[]{methods[0].ret=&void_type;assert(api->install(&config)<0);});
- run("code fingerprint",[]{module[0xacf4c84]^=1;assert(api->install(&config)<0);});
+ run("code fingerprint",[]{module[0xac38220]^=1;assert(api->install(&config)<0);});
  run("success off on stop",[]{install();invoke();assert(duration()==5.0f&&sample().observed==1&&sample().shortened==0);assert(api->update(1,2500)==0);invoke();assert(std::fabs(duration()-0.1f)<1e-6&&sample().shortened==1);PgrCatchWaitEvent e{};assert(api->next_event(&e)==1&&e.kind==1&&e.status==73);assert(api->stop()==0);reset_objects();invoke();assert(duration()==5.0f&&api->update(1,2500)<0);});
  run("failed status",[]{install();api->update(1,2500);put(response,0x30,int32_t(74));invoke();assert(duration()==5.0f&&sample().observed==0);});
  run("non yield",[]{install();api->update(1,2500);original_result=0;invoke();assert(sample().observed==0);original_result=1;put(coroutine,0x10,int32_t(6));invoke();assert(sample().observed==0);});

@@ -1,8 +1,8 @@
 // Compiled descriptors for the existing spawn, VGP and map prepare boundaries.
 // Included inside shared_metadata.cpp's private namespace.
 int do_spawn(Ctx &c) {
-  constexpr unsigned char pro[]={0xfe,0x57,0xbe,0xa9,0xf4,0x4f,0x01,0xa9,0x94,0x97,0x02,0xf0,0xf3,0x03,0x00,0xaa,0x88,0x52,0x56,0x39,0xe8,0x02,0x00,0x37};
-  return check_method(c,c.out->opt_classes[OC_SPAWN],"cmwe","System.Double",0,nullptr,nullptr,false,false,0x9dd7438,pro,sizeof(pro),&c.out->opt_handles[H_SP_METHOD],&c.out->opt_handles[H_SP_CODE]);
+  constexpr unsigned char pro[]={0xfe,0x57,0xbe,0xa9,0xf4,0x4f,0x01,0xa9,0x74,0x98,0x02,0x90,0xf3,0x03,0x00,0xaa,0x88,0xce,0x51,0x39,0xe8,0x02,0x00,0x37};
+  return check_method(c,c.out->opt_classes[OC_SPAWN],"cmru","System.Double",0,nullptr,nullptr,false,false,0x9e32484,pro,sizeof(pro),&c.out->opt_handles[H_SP_METHOD],&c.out->opt_handles[H_SP_CODE]);
 }
 
 int map_method(Ctx &c,OptHandle slot,OptClassId owner,const char *name,const char *ret,
@@ -36,8 +36,8 @@ int do_vgp(Ctx &c) {
   if((rc=check_method_ex(c,K[OC_VGP_WILD],"SendEncounterRequest",nullptr,pred_vgp_encounter_resp,0,nullptr,false,false,0,nullptr,0,&H[H_VGP_M_ENCOUNTER])))return rc;
   MParam capture[]={{"Niantic.Holoholo.Encounter.PokeballThrow",nullptr},{"Holoholo.Rpc.ARPlusEncounterValuesProto",nullptr}};
   if((rc=check_method_ex(c,K[OC_VGP_POKEMON],"TryCapture",nullptr,pred_vgp_capture_resp,2,capture,false,false,0,nullptr,0,&H[H_VGP_M_CAPTURE])))return rc;
-  constexpr unsigned char manual[]={0xff,0x83,0x03,0xd1,0xfd,0x7b,0x08,0xa9,0xfc,0x6f,0x09,0xa9,0xfa,0x67,0x0a,0xa9,0xf8,0x5f,0x0b,0xa9,0xf6,0x57,0x0c,0xa9,0xf4,0x4f,0x0d,0xa9,0x54,0x1a,0x02,0xf0};
-  if((rc=check_method(c,K[OC_VGP_NAMEPLATE],"SetPokemonUI","System.Void",2,"Niantic.Holoholo.Map.IMapPokemon","Niantic.Rpc.GameplayWeatherProto.Types.WeatherCondition",false,false,0xad84364,manual,sizeof(manual),&H[H_VGP_M_MANUAL_UI],&H[H_VGP_M_MANUAL_UI_CODE])))return rc;
+  constexpr unsigned char manual[]={0xff,0x83,0x03,0xd1,0xfd,0x7b,0x08,0xa9,0xfc,0x6f,0x09,0xa9,0xfa,0x67,0x0a,0xa9,0xf8,0x5f,0x0b,0xa9,0xf6,0x57,0x0c,0xa9,0xf4,0x4f,0x0d,0xa9,0x54,0x22,0x02,0x90};
+  if((rc=check_method(c,K[OC_VGP_NAMEPLATE],"SetPokemonUI","System.Void",2,"Niantic.Holoholo.Map.IMapPokemon","Niantic.Rpc.GameplayWeatherProto.Types.WeatherCondition",false,false,0xacfbfe0,manual,sizeof(manual),&H[H_VGP_M_MANUAL_UI],&H[H_VGP_M_MANUAL_UI_CODE])))return rc;
   struct M {OptHandle slot;OptClassId owner;const char *name,*ret,*arg;};
   const M methods[]={
     {H_VGP_M_LOCATION,OC_VGP_POKEMON,"get_Location","Niantic.LatLng",nullptr},
@@ -82,7 +82,7 @@ int do_vgp(Ctx &c) {
     {H_VGP_F_TARGET_LAT,OC_VGP_REQUEST,"FortLatDegrees",0x28,"System.Double"},
     {H_VGP_F_TARGET_LON,OC_VGP_REQUEST,"FortLngDegrees",0x30,"System.Double"},
     {H_VGP_F_UNTIL,OC_SPINRESULT,"CooldownComplete",0x38,"System.Int64"},
-    {H_VGP_F_BAG_GM,OC_BAG,"cypm",0x38,"IGameMasterData"}};
+    {H_VGP_F_BAG_GM,OC_BAG,"erik",0x38,"IGameMasterData"}};
   for(const auto &f:fields)if((rc=typed_field(c,K[f.owner],f.name,f.off,f.type,"vgp-field-type",&H[f.slot])))return rc;
   const void *spin=nullptr,*caught=nullptr;
   if((rc=enum_i32_field(c,K[OC_SPINRESULT],"Result",0x10,&H[H_VGP_F_RESULT],&spin)))return rc;

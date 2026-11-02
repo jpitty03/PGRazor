@@ -32,8 +32,8 @@ inline constexpr size_t kClassCount=sizeof(kClasses)/sizeof(kClasses[0]);
 inline constexpr FieldSpec kFields[] = {
   {9u,"Status",0x14ULL,3u,nullptr,4u}, // 0: progress.Status
   {10u,"currentState",0x70ULL,3u,nullptr,4u}, // 1: gui.currentState
-  {2u,"didn",0x210ULL,1u,nullptr,0u}, // 2: routes.didn
-  {2u,"dica",0x80ULL,1u,nullptr,0u}, // 3: routes.dica
+  {2u,"dimj",0x210ULL,1u,nullptr,0u}, // 2: routes.dimj
+  {2u,"dikx",0x80ULL,1u,nullptr,0u}, // 3: routes.dikx
   {3u,"<Routes>k__BackingField",0x10ULL,1u,nullptr,0u}, // 4: nearby.<Routes>k__BackingField
   {4u,"PublishedRouteProto",0x10ULL,1u,nullptr,0u}, // 5: startData.PublishedRouteProto
   {4u,"Reversed",0x18ULL,2u,"System.Boolean",1u}, // 6: startData.Reversed
@@ -59,7 +59,7 @@ inline constexpr size_t kFieldCount=sizeof(kFields)/sizeof(kFields[0]);
 
 inline constexpr MethodSpec kMethods[] = {
   {"trackingStatus",0u,"CheckTrackingErrorStatus",nullptr,0u,nullptr}, // 0
-  {"trackingWaypoint",0u,"bjfz","System.Void",1u,"Holoholo.Rpc.RouteWaypointProto"}, // 1
+  {"trackingWaypoint",0u,"bjfc","System.Void",1u,"Holoholo.Rpc.RouteWaypointProto"}, // 1
   {"dismissGui",10u,"Dismiss","System.Void",0u,nullptr}, // 2
   {"isConsuming",1u,"get_IsConsumingRoute","System.Boolean",0u,nullptr}, // 3
   {"isCompleting",1u,"get_IsCompletingRoute","System.Boolean",0u,nullptr}, // 4
@@ -72,8 +72,8 @@ inline constexpr MethodSpec kMethods[] = {
   {"currentRoute",1u,"get_CurrentRoute","Holoholo.Rpc.RoutePlayProto",0u,nullptr}, // 11
   {"start",1u,"StartRoute","System.Void",1u,"Niantic.Holoholo.Routes.RoutesConsumptionStartData"}, // 12
   {"complete",1u,"CompleteRouteButtonClick","System.Void",0u,nullptr}, // 13
-  {"confirmComplete",1u,"bizv","System.Void",0u,nullptr}, // 14
-  {"completionResponse",1u,"bjan","System.Void",1u,"Holoholo.Rpc.ProgressRouteOutProto"}, // 15
+  {"confirmComplete",1u,"biyu","System.Void",0u,nullptr}, // 14
+  {"completionResponse",1u,"bizm","System.Void",1u,"Holoholo.Rpc.ProgressRouteOutProto"}, // 15
   {"pause",1u,"PauseRoute","Niantic.Promises.IPromise",1u,"System.Boolean"}, // 16
   {"requestNearby",2u,"RequestNearbyRoutes",nullptr,0u,nullptr}, // 17
 };

@@ -471,7 +471,7 @@ int main(int argc, char **argv) {
 
   std::printf("summary_completion_test passed: ABI/validation/idempotence/reconfig, valid summary "
               "(validate+acquire+complete, single Dismiss, before/after flags), optional-state absent, "
-              "identity mismatches (gui/state/dscx/dscy/status/response!=proto/currentState/onDismissed/"
+              "identity mismatches (gui/state/dsgu/dsgv/status/response!=proto/currentState/onDismissed/"
               "null-cb/zero-id/alive false+faults -> invalid, refused, no invoke), gate off/epoch/expired, "
               "repeated/older token (complete once), Dismiss exception (ERR_MANAGED, invoked, after read), "
               "postcondition gone, reentrant acquire/complete/stop, wrong thread, stop immediate revoke\n");

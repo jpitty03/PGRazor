@@ -98,7 +98,7 @@ void transport_event(uint32_t kind,uint64_t slot,int status,uint32_t flags,int b
  const char *name="native-shared-event",*why="";
  switch(kind){case 1:name="candidate-initialized";break;case 2:name="candidate-cancelled";break;case 3:name="summary-dismiss-invoked";break;case 4:name="details-dismiss-invoked";break;case 5:name="transfer-requested";break;
  case 6:name=status==PGR_TX_EVENT_COMPLETE&&(flags&1)?"transfer-confirmed":"transfer-error";why=status==PGR_TX_EVENT_TIMEOUT?"response-timeout":"server-result";break;
- case 7:name="transfer-kept";why=keep_reason(status);break;case 8:name="fault";break;case 9:name="metadata-ready";break;case 10:name="direct-catch-fallback";break;case 11:name="direct-catch-returned";break;case 12:name="candidate-armed";break;case 13:name="stopped";break;}
+ case 7:name="transfer-kept";why=keep_reason(status);break;case 8:name="fault";break;case 9:name="metadata-ready";break;case 10:name="direct-catch-fallback";break;case 11:name="direct-catch-returned";break;case 12:name="candidate-armed";break;case 13:name="stopped";break;case 14:name="summary-canvas-hide";break;case 15:name="summary-canvas-before-dismiss";break;case 16:name="summary-alpha-hook";break;}
  char json[768];const int n=std::snprintf(json,sizeof(json),"{\"kind\":\"%s\",\"backend\":\"native\",\"boottimeMs\":%llu,\"tid\":%llu,\"slot\":%llu,\"status\":%d,\"invoked\":%s,\"stateBefore\":%d,\"stateAfter\":%d,\"guiGone\":%s,\"advanced\":%s,\"reason\":\"%s\",\"reasonCode\":%d,\"transferAvailable\":%s}",name,(unsigned long long)now(),(unsigned long long)tid(),(unsigned long long)slot,status,(flags&1)?"true":"false",before,after,(flags&2)?"true":"false",((flags&2)||((flags&4)&&after!=2))?"true":"false",why,reason,(capabilities&PGR_SHH_TRANSFER)?"true":"false");
  if(n<=0||size_t(n)>=sizeof(json)){failed=true;stopping=true;return;}
  PgrRuntimeTransportString strings[]={{"quick-close",11},{json,uint32_t(n)}};
@@ -174,14 +174,24 @@ struct HookFrame {
 std::array<std::atomic<void*>,10> originals{};
 void *original(unsigned i){auto p=originals[i].load();if(!p){std::lock_guard<std::mutex> lock(setup_mutex);p=originals[i].load();}if(!p)std::abort();return p;}
 using One=void(*)(void*,const void*);using Two=void(*)(void*,void*,const void*);using Scores=void(*)(void*,void*,int32_t,const void*);
-void hook_initialize(void *self,void *value,const void *info){auto fn=reinterpret_cast<Two>(original(0));HookFrame frame(self,value);if(frame.active()){sh->cancel_all(7,tid());}
- try{fn(frame.a?target(frame.a):self,frame.b?target(frame.b):value,info);}catch(...){if(frame.observe)fault(-11);throw;}
+// PoGO 0.435.1 inserted a System.Boolean followsDisguiseReveal parameter into
+// EncounterSummaryState.Initialize, between the CatchPokemonOutProto argument and
+// the trailing MethodInfo. hook_initialize forwards it (and the MethodInfo)
+// unchanged; the other Two-shaped hooks are untouched by this ABI change.
+using Init=void(*)(void*,void*,bool,const void*);
+void hook_initialize(void *self,void *value,bool follows_disguise_reveal,const void *info){auto fn=reinterpret_cast<Init>(original(0));HookFrame frame(self,value);if(frame.active()){sh->cancel_all(7,tid());}
+ try{fn(frame.a?target(frame.a):self,frame.b?target(frame.b):value,follows_disguise_reveal,info);}catch(...){if(frame.observe)fault(-11);throw;}
  if(!frame.active()||!exact(target(frame.a),c(2))||!exact(target(frame.b),c(3)))return;
  if(field<int32_t>(target(frame.b),f(5))!=md.success)return;auto gui=field<void*>(target(frame.a),f(3));if(!exact(gui,c(1)))return;
  Record *r=create(gui);if(!r)return;if(!assign(r->state,target(frame.a))||!assign(r->proto,target(frame.b))){fault(-12);return;}
  if(field<void*>(target(r->state),f(4))!=target(r->proto)||(r->response&&target(r->response)!=target(r->proto))){cancel(*r);return;}
  if(!assign(r->dismissed,field<void*>(target(r->gui),f(2)))){fault(-12);return;}
  r->id=field<uint64_t>(target(r->proto),f(0));sh->mark(r->slot,PGR_SH_STAGE_INIT,1|(r->id?2:0),tid());emit(1,r->slot);
+ // Keep the successful catch summary hidden while its normal open/dismiss
+ // lifecycle runs. The canvas lease restores visibility if Quick Catch stops.
+ if((capabilities&PGR_SHH_CANVAS)&&(gate().flags&PGR_SHH_DISMISS)&&current(r->epoch)){
+  uint64_t token=0;const int hidden=cv->hide_opening(r->gui,r->epoch,tid(),&token);if(hidden==1)r->canvas=token;PgrCatchCanvasSample sample{};cv->sample(&sample);emit(14,r->slot,hidden,0,int(sample.owned),int(sample.masked_count));
+ }
 }
 void hook_scores(void *self,void *value,int32_t berry,const void *info){auto fn=reinterpret_cast<Scores>(original(1));HookFrame frame(self,value);try{fn(frame.a?target(frame.a):self,frame.b?target(frame.b):value,berry,info);}catch(...){if(frame.observe)fault(-11);throw;}
  if(!frame.active()||!exact(target(frame.a),c(1))||!exact(target(frame.b),c(3)))return;Record *r=create(target(frame.a));if(!r)return;if(!assign(r->response,target(frame.b))){fault(-12);return;}if(r->proto&&target(r->proto)!=target(r->response)){cancel(*r);return;}sh->mark(r->slot,PGR_SH_STAGE_SET_SCORES,0,tid());
@@ -364,7 +374,7 @@ void complete_direct(PgrCatchCapture &capture,bool advanced){if(!capture.service
  release(r);free_root(capture.service);
 }
 void hide_after(Record &r,uint32_t flags,int after,int result){if((capabilities&PGR_SHH_CANVAS)&&result==1&&(flags&4)&&after!=2&&(gate().flags&PGR_SHH_DISMISS)&&current(r.epoch))cv->hide_dismissed(r.gui,r.epoch,tid(),after);}
-void complete_summary(Record &r){auto q=summary_request(r);if(sc->validate(&q)!=1){cancel(r);return;}if(!current(r.epoch))return;
+void complete_summary(Record &r){if(capabilities&PGR_SHH_CANVAS){PgrCatchCanvasSample sample{};cv->sample(&sample);emit(15,r.slot,int(r.canvas!=0),0,int(sample.owned),int(sample.masked_count));}auto q=summary_request(r);if(sc->validate(&q)!=1){cancel(r);return;}if(!current(r.epoch))return;
  if(capabilities&PGR_SHH_DETAILS){release_pending();pending.response=hold(target(r.proto));if(!pending.response){fault(-12);return;}pending.id=r.id;pending.epoch=r.epoch;pending.expires=now()+8000;
   if(capabilities&PGR_SHH_DISCOVERY){void *layer=field<void*>(target(r.gui),h(H_CD_LAYER));if(exact(layer,h(H_CD_CLASS)))pending.layer=hold(layer);}}
  bool opened=false;PgrCatchCapture capture{};if((capabilities&PGR_SHH_DIRECT)&&(gate().flags&PGR_SHH_DISMISS)&&pending.response)opened=bridge->begin(target(pending.response),int32_t(tid()))==0;
@@ -408,6 +418,21 @@ PgrSharedHostConfig default_config{};
 PgrMetaExports default_exports{};
 PgrSharedMetaExtraExports default_extra{};
 bool default_built=false;
+int install_summary_alpha(){
+ const auto meta=table<PgrMetaApi>(pgrazor_runtime_metadata_api(1));
+ auto klass=[&](const char *ns,const char *name)->const void*{PgrMetaClassQuery q{1,sizeof(q)};q.name_space=ns;q.name=name;PgrMetaClassResult r{};return meta->resolve_class(&q,&r)?nullptr:r.klass;};
+ const void *group=klass("UnityEngine","CanvasGroup"),*object=klass("UnityEngine","Object");
+ if(!group||!object)return -1;
+ PgrMetaFieldQuery q{1,sizeof(q)};q.owner=c(0);q.name="cachedRootCanvasGroup";q.offset=0x40;q.forbidden_mask=0x50;q.kind=PGR_MD_FIELD_REF;q.type_name="UnityEngine.CanvasGroup";
+ PgrMetaFieldResult root{},native{};if(meta->validate_field(&q,&root))return -2;
+ q.owner=object;q.name="m_CachedPtr";q.offset=0x10;q.kind=PGR_MD_FIELD_VALUE;q.value_size=8;q.type_name="System.IntPtr";
+ if(meta->validate_field(&q,&native))return -3;
+ PgrBootBinding binding{};if(table<PgrBootApi>(pgrazor_runtime_bootstrap_api(1))->snapshot(&binding)||!binding.handle)return -4;
+ auto resolve=reinterpret_cast<void*(*)(const char*)>(dlsym(binding.handle,"il2cpp_resolve_icall"));if(!resolve)return -5;
+ void *address=resolve("UnityEngine.CanvasGroup::set_alpha_Injected(System.IntPtr,System.Single)");if(!address)return -6;
+ PgrCatchCanvasAlphaConfig alpha{1,sizeof(alpha),address,const_cast<void*>(root.field),const_cast<void*>(native.field),const_cast<void*>(group)};
+ return table<PgrCatchCanvasApi3>(pgrazor_catch_canvas_api(3))->install_alpha(&alpha);
+}
 int configure_default(){
  if(default_busy.test_and_set(std::memory_order_acquire))return 1;
  struct Clear{~Clear(){default_busy.clear(std::memory_order_release);}} clear;
@@ -434,7 +459,9 @@ int configure_default(){
   default_config=c;default_built=true;
  }
  if(!reinterpret_cast<void *(*)()>(default_config.metadata.thread_current)())return 1;
- default_config.metadata.owner_tid=tid();return configure(&default_config);
+ default_config.metadata.owner_tid=tid();const int rc=configure(&default_config);
+ if(rc==0&&(capabilities&PGR_SHH_CANVAS)){static bool attempted=false;if(!attempted){attempted=true;emit(16,0,install_summary_alpha());}}
+ return rc;
 }
 int configure(const PgrSharedHostConfig *input){
  if(!input)return configure_default();

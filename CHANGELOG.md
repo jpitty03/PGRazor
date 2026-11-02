@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## v0.1.9
+
+[Full release notes](docs/releases/v0.1.9.md)
+
+- Updated compatibility for Pokémon GO 0.435.1.
+- Reduced reward-summary flashing during Quick Catch.
+
 ## v0.1.8
 
 [Full release notes](docs/releases/v0.1.8.md)

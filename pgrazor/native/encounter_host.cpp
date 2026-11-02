@@ -657,7 +657,7 @@ static void *resolve_rpc_field(void *bag_class,void *rpc_class){
   auto value=reinterpret_cast<bool(*)(void*)>(g_exp.meta.class_is_valuetype);
   auto accepts=reinterpret_cast<bool(*)(void*,void*)>(g_exp.meta.class_is_assignable_from);
   for(unsigned i=0;bag_class&&i<16;++i,bag_class=parent(bag_class)){
-    void *f=field(bag_class,"cynr");if(!f)continue;void *k=klass(type(f));
+    void *f=field(bag_class,"erhp");if(!f)continue;void *k=klass(type(f));
     if(offset(f)<16||offset(f)>512||!k||value(k)||!accepts(k,rpc_class))return nullptr;
     return f;
   }return nullptr;

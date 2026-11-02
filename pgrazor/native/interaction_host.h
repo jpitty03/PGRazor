@@ -45,15 +45,15 @@ enum {
     PGR_IH_ARG_RESULT_CALLBACKS = 3,
 
     /* Pinned Pokeball::btxu RVA and prologue word count */
-    PGR_IH_BTXU_RVA = 0x0ad58170u,
+    PGR_IH_BTXU_RVA = 0xaccfdecu,
     PGR_IH_BTXU_PROLOGUE_WORDS = 8,
     PGR_IH_BTXU_PROLOGUE_BYTES = 32,
     PGR_IH_DEBUG_PROLOGUE_WORDS = 20,
     PGR_IH_DEBUG_PROLOGUE_BYTES = 80,
 
     /* Feature 57 transfer observer RVAs (zlc / zld) */
-    PGR_IH_TR_RVA_ZLC = 0x0a0534a0u,
-    PGR_IH_TR_RVA_ZLD = 0x0a0538b4u,
+    PGR_IH_TR_RVA_ZLC = 0x92fb1f0u,
+    PGR_IH_TR_RVA_ZLD = 0x92fb604u,
 
     /* Transport 52 reader, pulse, and action indices for Feature 69 */
     PGR_IH_RT_BOOL_DIAGNOSTICS_READY = 15,

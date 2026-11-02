@@ -248,12 +248,13 @@ def _walk(chunks, pool):
 def inspect_manifest(data):
     """Return identity, SDK requirements, and components from binary XML bytes.
 
-    versionCode/minSdkVersion are None when the corresponding attribute is
-    absent, and retain a string value for preview/codename SDK declarations.
+    versionName/versionCode/minSdkVersion are None when the corresponding
+    attribute is absent. versionCode/minSdkVersion retain a string value for
+    preview/codename declarations; versionName is the declared string.
     """
     _, chunks, pool, _, _ = _parse(data)
-    result = {'package': None, 'split': None, 'versionCode': None, 'minSdkVersion': None,
-              'providers': [], 'activities': []}
+    result = {'package': None, 'split': None, 'versionCode': None, 'versionName': None,
+              'minSdkVersion': None, 'providers': [], 'activities': []}
     manifests = 0
     applications = 0
     for _, event, name, attrs, depth in _walk(chunks, pool):
@@ -263,6 +264,7 @@ def inspect_manifest(data):
             result['package'] = attrs.get((None, 'package'))
             result['split'] = attrs.get((None, 'split'))
             result['versionCode'] = attrs.get((ANDROID_NS, 'versionCode'))
+            result['versionName'] = attrs.get((ANDROID_NS, 'versionName'))
         if name == 'uses-sdk' and depth == 1:
             result['minSdkVersion'] = attrs.get((ANDROID_NS, 'minSdkVersion'))
         if name == 'application' and depth == 1: applications += 1

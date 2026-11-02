@@ -180,18 +180,10 @@ static int call_pgrazor_unhook(void *target) {
 }
 
 /* Exact 20-word (80-byte) prologue for il2cpp_debug_get_method_info */
-static const uint32_t kDebugWords[PGR_IH_DEBUG_PROLOGUE_WORDS] = {
-    0x90051008u, 0xf9474508u, 0xb4000148u, 0x90051009u, 0xf9474929u,
-    0xb40000e9u, 0xf940040au, 0xeb0a011fu, 0x2a1f03e8u, 0x54000128u,
-    0xeb0a013fu, 0x540000e3u, 0xb40000a1u, 0xf9400408u, 0xb900083fu,
-    0xf900083fu, 0xf9000028u, 0x52800028u, 0x2a0803e0u, 0xd65f03c0u,
-};
+static const uint32_t kDebugWords[PGR_IH_DEBUG_PROLOGUE_WORDS] = {0xd0051268,0xf9405508,0xb4000148,0xd0051269,0xf9405929,0xb40000e9,0xf940040a,0xeb0a011f,0x2a1f03e8,0x54000128,0xeb0a013f,0x540000e3,0xb40000a1,0xf9400408,0xb900083f,0xf900083f,0xf9000028,0x52800028,0x2a0803e0,0xd65f03c0};
 
-/* Exact 8-word (32-byte) prologue for Pokeball::btxu at RVA 0xad58170 */
-static const uint32_t kBtxuWords[PGR_IH_BTXU_PROLOGUE_WORDS] = {
-    0xf81d0ffeu, 0xa90157f6u, 0xa9024ff4u, 0xf0021bb4u,
-    0xaa0003f3u, 0x39628688u, 0x37000428u, 0xd001efe0u,
-};
+/* Exact 8-word (32-byte) prologue for Pokeball::btxu at RVA 0xaccfdec */
+static const uint32_t kBtxuWords[PGR_IH_BTXU_PROLOGUE_WORDS] = {0xf81d0ffe,0xa90157f6,0xa9024ff4,0x900223b4,0xaa0003f3,0x39563a88,0x37000428,0xb001f7c0};
 
 struct ClassDesc {
     const char *ns;
@@ -263,13 +255,13 @@ static const TargetDesc kTargets[PGR_IH_TOTAL_TARGETS] = {
      "System.Void", 0, nullptr, false, false, -1, 0, nullptr, 0},
     {9, 3, "Niantic.Holoholo.Pokestop.PokestopResolveState", "ExitState",
      "System.Void", 0, nullptr, false, false, -1, 0, nullptr, 0},
-    {10, 0, "Niantic.Holoholo.Encounter.EncounterCaptureState", "btdd",
+    {10, 0, "Niantic.Holoholo.Encounter.EncounterCaptureState", "bswd",
      "System.Void", 1, "Holoholo.Rpc.CatchPokemonOutProto", false, false, 0, 0, nullptr, 0},
-    {11, 0, "Niantic.Holoholo.Encounter.EncounterCaptureState", "btdf",
+    {11, 0, "Niantic.Holoholo.Encounter.EncounterCaptureState", "bswf",
      "System.Void", 1, "Holoholo.Rpc.CatchPokemonOutProto", false, false, -1, 0, nullptr, 0},
     {12, 0, "Niantic.Holoholo.Encounter.EncounterCaptureState", "btdi",
      "System.Void", 1, "Holoholo.Rpc.CatchPokemonOutProto", false, false, -1, 0, nullptr, 0},
-    {13, 2, "Niantic.Holoholo.Pokestop.PokestopSpinnerInteractionState", "bgff",
+    {13, 2, "Niantic.Holoholo.Pokestop.PokestopSpinnerInteractionState", "bgdc",
      "System.Void", 1, "Holoholo.Rpc.FortSearchOutProto", false, false, 1, 0, nullptr, 0},
 
     /* 6 Optional Targets (14..19) */
@@ -283,7 +275,7 @@ static const TargetDesc kTargets[PGR_IH_TOTAL_TARGETS] = {
      "System.Void", 0, nullptr, true, false, -1, 0, nullptr, 0},
     {18, 9, "Niantic.Holoholo.Encounter.EncounterSummaryState", "ExitState",
      "System.Void", 0, nullptr, true, false, -1, 0, nullptr, 0},
-    {19, 10, "Niantic.Holoholo.Encounter.Pokeball", "btxu",
+    {19, 10, "Niantic.Holoholo.Encounter.Pokeball", "btqu",
      "Holoholo.Rpc.CatchPokemonOutProto", 0, nullptr, true, true, 0,
      PGR_IH_BTXU_RVA, kBtxuWords, PGR_IH_BTXU_PROLOGUE_BYTES},
 };
@@ -1108,7 +1100,7 @@ static InspectResultKind run_inspect_locked(char *out_reason, size_t reason_cap)
                 mq.version = PGR_MD_QUERY_VERSION;
                 mq.size = sizeof(mq);
                 mq.owner = klass;
-                mq.name = "btxu";
+                mq.name = "btqu";
                 mq.return_type = "Holoholo.Rpc.CatchPokemonOutProto";
                 mq.return_match = PGR_MD_MATCH_EXACT;
                 mq.param_count = 0;
@@ -1147,7 +1139,7 @@ static InspectResultKind run_inspect_locked(char *out_reason, size_t reason_cap)
                 PgrInteractionHostEvent *mev =
                     alloc_event_slot(PGR_IH_EVT_METHOD, "interaction-probe");
                 publish_event(mev,
-                              "{\"type\":\"method\",\"className\":\"%s\",\"name\":\"btxu\","
+                              "{\"type\":\"method\",\"className\":\"%s\",\"name\":\"btqu\","
                               "\"returnType\":\"Holoholo.Rpc.CatchPokemonOutProto\","
                               "\"rva\":\"0x%" PRIxPTR "\",\"source\":\"class_get_method_from_name\"}",
                               kClasses[c].full_name,

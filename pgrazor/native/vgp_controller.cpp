@@ -107,6 +107,26 @@ uint64_t smartPollAt=0;
 // Stable FIFO discovery order, without retaining managed objects between scans.
 std::map<std::string,uint64_t> smartArrival;
 uint64_t smartArrivalSerial=0;
+// Aggregate counters only: no encounter IDs or coordinates, at most one line/30s.
+struct DiscoveryTrace {
+  uint64_t next=0, scans=0, loaded=0, rejected=0, stale=0, recent=0, issued=0;
+  uint64_t hiddenScans=0;
+  uint64_t reasons[6]{};
+} discoveryTrace;
+void discoveryEvent(uint64_t now) {
+  auto &d=discoveryTrace;
+  if(now<d.next)return;
+  const auto *t=static_cast<const PgrRuntimeTransportApi*>(pgrazor_runtime_transport_api(1));
+  char detail[512];int n=snprintf(detail,sizeof(detail),
+    "scans=%llu hiddenScans=%llu enumerated=%llu rejected=%llu stale=%llu recent=%llu issued=%llu invalid=%llu manual=%llu hidden=%llu range=%llu",
+    (unsigned long long)d.scans,(unsigned long long)d.hiddenScans,(unsigned long long)d.loaded,
+    (unsigned long long)d.rejected,(unsigned long long)d.stale,(unsigned long long)d.recent,(unsigned long long)d.issued,
+    (unsigned long long)d.reasons[1],(unsigned long long)d.reasons[2],(unsigned long long)d.reasons[3],(unsigned long long)d.reasons[4]);
+  const char name[]="vgp-discovery";
+  PgrRuntimeTransportString text[]={{name,sizeof(name)-1},{detail,uint32_t(n)}};
+  if(t)t->emit(19,nullptr,0,text,2);
+  d={};d.next=now+30000;
+}
 std::string smartConfig(){
   const auto *t=static_cast<const PgrRuntimeTransportApi*>(pgrazor_runtime_transport_api(1));
   char text[4096];uint32_t size=0;
@@ -693,10 +713,14 @@ void tickScan(const PgrVgpControllerTick *in, PgrVgpControllerOut *o, uint64_t n
   for (uint32_t a = 0; a < 2; a++) {
     const bool isCatch = actions[a] == PGR_VGC_PH_CATCH;
     if (isCatch ? !canCatch : !canSpin) continue;
-    const uint32_t kind = isCatch ? (smartEnabled(smartConfig())?PGR_VD_KIND_CATCH_LOADED:PGR_VD_KIND_CATCH) : PGR_VD_KIND_SPIN;
+    const bool smart=isCatch&&smartEnabled(smartConfig());
+    const bool hidden=!(in->flags&PGR_VGC_TF_MAP_VISIBLE);
+    const uint32_t kind = isCatch ? (smart&&hidden?PGR_VD_KIND_CATCH_LOADED:PGR_VD_KIND_CATCH) : PGR_VD_KIND_SPIN;
+    if(smart){discoveryEvent(now);++discoveryTrace.scans;if(hidden)++discoveryTrace.hiddenScans;}
 
     PgrVgpDiscoveryEnumeration en{};
     int er = DSC->enumerate(kind, owner, remaining(in->lease_ms), &en);
+    if(smart&&er>0)discoveryTrace.loaded+=en.count;
     if (er < 0) { cleanup(); pauseError(o, er); return; }
     if (er == 0) continue;
     arrHandle = en.array_handle;  // OWNED
@@ -717,7 +741,7 @@ void tickScan(const PgrVgpControllerTick *in, PgrVgpControllerOut *o, uint64_t n
         PgrVgpCandidateResult r{};rc=CND->inspect(&q,&r);rootFree(candidate);
         if(r.fort_handle){uint64_t f=r.fort_handle;rootCount.fetch_add(1);rootFree(f);}
         if(rc<0){cleanup();pauseError(o,rc);return;}
-        if(rc!=PGR_VC_ELIGIBLE||r.key_len>=PGR_VC_KEY_CAPACITY)continue;
+        if(rc!=PGR_VC_ELIGIBLE||r.key_len>=PGR_VC_KEY_CAPACITY){++discoveryTrace.rejected;if(r.reason<6)++discoveryTrace.reasons[r.reason];continue;}
         std::string key(r.key,r.key_len);auto prior=smartArrival.find(key);
         uint64_t arrival=prior==smartArrival.end()?++smartArrivalSerial:prior->second;
         if(current.emplace(key,arrival).second)ordered.emplace_back(arrival,i);
@@ -735,7 +759,7 @@ void tickScan(const PgrVgpControllerTick *in, PgrVgpControllerOut *o, uint64_t n
       if(isCatch&&smartEnabled(smartConfig())){
         int fresh=pgr_smart_spawn_fresh(rootGet(cand),owner);
         if(fresh<0){rootFree(cand);cleanup();pauseError(o,fresh);return;}
-        if(!fresh){rootFree(cand);continue;}
+        if(!fresh){++discoveryTrace.stale;rootFree(cand);continue;}
       }
 
       void *manualObj = nullptr;
@@ -767,6 +791,7 @@ void tickScan(const PgrVgpControllerTick *in, PgrVgpControllerOut *o, uint64_t n
       const int seen = POL->seen(owner, cres.key, cres.key_len);
       if (seen < 0) { if (fort) rootFree(fort); rootFree(cand); cleanup(); pauseError(o, seen); return; }
       if (seen == PGR_VP_YES) {
+        if(smart)++discoveryTrace.recent;
         if (isCatch) recent++;
         if (fort) rootFree(fort);
         rootFree(cand);
@@ -780,6 +805,7 @@ void tickScan(const PgrVgpControllerTick *in, PgrVgpControllerOut *o, uint64_t n
         continue;
       }
       // Reserve the pending record (exception-safe: the candidate root becomes the pending target).
+      if(smart)++discoveryTrace.issued;
       pend = Pending{};
       pend.active = true;
       pend.phase = isCatch ? PGR_VGC_PH_ENCOUNTER : PGR_VGC_PH_SPIN;

@@ -236,7 +236,7 @@ uint32_t encode_b(uint64_t from_rva, uint64_t to_rva) {
 }
 
 void write_gc_handle_code() {
-  const uint32_t create_head[5] = {0xaa0003e8u, 0x52800049u, 0x7200003fu, 0x1a890520u, 0xaa0803e1u};
+  const uint32_t create_head[5] = {0xaa0003e8,0x52800049,0x7200003f,0x1a890520,0xaa0803e1};
   for (int i = 0; i < 5; i++) write_u32(kGcNewRva + i * 4, create_head[i]);
   write_u32(kGcNewRva + 20, encode_b(kGcNewRva + 20, kGcNewBodyRva));
   write_u32(kGcNewBodyRva + 0x384, 0x9a953120u);
@@ -259,7 +259,7 @@ void build_fixture() {
   assert(!std::strcmp(kClasses[C_RESPONSE].canonical, "Holoholo.Rpc.CatchPokemonOutProto"));
   assert(kFields[0].owner == C_BALL && kFields[0].offset == 0xb0);
   assert(kFields[2].owner == C_RESPONSE && !std::strcmp(kFields[2].name, "Status") && kFields[2].kind == PGR_MD_FIELD_ENUM_I32);
-  assert(kMethods[1].owner == C_BALL && !std::strcmp(kMethods[1].name, "btxu") && kMethods[1].rva == 0xad58170ULL);
+  assert(kMethods[1].owner == C_BALL && !std::strcmp(kMethods[1].name, "btqu") && kMethods[1].rva == 0xaccfdecULL);
   assert(kMethods[4].is_static == 1 && !std::strcmp(kMethods[4].name, "op_Implicit"));
 
   // Size the virtual module to cover the highest pinned RVA + prologue, caller check, and GC handle blocks.
@@ -441,7 +441,7 @@ int main(int argc, char **argv) {
   { domain_ready=false; failure(PGR_QB_NOT_READY); domain_ready=true; success(); }
   { auto name=fields[0]->name; fields[0]->name="hidden-core-field";
     failure(PGR_MD_ERR_NOT_FOUND); fields[0]->name=name; success(); }
-  { int m=method_at("btxu"); auto name=methods[m]->name; methods[m]->name="hidden-core-method";
+  { int m=method_at("btqu"); auto name=methods[m]->name; methods[m]->name="hidden-core-method";
     failure(PGR_MD_ERR_NOT_FOUND); methods[m]->name=name; success(); }
 
   // Mandatory (CORE) structural + value + enum + GC pointer ABI faults are fatal.
@@ -453,10 +453,10 @@ int main(int argc, char **argv) {
   { module_base[kGcNewBodyRva + 0x384] ^= 1; failure(PGR_QB_ERR_GC_POINTER); module_base[kGcNewBodyRva + 0x384] ^= 1; }
   { module_base[kGcFreeBodyRva + 24] ^= 1; failure(PGR_QB_ERR_GC_POINTER); module_base[kGcFreeBodyRva + 24] ^= 1; }
   { int m = method_at("op_Implicit"); methods[m]->flags = 0; failure(PGR_MD_ERR_STATIC); methods[m]->flags = 0x10; }
-  { int m = method_at("btxu"); methods[m]->generic = true; failure(PGR_MD_ERR_GENERIC); methods[m]->generic = false; }
-  { int m = method_at("btxu"); methods[m]->inflated = true; failure(PGR_MD_ERR_INFLATED); methods[m]->inflated = false; }
+  { int m = method_at("btqu"); methods[m]->generic = true; failure(PGR_MD_ERR_GENERIC); methods[m]->generic = false; }
+  { int m = method_at("btqu"); methods[m]->inflated = true; failure(PGR_MD_ERR_INFLATED); methods[m]->inflated = false; }
   { int m = method_at("set_speed"); auto s = methods[m]->params[0]; methods[m]->params[0] = classes[C_INT32].type; failure(PGR_MD_ERR_TYPE); methods[m]->params[0] = s; }
-  { int m = method_at("btxu"); unsigned char *p = module_base + kMethods[m].rva; *p ^= 1; failure(PGR_MD_ERR_PROLOGUE); *p ^= 1; }
+  { int m = method_at("btqu"); unsigned char *p = module_base + kMethods[m].rva; *p ^= 1; failure(PGR_MD_ERR_PROLOGUE); *p ^= 1; }
   { module_base[kCallerCheckRva] ^= 1; failure(PGR_MD_ERR_PROLOGUE); module_base[kCallerCheckRva] ^= 1; }
   // Duplicate a MANDATORY class across images -> fatal DUPLICATE.
   { Class *keep = dup_class; dup_class = new_class("Niantic.Holoholo.Encounter.Pokeball"); dup_index = C_BALL; failure(PGR_MD_ERR_DUPLICATE); dup_index = -1; dup_class = keep; }

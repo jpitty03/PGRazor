@@ -88,6 +88,7 @@ class AxmlTests(unittest.TestCase):
     def test_version_and_min_sdk_inspection(self):
         data=fixture()
         self.assertIsNone(axml.inspect_manifest(data)['versionCode'])
+        self.assertIsNone(axml.inspect_manifest(data)['versionName'])
         self.assertIsNone(axml.inspect_manifest(data)['minSdkVersion'])
         _,chunks,pool,_,_=axml._parse(data)
         ns=pool.add(axml.ANDROID_NS)
@@ -95,9 +96,11 @@ class AxmlTests(unittest.TestCase):
         sdk=pool.add('minSdkVersion')
         uses=pool.add('uses-sdk')
         version_attr=struct.pack('<IIIHBBI',ns,version,0xffffffff,8,0,0x10,123456)
+        name_value=pool.add('0.435.1')
+        name_attr=struct.pack('<IIIHBBI',ns,pool.add('versionName'),name_value,8,0,3,name_value)
         root=bytearray(chunks[1][1])
-        struct.pack_into('<H',root,28,2)
-        root.extend(version_attr)
+        struct.pack_into('<H',root,28,3)
+        root.extend(version_attr+name_attr)
         struct.pack_into('<I',root,4,len(root))
         sdk_attr=struct.pack('<IIIHBBI',ns,sdk,0xffffffff,8,0,0x10,28)
         sdk_node=node(0x102,struct.pack('<IIHHHHHH',0xffffffff,uses,20,20,1,0,0,0)+sdk_attr)
@@ -105,9 +108,11 @@ class AxmlTests(unittest.TestCase):
         rebuilt=chunk(3,pool.build()+bytes(root)+sdk_node+b''.join(raw for _,raw in chunks[2:]))
         info=axml.inspect_manifest(rebuilt)
         self.assertEqual(info['versionCode'],123456)
+        self.assertEqual(info['versionName'],'0.435.1')
         self.assertEqual(info['minSdkVersion'],28)
         patched=axml.inspect_manifest(axml.patch_manifest(rebuilt))
         self.assertEqual(patched['versionCode'],123456)
+        self.assertEqual(patched['versionName'],'0.435.1')
         self.assertEqual(patched['minSdkVersion'],28)
 
     def test_encodings_and_styles_preserved(self):

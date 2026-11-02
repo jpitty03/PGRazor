@@ -37,9 +37,8 @@ export default function GetStarted() {
       <p className="cta__release">
         <span className="cta__badge">Stable</span>
         The published{' '}
-        <a href={links.releasesCurrent}>v0.1.8 release</a> adds
-        gift batches, Quick Menu customization, reorganized battle settings, and lighter buddy and VGP+ automation.
-        Read its release notes for setup and validation limits.
+        <a href={links.releasesCurrent}>v0.1.9 release</a> updates compatibility
+        for Pokémon GO 0.435.1 and reduces reward-summary flashing during Quick Catch.
       </p>
 
       <div className="faq">

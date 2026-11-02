@@ -131,7 +131,7 @@ bool spin_bag_room(){
 }
 Root send(Root &request,const char *out_name,const char *rpc_name,Root &reflection){
  Root bag=resolve("Niantic.Holoholo","IItemBag");require(bool(bag),"item bag unavailable");
- Root rpc(field<void*>(bag.get(),"cynr","Niantic.Holoholo.Rpc.IRpcHandler"));require(bool(rpc),"RPC unavailable");
+ Root rpc(field<void*>(bag.get(),"erhp","Niantic.Holoholo.Rpc.IRpcHandler"));require(bool(rpc),"RPC unavailable");
  void *open=method(klass(rpc.get()),"SendRpc",5);require(fn<bool(*)(void*)>(boot.meta.method_is_generic)(open),"generic RPC");
  Root reflected(fn<void*(*)(void*,void*)>(exp("method_get_object"))(open,klass(rpc.get())));
  Root types(fn<void*(*)(void*,uintptr_t)>(boot.runtime.array_new)(cls("System","Type"),2));
@@ -176,7 +176,7 @@ void validate_bindings(){
  field_info(cls("Holoholo.Rpc","GymDefenderProto"),"MotivatedPokemon","Holoholo.Rpc.MotivatedPokemonProto");
  field_info(cls("Holoholo.Rpc","MotivatedPokemonProto"),"Pokemon","Holoholo.Rpc.PokemonProto");
  method(cls("Niantic.Holoholo.Gym","MapGym"),"GetGymDetailsFromServer",0);
- Root bag=resolve("Niantic.Holoholo","IItemBag");require(bool(bag),"item bag not ready");field_info(klass(bag.get()),"cynr","Niantic.Holoholo.Rpc.IRpcHandler");
+ Root bag=resolve("Niantic.Holoholo","IItemBag");require(bool(bag),"item bag not ready");field_info(klass(bag.get()),"erhp","Niantic.Holoholo.Rpc.IRpcHandler");
  event("Gym request bindings validated");
 }
 void clear_pending(){
@@ -239,7 +239,7 @@ bool prepare_selection(){
   Root tag(field<void*>(row.get(),"TagProto","Holoholo.Rpc.PokemonTagProto"));std::string name=string(field<void*>(tag.get(),"Name","System.String"));for(char &c:name)if(c>='A'&&c<='Z')c+=32;
   if(name=="gym"||name=="#gym")pending.tags.push_back(field<uint64_t>(tag.get(),"Id","System.UInt64"));}
  pending.bag=resolve("Niantic.Holoholo","IPokemonBag");if(!pending.bag)return false;
- pending.gm=reference(pending.bag.get(),"cypm","IGameMasterData");pending.buddy=resolve("Niantic.Holoholo.Buddy","IBuddyPokemonService");if(!pending.gm||!pending.buddy)return false;
+ pending.gm=reference(pending.bag.get(),"erik","IGameMasterData");pending.buddy=resolve("Niantic.Holoholo.Buddy","IBuddyPokemonService");if(!pending.gm||!pending.buddy)return false;
  Root all(call(pending.bag.get(),"get_AllPokemon"));pending.enumerator=Root(virtual_call(all,h(H_INC_M_ENUMERATE)));require(bool(pending.enumerator),"inventory enumerator");pending.phase=4;return true;
 }
 bool snapshot_valid(const Permission &p){

@@ -136,7 +136,7 @@ void load(const char *path){
   c.addr_reward_init=reinterpret_cast<void *>(reward_original);c.addr_rating_init=reinterpret_cast<void *>(rating_original);
   c.addr_completion_resp=reinterpret_cast<void *>(bjan_original);assert(api->install(&c)==0);
 }
-const char *names[]={"control","Initialize-moving-roots","bjan-moving-invoke-and-free","long-id-prefix-collision",
+const char *names[]={"control","Initialize-moving-roots","bizm-moving-invoke-and-free","long-id-prefix-collision",
   "revoke-current-read","revoke-cleanup","dismiss-revokes-second-ui","dismiss-expired-second-ui","poll-stale-generation"};
 void scenario(const char *library,unsigned index){
   load(library);initialize(index==3?std::string(PGR_RO_ID_MAX,'x')+"z":"route-a");assert(poll().status==PGR_RO_OK);

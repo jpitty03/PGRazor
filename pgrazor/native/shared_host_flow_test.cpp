@@ -169,7 +169,8 @@ void field_read(void *o,const void *f,void *out){const ptrdiff_t index=static_ca
 #define PAD asm volatile(".rept 32\n nop\n .endr\n")
 FIXTURE_FUNCTION void scores_fn(void*,void*,int32_t,const void*){PAD;++scores_calls;}
 FIXTURE_FUNCTION void open_fn(void *o,const void *info){PAD;++open_calls;last_open_self=o;last_open_info=info;if(open_throws)throw std::runtime_error("original-open");static_cast<Gui*>(o)->state=2;}
-FIXTURE_FUNCTION void init_fn(void *o,void *value,const void*){PAD;++initializations;if(init_throws)throw std::runtime_error("original-init");auto s=static_cast<State*>(o);s->response=static_cast<Response*>(value);if(during_init)during_init();Scores volatile scores=&scores_fn;scores(s->gui,value,701,nullptr);One volatile open=&open_fn;open(s->gui,nullptr);if(during_init)during_init();}
+bool expected_disguise=false;const void *expected_init_info=nullptr;
+FIXTURE_FUNCTION void init_fn(void *o,void *value,bool disguise,const void *info){PAD;assert(disguise==expected_disguise&&info==expected_init_info);++initializations;if(init_throws)throw std::runtime_error("original-init");auto s=static_cast<State*>(o);s->response=static_cast<Response*>(value);if(during_init)during_init();Scores volatile scores=&scores_fn;scores(s->gui,value,701,nullptr);One volatile open=&open_fn;open(s->gui,nullptr);if(during_init)during_init();}
 void show_fn(void*,void*,uint64_t,uint64_t,uint64_t,void*,void*,void*,uint64_t,uint64_t,uint64_t,void*);
 FIXTURE_FUNCTION void dismiss_fn(void *o,const void*){PAD;++dismissals;if(reentrant)assert(host->tick(uint64_t(gettid()),900)==0);if(revoke_during_dismiss){PgrSharedHostOptions off{1,sizeof(off),0,63,2,0,nullptr,0,0};assert(host->update(&off)==0);}static_cast<Gui*>(o)->state=3;if(direct_mode){using Show=decltype(&show_fn);Show volatile show=&show_fn;show(&service,&pokemon,1,1,0,&detail_action,nullptr,nullptr,1,1,0,nullptr);}else if(recovery_mode){details_gui.state=2;details_gui.visible=true;}}
 FIXTURE_FUNCTION void exit_fn(void *o,const void *info){PAD;++exit_calls;last_exit_self=o;last_exit_info=info;if(exit_throws)throw std::runtime_error("original-exit");}
@@ -211,7 +212,7 @@ void prepare_details(){using namespace pgr_shared_meta;prepared.optional[OPT_DET
 void prepare_recovery(){using namespace pgr_shared_meta;recovery_mode=true;gui.layer=&layer;prepared.optional[OPT_CATCH_DISCOVERY]=prepared.optional[OPT_CATCH_SCENE]=PGR_SHARED_OPT_AVAILABLE;prepared.opt_handles[H_CD_CLASS]=&klasses[24];prepared.opt_handles[H_CD_LAYER]=&field_tokens[34];prepared.opt_handles[H_CD_TOP]=&method_tokens[17];prepared.opt_handles[H_CS_FIND]=&method_tokens[18];}
 void prepare_direct(){using namespace pgr_shared_meta;direct_mode=true;prepared.optional[OPT_DIRECT_PRESENTATION]=PGR_SHARED_OPT_AVAILABLE;prepared.opt_handles[H_DP_ACTIVE]=&field_tokens[35];prepared.opt_handles[H_DP_CALLBACK]=&method_tokens[19];prepared.opt_handles[H_DP_SHOW]=&method_tokens[20];prepared.opt_handles[H_DP_SHOW_CODE]=reinterpret_cast<void*>(show_fn);}
 void options(uint64_t epoch=1){PgrSharedHostOptions o{1,sizeof(o),PGR_SHH_ALLOWED|PGR_SHH_DISMISS,63,epoch,2500,nullptr,0,0};assert(host->update(&o)==0);}
-void initialize(){Two volatile fn=&init_fn;fn(&state,&response,nullptr);}
+void initialize(){Init volatile fn=&init_fn;expected_disguise=!expected_disguise;expected_init_info=&method_tokens[0];fn(&state,&response,expected_disguise,expected_init_info);}
 PgrSharedHostSample snapshot(){PgrSharedHostSample s{};assert(host->sample(&s)==0);return s;}
 void check_clean(){auto s=snapshot();assert(s.roots==0&&s.records==0&&s.hook_frames==0);assert(handles==0&&allocated==freed);}
 struct WireEvent{uint32_t opcode;std::vector<int64_t> scalars;std::vector<std::string> strings;};std::vector<WireEvent> wire_events;
@@ -301,6 +302,18 @@ int main(int argc,char **argv){assert(argc==2||argc==3);void *lib=dlopen(argv[1]
   view.active=1;response.id++;pokemon.id=response.id;direct_exception=false;PgrSharedHostOptions transfer{1,sizeof(transfer),7,63,3,2500,nullptr,0,0};assert(host->update(&transfer)==0);host->tick(gettid(),9);initialize();host->tick(gettid(),10);host->tick(gettid(),11);assert(direct_calls==3&&release_calls==1&&show_calls==1);check_clean();
   puts("PASS61 actual3 presentation capture +24 direct completion, managed callback exception replay, direct synchronous transfer, balanced roots");return 0;
  }
+ if(argc==3&&std::strcmp(argv[2],"summary-canvas")==0){
+  initialize();assert(snapshot().records==1&&!gui.visible);
+  auto volatile set=&canvas_fn;set(&gui,true,nullptr);assert(!gui.visible);
+  host->tick(gettid(),2);assert(!dismissals&&!gui.visible);
+  host->tick(gettid(),3);assert(dismissals==1&&snapshot().records==0);
+  // Details discovery retains the response until the next initialization/OFF.
+  gui.visible=true;initialize();assert(!gui.visible);
+  PgrSharedHostOptions off{1,sizeof(off),0,63,2,0,nullptr,0,0};
+  assert(host->update(&off)==0);host->tick(gettid(),4);
+  assert(gui.visible&&dismissals==1);check_clean();
+  puts("PASS summary canvas hidden through opening, normal later dismissal, OFF restores visibility");return 0;
+ }
  if(argc==3&&std::strcmp(argv[2],"broker")==0){
   auto broker=static_cast<const PgrSharedHostTransferApi*>(fixture_host_api(2));assert(broker&&broker->size==32&&broker->ready()==1);
   int32_t kept=25;PgrSharedHostOptions opt{1,sizeof(opt),PGR_SHH_ALLOWED|PGR_SHH_TRANSFER_ENABLED,63,2,2500,&kept,1,0};assert(host->update(&opt)==0);host->tick(gettid(),2);
@@ -350,5 +363,5 @@ int main(int argc,char **argv){assert(argc==2||argc==3);void *lib=dlopen(argv[1]
  // Original exception propagates and temporary pins unwind; no ready stage is published.
  test::options(5);host->tick(gettid(),11);init_throws=true;bool thrown=false;try{initialize();}catch(const std::runtime_error &e){thrown=std::strcmp(e.what(),"original-init")==0;}assert(thrown);host->tick(gettid(),12);assert(snapshot().fault&&snapshot().stopping);check_clean();
  assert(initializations==6&&scores_calls==5&&open_calls==5);puts("PASS compiled61 source + actual51/36 leaves + realDobby: summary roots, later-tick arming, natural-dismiss cancellation, reentrant tick, in-original revocation, OFF cleanup, original exception");
- for(const char *mode:{"details","transport","recovery","scene","direct","observer","broker"}){pid_t child=fork();assert(child>=0);if(child==0){execl(argv[0],argv[0],argv[1],mode,static_cast<char*>(nullptr));_exit(127);}int status=0;assert(waitpid(child,&status,0)==child&&WIFEXITED(status)&&WEXITSTATUS(status)==0);}
+ for(const char *mode:{"details","transport","recovery","scene","direct","observer","broker","summary-canvas"}){pid_t child=fork();assert(child>=0);if(child==0){execl(argv[0],argv[0],argv[1],mode,static_cast<char*>(nullptr));_exit(127);}int status=0;assert(waitpid(child,&status,0)==child&&WIFEXITED(status)&&WEXITSTATUS(status)==0);}
 }

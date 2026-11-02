@@ -196,20 +196,20 @@ inline constexpr FieldSpec kFields[] = {
   {GROUP_TRACE, C_INFO, "m_Tag", 0x2c, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
   {GROUP_TRACE, C_INFO, "m_Loop", 0x30, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
   // --- TRACE_IDENTITY: BALL_HASHES dsmh..dsmt (0x340 + i*4) + static dsjv ---
-  {GROUP_TRACE_IDENTITY, C_BALL, "dsmh", 0x340, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_TRACE_IDENTITY, C_BALL, "dsmi", 0x344, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_TRACE_IDENTITY, C_BALL, "dsmj", 0x348, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_TRACE_IDENTITY, C_BALL, "dsmk", 0x34c, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_TRACE_IDENTITY, C_BALL, "dsml", 0x350, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_TRACE_IDENTITY, C_BALL, "dsmm", 0x354, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_TRACE_IDENTITY, C_BALL, "dsmn", 0x358, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_TRACE_IDENTITY, C_BALL, "dsmo", 0x35c, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_TRACE_IDENTITY, C_BALL, "dsmp", 0x360, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_TRACE_IDENTITY, C_BALL, "dsmq", 0x364, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_TRACE_IDENTITY, C_BALL, "dsmr", 0x368, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_TRACE_IDENTITY, C_BALL, "dsms", 0x36c, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_TRACE_IDENTITY, C_BALL, "dsmt", 0x370, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_TRACE_IDENTITY, C_BALL, "dsjv", 0x4, PGR_MD_FIELD_ANY, 0, 0x40, 0x10, "System.Int32"},
+  {GROUP_TRACE_IDENTITY, C_BALL, "dsqc", 0x340, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE_IDENTITY, C_BALL, "dsqd", 0x344, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE_IDENTITY, C_BALL, "dsqe", 0x348, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE_IDENTITY, C_BALL, "dsqf", 0x34c, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE_IDENTITY, C_BALL, "dsqg", 0x350, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE_IDENTITY, C_BALL, "dsqh", 0x354, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE_IDENTITY, C_BALL, "dsqi", 0x358, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE_IDENTITY, C_BALL, "dsqj", 0x35c, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE_IDENTITY, C_BALL, "dsqk", 0x360, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE_IDENTITY, C_BALL, "dsql", 0x364, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE_IDENTITY, C_BALL, "dsqm", 0x368, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE_IDENTITY, C_BALL, "dsqn", 0x36c, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE_IDENTITY, C_BALL, "dsqo", 0x370, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE_IDENTITY, C_BALL, "dsnq", 0x4, PGR_MD_FIELD_ANY, 0, 0x40, 0x10, "System.Int32"},
   // --- THROWS: PokeballThrow layout ---
   {GROUP_THROWS, C_THROW, "BallType", 16, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Holoholo.Rpc.Item"},
   {GROUP_THROWS, C_THROW, "ReticleSize", 20, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Single"},
@@ -217,10 +217,10 @@ inline constexpr FieldSpec kFields[] = {
   {GROUP_THROWS, C_THROW, "Spinning", 25, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Boolean"},
   {GROUP_THROWS, C_THROW, "Missed", 26, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Boolean"},
   // --- ALWAYSHIT: Pokeball coroutine/state wiring ---
-  {GROUP_ALWAYSHIT, C_BALL, "dsld", 0x258, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Niantic.Holoholo.SchedulerStateMachine"},
-  {GROUP_ALWAYSHIT, C_BALL, "dsly", 0x2f8, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Niantic.Holoholo.SchedulerStateCoroutine"},
-  {GROUP_ALWAYSHIT, C_BALL, "dslx", 0x2f0, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Niantic.Holoholo.SchedulerStateCoroutine"},
-  {GROUP_ALWAYSHIT, C_BALL, "dslc", 0x250, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Niantic.Holoholo.Encounter.IEncounterPokemon"},
+  {GROUP_ALWAYSHIT, C_BALL, "dsoy", 0x258, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Niantic.Holoholo.SchedulerStateMachine"},
+  {GROUP_ALWAYSHIT, C_BALL, "dspt", 0x2f8, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Niantic.Holoholo.SchedulerStateCoroutine"},
+  {GROUP_ALWAYSHIT, C_BALL, "dsps", 0x2f0, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Niantic.Holoholo.SchedulerStateCoroutine"},
+  {GROUP_ALWAYSHIT, C_BALL, "dsox", 0x250, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Niantic.Holoholo.Encounter.IEncounterPokemon"},
   {GROUP_ALWAYSHIT, C_BALL, "HitPokemon", 0x50, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Action"},
   {GROUP_ALWAYSHIT, C_BALL, "<BallType>k__BackingField", 0x374, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Holoholo.Rpc.Item"},
   // --- ARTHROWS: ARPlusEncounterValuesProto ---
@@ -241,10 +241,10 @@ inline constexpr FieldSpec kFields[] = {
   {GROUP_IV, C_PK, "cpMultiplier_", 0x7c, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Single"},
   {GROUP_IV, C_PK, "additionalCpMultiplier_", 0xac, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Single"},
   {GROUP_IV, C_NAMEPLATE, "cpText", 0x80, PGR_MD_FIELD_ANY, 0, 0x50, 0, "UnityEngine.UI.Text"},
-  {GROUP_IV, C_NAMEPLATE, "dsqf", 0x68, PGR_MD_FIELD_ANY, 0, 0x50, 0, "IGameMasterData"},
-  {GROUP_IV, C_WILDMAP, "eluo", 0x270, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Holoholo.Rpc.WildPokemonProto"},
-  {GROUP_IV, C_WILDMAP, "elup", 0x278, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Holoholo.Rpc.EncounterOutProto"},
-  {GROUP_IV, C_WILDMAP, "elus", 0x290, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Holoholo.Rpc.TappableEncounterProto"},
+  {GROUP_IV, C_NAMEPLATE, "dsua", 0x68, PGR_MD_FIELD_ANY, 0, 0x50, 0, "IGameMasterData"},
+  {GROUP_IV, C_WILDMAP, "embr", 0x270, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Holoholo.Rpc.WildPokemonProto"},
+  {GROUP_IV, C_WILDMAP, "embs", 0x278, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Holoholo.Rpc.EncounterOutProto"},
+  {GROUP_IV, C_WILDMAP, "embv", 0x290, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Holoholo.Rpc.TappableEncounterProto"},
   {GROUP_IV, C_WILDPROTO, "Latitude", 0x20, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Double"},
   {GROUP_IV, C_WILDPROTO, "Longitude", 0x28, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Double"},
   {GROUP_IV, C_WILDPROTO, "Pokemon", 0x38, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Holoholo.Rpc.PokemonProto"},
@@ -253,27 +253,27 @@ inline constexpr FieldSpec kFields[] = {
   {GROUP_IV, C_TAPPABLE, "Pokemon", 0x18, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Holoholo.Rpc.PokemonProto"},
   // --- IVOWNED: PokemonInfoPanel ---
   {GROUP_IVOWNED, C_PANEL, "cpValueText", 0x3c8, PGR_MD_FIELD_ANY, 0, 0x50, 0, "UnityEngine.UI.Text"},
-  {GROUP_IVOWNED, C_PANEL, "<PokemonProto>k__BackingField", 0xa60, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Holoholo.Rpc.PokemonProto"},
-  {GROUP_IVOWNED, C_PANEL, "egfu", 0x80, PGR_MD_FIELD_ANY, 0, 0x50, 0, "IGameMasterData"},
+  {GROUP_IVOWNED, C_PANEL, "<PokemonProto>k__BackingField", 0xa68, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Holoholo.Rpc.PokemonProto"},
+  {GROUP_IVOWNED, C_PANEL, "egmn", 0x80, PGR_MD_FIELD_ANY, 0, 0x50, 0, "IGameMasterData"},
 };
 inline constexpr uint32_t kFieldCount = sizeof(kFields) / sizeof(kFields[0]);
 static_assert(kFieldCount == 65, "quick-ball resolves exactly 65 pinned fields (source cross-check)");
 
 inline constexpr MethodSpec kMethods[] = {
   // --- CORE (mandatory) ---
-  {GROUP_CORE, C_CAPTURE, "btdf", "System.Void", PGR_MD_MATCH_EXACT, 1, "Holoholo.Rpc.CatchPokemonOutProto", nullptr, 0,
-   0xacf104c, "fd7bbaa9fc6f01a9fa6702a9f85f03a9f65704a9f44f05a9f51e02d0f40301aa"},
-  {GROUP_CORE, C_BALL, "btxu", "Holoholo.Rpc.CatchPokemonOutProto", PGR_MD_MATCH_EXACT, 0, nullptr, nullptr, 0,
-   0xad58170, "fe0f1df8f65701a9f44f02a9b41b02f0f30300aa8886623928040037e0ef01d0"},
+  {GROUP_CORE, C_CAPTURE, "bswf", "System.Void", PGR_MD_MATCH_EXACT, 1, "Holoholo.Rpc.CatchPokemonOutProto", nullptr, 0,
+   0xac345dc, "fd7bbaa9fc6f01a9fa6702a9f85f03a9f65704a9f44f05a9752802f0f40301aa"},
+  {GROUP_CORE, C_BALL, "btqu", "Holoholo.Rpc.CatchPokemonOutProto", PGR_MD_MATCH_EXACT, 0, nullptr, nullptr, 0,
+   0xaccfdec, "fe0f1df8f65701a9f44f02a9b4230290f30300aa883a563928040037c0f701b0"},
   {GROUP_CORE, C_ANIMATOR, "get_speed", "System.Single", PGR_MD_MATCH_EXACT, 0, nullptr, nullptr, 0,
-   0xd954a40, "fe57bea9f44f01a974bc00d0f30300aa8866793908010037809700d000800c91"},
+   0xd9c1490, "fe57bea9f44f01a9b4bc00d0f30300aa8866413908010037a09700f000601a91"},
   {GROUP_CORE, C_ANIMATOR, "set_speed", "System.Void", PGR_MD_MATCH_EXACT, 1, "System.Single", nullptr, 0,
-   0xd954b48, "e80f1dfcfe5701a9f44f02a90840201e74bc00d0f30300aa886a793908010037"},
+   0xd9c1598, "e80f1dfcfe5701a9f44f02a90840201eb4bc00d0f30300aa886a413908010037"},
   {GROUP_CORE, C_OBJECT, "op_Implicit", "System.Boolean", PGR_MD_MATCH_EXACT, 1, "UnityEngine.Object", nullptr, 1,
-   0xda6bba0, "fe0f1df8f65701a9f44f02a9f4b30090f30300aa882e673988020036f48800d0"},
+   0xdad86c8, "fe0f1df8f65701a9f44f02a914b400f0f30300aa886e6f3988020036148900f0"},
   {GROUP_CORE, C_SYNCCTX, "ExecuteTasks", "System.Void", PGR_MD_MATCH_EXACT, 0, nullptr, nullptr, 1, 0, nullptr},
-  {GROUP_CORE, C_CAPTURE, "btdd", "System.Void", PGR_MD_MATCH_EXACT, 1, "Holoholo.Rpc.CatchPokemonOutProto", nullptr, 0,
-   0xacf0a8c, "fd7bbaa9fc6f01a9fa6702a9f85f03a9f65704a9f44f05a9f51e02f0f40301aa"},
+  {GROUP_CORE, C_CAPTURE, "bswd", "System.Void", PGR_MD_MATCH_EXACT, 1, "Holoholo.Rpc.CatchPokemonOutProto", nullptr, 0,
+   0xac3401c, "fd7bbaa9fc6f01a9fa6702a9f85f03a9f65704a9f44f05a9752802f0f40301aa"},
   // --- TRACE ---
   {GROUP_TRACE, C_ANIMATOR, "GetCurrentAnimatorStateInfo", "UnityEngine.AnimatorStateInfo", PGR_MD_MATCH_EXACT, 1, "System.Int32", nullptr, 0, 0, nullptr},
   {GROUP_TRACE, C_ANIMATOR, "GetNextAnimatorStateInfo", "UnityEngine.AnimatorStateInfo", PGR_MD_MATCH_EXACT, 1, "System.Int32", nullptr, 0, 0, nullptr},
@@ -285,41 +285,41 @@ inline constexpr MethodSpec kMethods[] = {
   // --- TRACE_NAME ---
   {GROUP_TRACE_NAME, C_OBJECT, "get_name", "System.String", PGR_MD_MATCH_EXACT, 0, nullptr, nullptr, 0, 0, nullptr},
   // --- THROWS ---
-  {GROUP_THROWS, C_BALL, "btyl", "System.Void", PGR_MD_MATCH_EXACT, 1, "Niantic.Holoholo.Encounter.PokeballThrow", nullptr, 0,
-   0xad5fbdc, "fe5fbda9f65701a9f44f02a9961b0290f50302aaf40301aac8026539f30300aa"},
+  {GROUP_THROWS, C_BALL, "btrl", "System.Void", PGR_MD_MATCH_EXACT, 1, "Niantic.Holoholo.Encounter.PokeballThrow", nullptr, 0,
+   0xacd7858, "fe5fbda9f65701a9f44f02a976230290f50302aaf40301aac8b65839f30300aa"},
   {GROUP_THROWS, C_ENCOUNTER, "NotifyPokeballHit", "System.Void", PGR_MD_MATCH_EXACT, 1, "Niantic.Holoholo.Encounter.PokeballThrow", nullptr, 0,
-   0xad93280, "080441f9c80000b4002140f9031540f9427c4092040d40f980001fd6c0035fd6"},
+   0xad0af34, "080441f9c80000b4002140f9031540f9427c4092040d40f980001fd6c0035fd6"},
   // --- ALWAYSHIT ---
   {GROUP_ALWAYSHIT, C_ACTION, "Invoke", "System.Void", PGR_MD_MATCH_EXACT, 0, nullptr, nullptr, 0, 0, nullptr},
   {GROUP_ALWAYSHIT, C_BALL, "OnCollisionEnter", "System.Void", PGR_MD_MATCH_EXACT, 1, "UnityEngine.Collision", nullptr, 0,
-   0xad5a18c, "fe5fbda9f65701a9f44f02a9b51b02b0f40301aaf30300aa"},
+   0xacd1e08, "fe5fbda9f65701a9f44f02a9952302d0f40301aaf30300aa"},
   {GROUP_ALWAYSHIT, C_BALL, "OnTriggerEnter", "System.Void", PGR_MD_MATCH_EXACT, 1, "UnityEngine.Collider", nullptr, 0,
-   0xad5aa08, "fe0f1df8f65701a9f44f02a9b51b02b0f40301aaf30300aa"},
+   0xacd2684, "fe0f1df8f65701a9f44f02a9952302b0f40301aaf30300aa"},
   {GROUP_ALWAYSHIT, C_BALL, "Launch", "System.Void", PGR_MD_MATCH_EXACT, 1, "UnityEngine.Vector2", nullptr, 0,
-   0xad5b58c, "ff8302d1ef3b036ded33046deb2b056de923066dfe5f07a9"},
+   0xacd3208, "ff8302d1ef3b036ded33046deb2b056de923066dfe5f07a9"},
   {GROUP_ALWAYSHIT, C_BALL, "EndDrag", "System.Void", PGR_MD_MATCH_EXACT, 0, nullptr, nullptr, 0,
-   0xad5b470, "fe57bea9f44f01a9b41b0290f30300aa88a2623908010037"},
-  {GROUP_ALWAYSHIT, C_BALL, "btyb", "Niantic.Holoholo.Encounter.PokeballThrow", PGR_MD_MATCH_EXACT, 1, "System.Boolean", nullptr, 0,
-   0xad5ad20, "ea0f1cfce9a3006dfe0f00f9f65702a9f44f03a9b51b02b0"},
+   0xacd30ec, "fe57bea9f44f01a994230290f30300aa8856563908010037"},
+  {GROUP_ALWAYSHIT, C_BALL, "btrb", "Niantic.Holoholo.Encounter.PokeballThrow", PGR_MD_MATCH_EXACT, 1, "System.Boolean", nullptr, 0,
+   0xacd299c, "ea0f1cfce9a3006dfe0f00f9f65702a9f44f03a9952302b0"},
   // --- ARTHROWS: TryCapture return is checked for exact IPromise(`1)?<CatchPokemonOutProto> in resolve().
   {GROUP_ARTHROWS, C_MAPPOKEMON, "TryCapture", "Holoholo.Rpc.CatchPokemonOutProto", PGR_MD_MATCH_CONTAINS, 2,
    "Niantic.Holoholo.Encounter.PokeballThrow", "Holoholo.Rpc.ARPlusEncounterValuesProto", 0,
-   0x9e1cba0, "ff4302d1e81300fdfd7b03a9fc6f04a9fa6705a9f85f06a9"},
+   0x9ea44f0, "ff4302d1e81300fdfd7b03a9fc6f04a9fa6705a9f85f06a9"},
   // --- MAPTAP: GetGroundPosition param1 is checked for Vector3(&) + type_is_byref in resolve().
-  {GROUP_MAPTAP, C_GROUND, "OnTap", "System.Void", PGR_MD_MATCH_EXACT, 2, "System.Object", "System.EventArgs", 0,
-   0x9e8307c, "ff0302d1e923036dfe2300f9f85f05a9f65706a9f44f07a9349202f0f30300aa"},
+  {GROUP_MAPTAP, C_GROUND, "cnqs", "System.Void", PGR_MD_MATCH_EXACT, 2, "System.Object", "System.EventArgs", 0,
+   0x9f0d774, "ff0302d1e923036dfe2300f9f85f05a9f65706a9f44f07a9949102b0f30300aa"},
   {GROUP_MAPTAP, C_MAPVIEW, "GetGroundPosition", "System.Boolean", PGR_MD_MATCH_EXACT, 2, "UnityEngine.Vector2", "UnityEngine.Vector3", 0,
-   0x9e87638, "e923bc6dfe0b00f9f65702a9f44f03a92840201e0940201e159202f0a8026539"},
+   0x9f125d0, "e923bc6dfe0b00f9f65702a9f44f03a92840201e0940201e75910290a8c26539"},
   {GROUP_MAPTAP, C_MAPVIEW, "GetWorldLocation", "Niantic.LatLng", PGR_MD_MATCH_EXACT, 1, "UnityEngine.Vector3", nullptr, 0,
-   0x9e87568, "ea0f1cfce923016dfe5702a9f44f03a94840201e2940201e149202f00a40201e"},
+   0x9f12500, "ea0f1cfce923016dfe5702a9f44f03a94840201e2940201e749102900a40201e"},
   // --- IV ---
   {GROUP_IV, C_NAMEPLATE, "SetPokemonUI", "System.Void", PGR_MD_MATCH_EXACT, 2,
    "Niantic.Holoholo.Map.IMapPokemon", "Niantic.Rpc.GameplayWeatherProto.Types.WeatherCondition", 0,
-   0xad84364, "ff8303d1fd7b08a9fc6f09a9fa670aa9f85f0ba9f6570ca9f44f0da9541a02f0"},
+   0xacfbfe0, "ff8303d1fd7b08a9fc6f09a9fa670aa9f85f0ba9f6570ca9f44f0da954220290"},
   {GROUP_IV, C_LEVELS, "GetPokemonLevelOfCpMultiplier", "System.Int32", PGR_MD_MATCH_EXACT, 2, "IGameMasterData", "System.Single", 1,
-   0xa85eed4, "ff4301d1e81300fdfe5703a9f44f04a90840201e744302f0f30300aa88d67239"},
+   0x9281ed0, "ff4301d1e81300fdfe5703a9f44f04a90840201ed4f502b0f30300aa88226839"},
   {GROUP_IV, C_LEVELS, "CpMultiplierAtLevel", "System.Single", PGR_MD_MATCH_EXACT, 2, "IGameMasterData", "System.Int32", 1,
-   0xa85f504, "ff4301d1fe1300f9f65703a9f44f04a9754302d0f303012af40300aaa8de7239"},
+   0x9282500, "ff4301d1fe1300f9f65703a9f44f04a9d5f50290f303012af40300aaa82a6839"},
   {GROUP_IV, C_UITEXT, "set_text", "System.Void", PGR_MD_MATCH_EXACT, 1, "System.String", nullptr, 0, 0, nullptr},
   {GROUP_IV, C_UITEXT, "set_supportRichText", "System.Void", PGR_MD_MATCH_EXACT, 1, "System.Boolean", nullptr, 0, 0, nullptr},
   {GROUP_IV, C_UITEXT, "get_fontSize", "System.Int32", PGR_MD_MATCH_EXACT, 0, nullptr, nullptr, 0, 0, nullptr},
@@ -335,7 +335,7 @@ inline constexpr MethodSpec kMethods[] = {
   {GROUP_IVTEXT, C_UITEXT, "get_alignment", "UnityEngine.TextAnchor", PGR_MD_MATCH_EXACT, 0, nullptr, nullptr, 0, 0, nullptr},
   // --- IVOWNED ---
   {GROUP_IVOWNED, C_PANEL, "DoUpdate", "System.Void", PGR_MD_MATCH_EXACT, 1, "Holoholo.Rpc.PokemonProto", nullptr, 0,
-   0x9a3a8e0, "ff0302d1fd7b02a9fc6f03a9fa6704a9f85f05a9f65706a9"},
+   0x9ac108c, "ff0302d1fd7b02a9fc6f03a9fa6704a9f85f05a9f65706a9"},
   // --- IVOUTLINE ---
   {GROUP_IVOUTLINE, C_COMPONENT, "get_gameObject", "UnityEngine.GameObject", PGR_MD_MATCH_EXACT, 0, nullptr, nullptr, 0, 0, nullptr},
   {GROUP_IVOUTLINE, C_GAMEOBJECT, "GetComponent", "UnityEngine.Component", PGR_MD_MATCH_EXACT, 1, "System.Type", nullptr, 0, 0, nullptr},
@@ -366,19 +366,19 @@ inline constexpr ValueSizeSpec kValueSizes[] = {
 inline constexpr uint32_t kValueSizeCount = sizeof(kValueSizes) / sizeof(kValueSizes[0]);
 
 // Standalone caller-code check (prepare line 189) + the returned caller RETURN ADDRESS (line 325,
-// p.caller = module.base + 0xad691d0). The check and the returned address are DISTINCT: the check
-// validates 16 bytes at 0xad691c8 with the fixed prologue; the returned caller is +8 past that start
-// (0xad691d0) and is a plain module-relative pointer the adapter re-derives, NOT a validated handle.
-inline constexpr uint64_t kCallerCheckRva = 0xad691c8ULL;
+// p.caller = module.base + 0xace0e4c). The check and the returned address are DISTINCT: the check
+// validates 16 bytes at 0xace0e44 with the fixed prologue; the returned caller is +8 past that start
+// (0xace0e4c) and is a plain module-relative pointer the adapter re-derives, NOT a validated handle.
+inline constexpr uint64_t kCallerCheckRva = 0xace0e44ULL;
 inline constexpr uint64_t kCallerCheckLen = 16;
-inline constexpr const char *kCallerCheckPrologue = "e00314aae9bbff97c82c02b0f60313aa";
-inline constexpr uint64_t kCallerRva = 0xad691d0ULL;
+inline constexpr const char *kCallerCheckPrologue = "e00314aae9bbff97a83402d0f60313aa";
+inline constexpr uint64_t kCallerRva = 0xace0e4cULL;
 static_assert(kCallerRva == kCallerCheckRva + 8, "returned caller sits 8 bytes into the checked range");
 
 // pointerHandleAbi (prepare lines 109..140): read-only fingerprint of il2cpp_gchandle_new /
 // _get_target / _free. Each export is validated readable+executable and its instruction words
 // compared; the first body target is reached through an AArch64 'B imm26' branch. No handle is created.
-inline constexpr uint32_t kGcCreateWords[] = {0xaa0003e8, 0x52800049, 0x7200003f, 0x1a890520, 0xaa0803e1};
+inline constexpr uint32_t kGcCreateWords[] = {0xaa0003e8,0x52800049,0x7200003f,0x1a890520,0xaa0803e1};
 inline constexpr uint32_t kGcCreateWordCount = 5;
 inline constexpr uint64_t kGcCreateBranchOff = 20;    // branch(create.add(20))
 inline constexpr uint64_t kGcCreateBodyOff   = 0x384; // csel x0,x9,x21,lo : full-width return
@@ -396,12 +396,7 @@ inline constexpr const char *kOutcomeLiterals[PGR_QB_OUTCOME_MAX] = {
   "CatchError", "CatchSuccess", "CatchEscape", "CatchFlee", "CatchMissed", "CatchItemReplacement"};
 
 // 80-byte il2cpp_debug_get_method_info prologue (prepare lines 56..59, 179..180).
-inline constexpr unsigned char kDebugPrologue[] = {
-  0x08,0x10,0x05,0x90, 0x08,0x45,0x47,0xf9, 0x48,0x01,0x00,0xb4, 0x09,0x10,0x05,0x90,
-  0x29,0x49,0x47,0xf9, 0xe9,0x00,0x00,0xb4, 0x0a,0x04,0x40,0xf9, 0x1f,0x01,0x0a,0xeb,
-  0xe8,0x03,0x1f,0x2a, 0x28,0x01,0x00,0x54, 0x3f,0x01,0x0a,0xeb, 0xe3,0x00,0x00,0x54,
-  0xa1,0x00,0x00,0xb4, 0x08,0x04,0x40,0xf9, 0x3f,0x08,0x00,0xb9, 0x3f,0x08,0x00,0xf9,
-  0x28,0x00,0x00,0xf9, 0x28,0x00,0x80,0x52, 0xe0,0x03,0x08,0x2a, 0xc0,0x03,0x5f,0xd6};
+inline constexpr unsigned char kDebugPrologue[] = {0x68,0x12,0x05,0xd0,0x08,0x55,0x40,0xf9,0x48,0x01,0x00,0xb4,0x69,0x12,0x05,0xd0,0x29,0x59,0x40,0xf9,0xe9,0x00,0x00,0xb4,0x0a,0x04,0x40,0xf9,0x1f,0x01,0x0a,0xeb,0xe8,0x03,0x1f,0x2a,0x28,0x01,0x00,0x54,0x3f,0x01,0x0a,0xeb,0xe3,0x00,0x00,0x54,0xa1,0x00,0x00,0xb4,0x08,0x04,0x40,0xf9,0x3f,0x08,0x00,0xb9,0x3f,0x08,0x00,0xf9,0x28,0x00,0x00,0xf9,0x28,0x00,0x80,0x52,0xe0,0x03,0x08,0x2a,0xc0,0x03,0x5f,0xd6};
 inline constexpr uint32_t kDebugPrologueLen = sizeof(kDebugPrologue);
 
 }  // namespace pgr_quickball_schema

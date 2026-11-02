@@ -41,10 +41,10 @@ The first two commands verify dependency commits/gitlinks, source cleanliness, p
 
 ## Local playable build
 
-Supply your own unmodified, Niantic-signed ARM64 game APK/APKM. The supported input is Pokémon GO 0.433.1, version code 2026101502. The release workflow additionally pins its SHA-256:
+Supply your own unmodified, Niantic-signed ARM64 game APK/APKM. The supported input is Pokémon GO 0.435.1, version code 2026102802. The release workflow additionally pins its SHA-256:
 
 ```text
-aabe3f866bb20b008d10646d35615fe8845ad0164ddc5ac7984e1a5565836e53
+7642787f991a30a6249b9225ee1d224a0e6465ba0c85f9f0e2ff781a97f089f3
 ```
 
 Keep the original under the ignored `pgrazor/input/` directory. From the repository root:
@@ -123,3 +123,9 @@ The minimum SDK is Android 9 (API 28), but native gameplay hooks are supported o
 ## Retention
 
 `cleanup.ps1` removes recognized obsolete generated APK files after packaging. It preserves diagnostic records, keys, inputs, and runtime dependencies. Copy `build-retention.example.json` to the ignored `build-retention.json` on a new checkout; packaging also initializes it if missing and pins the first completed candidate (not a tested rollback). Pin deployed builds and a tested rollback before replacing them. Never commit device-specific retention history.
+
+### Hosted game input
+
+The release workflow reads `PGRAZOR_INPUT_URL` and verifies the exact checksum in `tools/private_input.py` before packaging. The current input is stored as an asset of the **unpublished** `build-inputs` draft release. Keep that release in draft status; original game packages must not be published as release assets.
+
+For a game update, upload the new original package under a versioned filename, verify its downloaded SHA-256, and update `PGRAZOR_INPUT_URL` to its GitHub API asset URL. The workflow authenticates that download with its repository token. Update the pinned checksum and native compatibility bindings together before running the release workflow.

@@ -375,7 +375,7 @@ int main(int argc, char **argv) {
     {int calls=berry_filter_calls;if(call_btxu(&g_ball,&method_obj)!=&g_resp_n||berry_filter_calls!=calls||roots)return 69;}
     g_attached=true;
 
-    std::puts("PASS native catch observers: btxu gate (caller/thread/lease/rate + MATCHING caller + "
+    std::puts("PASS native catch observers: btqu gate (caller/thread/lease/rate + MATCHING caller + "
               "attachment), return relocation (incl. during a managed free), reentry suppression, "
               "revoke/rearm, completion past lease expiry, multi-event ring drain, "
               "outcome dedup/rate/classification, speed apply/complete delegation, "

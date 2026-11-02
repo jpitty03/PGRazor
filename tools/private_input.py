@@ -32,7 +32,7 @@ def main():
                 if total>2_000_000_000: raise ValueError('Input too large')
                 dest.write(chunk)
     except Exception: raise SystemExit('Private game input download failed; check the secret URL') from None
-    expected='aabe3f866bb20b008d10646d35615fe8845ad0164ddc5ac7984e1a5565836e53'
+    expected='7642787f991a30a6249b9225ee1d224a0e6465ba0c85f9f0e2ff781a97f089f3'
     with output.open('rb') as stream:
         if hashlib.file_digest(stream,'sha256').hexdigest()!=expected: raise SystemExit('Unsupported game input checksum')
     key=Path(os.environ['PGRAZOR_KEYSTORE']);key.parent.mkdir(parents=True,exist_ok=True)

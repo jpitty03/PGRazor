@@ -166,9 +166,9 @@ unsigned result_depth=0;
 struct Scope {uintptr_t controller=0,encounter=0;uint64_t id=0;};
 thread_local Scope encounter_scope{};
 thread_local unsigned natural_result_depth=0;
-// Pinned bfvy 0xa4b3380 captures .cay and passes its Action to
+// Pinned bftv 0xa4b3380 captures .cay and passes its Action to
 // IDynamicTappable.AnimateInteraction at0xa4b342c. Method usage0xec3cef8
-// resolves cay.bfvr (0xa4b6d4c), which tailcalls bfwa at0xa4b6d70.
+// resolves cay.bfvr (0xa40f040), which tailcalls bftx at0xa4b6d70.
 // Therefore response-stack lifetime alone cannot authorize suppression.
 struct OwnedEncounter {uintptr_t service=0,controller=0,encounter=0;uint64_t id=0,created=0;bool stale=false;};
 // Missing animation callbacks must not hold the dispatch slot forever. Keep
@@ -252,7 +252,7 @@ void encounter_hook(void *self,void *target,void *encounter,const void *mi){
   if(ready.load()&&owner_thread()&&!natural_result_depth&&exact(target,controller_class)&&exact(encounter,encounter_class)){
     uint64_t id=0;
     if(read_field(target,0xd0,id)&&id){
-      // bfvy schedules cay.bfvr through AnimateInteraction. The exact three
+      // bftv schedules cay.bfvr through AnimateInteraction. The exact three
       // rooted objects survive that asynchronous boundary; an ID alone is never
       // authority to drop another encounter, and OFF does not revoke an open RPC.
       for(auto &r:owned_encounters)if(r.id==id&&r.service&&r.controller&&r.encounter&&
@@ -339,7 +339,7 @@ int install(uint64_t tid){
    {controller_class,"<Location>k__BackingField",0xe8,PGR_MD_FIELD_VALUE,16,"Niantic.LatLng"},
    {controller_class,"<DespawnTimeMs>k__BackingField",0x100,PGR_MD_FIELD_VALUE,8,"System.Int64"},
    {response_class,"Status",0x10,PGR_MD_FIELD_ENUM_I32,4,nullptr},{response_class,"Encounter",0x20,PGR_MD_FIELD_REF,0,"Holoholo.Rpc.TappableEncounterProto"},
-   {loot_item_class,"Count",0x10,PGR_MD_FIELD_VALUE,4,"System.Int32"},{loot_item_class,"csrn",0x18,PGR_MD_FIELD_REF,0,"System.Object"},{loot_item_class,"csro",0x20,PGR_MD_FIELD_ENUM_I32,4,nullptr},
+   {loot_item_class,"Count",0x10,PGR_MD_FIELD_VALUE,4,"System.Int32"},{loot_item_class,"csyx",0x18,PGR_MD_FIELD_REF,0,"System.Object"},{loot_item_class,"csyy",0x20,PGR_MD_FIELD_ENUM_I32,4,nullptr},
    {int32_class,"m_value",0x10,PGR_MD_FIELD_VALUE,4,"System.Int32"},{species_class,"value__",0x10,PGR_MD_FIELD_VALUE,4,"System.Int32"},{item_class,"value__",0x10,PGR_MD_FIELD_VALUE,4,"System.Int32"}};
   for(auto &f:fields)if((rc=check_field(f.k,f.n,f.off,f.kind,f.size,f.type)))return rc;
   PgrMetaFieldResult list{},array{};
@@ -350,28 +350,28 @@ int install(uint64_t tid){
   list_array_class=array.type_class;
   if(!list_class||!list_array_class)return -41;
   if((rc=repeated_layout(response_class,"Reward",0x18,reward_layout))||(rc=repeated_layout(loot_class,"LootItem",0x10,items_layout)))return rc;
-  PgrMetaFieldResult cases{};if((rc=check_field(loot_item_class,"csro",0x20,PGR_MD_FIELD_ENUM_I32,4,nullptr,&cases)))return rc;
+  PgrMetaFieldResult cases{};if((rc=check_field(loot_item_class,"csyy",0x20,PGR_MD_FIELD_ENUM_I32,4,nullptr,&cases)))return rc;
   if(!constant(cases.type_class,"Item",1)||!constant(cases.type_class,"PokemonCandy",4)||!constant(cases.type_class,"XlCandy",11)||!constant(item_class,"RareCandy",1301)||!constant(item_class,"XlRareCandy",1302))return -42;
   const unsigned char new_pre[16]={0xe8,0x03,0x00,0xaa,0x49,0x00,0x80,0x52,0x3f,0x00,0x00,0x72,0x20,0x05,0x89,0x1a};
   const unsigned char get_pre[16]={0x13,0x16,0x00,0x14,0xff,0x03,0x01,0xd1,0xfe,0x5f,0x01,0xa9,0xf6,0x57,0x02,0xa9};
   const unsigned char free_pre[16]={0x01,0x16,0x00,0x14,0x00,0x02,0x80,0x52,0xc0,0x03,0x5f,0xd6,0x00,0x04,0x80,0x52};
   const unsigned char invoke_pre[16]={0xb5,0xe9,0x01,0x14,0xb2,0xde,0x01,0x14,0xa1,0xec,0x01,0x14,0xfe,0x0f,0x1e,0xf8};
-  if((rc=validate_export(binding.runtime.gchandle_new,0x4eed760,new_pre))||(rc=validate_export(binding.runtime.gchandle_get_target,0x4eed83c,get_pre))||(rc=validate_export(binding.runtime.gchandle_free,0x4eeda3c,free_pre))||(rc=validate_export(binding.runtime.runtime_invoke,0x4eee1d8,invoke_pre)))return rc;
+  if((rc=validate_export(binding.runtime.gchandle_new,0x4f143b0,new_pre))||(rc=validate_export(binding.runtime.gchandle_get_target,0x4f1448c,get_pre))||(rc=validate_export(binding.runtime.gchandle_free,0x4f1468c,free_pre))||(rc=validate_export(binding.runtime.runtime_invoke,0x4f14e28,invoke_pre)))return rc;
   root_new=reinterpret_cast<NewRoot>(binding.runtime.gchandle_new);root_get=reinterpret_cast<GetRoot>(binding.runtime.gchandle_get_target);root_free=reinterpret_cast<FreeRoot>(binding.runtime.gchandle_free);invoke=reinterpret_cast<Invoke>(binding.runtime.runtime_invoke);
   if(!initialize_memory_copy())return -43;
   const unsigned char tap_pre[16]={0xfe,0x0f,0x1c,0xf8,0xf8,0x5f,0x01,0xa9,0xf6,0x57,0x02,0xa9,0xf4,0x4f,0x03,0xa9};
   const unsigned char result_pre[16]={0xff,0x83,0x02,0xd1,0xfd,0x7b,0x04,0xa9,0xfc,0x6f,0x05,0xa9,0xfa,0x67,0x06,0xa9};
   const unsigned char encounter_pre[16]={0xff,0x43,0x03,0xd1,0xe8,0x33,0x00,0xfd,0xfd,0x7b,0x07,0xa9,0xfc,0x6f,0x08,0xa9};
   const unsigned char update_pre[16]={0xee,0x0f,0x1a,0xfc,0xed,0xb3,0x00,0x6d,0xeb,0xab,0x01,0x6d,0xe9,0xa3,0x02,0x6d};
-  const unsigned char visible_pre[16]={0xfe,0x57,0xbe,0xa9,0xf4,0x4f,0x01,0xa9,0xe1,0x03,0x1f,0xaa,0xbc,0x89,0xe8,0x94};
+  const unsigned char visible_pre[16]={0xfe,0x57,0xbe,0xa9,0xf4,0x4f,0x01,0xa9,0xe1,0x03,0x1f,0xaa,0x19,0xee,0x17,0x95};
   PgrMetaMethodResult tap{},result{},enc{},update{},session_tap{},visible{};
   const char *iface="Niantic.Holoholo.Services.DynamicTappables.IDynamicTappable";
-  if((rc=validate_method(service,"ProcessTappableTapped","System.Void",{iface,"System.Boolean"},0xa4b2a98,tap_pre,tap))||
-     (rc=validate_method(service,"bfvy","System.Void",{iface,"Holoholo.Rpc.ProcessTappableOutProto"},0xa4b3080,result_pre,result))||
-     (rc=validate_method(service,"bfwa","System.Void",{iface,"Holoholo.Rpc.TappableEncounterProto"},0xa4b4ce0,encounter_pre,enc))||
-     (rc=validate_method(session_class,"Update","System.Void",{},0xa4bafa8,update_pre,update))||
-     (rc=validate_method(session_class,"TapTappable","System.Void",{iface},0xa4b9ed8,tap_pre,session_tap))||
-     (rc=validate_method(controller_class,"get_VisibleOnMap","System.Boolean",{},0xa037a00,visible_pre,visible)))return rc;
+  if((rc=validate_method(service,"ProcessTappableTapped","System.Void",{iface,"System.Boolean"},0xa40ad8c,tap_pre,tap))||
+     (rc=validate_method(service,"bftv","System.Void",{iface,"Holoholo.Rpc.ProcessTappableOutProto"},0xa40b374,result_pre,result))||
+     (rc=validate_method(service,"bftx","System.Void",{iface,"Holoholo.Rpc.TappableEncounterProto"},0xa40cfd4,encounter_pre,enc))||
+     (rc=validate_method(session_class,"Update","System.Void",{},0xa41329c,update_pre,update))||
+     (rc=validate_method(session_class,"TapTappable","System.Void",{iface},0xa4121cc,tap_pre,session_tap))||
+     (rc=validate_method(controller_class,"get_VisibleOnMap","System.Boolean",{},0x94cb3b4,visible_pre,visible)))return rc;
   tap_method=session_tap.method;visible_method=visible.method;owner.store(tid);
   // All contracts validated before any mutation. Partial install never enables dispatch.
   void *out=nullptr;rc=pgrazor_hook(const_cast<void*>(enc.code),reinterpret_cast<void*>(&encounter_hook),&out);if(out)original_encounter.store(reinterpret_cast<Result>(out));if(rc||!out)return -44;

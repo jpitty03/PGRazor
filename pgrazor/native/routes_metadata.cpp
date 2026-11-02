@@ -84,12 +84,12 @@ int resolve(const PgrRoutesMetadataConfig *input,PgrRoutesMetadataOutput *out){
     // Its patched prefix is intentionally not compared; verify metadata address.
     const void *dismiss_code=nullptr;std::memcpy(&dismiss_code,result.methods[dismiss],sizeof(dismiss_code));
     const uintptr_t base=reinterpret_cast<uintptr_t>(c.binding.module_base);
-    if(base>UINTPTR_MAX-0xa375344u||reinterpret_cast<uintptr_t>(dismiss_code)!=base+0xa375344u)return -33;
-    static constexpr unsigned char confirm_prefix[]={0xfe,0x5f,0xbd,0xa9,0xf6,0x57,0x01,0xa9,0xf4,0x4f,0x02,0xa9,0xd4,0x50,0x02,0xb0,0xf3,0x03,0x00,0xaa,0x88,0x3a,0x4e,0x39};
-    if(base>UINTPTR_MAX-174801868u)return -33;
+    if(base>UINTPTR_MAX-0xa334284u||reinterpret_cast<uintptr_t>(dismiss_code)!=base+0xa334284u)return -33;
+    static constexpr unsigned char confirm_prefix[]={0xfe,0x5f,0xbd,0xa9,0xf6,0x57,0x01,0xa9,0xf4,0x4f,0x02,0xa9,0xd4,0x58,0x02,0xf0,0xf3,0x03,0x00,0xaa,0x88,0xaa,0x7c,0x39};
+    if(base>UINTPTR_MAX-174215732u)return -33;
     const void *confirm_code=nullptr;std::memcpy(&confirm_code,result.methods[confirm],sizeof(confirm_code));
-    if(reinterpret_cast<uintptr_t>(confirm_code)!=base+174801868u)return -33;
-    PgrMetaCodeQuery code{};code.version=1;code.size=sizeof(code);code.address=reinterpret_cast<const void *>(base+174801868u);
+    if(reinterpret_cast<uintptr_t>(confirm_code)!=base+174215732u)return -33;
+    PgrMetaCodeQuery code{};code.version=1;code.size=sizeof(code);code.address=reinterpret_cast<const void *>(base+174215732u);
     code.length=sizeof(confirm_prefix);code.prologue=confirm_prefix;code.prologue_len=sizeof(confirm_prefix);
     if((rc=md->validate_code(&code)))return rc;
     if(!attached(c))return -30;
