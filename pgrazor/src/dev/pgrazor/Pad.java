@@ -21,6 +21,8 @@ public final class Pad {
     private View launcher;
     private VgpToggle vgpToggle;
     private int appliedUiScale;
+    private int appliedWindowWidth,appliedWindowHeight;
+    private final Rect appliedWindowBounds=new Rect();
     private LinearLayout joystickOverlay;
     private BerryOverlay encounterBerry;
     private Button cooldownTimer;
@@ -228,13 +230,17 @@ public final class Pad {
 
     private void applyMapScale(){
         if(launcher==null||launcher.getWidth()==0||parent.getWidth()==0)return;
-        int percent=Control.uiScalePercent();if(appliedUiScale==percent)return;
+        Rect safe=UiViewport.bounds(parent);
+        int percent=Control.uiScalePercent();
+        if(appliedUiScale==percent&&appliedWindowWidth==parent.getWidth()&&appliedWindowHeight==parent.getHeight()&&appliedWindowBounds.equals(safe))return;
+        appliedWindowBounds.set(safe);appliedWindowWidth=parent.getWidth();appliedWindowHeight=parent.getHeight();
         appliedUiScale=percent;float scale=percent/100f;
         for(View view:new View[]{launcher,joystickOverlay,cooldownTimer,vgpToggle,vgpActivity,vgpMarker,transferToggle,gameRoutesOverlay,gymFeedOverlay,gymAutomationStatus}){
             if(view==null)continue;
             float fx=view.getX()/Math.max(1,parent.getWidth()-OverlayDrag.visualWidth(view));
             float fy=view.getY()/Math.max(1,parent.getHeight()-OverlayDrag.visualHeight(view));
-            view.setPivotX(0);view.setPivotY(0);view.setScaleX(scale);view.setScaleY(scale);
+            float fitted=UiViewportPolicy.fit(scale,view.getWidth(),view.getHeight(),safe.width(),safe.height());
+            view.setPivotX(0);view.setPivotY(0);view.setScaleX(fitted);view.setScaleY(fitted);
             view.setX(Math.max(0,Math.min(1,fx))*Math.max(0,parent.getWidth()-OverlayDrag.visualWidth(view)));
             view.setY(Math.max(0,Math.min(1,fy))*Math.max(0,parent.getHeight()-OverlayDrag.visualHeight(view)));
         }

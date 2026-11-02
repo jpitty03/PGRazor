@@ -102,3 +102,12 @@ See [MAINTAINABILITY.md](MAINTAINABILITY.md) for the review findings and staged 
 The signed-out Accounts recovery action deletes only the pinned LoginState DOB and cached age-result PlayerPrefs keys, saves them through Unity, and cold-restarts. It neither supplies a date nor forces an age-check result. The normal game DOB prompt must evaluate the user's input. Metadata evidence is local; native tests assert unrelated preferences survive.
 
 Remembered account sessions are captured only after the old Unity process stops. The helper preserves the three encrypted Niantic credential files and the cached provider choice, then restores the destination session before launching Unity. Normal logout is not used for switching because it revokes the refresh token. The encrypted journal makes interrupted swaps replayable at bootstrap before any game preference cache starts. Session blobs live in no-backup storage, bind their account ID through authenticated encryption, and are excluded from settings export. Unknown accounts start signed out; account identity must match before automation resumes. Focused session transaction tests cover roundtrips, credential rotation, new-account isolation and interrupted completion.
+
+
+### Viewport geometry verification
+
+UiViewport.java maps Android system-bar, cutout and IME insets into a view's local coordinates.
+UiViewportPolicy.java owns the device-free bounds policy. tools/check.py discovers
+pgrazor/test/test_ui_viewport_policy_java.py, which compiles the production policy and
+UiViewportPolicyTest.java and runs its 3,360-case geometry matrix. This does not replace
+on-device rendering and accessibility validation.
