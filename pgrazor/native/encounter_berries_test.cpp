@@ -532,6 +532,22 @@ int scenario(int which) {
     if(!ticket||out.ball!=&ball)return 2;
     g_api->finish_resume(ticket,tid);g_api->observe_exit(&scope,tid);return g_live_roots?3:0;
   }
+  case 25: { // Silver Pinap is 708 even when Golden Nanab 707 has more stock.
+    const int32_t silver[3]={708,705,701};
+    g_api->observe_enter(&scope,tid);arm(silver,3,tid);
+    g_stock[707]=99;g_stock[708]=3;
+    g_api->submit(&ball,1,0,nullptr,tid);g_api->tick(tid,0);
+    if(g_cb_pool.berry!=708||g_direct_calls!=1||snap().request_serial!=1)return 1;
+    return 0;
+  }
+  case 26: { // Stock at 707 cannot satisfy an empty Silver Pinap slot.
+    const int32_t silver[3]={708,705,701};
+    g_api->observe_enter(&scope,tid);arm(silver,3,tid);
+    g_stock[707]=99;g_stock[705]=2;
+    g_api->submit(&ball,1,0,nullptr,tid);g_api->tick(tid,0);
+    if(g_cb_pool.berry!=705||g_direct_calls!=1)return 1;
+    return 0;
+  }
   default: return 0;
   }
 }
@@ -562,7 +578,7 @@ int main(int argc, char **argv) {
   bad = c; bad.reserved0 = 1;
   if (g_api->install(&bad) != PGR_BERRY_ERR_BAD_CONFIG) { std::puts("FAIL reserved"); return 3; }
 
-  const int cases = 25;
+  const int cases = 27;
   for (int i = 0; i < cases; ++i) {
     pid_t pid = fork();
     if (pid == 0) _exit(scenario(i));

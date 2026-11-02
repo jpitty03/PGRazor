@@ -1,0 +1,11 @@
+{
+  "source": "Original 0.1.6 patch 0005, embedded PvPoke snapshot; no live data downloaded",
+  "original_patch_sha256": "051f98a1ad5abe44b7f62d7d5366083544080ea9298cc2fbfaf94567ec959535",
+  "species_count": 1206,
+  "mapping_count": 2194,
+  "level_cap": 50,
+  "algorithm": "highest half level under cap; stat-product rank; original stable IV ordering",
+  "device_tested": false,
+  "data_sha256": "63fea87564ba0a8eddb4e82c042ef1f506ff38011464f0f64dab935fa3ad7aff",
+  "data_sha256_normalization": "UTF-8 bytes with CRLF normalized to LF"
+}

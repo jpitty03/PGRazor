@@ -126,6 +126,7 @@ public final class GameLocationDelivery {
     public void pause(Object owner) {
         synchronized (stateLock) {
             if (owner == null || !isSame(owner)) return;
+            if (Control.active()) return; // PGRazorX: keep synthetic delivery while away.
             paused = true;
             scheduleRevision++;
             handler.removeCallbacks(runnable);

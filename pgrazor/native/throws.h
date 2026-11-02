@@ -47,9 +47,13 @@ struct PgrThrowSample {       // 24 bytes: pull-only telemetry snapshot
     float    radius;          // 20 reticle radius returned to the game
 };
 
+// Policy modes share the existing grade field; sampled grades remain 0..3.
+constexpr int PGR_THROW_RANDOM = 4;
+
 struct PgrThrowApi {          // 40 bytes: ordered, read-only table
     uint32_t version, size;   // 0  { version==1, size==sizeof }
     int (*install)(const PgrThrowConfig *config);
+    // grade: 0 Off, 1 Nice, 2 Great, 3 Excellent, PGR_THROW_RANDOM.
     int (*update)(int grade, int curve, int allowed, uint64_t lease_ms, uint64_t unity_tid);
     int (*sample)(PgrThrowSample *out);
     int (*rewrite_submit)(void *self, PgrThrowValue *value);

@@ -7,7 +7,6 @@ import android.content.Context;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.view.ContextThemeWrapper;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Switch;
@@ -25,11 +24,11 @@ public final class EventPanel {
             .setNegativeButton("Close", null).create();
         bind(activity, dialog, () -> {});
         dialog.show();
+        dev.pgrazor.EventUi.style(dialog, dialog.getListView());
     }
 
     private static Context theme(Activity activity, boolean dark) {
-        return new ContextThemeWrapper(activity, dark ? android.R.style.Theme_Material_Dialog_Alert
-            : android.R.style.Theme_Material_Light_Dialog_Alert);
+        return dev.pgrazor.EventUi.context(activity);
     }
 
     private static void showHalloween(Activity activity, boolean dark) {
@@ -78,6 +77,7 @@ public final class EventPanel {
         bind(activity, dialog, () -> handler.removeCallbacks(refresh));
         dialog.setOnShowListener(ignored -> refresh.run());
         dialog.show();
+        dev.pgrazor.EventUi.style(dialog, content);
     }
 
     private static void bind(Activity owner, AlertDialog dialog, Runnable cleanup) {

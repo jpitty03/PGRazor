@@ -46,6 +46,7 @@ public final class LiveFeedIcons {
             case GYM:     return mapIcon(teamIcon(e.team));
             case RAID:    return raidIcon(e, now);
             case STATION: return species(e.dexId); // a known power-spot boss uses its sprite, else fallback glyph
+            case QUEST:   return e.dexId > 0 ? species(e.dexId) : mapIcon("stop.png"); // Pokémon reward sprite, else the stop
             default:      return null;
         }
     }

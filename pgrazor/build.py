@@ -44,6 +44,24 @@ def map_icon_assets():
             icons.setdefault(names.name, names)
     return icons
 
+def pvp_notice_assets():
+    """Notices accompanying the PvP data compiled into the native core."""
+    paths = {'native-notices/PvPoke-LICENSE.txt': ROOT / 'assets/pvp/LICENSE-PvPoke.txt',
+             'native-notices/PvPoke-provenance.json': ROOT / 'assets/pvp/provenance.json'}
+    for path in paths.values():
+        if path.is_symlink() or not path.is_file():
+            raise RuntimeError('Missing pinned PvP notice: ' + str(path))
+    return paths
+
+
+def country_assets():
+    """PGRazorX: offline country borders (Natural Earth, public domain) for the cooldown history flags, when present."""
+    path = ROOT / 'assets/country-borders.dat'
+    if path.is_symlink() or not path.is_file():
+        return {}
+    return {'country-borders.dat': path}
+
+
 def feed_icon_assets():
     """Only numeric base-species PNGs under the bundled feed sprite directory."""
     source = ROOT / 'assets/feed-icons/pokemon'
@@ -98,6 +116,8 @@ def main():
     run('java','-cp',BUILD/'tests','CameraSteeringTest')
     run('javac','-encoding','UTF-8','-d',BUILD/'tests',ROOT/'src/dev/pgrazor/CameraSteering.java',ROOT/'src/dev/pgrazor/CameraHeadingState.java',ROOT/'test/CameraHeadingStateTest.java')
     run('java','-cp',BUILD/'tests','CameraHeadingStateTest')
+    run('javac','-encoding','UTF-8','-d',BUILD/'tests',ROOT/'src/dev/pgrazor/CountryLookup.java',ROOT/'test/CountryLookupTest.java')
+    run('java','-cp',BUILD/'tests','CountryLookupTest',ROOT/'assets/country-borders.dat')
     if args.test_only: return
     version = release_version(ROOT)
     # Fresh outputs prevent a failed compiler from silently reusing old classes.
@@ -120,6 +140,7 @@ def main():
         out.write(BUILD/'dex/classes.dex','classes.dex')
         for name,path in map_icon_assets().items(): out.write(path,'assets/pgrazor/map-icons/'+name)
         for name,path in feed_icon_assets().items(): out.write(path,'assets/pgrazor/feed-icons/pokemon/'+name)
+        for name,path in country_assets().items(): out.write(path,'assets/pgrazor/'+name)
     run(TOOLS/'zipalign.exe','-f','4',unsigned,BUILD/'preview-aligned.apk')
     apk=BUILD/'pgrazor-preview.apk'
     run(TOOLS/'apksigner.bat','sign',*signing_args(),'--out',apk,BUILD/'preview-aligned.apk')

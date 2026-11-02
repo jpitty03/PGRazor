@@ -80,12 +80,17 @@ add_library(pgrazor_core SHARED
   map_tap.cpp
   items.cpp
   accounts.cpp
+  pvp_rank.cpp
+  pvp_label.cpp
+  pvp_metadata.cpp
+  iv_cells_metadata.cpp
   iv_display.cpp
   incoming_gifts.cpp
   encounter_berries.cpp
   battles.cpp
   rocket_actions.cpp
   rocket_combat.cpp
+  rocket_auto.cpp
   outgoing_gifts.cpp
   transfer_execution.cpp
   transfer_facts.cpp
@@ -113,6 +118,9 @@ add_library(pgrazor_core SHARED
   shared_host.cpp
   spin_host.cpp
   inventory_host.cpp
+  auto_heal.cpp
+  manual_transfer.cpp
+  egg_hatch.cpp
   runtime_host.cpp
   encounter_host.cpp
   interaction_host.cpp

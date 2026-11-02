@@ -21,7 +21,7 @@ public final class LogActivity extends Activity {
             settingsBackup=new SettingsBackup(this);settingsBackup.show();return;
         }
         LinearLayout layout = new LinearLayout(this); layout.setOrientation(LinearLayout.VERTICAL); layout.setPadding(20,48,20,20);
-        TextView heading = new TextView(this); heading.setText("PGRazor · current run"); heading.setTextSize(22); layout.addView(heading);
+        TextView heading = new TextView(this); heading.setText("PGRazor · current run"); layout.addView(heading);
         ScrollView scroll = new ScrollView(this); text = new TextView(this); text.setTextIsSelectable(true); scroll.addView(text); layout.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         Button refresh = new Button(this); refresh.setText("Refresh log"); refresh.setOnClickListener(v -> refresh()); layout.addView(refresh);
         Button export = new Button(this); export.setText("Save .txt file"); layout.addView(export);
@@ -31,6 +31,9 @@ public final class LogActivity extends Activity {
             intent.putExtra(Intent.EXTRA_TITLE,file.getName()); startActivityForResult(intent,40);
         });
         Button back = new Button(this); back.setText("Back to controls"); back.setOnClickListener(v -> finish()); layout.addView(back);
+        MapTheme.style(layout); MapTheme.styleTitle(heading); heading.setPadding(0,0,0,24); MapTheme.page(this);
+        // The log itself sits on a white card, like the game's panels.
+        scroll.setBackground(MapTheme.cardBackground(this)); MapTheme.elevate(scroll,2); int cp=MapTheme.dp(this,MapTheme.Size.CARD_PADDING_DP); scroll.setPadding(cp,cp/2,cp,cp/2);
         setContentView(layout); refresh();
     }
     private void refresh() {

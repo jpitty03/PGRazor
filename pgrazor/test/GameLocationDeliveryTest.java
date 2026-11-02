@@ -22,6 +22,7 @@ public final class GameLocationDeliveryTest {
         disabledAndSatelliteForwarding();
         eligibleSuppressesOriginal();
         pauseResumeStop();
+        activeSpoofSurvivesPause();
         shutdownIrreversible();
         replacementManager();
         newProviders();
@@ -136,8 +137,10 @@ public final class GameLocationDeliveryTest {
         NianticLocationManager other = managerWith(new NianticLocationProvider("x", new Recorder()));
         delivery.pause(other);
         check(ContextService.handler.pending.size() == 1, "pause for a non-current manager is ignored");
+        Control.active = false;
         delivery.pause(manager);
-        check(ContextService.handler.pending.isEmpty(), "pause cancels the timer");
+        check(ContextService.handler.pending.isEmpty(), "pause cancels the timer when spoof is inactive");
+        Control.active = true;
 
         delivery.resume(manager);
         check(ContextService.handler.pending.size() == 1, "resume schedules exactly once");
@@ -148,6 +151,31 @@ public final class GameLocationDeliveryTest {
         check(provider.getListener() != rec, "stop for a non-current manager restores nothing");
         delivery.stop(manager);
         check(provider.getListener() == rec, "stop restores the current manager's provider");
+        delivery.shutdown();
+    }
+
+    static void activeSpoofSurvivesPause() {
+        GameLocationDelivery delivery = begin();
+        Recorder rec = new Recorder();
+        NianticLocationProvider provider = new NianticLocationProvider("gps", rec);
+        NianticLocationManager manager = managerWith(provider);
+        delivery.start(manager); tick();
+        int before = manager.delivered.size();
+        delivery.pause(manager);
+        check(ContextService.handler.pending.size() == 1, "active spoof keeps one timer across manager pause");
+        Control.lat = 12.5;
+        provider.getListener().onProviderLocation(new Location("real"));
+        check(manager.delivered.size() == before + 1, "background provider callback still delivers a synthetic fix");
+        check(manager.delivered.get(before).latitude == 12.5 && rec.location == 0, "background callback never forwards real coordinates while active");
+        tick();
+        check(ContextService.handler.pending.size() == 1, "background timer remains singular");
+        Control.active = false; // OFF, disconnected or expired lease.
+        provider.getListener().onProviderLocation(new Location("real"));
+        check(rec.location == 1, "inactive policy restores original callback forwarding");
+        delivery.pause(manager);
+        check(ContextService.handler.pending.isEmpty(), "inactive pause cancels the timer");
+        delivery.stop(manager);
+        check(provider.getListener() == rec, "stop restores providers after active background delivery");
         delivery.shutdown();
     }
 

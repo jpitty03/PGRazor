@@ -118,10 +118,18 @@ PgrThrowValue transform(const PgrThrowValue &v, uint32_t grade, uint32_t curve, 
     const uint64_t first = x1_word(v);
 
 
-    const bool paired = route == ROUTE_HIT && prev.valid && prev.grade == grade &&
+    const bool paired = route == ROUTE_HIT && prev.valid && (grade == PGR_THROW_RANDOM || prev.grade == grade) &&
                         now >= prev.at_ns && now - prev.at_ns < kWindowNs &&
                         (first == prev.original || first == prev.changed);
 
+    if (grade == PGR_THROW_RANDOM) {
+        if (paired) grade = prev.grade;
+        else {
+            uint32_t pick;
+            do { pick = rng_next(); } while (pick == UINT32_MAX);
+            grade = 1u + pick % 3u;
+        }
+    }
     PgrThrowValue out = v;                 // preserve item, missed and pad verbatim
     float chosen = v.radius;
     if (grade) {
@@ -244,7 +252,7 @@ int api_install(const PgrThrowConfig *config) {
 
 int api_update(int grade, int curve, int allowed, uint64_t lease_ms, uint64_t unity_tid) {
     if (!g_installed.load(std::memory_order_acquire)) return ERR_NOT_INSTALLED;
-    if (grade < 0 || grade > 3) {
+    if (grade < 0 || grade > PGR_THROW_RANDOM) {
         g_allowed.store(0, std::memory_order_release);
         g_deadline_ns.store(0, std::memory_order_release);
         std::lock_guard<std::mutex> lock(g_policy_mutex); g_sample.valid=false;
@@ -262,12 +270,14 @@ int api_update(int grade, int curve, int allowed, uint64_t lease_ms, uint64_t un
         return OK;
     }
 
+    const uint64_t previous_deadline = g_deadline_ns.load(std::memory_order_acquire);
+    const uint64_t updated_at = now_ns();
     g_allowed.store(0, std::memory_order_release);
     g_deadline_ns.store(0, std::memory_order_release);
     {
         std::lock_guard<std::mutex> lock(g_policy_mutex);
         if(g_grade.load()!=static_cast<uint32_t>(grade)||g_curve.load()!=static_cast<uint32_t>(curve?1:0)||
-           !lease_ms||lease_ms>kMaxLeaseMs)g_sample.valid=false;
+           !lease_ms||lease_ms>kMaxLeaseMs||!updated_at||updated_at>=previous_deadline)g_sample.valid=false;
     }
     if (lease_ms == 0 || lease_ms > kMaxLeaseMs) return ERR_LEASE;
     const uint64_t now = now_ns();

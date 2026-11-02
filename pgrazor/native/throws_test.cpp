@@ -46,6 +46,25 @@ int main(int argc,char **argv){
    if(i==0)first=value.radius;else if(value.radius!=first)varied=true;
   }if(!varied)return 11;
  }
+ // Random is selected at submit; a renewal keeps the exact grade and radius for its hit.
+ unsigned seen=0;
+ for(int i=0;i<256;++i){
+  if(api->update(PGR_THROW_RANDOM,1,1,2500,gettid()))return 21;
+  value=original;api->rewrite_submit(&ball,&value);PgrThrowSample s{};api->sample(&s);
+  if(s.grade<1||s.grade>3||value.radius<low[s.grade]||value.radius>high[s.grade]||!value.bullseye||!value.spinning||value.pad!=0xa5)return 22;
+  seen|=1u<<s.grade;const float radius=value.radius;const uint32_t grade=s.grade;
+  if(api->update(PGR_THROW_RANDOM,1,1,2500,gettid()))return 23;
+  call(&owner,i%2?original:value,&config);api->sample(&s);
+  if(last.radius!=radius||s.grade!=grade||last.pad!=0xa5||!last.spinning||!last.bullseye)return 24;
+ }
+ if(seen!=14)return 25;
+ // Policy change and OFF must drop the pending random choice, including its original radius.
+ api->update(PGR_THROW_RANDOM,0,1,2500,gettid());value=original;api->rewrite_submit(&ball,&value);
+ api->update(1,0,1,2500,gettid());call(&owner,original,&config);PgrThrowSample changed{};api->sample(&changed);
+ if(changed.grade!=1||last.radius<low[1]||last.radius>high[1])return 26;
+ api->update(PGR_THROW_RANDOM,1,1,2500,gettid());api->update(0,0,0,0,0);value=original;api->rewrite_submit(&ball,&value);
+ if(std::memcmp(&value,&original,12))return 27;
+ api->update(3,0,1,2500,gettid());
  for(int item : {4,6}){value=original;value.item=item;PgrThrowValue before=value;api->rewrite_submit(&ball,&value);if(std::memcmp(&before,&value,12))return 12;}
  value=original;value.missed=1;api->rewrite_submit(&ball,&value);if(value.radius!=original.radius||value.bullseye)return 13;
  value=original;value.radius=std::numeric_limits<float>::quiet_NaN();api->rewrite_submit(&ball,&value);if(!std::isnan(value.radius)||value.bullseye)return 14;

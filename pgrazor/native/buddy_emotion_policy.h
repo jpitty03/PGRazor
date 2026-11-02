@@ -77,7 +77,7 @@ inline bool parse(const char* text, size_t size, Settings& out) {
             const uint64_t berry = f[i + 2];
             if (berry == 0) { ended = true; continue; }
             if (ended || !(berry == 701 || berry == 703 || berry == 705 ||
-                           berry == 706 || berry == 708)) return false;
+                           berry == 706 || berry == 708 || berry == 709)) return false;
             for (size_t j = 0; j < i; ++j)
                 if (parsed.berries[j] == static_cast<int>(berry)) return false;
             parsed.berries[i] = static_cast<int>(berry);

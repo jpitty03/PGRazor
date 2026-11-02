@@ -10,8 +10,8 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
- * Immutable, UI-agnostic model for LivePokeMap viewport results plus the parser that turns a raw
- * {@code /api/map/viewport} (or user-supplied map data) response into bounded, sanitised entries.
+ * Immutable, UI-agnostic model for PoGoCoordinates search results plus the parser that turns raw
+ * response data into bounded, sanitised entries.
  *
  * <p>Parsing is defensive: invalid/non-finite coordinates are dropped, expired pokemon/raids/stations
  * are discarded, unknown fields stay unknown rather than being invented, and the total entry count is
@@ -26,7 +26,7 @@ public final class LiveFeedData {
     private static final int MIN_REFRESH_SECONDS = 5;
     private static final int MAX_REFRESH_SECONDS = 600;
 
-    public enum Kind { POKEMON, STOP, GYM, RAID, STATION }
+    public enum Kind { POKEMON, STOP, GYM, RAID, STATION, QUEST, WEATHER, ROCKET }
 
     /**
      * Optional, observed detail attributes for a Pokémon/shiny row. Every field uses {@code -1} for
@@ -62,6 +62,56 @@ public final class LiveFeedData {
         public boolean hasIvComponents() { return atkIv >= 0 && defIv >= 0 && staIv >= 0; }
     }
 
+    /**
+     * PGRazorX: flag emoji of the country that ends a row's place ("Roanoke, Texas, United States" → 🇺🇸).
+     * The place is the last " · " part of {@code details}; its last comma-separated part must name a
+     * country (English, as the feed sends it), otherwise "" (no flag rather than a wrong one).
+     */
+    public static String countryFlag(String details) {
+        if (details == null || details.isEmpty()) return "";
+        int dot = details.lastIndexOf(" · ");
+        String place = dot >= 0 ? details.substring(dot + 3) : details;
+        int comma = place.lastIndexOf(',');
+        String code = countryCode(comma >= 0 ? place.substring(comma + 1) : place);
+        if (code == null) return "";
+        return new String(Character.toChars(0x1F1E6 + code.charAt(0) - 'A')) + new String(Character.toChars(0x1F1E6 + code.charAt(1) - 'A'));
+    }
+
+    private static java.util.Map<String, String> countries;
+    /** ISO 3166 alpha-2 code for an English country name; null when unknown. */
+    static synchronized String countryCode(String name) {
+        if (name == null) return null;
+        String key = name.trim().toLowerCase(java.util.Locale.ROOT);
+        if (key.startsWith("the ")) key = key.substring(4);
+        if (key.isEmpty()) return null;
+        if (countries == null) {
+            java.util.Map<String, String> map = new java.util.HashMap<>();
+            for (String code : java.util.Locale.getISOCountries()) {
+                String english = new java.util.Locale("", code).getDisplayCountry(java.util.Locale.ENGLISH).toLowerCase(java.util.Locale.ROOT);
+                if (!english.isEmpty()) map.put(english, code);
+            }
+            String[][] aliases = {{"usa", "US"}, {"united states of america", "US"}, {"united states", "US"}, {"uk", "GB"},
+                {"united kingdom", "GB"}, {"great britain", "GB"}, {"england", "GB"}, {"scotland", "GB"}, {"wales", "GB"},
+                {"northern ireland", "GB"}, {"south korea", "KR"}, {"korea", "KR"}, {"republic of korea", "KR"},
+                {"north korea", "KP"}, {"russia", "RU"}, {"russian federation", "RU"}, {"taiwan", "TW"},
+                {"hong kong", "HK"}, {"hong kong sar china", "HK"}, {"macau", "MO"}, {"macao", "MO"}, {"vietnam", "VN"},
+                {"viet nam", "VN"}, {"czechia", "CZ"}, {"czech republic", "CZ"}, {"turkey", "TR"}, {"türkiye", "TR"},
+                {"turkiye", "TR"}, {"ivory coast", "CI"}, {"côte d'ivoire", "CI"}, {"cote d'ivoire", "CI"},
+                {"netherlands", "NL"}, {"holland", "NL"}, {"bahamas", "BS"}, {"myanmar", "MM"}, {"burma", "MM"},
+                {"laos", "LA"}, {"brunei", "BN"}, {"north macedonia", "MK"}, {"macedonia", "MK"}, {"eswatini", "SZ"},
+                {"swaziland", "SZ"}, {"cape verde", "CV"}, {"cabo verde", "CV"}, {"palestine", "PS"},
+                {"palestinian territories", "PS"}, {"vatican city", "VA"}, {"bolivia", "BO"}, {"venezuela", "VE"},
+                {"iran", "IR"}, {"syria", "SY"}, {"tanzania", "TZ"}, {"moldova", "MD"}, {"micronesia", "FM"},
+                {"dr congo", "CD"}, {"democratic republic of the congo", "CD"}, {"republic of the congo", "CG"},
+                {"congo", "CG"}, {"puerto rico", "PR"}, {"curacao", "CW"}, {"curaçao", "CW"}, {"saint martin", "MF"},
+                {"sint maarten", "SX"}, {"east timor", "TL"}, {"timor-leste", "TL"}, {"micronesia (federated states of)", "FM"}};
+            for (String[] alias : aliases) map.put(alias[0], alias[1]);
+            countries = map;
+        }
+        String code = countries.get(key);
+        return code != null && code.length() == 2 ? code : null;
+    }
+
     /** One map object. Numeric fields use -1 and {@code iv}/{@code hasStats} to flag "unknown". */
     public static final class Entry {
         public final String id, name, details;
@@ -85,6 +135,8 @@ public final class LiveFeedData {
         public final boolean personalShiny;
         /** Optional observed detail attributes; never {@code null} ({@link Attrs#UNKNOWN} when absent). */
         public final Attrs attrs;
+        /** Pokesearch reveal code for a row whose coordinates are not known yet; null otherwise. */
+        public final String revealCode;
 
         /** Backwards-compatible overload (no team/raid metadata) kept for existing call sites and tests. */
         public Entry(String id, Kind kind, String name, String details, double lat, double lon,
@@ -103,6 +155,15 @@ public final class LiveFeedData {
         public Entry(String id, Kind kind, String name, String details, double lat, double lon,
                      int dexId, int cp, double level, double iv, long expiresAt, boolean hasStats,
                      int team, long raidHatchAt, boolean raidBossLive, boolean personalShiny, Attrs attrs) {
+            this(id, kind, name, details, lat, lon, dexId, cp, level, iv, expiresAt, hasStats,
+                    team, raidHatchAt, raidBossLive, personalShiny, attrs, null);
+        }
+
+        public Entry(String id, Kind kind, String name, String details, double lat, double lon,
+                     int dexId, int cp, double level, double iv, long expiresAt, boolean hasStats,
+                     int team, long raidHatchAt, boolean raidBossLive, boolean personalShiny, Attrs attrs,
+                     String revealCode) {
+            this.revealCode = revealCode;
             this.id = id;
             this.kind = kind;
             this.name = name;
@@ -120,6 +181,83 @@ public final class LiveFeedData {
             this.raidBossLive = raidBossLive;
             this.personalShiny = personalShiny;
             this.attrs = attrs == null ? Attrs.UNKNOWN : attrs;
+        }
+
+        /** Serialises this row so the feed list can survive closing the feed / app restarts. */
+        public JSONObject toJson() throws JSONException {
+            JSONObject o = new JSONObject();
+            o.put("id", id); o.put("kind", kind.name()); o.put("name", name); o.put("details", details);
+            if (hasCoords()) { o.put("lat", lat); o.put("lon", lon); }
+            o.put("dex", dexId); o.put("cp", cp); o.put("level", level); o.put("iv", iv);
+            o.put("exp", expiresAt); o.put("stats", hasStats); o.put("team", team);
+            o.put("hatch", raidHatchAt); o.put("bossLive", raidBossLive); o.put("shiny", personalShiny);
+            o.put("a", new JSONArray().put(attrs.form).put(attrs.costume).put(attrs.gender).put(attrs.size)
+                    .put(attrs.atkIv).put(attrs.defIv).put(attrs.staIv)
+                    .put(attrs.pvpGreatRank).put(attrs.pvpUltraRank).put(attrs.pvpLittleRank));
+            if (revealCode != null) o.put("code", revealCode);
+            return o;
+        }
+
+        /** Inverse of {@link #toJson()}; null for a malformed row. */
+        public static Entry fromJson(JSONObject o) {
+            try {
+                Kind kind = Kind.valueOf(o.getString("kind"));
+                JSONArray a = o.optJSONArray("a");
+                Attrs attrs = a == null || a.length() < 10 ? Attrs.UNKNOWN : new Attrs(a.getInt(0), a.getInt(1),
+                        a.getInt(2), a.getInt(3), a.getInt(4), a.getInt(5), a.getInt(6), a.getInt(7), a.getInt(8), a.getInt(9));
+                String code = o.optString("code", "");
+                return new Entry(o.getString("id"), kind, o.optString("name", ""), o.optString("details", ""),
+                        o.optDouble("lat", Double.NaN), o.optDouble("lon", Double.NaN), o.optInt("dex", -1),
+                        o.optInt("cp", -1), o.optDouble("level", -1), o.optDouble("iv", -1), o.optLong("exp", 0),
+                        o.optBoolean("stats", false), o.optInt("team", 0), o.optLong("hatch", 0),
+                        o.optBoolean("bossLive", false), o.optBoolean("shiny", false), attrs,
+                        code.isEmpty() ? null : code);
+            } catch (Exception e) { return null; }
+        }
+
+        /** True when the coordinates are known (not a locked Pokesearch row). */
+        public boolean hasCoords() { return Double.isFinite(lat) && Double.isFinite(lon); }
+
+        /** Copy of this row with revealed coordinates (and no pending reveal code). */
+        public Entry withCoords(double newLat, double newLon) {
+            return new Entry(id, kind, name, details, newLat, newLon, dexId, cp, level, iv, expiresAt, hasStats,
+                    team, raidHatchAt, raidBossLive, personalShiny, attrs, null);
+        }
+
+        /**
+         * Copy of this (newer) row that also carries the PvP league rank(s) {@code older} had and this
+         * one lacks, e.g. a Pokémon found in the Great League search and again in the Ultra League one.
+         * Ranks go to the attrs and the "GL #… · UL #…" segments are shown together, GL first.
+         */
+        public Entry withPvpFrom(Entry older) {
+            if (older == null || older == this) return this;
+            int gl = attrs.pvpGreatRank > 0 ? attrs.pvpGreatRank : older.attrs.pvpGreatRank;
+            int ul = attrs.pvpUltraRank > 0 ? attrs.pvpUltraRank : older.attrs.pvpUltraRank;
+            if (gl == attrs.pvpGreatRank && ul == attrs.pvpUltraRank) return this;
+            String glSeg = null, ulSeg = null;
+            List<String> rest = new ArrayList<>();
+            for (String seg : splitDetails(details)) {
+                if (seg.startsWith("GL #")) glSeg = seg; else if (seg.startsWith("UL #")) ulSeg = seg; else rest.add(seg);
+            }
+            for (String seg : splitDetails(older.details)) {
+                if (glSeg == null && seg.startsWith("GL #")) glSeg = seg;
+                if (ulSeg == null && seg.startsWith("UL #")) ulSeg = seg;
+            }
+            int at = 0; // right after the "x% IV" segment when there is one
+            for (int i = 0; i < rest.size(); i++) if (rest.get(i).endsWith("% IV")) { at = i + 1; break; }
+            if (ulSeg != null) rest.add(at, ulSeg);
+            if (glSeg != null) rest.add(at, glSeg);
+            Attrs a = new Attrs(attrs.form, attrs.costume, attrs.gender, attrs.size, attrs.atkIv, attrs.defIv,
+                    attrs.staIv, gl, ul, attrs.pvpLittleRank);
+            return new Entry(id, kind, name, join(rest), lat, lon, dexId, cp, level, iv, expiresAt, hasStats,
+                    team, raidHatchAt, raidBossLive, personalShiny, a, revealCode);
+        }
+
+        private static List<String> splitDetails(String d) {
+            List<String> out = new ArrayList<>();
+            if (d == null || d.isEmpty()) return out;
+            for (String p : d.split(" · ")) if (!p.isEmpty()) out.add(p);
+            return out;
         }
 
         /** True only when a real future expiry was known and has now passed. */
@@ -154,6 +292,19 @@ public final class LiveFeedData {
     }
 
     private LiveFeedData() { }
+
+    public static Snapshot parse(Object response, long now) throws JSONException {
+        if (response instanceof JSONArray) {
+            List<Entry> entries = new ArrayList<>();
+            Set<String> ids = new HashSet<>();
+            parsePokemon((JSONArray) response, now, entries, ids);
+            return new Snapshot(entries, now, DEFAULT_REFRESH_SECONDS, "");
+        }
+        if (response instanceof JSONObject) {
+            return parse((JSONObject) response, now);
+        }
+        return new Snapshot(Collections.emptyList(), now, DEFAULT_REFRESH_SECONDS, "");
+    }
 
     /**
      * Parses a viewport response. Accepts either the {@code {success,data:{...}}} envelope or a bare
@@ -222,28 +373,44 @@ public final class LiveFeedData {
             if (out.size() >= MAX_ENTRIES) return true;
             JSONObject o = array.optJSONObject(i);
             if (o == null) continue;
-            double lat = o.optDouble("lat", Double.NaN), lon = o.optDouble("lon", Double.NaN);
-            if (!validCoords(lat, lon)) continue;
-            // Preserve the 64-bit encounter id as a string; never narrow it through a numeric type.
-            String encounter = o.optString("encounter_id", o.optString("encounterId", ""));
-            if (encounter.isEmpty()) continue; // cannot de-duplicate an anonymous spawn
+            double lat = o.optDouble("lat", o.optDouble("latitude", Double.NaN));
+            double lon = o.optDouble("lon", o.optDouble("longitude", o.optDouble("lng", Double.NaN)));
+            String revealCode = o.optString("reveal_code", "");
+            if (!validCoords(lat, lon)) {
+                if (revealCode.isEmpty()) continue;
+                lat = Double.NaN; lon = Double.NaN; // locked: coordinates fetched on demand
+            } else revealCode = "";
+            int dex = o.optInt("dex_id", o.optInt("dexId", o.optInt("pokemon_id", o.optInt("pokemonId", 0))));
+            // Preserve the 64-bit encounter id as a string; fallback to dex:lat:lon if anonymous.
+            String encounter = o.optString("encounter_id", o.optString("encounterId", o.optString("id", o.optString("spawn_id", ""))));
+            if (encounter.isEmpty()) {
+                if (dex <= 0) continue;
+                encounter = dex + ":" + lat + ":" + lon;
+            }
             long despawn = o.optLong("despawn_ms", o.optLong("despawnMs", 0));
-            if (despawn < 0 || (despawn > 0 && despawn <= now)) continue; // invalid or already despawned
+            if (despawn <= 0 && o.has("despawn_time")) despawn = toMillisFromEpochSeconds(o.optLong("despawn_time", 0));
+            if (despawn <= 0 && o.has("despawn_ts")) despawn = toMillisFromEpochSeconds(o.optLong("despawn_ts", 0));
+            if (despawn <= 0 && o.has("despawn")) despawn = toMillisFromEpochSeconds(o.optLong("despawn", 0));
+            if (despawn <= 0) despawn = now + 15 * 60 * 1000L; // default 15m active window if unlisted
+            if (despawn < 0 || despawn <= now) continue; // invalid or already despawned
 
-            String id = "pokemon:" + encounter;
+            boolean isShiny = o.optBoolean("is_shiny", o.optBoolean("shiny", false));
+            String id = (isShiny ? "shiny:" : "pokemon:") + encounter;
             if (!ids.add(id)) continue;
 
-            int dex = o.optInt("dex_id", o.optInt("dexId", 0));
-            String source = o.optString("source", "wild");
-            boolean hasStats = o.optBoolean("has_full_stats", false);
-            int cp = hasStats ? o.optInt("cp", -1) : -1;
-            double level = hasStats ? o.optDouble("level", -1) : -1;
+            boolean hasStats = o.has("has_full_stats") ? o.optBoolean("has_full_stats", false) : (o.has("iv") || o.has("iv_percent"));
+            int cp = hasStats ? (o.has("cp") && !o.isNull("cp") ? o.optInt("cp", -1) : -1) : -1;
+            double level = hasStats ? (o.has("level") && !o.isNull("level") ? o.optDouble("level", -1) : -1) : -1;
             if (!Double.isFinite(level) || level <= 0 || level > 55) level = -1;
-            double iv = hasStats && !o.isNull("iv_percent") ? o.optDouble("iv_percent", -1) : -1;
-            if (!Double.isFinite(iv) || iv < 0 || iv > 100) iv = -1;
+            double iv = -1;
+            if (hasStats) {
+                iv = !o.isNull("iv_percent") ? o.optDouble("iv_percent", -1) : (!o.isNull("iv") ? o.optDouble("iv", -1) : -1);
+                if (!Double.isFinite(iv) || iv < 0 || iv > 100) iv = -1;
+            }
 
-            String name = clean(o.optString("pokemon_name", o.optString("pokemonName", "")));
+            String name = clean(o.optString("pokemon_name", o.optString("pokemonName", o.optString("name", ""))));
             if (name.isEmpty()) name = dex > 0 ? "#" + dex : "Unknown Pokémon";
+            if (isShiny && !name.startsWith("✨")) name = "✨ " + name;
 
             String details;
             if (hasStats && iv >= 0) {
@@ -254,17 +421,22 @@ public final class LiveFeedData {
                 d.append(String.format(java.util.Locale.US, "%.1f%% IV", iv));
                 details = d.toString();
             } else {
-                details = "Wild · stats hidden";
+                details = isShiny ? "Shiny Wild" : "Wild · stats hidden";
             }
-            // Observed optional attributes; individual IVs only trusted when full stats were reported.
+            // Optional extra line from the Pokesearch API (size · gender · moves · place).
+            String extra = clean(o.optString("extra_details", ""));
+            if (!extra.isEmpty()) details = details + " · " + extra;
+            int atk = optIvComponent(o, "iv_attack"); if (atk < 0) atk = optIvComponent(o, "atk_iv");
+            int def = optIvComponent(o, "iv_defense"); if (def < 0) def = optIvComponent(o, "def_iv");
+            int sta = optIvComponent(o, "iv_stamina"); if (sta < 0) sta = optIvComponent(o, "sta_iv");
             Attrs attrs = new Attrs(optRawId(o, "form"), optRawId(o, "costume"), optRawId(o, "gender"),
                     optRawId(o, "size"),
-                    hasStats ? optIvComponent(o, "iv_attack") : -1,
-                    hasStats ? optIvComponent(o, "iv_defense") : -1,
-                    hasStats ? optIvComponent(o, "iv_stamina") : -1,
+                    hasStats ? atk : -1,
+                    hasStats ? def : -1,
+                    hasStats ? sta : -1,
                     optRank(o, "pvp_great_rank"), optRank(o, "pvp_ultra_rank"), optRank(o, "pvp_little_rank"));
             out.add(new Entry(id, Kind.POKEMON, name, details, lat, lon, dex, cp, level, iv, despawn,
-                    hasStats && iv >= 0, 0, 0L, false, false, attrs));
+                    hasStats && iv >= 0, 0, 0L, false, isShiny, attrs, revealCode.isEmpty() ? null : revealCode));
         }
         return false;
     }

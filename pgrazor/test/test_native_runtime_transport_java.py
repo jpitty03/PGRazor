@@ -26,6 +26,11 @@ def control_shell():
     specs.append(('buddyEmotionHistory', '', 'String'))
     specs.append(('batchEvolutionConfig', '', 'String'))
     specs.append(('oneShotAutomationConfig', '', 'String'))
+    specs.append(('rocketAutoConfig', '', 'String'))
+    specs.append(('autoHealConfig', '', 'String'))
+    specs.extend([('manualTransferAllowed','','boolean'),('manualTransferUpdate','boolean,String','void')])
+    specs.append(('rocketAutoSwipe', 'long,long', 'void'))
+    specs.extend([('eggHatchAllowed','','boolean'),('eggKeepSpecial','','boolean'),('eggObserveOnly','','boolean'),('eggHatchUpdate','boolean,boolean,boolean,long,String','void')])
     methods = []
     for name, params, expected_result in specs:
         actual = re.search(r'public static\s+(?:synchronized\s+)?([\w\[\]]+)\s+' + name + r'\(([^)]*)\)', source)
@@ -41,6 +46,16 @@ def control_shell():
             body = 'reads++;return "1|123|0|0|0|0|0|0";'
         elif name in ('accountIdentity', 'accountSessionSaved'):
             body = 'mutations++;if(onMutation!=null)onMutation.run();if(throwMutation)throw new RuntimeException("id-secret");'
+        elif name == 'autoHealConfig':
+            body = 'reads++;return "v1:9:3:1";'
+        elif name == 'rocketAutoConfig':
+            body = 'reads++;return "v1:7:13:1";'
+        elif name == 'manualTransferUpdate':
+            body = 'lastDiagnostic=a1;'
+        elif name == 'rocketAutoSwipe':
+            body = 'lastRocketCommand=a0;timestamp=a1;'
+        elif name == 'eggHatchUpdate':
+            body = 'timestamp=a3;lastDiagnostic=a4;'
         elif name == 'event':
             body = 'lastDiagnostic=a0;'
         elif name == 'effectiveBerryPriority':
@@ -62,7 +77,7 @@ public final class Control {
  public static void renewLease(){renewals++;}
  public static void disconnect(){disconnects++;}
  public static int reads,mutations; public static boolean pulse,throwMutation;
- public static long timestamp;
+ public static long timestamp,lastRocketCommand;
  public static String[] snapshot={"command","18446744073709551615"};
  public static Runnable onMutation; public static String lastDiagnostic=""; public static String badBerry="";
  public static void reset(){reads=mutations=0;pulse=throwMutation=false;timestamp=0;onMutation=null;lastDiagnostic="";badBerry="";snapshot=new String[]{"command","18446744073709551615"};}

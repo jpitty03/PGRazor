@@ -1,4 +1,5 @@
 #include "spin_host.h"
+#include "rocket_auto.h"
 #include "spin_camera.h"
 #include "quick_spin.h"
 #include "runtime_transport.h"
@@ -94,7 +95,7 @@ void poll(uint64_t t){
   if(tr->sample(&before)||!before.snapshot_fresh||tr->get_bool(24,&enabled)||tr->sample(&after)||!after.snapshot_fresh)break;
   if(before.snapshot_seq==after.snapshot_seq){fresh=true;break;}
  }
- bool allow=fresh&&enabled==1;
+ bool allow=fresh&&enabled==1&&!pgr_rocket_auto::spin_blocked();
  uint64_t old_deadline;{std::lock_guard<std::mutex> lock(policy_mutex);old_deadline=deadline;}
  if(!transport_epoch||allow!=transport_enabled||(allow&&t>=old_deadline)){if(transport_epoch==UINT64_MAX){stop();return;}++transport_epoch;}
  // Opening a stop can stall a frame beyond 100ms. Keep its record through

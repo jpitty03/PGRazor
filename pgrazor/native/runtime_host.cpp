@@ -1,4 +1,7 @@
 #include "runtime_host.h"
+#include "egg_hatch.h"
+#include "auto_heal.h"
+#include "manual_transfer.h"
 #include "events/event_collector.h"
 #include "runtime_bootstrap.h"
 #include "runtime_transport.h"
@@ -195,6 +198,9 @@ void pulse(void*,const PgrUnityPulse *p){
    }
   }
  }
+ pgr_egg_hatch_tick(time,owner.load(),stopping.load());
+ pgr_auto_heal_tick(time,owner.load(),stopping.load());
+ pgr_manual_transfer_tick(time,owner.load(),stopping.load());
  // Dependency order is stable; interaction observers follow their hook owners.
  for(unsigned i:{1u,2u,3u,0u,5u,7u,10u,11u,4u,6u,8u,9u}){
   if(scheduler->valid(p->generation)!=1)return;auto &s=slots[i];
@@ -241,6 +247,9 @@ int configure(const PgrRuntimeHostConfig *c){
 }
 int stop(){if(stopping.exchange(true,std::memory_order_acq_rel))return 0;
  pgr_event_collector_stop();
+ pgr_egg_hatch_stop();
+ pgr_auto_heal_stop();
+ pgr_manual_transfer_stop();
 for(unsigned i:{1u,2u,3u,0u,5u,7u,10u,11u,4u,6u,8u,9u})stop_host(i);return 0;}
 int sample(PgrRuntimeHostSample *out){if(!out)return -1;*out={};out->version=1;out->size=sizeof(*out);out->installed=installed;out->stopping=stopping;out->fault=fault;out->pending_mask=pending_mask;out->owner_tid=owner;out->generation=generation;out->pulses=pulses;
  for(unsigned i=0;i<12;++i){const auto state=pending_mask&(1u<<i)?PGR_RTH_PENDING:slots[i].state.load();out->hosts[i]={i<10?60+i:i==10?58u:71u,state,slots[i].error.load(),slots[i].caps.load(),slots[i].owned.load(),0};if(state==PGR_RTH_READY)out->ready_mask|=1u<<i;}return 0;}

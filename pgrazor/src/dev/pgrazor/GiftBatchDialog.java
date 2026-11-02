@@ -7,7 +7,7 @@ import android.graphics.drawable.ColorDrawable;
 import android.os.Handler;
 import android.os.Looper;
 import android.widget.Button;
-import android.widget.CheckBox;
+import android.widget.Switch;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -34,7 +34,7 @@ public final class GiftBatchDialog {
             + "may be skipped. A single pass runs now — there is no recurring schedule.");
         body.addView(description);
 
-        CheckBox fullBag = new CheckBox(ui);
+        Switch fullBag = new Switch(ui);
         fullBag.setText("Open even when item bag is full");
         fullBag.setChecked(GiftBatchSettings.fullBagDefault());
         body.addView(fullBag);
@@ -43,8 +43,8 @@ public final class GiftBatchDialog {
         body.addView(fullBagCaption);
 
         TextView status = new TextView(ui); status.setText(GiftBatchSettings.status()); body.addView(status);
-        Button start = new Button(ui); start.setAllCaps(false); start.setText("Start"); body.addView(start);
-        Button stop = new Button(ui); stop.setAllCaps(false); stop.setText("Stop"); body.addView(stop);
+        Button start = SettingsUi.button(ui, "Start"); SettingsUi.styleTree(ui, start); body.addView(start);
+        Button stop = SettingsUi.button(ui, "Stop"); SettingsUi.styleTree(ui, stop); body.addView(stop);
 
         ScrollView scroll = new ScrollView(ui); scroll.addView(body);
         AlertDialog dialog = new AlertDialog.Builder(ui).setTitle("Send & Open Gifts").setView(scroll)

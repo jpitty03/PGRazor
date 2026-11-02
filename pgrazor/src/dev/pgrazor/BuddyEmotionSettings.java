@@ -4,7 +4,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.text.InputType;
-import android.widget.CheckBox;
+import android.widget.Switch;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -15,8 +15,8 @@ import java.util.Properties;
 public final class BuddyEmotionSettings {
     private BuddyEmotionSettings() {}
     private static final BuddyEmotionPreferences preferences=new BuddyEmotionPreferences();
-    private static final int[] BERRIES={701,703,705,706,708};
-    private static final String[] BERRY_LABELS={"Razz Berry","Nanab Berry","Pinap Berry","Golden Razz Berry (premium)","Silver Pinap Berry (premium)"};
+    private static final int[] BERRIES={701,703,705,706,708,709};
+    private static final String[] BERRY_LABELS={"Razz Berry","Nanab Berry","Pinap Berry","Golden Razz Berry (premium)","Silver Pinap Berry (premium)","Poffin (premium)"};
     private static volatile String status="Off", savedHistory="", metric="EP: waiting";
     public static String status(){return metric+"\n"+status;}
     public static String history(){return savedHistory;}
@@ -42,12 +42,12 @@ public final class BuddyEmotionSettings {
         Context ui=body.getContext();
         TextView description=new TextView(ui);
         description.setText("Builds buddy mood with snapshots and petting while the game is in the foreground, including menus when buddy services are available. EP comes from the game; maintenance is an estimate. Walking and battles remain manual.");body.addView(description);
-        CheckBox master=new CheckBox(ui);master.setText("Run the Buddy Emotion Engine");body.addView(master);
+        Switch master=new Switch(ui);master.setText("Run the Buddy Emotion Engine");body.addView(master);
         TextView progress=new TextView(ui);body.addView(progress);
         TextView priority=button(body,"");
         TextView reserve=button(body,"");
-        CheckBox gifts=new CheckBox(ui);gifts.setText("Open gifts your buddy brings back");body.addView(gifts);
-        CheckBox overlay=new CheckBox(ui);overlay.setText("Show EP overlay");body.addView(overlay);
+        Switch gifts=new Switch(ui);gifts.setText("Open gifts your buddy brings back");body.addView(gifts);
+        Switch overlay=new Switch(ui);overlay.setText("Show EP overlay");body.addView(overlay);
         TextView explanation=new TextView(ui);explanation.setText("Feeds the first selected berry with stock above its reserve. The reserve applies separately to every berry. Golden Razz and Silver Pinap are optional premium choices; none are selected by default. Clear the list to disable feeding.");body.addView(explanation);
         final boolean[] refreshing={false};
         Runnable refresh=()->{
@@ -95,13 +95,13 @@ public final class BuddyEmotionSettings {
         if(!preferences.berries().isEmpty())java.util.Collections.addAll(order,preferences.berries().split(","));
         LinearLayout body=new LinearLayout(ui);body.setOrientation(LinearLayout.VERTICAL);
         TextView help=new TextView(ui);help.setText("Tap berries in the order to try them. Uncheck and reselect a berry to move it to the end. Premium berries require an explicit selection.");body.addView(help);
-        CheckBox[] rows=new CheckBox[BERRIES.length];boolean[] syncing={false};
+        Switch[] rows=new Switch[BERRIES.length];boolean[] syncing={false};
         Runnable redraw=()->{syncing[0]=true;for(int i=0;i<rows.length;i++){
             int position=order.indexOf(String.valueOf(BERRIES[i]));rows[i].setChecked(position>=0);
             rows[i].setText((position<0?"":(position+1)+". ")+BERRY_LABELS[i]);
         }syncing[0]=false;};
-        for(int i=0;i<rows.length;i++){final String id=String.valueOf(BERRIES[i]);rows[i]=new CheckBox(ui);body.addView(rows[i]);rows[i].setOnCheckedChangeListener((v,on)->{
-            if(syncing[0])return;if(on){if(!order.contains(id))order.add(id);}else order.remove(id);redraw.run();
+        for(int i=0;i<rows.length;i++){final String id=String.valueOf(BERRIES[i]);rows[i]=new Switch(ui);body.addView(rows[i]);rows[i].setOnCheckedChangeListener((v,on)->{
+            if(syncing[0])return;if(on){if(!order.contains(id)){if(order.size()>=5){syncing[0]=true;v.setChecked(false);syncing[0]=false;android.widget.Toast.makeText(activity,"Choose at most five feeding priorities",android.widget.Toast.LENGTH_SHORT).show();return;}order.add(id);}}else order.remove(id);redraw.run();
         });}
         LinearLayout actions=new LinearLayout(ui);actions.setOrientation(LinearLayout.HORIZONTAL);body.addView(actions);
         TextView clear=button(actions,"Clear"),reset=button(actions,"Reset");

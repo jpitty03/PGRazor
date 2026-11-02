@@ -149,7 +149,7 @@ void drain_inventory(int32_t berry){
  }
  if(caps.load()&PGR_IH_BUDDY){pgrazor_buddy_sample_v1 v{};if(!buddy()->sample(&v)){
   const char *msg[]={"","Off","Waiting for the map","Choose a buddy first","Waiting for buddy hunger data","","Waiting for buddy feeding cooldown","Feeding paused after six berries; check your buddy","Selected berry is out of stock","Feeding buddy","Berry fed; checking buddy hunger","","Buddy feed timed out; no automatic retry","Hunger did not update; toggle Off to retry","Buddy feeding paused: native"};
-  if(v.status_serial!=old_buddy.status_serial){std::string m=v.status<15?msg[v.status]:"";if(v.status==5)m="Buddy fed - "+std::to_string(v.detail)+" min remaining";if(v.status==11)m="Buddy feed failed (result "+std::to_string(v.detail)+"); toggle Off to retry";if(!m.empty())status("buddy-status",28,m);}
+  if(v.status_serial!=old_buddy.status_serial){std::string m=v.status<15?msg[v.status]:"";if(berry==709){if(v.status==8)m="No Poffin left";if(v.status==9)m="Feeding buddy Poffin";if(v.status==10)m="Poffin fed; checking buddy hunger";if(v.status==7)m="Feeding paused after six treats; check your buddy";}if(v.status==5)m="Buddy fed - "+std::to_string(v.detail)+" min remaining";if(v.status==11)m="Buddy feed failed (result "+std::to_string(v.detail)+"); toggle Off to retry";if(!m.empty())status("buddy-status",28,m);}
   if(v.service_serial!=old_buddy.service_serial)event("buddy-service-ready");
   if(v.feed_request_serial!=old_buddy.feed_request_serial)event("buddy-feed-request","\"berry\":"+std::to_string(berry)+",\"count\":1");
   if(v.result_serial!=old_buddy.result_serial)force_poll.store(true);
@@ -304,7 +304,7 @@ int tick(uint64_t tid){
  {std::lock_guard<std::mutex> lock(policy_lock);p=policy;local_rules=rules;expires=deadline;}
  uint64_t time=clock_ms();uint64_t lease=time&&time<expires&&!stopping.load()&&count>=3?expires-time:0;
  if(caps.load()&PGR_IH_ITEMS){if(stopping.load())items()->clear(tid);else if(!(faults.load()&PGR_IH_ITEMS)){uint32_t force=(force_poll.exchange(false)?1:0)|(cleanup_poll.exchange(false)?9:0)|(p.item_catalog==2?2:p.item_catalog==1?4:0);if(items()->tick(&local_rules,force,p.item_allowed?lease:0,tid)){faults.fetch_or(PGR_IH_ITEMS);items()->clear(tid);}}}
- int32_t berry=(p.buddy_berry==701||p.buddy_berry==703||p.buddy_berry==705||p.buddy_berry==706||p.buddy_berry==707)?p.buddy_berry:0;
+ int32_t berry=(p.buddy_berry==701||p.buddy_berry==703||p.buddy_berry==705||p.buddy_berry==706||p.buddy_berry==708||p.buddy_berry==709)?p.buddy_berry:0;
  if(caps.load()&PGR_IH_BUDDY){if(stopping.load())buddy()->clear(tid);else if(!(faults.load()&PGR_IH_BUDDY)&&buddy()->tick(berry,p.buddy_allowed?lease:0,tid)){faults.fetch_or(PGR_IH_BUDDY);buddy()->clear(tid);}}
  if(caps.load()&PGR_IH_INCUBATION){if(stopping.load())inc()->clear(tid);else if(!(faults.load()&PGR_IH_INCUBATION)&&inc()->tick(p.incubator_enabled,p.incubator_longest,p.incubator_allowed?lease:0,tid)){faults.fetch_or(PGR_IH_INCUBATION);inc()->clear(tid);}}
  drain_inventory(berry);social_tick(time,tid,lease,p);refresh_roots();return 0;

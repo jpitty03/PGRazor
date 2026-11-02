@@ -37,7 +37,7 @@ public final class GameBridgeDispatchTest {
         NianticLocationManager manager=new NianticLocationManager();
         GameBridgeDispatch.afterStart(manager);check(ContextService.factoryCalls==1);
         ContextService.handler.runNext();check(manager.delivered.size()==1);
-        GameBridgeDispatch.beforePause(manager);check(ContextService.handler.pending.isEmpty());
+        Control.active=false;GameBridgeDispatch.beforePause(manager);check(ContextService.handler.pending.isEmpty());Control.active=true;
         GameBridgeDispatch.afterResume(manager);ContextService.handler.runNext();check(manager.delivered.size()==2);
         GameBridgeDispatch.beforeStop(manager);check(ContextService.handler.pending.isEmpty());
 
@@ -151,7 +151,7 @@ public final class GameBridgeDispatchTest {
             try{
                 GameBridgeDispatch.afterStart(manager);ContextService.handler.runNext();
                 check(manager.delivered.size()==1);
-                GameBridgeDispatch.beforePause(manager);check(ContextService.handler.pending.isEmpty());
+                Control.active=false;GameBridgeDispatch.beforePause(manager);check(ContextService.handler.pending.isEmpty());Control.active=true;
                 GameBridgeDispatch.afterResume(manager);ContextService.handler.runNext();check(manager.delivered.size()==2);
                 GameBridgeDispatch.beforeStop(manager);check(ContextService.handler.pending.isEmpty());
             }catch(Throwable failure){failures.add(failure);}

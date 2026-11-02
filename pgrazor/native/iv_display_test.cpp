@@ -36,6 +36,10 @@ int m_get_level, m_get_multiplier, m_set_text, m_set_rich, m_set_font, m_set_fit
 int f_plate_text, f_plate_gm, f_map_wild, f_map_response, f_map_tappable, f_wild_lat, f_wild_lon,
     f_wild_pokemon, f_wild_id, f_response_wild, f_tappable_pokemon, f_cp, f_atk, f_def, f_sta,
     f_cpmul, f_addcpmul, f_panel_cptext, f_panel_displayed, f_panel_gm;
+int cls_cell,cls_initializer,f_cell_text,f_init_proto;
+int cell_original_calls=0;bool cell_original_disables=false;int original_cell_rich=-1;
+int cls_display,cls_vertical,f_species,f_display,f_form,m_vertical_get,m_vertical_set;
+bool fail_vertical=false;
 int g_gm_obj;  // GameMaster object token (non-null; passed as a reference arg, not class-checked)
 
 // ----- fake managed objects --------------------------------------------------------
@@ -45,16 +49,19 @@ struct FakeText {
   void *klass;
   char text[512];
   int font;
-  int rich, fit, overflow, alignment;
+  int rich, fit, overflow, alignment;int vertical;
   int destroyed;
   FakeGameObject go;
 };
-struct FakePokemon { void *klass; int32_t cp, atk, def, sta; float cpmul, addcpmul; };
+struct FakeDisplay {void *klass;int form;};
+struct FakePokemon { void *klass; int32_t cp, atk, def, sta; float cpmul, addcpmul;int dex=0;FakeDisplay *display=nullptr; };
 struct FakeWild { void *klass; uint64_t id; double lat, lon; FakePokemon *pokemon; };
 struct FakeEncounterOut { void *klass; FakeWild *wild; };
 struct FakeTappable { void *klass; FakePokemon *pokemon; };
 struct FakeMap { void *klass; FakeWild *map_wild; FakeEncounterOut *response; FakeTappable *tappable; };
 struct FakePlate { void *klass; FakeText *cp_text; void *gm; };
+struct FakeCell {void *klass;FakeText *name;};
+struct FakeInitializer {void *klass;FakePokemon *proto;const char *name;};
 struct FakePanel { void *klass; FakeText *cp_text; FakePokemon *displayed; void *gm; };
 
 // Boxed value-return pool + System.String pool (reused; the native unboxes/reads before
@@ -149,6 +156,11 @@ uint16_t *fake_string_chars(void *s) { return static_cast<FakeString *>(s)->utf1
 // field_get_value dispatches on the field token and copies the member from the (rooted)
 // fake object. Each token is globally unique, so the object type is implied.
 void fake_field_get(void *obj, void *field, void *out) {
+  if(field==&f_cell_text){*static_cast<void**>(out)=static_cast<FakeCell*>(obj)->name;return;}
+  if(field==&f_init_proto){*static_cast<void**>(out)=static_cast<FakeInitializer*>(obj)->proto;return;}
+  if(field==&f_species){*static_cast<int*>(out)=static_cast<FakePokemon*>(obj)->dex;return;}
+  if(field==&f_display){*static_cast<void**>(out)=static_cast<FakePokemon*>(obj)->display;return;}
+  if(field==&f_form){*static_cast<int*>(out)=static_cast<FakeDisplay*>(obj)->form;return;}
   if (field == &f_plate_text) { *static_cast<void **>(out) = static_cast<FakePlate *>(obj)->cp_text; return; }
   if (field == &f_plate_gm) { *static_cast<void **>(out) = static_cast<FakePlate *>(obj)->gm; return; }
   if (field == &f_map_wild) { *static_cast<void **>(out) = static_cast<FakeMap *>(obj)->map_wild; return; }
@@ -208,6 +220,8 @@ void *fake_runtime_invoke(const void *method, void *obj, void **params, void **e
   if (method == &m_set_rich) { static_cast<FakeText *>(obj)->rich = *static_cast<int32_t *>(params[0]) & 0xff; return nullptr; }
   if (method == &m_get_fit) return box_bool(static_cast<FakeText *>(obj)->fit != 0);
   if (method == &m_set_fit) { static_cast<FakeText *>(obj)->fit = *static_cast<int32_t *>(params[0]) & 0xff; return nullptr; }
+  if(method==&m_vertical_get){if(fail_vertical){*exc=&cls_other;return nullptr;}return box_enum(&cls_vertical,static_cast<FakeText*>(obj)->vertical);}
+  if(method==&m_vertical_set){static_cast<FakeText*>(obj)->vertical=*static_cast<int*>(params[0]);return nullptr;}
   if (method == &m_get_overflow) return box_enum(&cls_hwm, static_cast<FakeText *>(obj)->overflow);
   if (method == &m_set_overflow) { static_cast<FakeText *>(obj)->overflow = *static_cast<int32_t *>(params[0]); return nullptr; }
   if (method == &m_get_alignment) return box_enum(&cls_ta, static_cast<FakeText *>(obj)->alignment);
@@ -274,6 +288,13 @@ __attribute__((noinline)) void target_owned(void *self, void *proto, void *metho
   if (self) std::snprintf(static_cast<FakePanel *>(self)->cp_text->text, 512, "%s", g_owned_label);
 }
 
+__attribute__((noinline)) void target_cell(void *self,void *init,const void*){
+  PGR_NOP8();++cell_original_calls;auto cell=static_cast<FakeCell*>(self);auto value=static_cast<FakeInitializer*>(init);
+  if(cell&&value){original_cell_rich=cell->name->rich;std::snprintf(cell->name->text,sizeof(cell->name->text),"%s",value->name);}
+  if(cell_original_disables){cell_original_disables=false;g_api->disable();}
+}
+decltype(&target_cell) volatile call_cell=&target_cell;
+
 uint64_t this_tid() { return static_cast<uint64_t>(static_cast<pid_t>(::gettid())); }
 
 void init_text(FakeText *t) {
@@ -282,7 +303,7 @@ void init_text(FakeText *t) {
   t->font = 18;
   t->rich = 0;
   t->fit = 1;
-  t->overflow = 7;
+  t->overflow = 7;t->vertical=9;
   t->alignment = 3;
   t->destroyed = 0;
   t->go.klass = &cls_gameobject;
@@ -397,6 +418,76 @@ uint64_t begin_shared(const PgrIvDisplayApi *api, void *plate, void *map, uint64
   return token;
 }
 
+int run_cells_mode(void *lib){
+  auto getter=reinterpret_cast<GetHookApiFn>(::dlsym(lib,"pgrazor_native_api"));auto core=static_cast<const pgrazor_native_api_v2*>(getter(2));
+  auto extension=static_cast<const PgrIvDisplayApiV3*>(core->query_feature(15,3));assert(extension&&extension->base.base.size==88);
+  g_api=static_cast<const PgrIvDisplayApi*>(core->query_feature(15,1));g_owner=this_tid();
+  PgrIvPvpConfig p{1,sizeof(p),&f_species,&f_display,&f_form,&cls_display,&m_vertical_get,&m_vertical_set,&cls_vertical,1,0};
+  assert(extension->base.configure_pvp(&p)==0);
+  PgrIvCellConfig c{1,sizeof(c),&cls_cell,&cls_initializer,&f_cell_text,&f_init_proto,reinterpret_cast<void*>(target_cell)};
+  auto bad=c;bad.name_text=nullptr;assert(extension->configure_cells(&bad)==PGR_IV_ERR_MISSING_PTR);
+  assert(extension->configure_cells(&c)==0&&extension->configure_cells(&c)==0);
+  auto cfg=make_config();assert(g_api->install(&cfg)==0&&extension->cells_ready()==1);assert(g_api->update(0,1,2500,g_owner)==0);
+  FakeText text;init_text(&text);FakeDisplay display{&cls_display,0};
+  FakePokemon mon{&cls_pokemon,500,0,15,15,0.51739395f,0,183,&display};
+  FakeCell cell{&cls_cell,&text};FakeInitializer init{&cls_initializer,&mon,"Marill"};
+  call_cell(&cell,&init,nullptr);
+  assert(cell_original_calls==1&&std::strstr(text.text,"Marill\n<size=10>")&&std::strstr(text.text,"67% 0/15/15")&&std::strstr(text.text,"GL#1")&&text.rich==1&&text.vertical==1);
+  assert(text.font==18&&text.fit==1&&text.alignment==3&&text.overflow==7);
+  init.name="Renamed";mon.atk=15;mon.def=15;mon.sta=15;call_cell(&cell,&init,nullptr);
+  assert(cell_original_calls==2&&original_cell_rich==0&&std::strstr(text.text,"Renamed\n<size=")&&std::strstr(text.text,"100% 15/15/15")&&!std::strstr(text.text,"Marill"));
+  // A layout pass can hide the second line while keeping the label text.
+  text.rich=0;text.vertical=9;usleep(300000);assert(g_api->tick(g_owner,0)==0);
+  assert(text.rich==1&&text.vertical==1&&std::strstr(text.text,"100% 15/15/15"));
+  // First layout pass writes the same authentic name after Initialize.
+  std::strcpy(text.text,"Renamed");usleep(300000);assert(g_api->tick(g_owner,0)==0);
+  assert(std::strstr(text.text,"Renamed\n<size=")&&std::strstr(text.text,"100% 15/15/15"));
+  assert(g_api->disable()==0&&g_api->tick(g_owner,0)==0);assert(!std::strcmp(text.text,"Renamed")&&text.rich==0&&text.vertical==9);
+  std::strcpy(text.text,"game renamed while off");assert(g_api->update(0,1,2500,g_owner)==0);g_api->tick(g_owner,0);
+  assert(!std::strcmp(text.text,"game renamed while off"));
+  // Initial visible batch initialized while permission is off; later readiness
+  // must paint it without another Initialize or a scroll/recycle event.
+  assert(g_api->disable()==0);init.name="Initial batch";call_cell(&cell,&init,nullptr);
+  assert(!std::strcmp(text.text,"Initial batch"));
+  assert(g_api->update(0,1,2500,g_owner)==0);usleep(300000);assert(g_api->tick(g_owner,0)==0);
+  assert(std::strstr(text.text,"Initial batch\n<size=")&&std::strstr(text.text,"100% 15/15/15"));
+  mon.cp=0;init.name="Egg";call_cell(&cell,&init,nullptr);assert(!std::strcmp(text.text,"Egg")&&text.rich==0);
+  mon.cp=500;init.name="Cancel";cell_original_disables=true;call_cell(&cell,&init,nullptr);assert(!std::strcmp(text.text,"Cancel")&&text.rich==0);
+  assert(g_api->update(0,1,2500,g_owner)==0);init.name="Reentry";g_stringnew_disables=true;call_cell(&cell,&init,nullptr);
+  assert(!std::strcmp(text.text,"Reentry")&&text.rich==0&&text.vertical==9);
+  assert(g_api->update(0,1,2500,g_owner)==0);
+  FakeText names[97];FakeCell cells[97];for(int i=0;i<97;++i){init_text(&names[i]);cells[i]={&cls_cell,&names[i]};init.name="Pooled";call_cell(&cells[i],&init,nullptr);}
+  assert(names[0].rich==0&&!std::strcmp(names[0].text,"Pooled"));assert(take_sample().owned_root_count==96);
+  g_api->disable();g_api->tick(g_owner,1);assert(g_live.empty());
+  std::puts("PASS native storage cells: original once, summary, recycled names, unchanged font/layout, Off, external rename, eggs, cancellation/reentry, max96 and root balance");return 0;
+}
+
+int run_pvp_mode(void *lib){
+  auto getter=reinterpret_cast<GetHookApiFn>(::dlsym(lib,"pgrazor_native_api"));auto core=static_cast<const pgrazor_native_api_v2*>(getter(2));
+  auto extension=static_cast<const PgrIvDisplayApiV2*>(core->query_feature(15,2));assert(extension&&extension->base.size==72);
+  g_api=static_cast<const PgrIvDisplayApi*>(core->query_feature(15,1));g_owner=this_tid();
+  PgrIvPvpConfig p{1,sizeof(p),&f_species,&f_display,&f_form,&cls_display,&m_vertical_get,&m_vertical_set,&cls_vertical,1,0};
+  auto bad=p;bad.form=nullptr;assert(extension->configure_pvp(&bad)==PGR_IV_ERR_MISSING_PTR);
+  assert(extension->configure_pvp(&p)==0&&extension->configure_pvp(&p)==0);
+  bad=p;bad.vertical_overflow=2;assert(extension->configure_pvp(&bad)==PGR_IV_ERR_RECONFIG_MISMATCH);
+  auto cfg=make_config();assert(g_api->install(&cfg)==0);assert(g_api->update(0,1,2500,g_owner)==0);
+  FakeText text;init_text(&text);FakeDisplay display{&cls_display,0};
+  FakePokemon mon{&cls_pokemon,500,0,15,15,0.51739395f,0,183,&display};
+  FakePanel panel{&cls_panel,&text,&mon,&g_gm_obj};call_owned(&panel,&mon,nullptr);
+  assert(std::strstr(text.text,"GL #1</color> Azumarill")&&std::strstr(text.text,"CP 1499")&&text.vertical==1);
+  assert(std::strstr(text.text,"0/15/15")&&std::strstr(text.text,"</b>"));
+  assert(g_api->disable()==0&&g_api->tick(g_owner,0)==0);assert(!std::strcmp(text.text,g_owned_label)&&text.vertical==9);
+  assert(g_api->update(0,1,2500,g_owner)==0);mon.dex=99999;call_owned(&panel,&mon,nullptr);
+  assert(std::strstr(text.text,"IV ")&&!std::strstr(text.text,"GL #")&&text.vertical==9);
+  mon.dex=183;fail_vertical=true;call_owned(&panel,&mon,nullptr);
+  assert(std::strstr(text.text,"IV ")&&!std::strstr(text.text,"GL #")&&text.vertical==9);assert(take_sample().fault==0);
+  fail_vertical=false;call_owned(&panel,&mon,nullptr);assert(text.vertical==1);
+  std::strcpy(text.text,"game changed label");g_api->disable();g_api->tick(g_owner,0);
+  assert(!std::strcmp(text.text,"game changed label")&&text.vertical==9);
+  assert(g_api->tick(g_owner,1)==0&&g_live.empty());
+  std::puts("PASS native PvP IV integration: optional metadata, rank line, vertical restore, fallback, game label ownership and roots");return 0;
+}
+
 int run_shared_mode(void *lib) {
   auto getter = reinterpret_cast<GetHookApiFn>(::dlsym(lib, "pgrazor_native_api"));
   assert(getter);
@@ -426,7 +517,7 @@ int run_shared_mode(void *lib) {
   FakeWild wild_map{&cls_wild, 1001, 0.0, 0.0, nullptr};
   FakeEncounterOut enc{&cls_encounter_out, &wild_resp};
   FakeMap map{&cls_wildmap, &wild_map, &enc, nullptr};
-  const char *kOverlay = "999 \xc2\xb7 Lv 10 \xc2\xb7 <color=\"#ff5252\">IV 100%</color>";
+  const char *kOverlay = "999 \xc2\xb7 Lv 10 \xc2\xb7 <color=\"#ff5252\">IV 100%</color> \xc2\xb7 <color=\"#a8f0c6\">15/15/15</color>";
 
   // S1. The Dobby setup hook is SKIPPED: calling the original directly performs no capture.
   assert(api->update(1, 1, 2000, tid) == PGR_IV_OK);
@@ -578,6 +669,12 @@ int main(int argc, char **argv) {
   // The native config is immutable once installed, so the shared-mode scenario must run in a
   // fresh process. Fork BEFORE the parent installs its default-mode config; the child installs
   // external_catch_observer == 1 against its own copy of the module's (still-fresh) state.
+  pid_t cells_pid=::fork();assert(cells_pid>=0);
+  if(cells_pid==0){int rc=run_cells_mode(lib);std::fflush(stdout);_exit(rc);}
+  int cells_status=0;assert(::waitpid(cells_pid,&cells_status,0)==cells_pid);assert(WIFEXITED(cells_status)&&WEXITSTATUS(cells_status)==0);
+  pid_t pvp_pid=::fork();assert(pvp_pid>=0);
+  if(pvp_pid==0){int rc=run_pvp_mode(lib);std::fflush(stdout);_exit(rc);}
+  int pvp_status=0;assert(::waitpid(pvp_pid,&pvp_status,0)==pvp_pid);assert(WIFEXITED(pvp_status)&&WEXITSTATUS(pvp_status)==0);
   pid_t shared_pid = ::fork();
   assert(shared_pid >= 0);
   if (shared_pid == 0) {
@@ -635,8 +732,8 @@ int main(int argc, char **argv) {
   FakeEncounterOut enc{&cls_encounter_out, &wild_resp};
   FakeMap map{&cls_wildmap, &wild_map, &enc, nullptr};
 
-  const char *kCatchOverlay = "999 \xc2\xb7 Lv 10 \xc2\xb7 <color=\"#ff5252\">IV 100%</color>";
-  const char *kCatchFull = "123 \xc2\xb7 Lv 10 \xc2\xb7 <color=\"#ff5252\">IV 100%</color>";
+  const char *kCatchOverlay = "999 \xc2\xb7 Lv 10 \xc2\xb7 <color=\"#ff5252\">IV 100%</color> \xc2\xb7 <color=\"#a8f0c6\">15/15/15</color>";
+  const char *kCatchFull = "123 \xc2\xb7 Lv 10 \xc2\xb7 <color=\"#ff5252\">IV 100%</color> \xc2\xb7 <color=\"#a8f0c6\">15/15/15</color>";
 
   // 1. Valid catch overlay. SetPokemonUI drives the original (writing "999"), then the
   //    onLeave capture overlays the computed label. The on-screen prefix is the game's own

@@ -25,12 +25,22 @@ public class SettingsBackupRulesTest {
         for(int scale:new int[]{100,75,50,25}){JSONObject scaled=valid();scaled.getJSONObject("settings").put("uiScalePercent",String.valueOf(scale));SettingsBackupRules.validate(scaled);}
         for(String scale:new String[]{"0","24","101","50.5","bad"}){JSONObject scaled=valid();scaled.getJSONObject("settings").put("uiScalePercent",scale);rejects(scaled);}
         String choices="";
-        choices=BerryPriority.select(choices,707);choices=BerryPriority.select(choices,705);choices=BerryPriority.select(choices,701);
-        if(!choices.equals("707,705,701"))throw new AssertionError("Selection order lost");
+        choices=BerryPriority.select(choices,708);choices=BerryPriority.select(choices,705);choices=BerryPriority.select(choices,701);
+        if(!choices.equals("708,705,701"))throw new AssertionError("Selection order lost");
         if(!BerryPriority.select(choices,706).equals("706"))throw new AssertionError("Fourth choice must reset");
         if(!BerryPriority.select(choices,0).isEmpty())throw new AssertionError("Off must clear all");
-        if(!BerryPriority.select("707,705",707).equals("707,705"))throw new AssertionError("Duplicate priority");
+        if(!BerryPriority.select("708,705",708).equals("708,705"))throw new AssertionError("Duplicate priority");
         JSONObject berries=valid();berries.getJSONObject("settings").put("berryPriority",choices);SettingsBackupRules.validate(berries);
+        JSONObject silver=valid();silver.getJSONObject("settings").put("buddyBerry","708").put("autoBerry","708");SettingsBackupRules.validate(silver);
+        for(String key:new String[]{"buddyBerry","autoBerry"}){JSONObject wrong=valid();wrong.getJSONObject("settings").put(key,"707");rejects(wrong);}
+        JSONObject poffin=valid();poffin.getJSONObject("settings").put("buddyBerry","709");SettingsBackupRules.validate(poffin);
+        for(String key:new String[]{"autoBerry","berryPriority"}){JSONObject bad=valid();bad.getJSONObject("settings").put(key,"709");rejects(bad);}
+        JSONObject badPoffinRule=valid();badPoffinRule.getJSONObject("settings").put("itemRules","709:0");rejects(badPoffinRule);
+        JSONObject random=valid();random.getJSONObject("settings").put("throwRandom","true").put("grade","2");SettingsBackupRules.validate(random);
+        random.getJSONObject("settings").put("throwRandom","false");SettingsBackupRules.validate(random);
+        random.getJSONObject("settings").put("throwRandom","yes");rejects(random);
+        random.getJSONObject("settings").put("throwRandom","true").put("grade","4");rejects(random);
+        JSONObject wrongPriority=valid();wrongPriority.getJSONObject("settings").put("berryPriority","707,705");rejects(wrongPriority);
         berries.getJSONObject("settings").put("berryPriority","");SettingsBackupRules.validate(berries);
         for(String bad:new String[]{"701,701","701,703,705,706","702","701,","701, 703","0"}){berries.getJSONObject("settings").put("berryPriority",bad);rejects(berries);}
         rejects(valid().put("version",1.5));rejects(valid().put("speedKmh",99));

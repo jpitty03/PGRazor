@@ -10,6 +10,7 @@ import android.view.View;
 import android.view.ContextThemeWrapper;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.Switch;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -51,8 +52,7 @@ public final class AutoWalkDialog {
     /** Bound to one dialog lifetime; all timers and the snapshot request stop on dismiss/destroy. */
     public static AlertDialog show(Activity activity) {
         if(activity.isFinishing()||activity.isDestroyed())return null;
-        Context ctx = new ContextThemeWrapper(activity, Control.darkTheme()
-            ? android.R.style.Theme_Material_Dialog_Alert : android.R.style.Theme_Material_Light_Dialog_Alert);
+        Context ctx = MapTheme.wrap(activity);
 
         LinearLayout layout = new LinearLayout(ctx);
         layout.setOrientation(LinearLayout.VERTICAL);
@@ -91,11 +91,21 @@ public final class AutoWalkDialog {
         countRow.addView(countField, new LinearLayout.LayoutParams(dp(activity, 72), -2));
         layout.addView(countRow);
 
-        CheckBox loop = new CheckBox(ctx);
-        loop.setText("Loop route");
-        loop.setTextSize(14);
+        // PGRazorX: Loop as the game's toggle, with a line that says what it does.
+        LinearLayout loopRow = new LinearLayout(ctx);
+        loopRow.setGravity(Gravity.CENTER_VERTICAL);
+        loopRow.setPadding(0, dp(activity, 10), 0, 0);
+        LinearLayout loopTexts = new LinearLayout(ctx); loopTexts.setOrientation(LinearLayout.VERTICAL);
+        TextView loopLabel = label(ctx, "Loop route", 15);
+        TextView loopHint = label(ctx, "After the last stop it returns to stop 1 and repeats.", 12);
+        loopTexts.addView(loopLabel); loopTexts.addView(loopHint);
+        loopRow.addView(loopTexts, new LinearLayout.LayoutParams(0, -2, 1));
+        Switch loop = new Switch(ctx);
         loop.setChecked(false);
-        layout.addView(loop);
+        loop.setContentDescription("Loop route");
+        loopRow.addView(loop);
+        loopRow.setOnClickListener(v -> loop.toggle());
+        layout.addView(loopRow);
 
         TextView status = label(ctx, "Waiting for nearby game locations…", 13);
         status.setPadding(0, dp(activity, 10), 0, 0);
@@ -105,22 +115,43 @@ public final class AutoWalkDialog {
         gpxInfo.setVisibility(View.GONE);
         layout.addView(gpxInfo);
         Button saveGpx = new Button(ctx);saveGpx.setText("Save GPX");saveGpx.setAllCaps(false);saveGpx.setVisibility(View.GONE);layout.addView(saveGpx);
+        // PGRazorX: the route about to be walked, on a small map, and a full-screen look at it.
+        WorldMapDialog.RoutePreview preview = new WorldMapDialog.RoutePreview(activity);
+        LinearLayout.LayoutParams vl = new LinearLayout.LayoutParams(-1, dp(activity, 170)); vl.topMargin = dp(activity, 10);
+        preview.view.setVisibility(View.GONE);
+        layout.addView(preview.view, vl);
+        Button showMap = button(ctx, "Show on map");
+        showMap.setContentDescription("Open the planned route on the world map");
+        showMap.setVisibility(View.GONE);
+        LinearLayout.LayoutParams sml = new LinearLayout.LayoutParams(-1, dp(activity, 44)); sml.topMargin = dp(activity, 8);
+        layout.addView(showMap, sml);
         TextView running = label(ctx, "", 13);
         running.setPadding(0, dp(activity, 4), 0, dp(activity, 4));
         layout.addView(running);
 
+        // The route preview makes the form taller; small screens scroll it instead of losing the buttons.
+        android.widget.ScrollView scroll = new android.widget.ScrollView(ctx);
+        scroll.addView(layout);
         AlertDialog dialog = new AlertDialog.Builder(ctx)
             .setTitle("Auto-walk")
-            .setView(layout)
+            .setView(scroll)
             .setNegativeButton("Close", null)
             .setNeutralButton("Stop auto-walk", null)
             .setPositiveButton("Start", null)
             .create();
 
         Controller controller = new Controller(activity, dialog, descr, countLabel, countRow, countField, loop,
-            status, gpxInfo, running, importBtn, savedBtn, nearbyBtn, saveGpx);
+            status, gpxInfo, running, importBtn, savedBtn, nearbyBtn, saveGpx, preview, showMap);
         DialogLifecycle.bind(activity,dialog,controller::close);
-        dialog.setOnShowListener(d -> controller.attach());
+        MapTheme.style(layout);
+        MapTheme.styleSwitch(loop);
+        loopLabel.setTypeface(MapTheme.bold()); loopLabel.setTextColor(MapTheme.ink()); loopHint.setTextColor(MapTheme.muted());
+        android.view.Window w = dialog.getWindow();
+        if (w != null) w.setBackgroundDrawable(MapTheme.dialogBackground(ctx));
+        dialog.setOnShowListener(d -> {
+            controller.attach();
+            MapTheme.styleButtons(dialog);
+        });
         dialog.show();
         return dialog;
     }
@@ -132,8 +163,11 @@ public final class AutoWalkDialog {
         private final TextView descr, countLabel, status, gpxInfo, running;
         private final LinearLayout countRow;
         private final EditText countField;
-        private final CheckBox loop;
-        private final Button importBtn, savedBtn, nearbyBtn, saveGpx;
+        private final android.widget.CompoundButton loop;
+        private final Button importBtn, savedBtn, nearbyBtn, saveGpx, showMap;
+        private final WorldMapDialog.RoutePreview preview;
+        /** The route Start would walk right now (nearby plan or GPX), drawn in the preview. */
+        private double[][] planned;
         private final Handler main = new Handler(Looper.getMainLooper());
         private final Runnable poll = this::poll;
         private GpxRoute selectedGpx;
@@ -141,8 +175,10 @@ public final class AutoWalkDialog {
         private boolean closed;
 
         Controller(Activity activity, AlertDialog dialog, TextView descr, TextView countLabel, LinearLayout countRow, EditText countField,
-                   CheckBox loop, TextView status, TextView gpxInfo, TextView running,
-                   Button importBtn, Button savedBtn, Button nearbyBtn, Button saveGpx) {
+                   android.widget.CompoundButton loop, TextView status, TextView gpxInfo, TextView running,
+                   Button importBtn, Button savedBtn, Button nearbyBtn, Button saveGpx,
+                   WorldMapDialog.RoutePreview preview, Button showMap) {
+            this.preview = preview; this.showMap = showMap;
             this.activity = activity; this.dialog = dialog; this.descr = descr; this.countRow = countRow;
             this.countLabel = countLabel; this.countField = countField; this.loop = loop; this.status = status; this.gpxInfo = gpxInfo;
             this.saveGpx=saveGpx;this.running = running; this.importBtn = importBtn; this.savedBtn = savedBtn; this.nearbyBtn = nearbyBtn;
@@ -157,6 +193,8 @@ public final class AutoWalkDialog {
                 route -> { pendingGpx = route; onGpxChosen(route); }));
             nearbyBtn.setOnClickListener(v -> returnToNearby());
             saveGpx.setOnClickListener(v -> GpxRouteDialog.saveRoute(activity,()->selectedGpx));
+            loop.setOnCheckedChangeListener((b, on) -> updateAvailability());
+            showMap.setOnClickListener(v -> { if (planned != null) WorldMapDialog.showRoute(activity, planned, loop.isChecked(), "Route preview"); });
             setSelected(pendingGpx); // restore a route picked while the picker (or a prior session) was open
             poll(); // begins the snapshot request and first UI update immediately
         }
@@ -213,11 +251,14 @@ public final class AutoWalkDialog {
             Button start = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
             if (start == null) return;
             if (selectedGpx != null) {
-                gpxInfo.setText(String.format(Locale.US, "GPX route: %s (%d %s). Start walks it in order.",
-                    selectedGpx.name, selectedCount, selectedCount == 1 ? "stop" : "stops"));
+                double[][] gpxPoints = selectedGpx.points();
+                gpxInfo.setText(String.format(Locale.US, "GPX route: %s (%d %s, %s). Start walks it in order.",
+                    selectedGpx.name, selectedCount, selectedCount == 1 ? "stop" : "stops", length(gpxPoints)));
                 start.setEnabled(true);
+                showPlanned(gpxPoints);
                 return;
             }
+            double[][] plan = null;
             String snapshot = Control.mapPoiSnapshot();
             boolean canStart = false;
             countLabel.setText("Stops (loading):");
@@ -238,13 +279,35 @@ public final class AutoWalkDialog {
                         int requested=maximum;
                         try{requested=Integer.parseInt(countField.getText().toString().trim());}catch(NumberFormatException ignored){}
                         int selected=Math.min(Math.max(1,requested),maximum);
-                        message = selected+" stops in route ("+unique+" nearby).";
+                        try { AutoWalkPlanner.Plan p = AutoWalkPlanner.plan(Control.engine.latitude, Control.engine.longitude, points, selected); if (!p.empty()) plan = p.route; }
+                        catch (IllegalArgumentException ignored) {}
+                        message = selected+" stops in route ("+unique+" nearby)"+(plan == null ? "." : ", "+length(plan)+".");
                         canStart = true;
                     }
                 }
             }
             status.setText(message);
             start.setEnabled(canStart);
+            showPlanned(plan);
+        }
+
+        /** PGRazorX: preview map and Show on map follow the route Start would walk. */
+        private void showPlanned(double[][] route) {
+            planned = route;
+            boolean any = route != null && route.length > 0;
+            preview.view.setVisibility(any ? View.VISIBLE : View.GONE);
+            showMap.setVisibility(any ? View.VISIBLE : View.GONE);
+            if (any) preview.show(route, loop.isChecked());
+        }
+
+        /** Stop-to-stop length, plus the way back to stop 1 for a loop: "2.4 km per lap". */
+        private String length(double[][] route) {
+            double meters = 0;
+            for (int i = 1; i < route.length; i++) meters += AutoWalkPlanner.meters(route[i - 1][0], route[i - 1][1], route[i][0], route[i][1]);
+            boolean lap = loop.isChecked() && route.length > 1;
+            if (lap) meters += AutoWalkPlanner.meters(route[route.length - 1][0], route[route.length - 1][1], route[0][0], route[0][1]);
+            String text = meters >= 1000 ? String.format(Locale.US, "%.1f km", meters / 1000) : Math.round(meters) + " m";
+            return text + (lap ? " per lap" : "");
         }
 
         private void updateRunning() {
@@ -320,6 +383,7 @@ public final class AutoWalkDialog {
             if (closed) return;
             closed = true;
             main.removeCallbacksAndMessages(null);
+            preview.close();
             Control.setAutoWalkPlanning(false);
         }
     }

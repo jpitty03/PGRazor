@@ -26,14 +26,14 @@ final class SettingsBackup {
     void show(){
         LinearLayout root=new LinearLayout(activity);root.setOrientation(LinearLayout.VERTICAL);
         int p=MapTheme.dp(activity,20);root.setPadding(p,p*3,p,p*2);
-        TextView title=new TextView(activity);title.setText("Settings backup");title.setTextSize(22);root.addView(title);
+        TextView title=new TextView(activity);title.setText("Settings backup");root.addView(title);
         TextView detail=new TextView(activity);detail.setText("Save a backup outside the app to keep settings through reinstalls. Includes favorites and their coordinates. Login tokens, current location, cooldown history and active routes are excluded.\n\nImport replaces the included settings and favorites. VGP stays off.");detail.setPadding(0,p,0,p);root.addView(detail);
         export=new Button(activity);export.setText("Export settings");root.addView(export);
         restore=new Button(activity);restore.setText("Import settings");root.addView(restore);
         status=new TextView(activity);status.setPadding(0,p,0,p);root.addView(status);
         back=new Button(activity);back.setText("Back to game");back.setOnClickListener(v->activity.finish());root.addView(back);
         export.setOnClickListener(v->pick(EXPORT));restore.setOnClickListener(v->pick(IMPORT));
-        ScrollView scroll=new ScrollView(activity);scroll.addView(root);MapTheme.style(scroll);activity.setContentView(scroll);
+        ScrollView scroll=new ScrollView(activity);scroll.addView(root);MapTheme.style(scroll);MapTheme.styleTitle(title);title.setPadding(0,0,0,p);MapTheme.page(activity);activity.setContentView(scroll);
     }
     private void pick(int code){
         Intent i=new Intent(code==EXPORT?Intent.ACTION_CREATE_DOCUMENT:Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/json");

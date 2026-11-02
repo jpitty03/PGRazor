@@ -479,10 +479,10 @@ static int scenario(int which) {
         g_api->tick(&r, 3, 2500, tid);
         if (snap().catalog_serial != serial || g_list_calls != 2) return 1;
         g_api->tick(&r, 5, 2500, tid);
-        if (g_quantity_calls != 5 || g_list_calls != 2 || g_get_calls != 4 || snap().catalog_count != 7) return 2;
+        if (g_quantity_calls != 6 || g_list_calls != 2 || g_get_calls != 4 || snap().catalog_count != 8) return 2;
         const auto berries = snap().catalog_serial;
         g_api->tick(&r, 5, 2500, tid);
-        if (g_quantity_calls != 10 || snap().catalog_serial != berries) return 3;
+        if (g_quantity_calls != 12 || snap().catalog_serial != berries) return 3;
         g_api->tick(&r, 2, 2500, tid); // mode bit alone must not bypass cadence
         if (g_list_calls != 2) return 4;
         g_api->clear(tid);
@@ -642,15 +642,31 @@ static int scenario(int which) {
     case 32: { // explicit berry overlay remains fresh with automatic selected/no-rule cleanup
         auto r=make_rules(true,1);if(which==32)r.count=0;g_current=8;
         g_api->tick(&r,5,2500,tid);
-        const int expected=which==32?5:6;const int berry_ids[]={701,703,705,706,707};
+        const int expected=which==32?6:7;const int berry_ids[]={701,703,705,706,708,709};
         if(g_quantity_calls!=expected||g_list_calls||g_get_calls||g_recycle_calls)return 1;
-        for(int i=0;i<5;++i)if(g_quantity_ids[i]!=berry_ids[i])return 2;
-        if(which==31&&g_quantity_ids[5]!=101)return 3;
-        if(snap().catalog_count!=5||!snap().catalog_serial)return 4;
+        for(int i=0;i<6;++i)if(g_quantity_ids[i]!=berry_ids[i])return 2;
+        if(which==31&&g_quantity_ids[6]!=101)return 3;
+        if(snap().catalog_count!=6||!snap().catalog_serial)return 4;
         // An ordinary forced cleanup does not repeat the explicitly requested overlay reads.
         g_api->tick(&r,1,2500,tid);
         if(g_quantity_calls!=expected+(which==31?1:0)||g_list_calls||g_get_calls)return 5;
         g_api->clear(tid);if(g_roots||g_bad_free)return 6;return 0;
+    }
+    case 33:
+    case 34: { // Poffin is published even when non-recyclable, never selected for recycling.
+        auto r=make_rules(true,1);r.count=1;r.entries[0]={709,0};g_current=5;g_list_count=1;
+        g_inv[0]=Data{&c_data,709,5,static_cast<uint8_t>(which==34?1:0)};
+        g_api->tick(&r,3,2500,tid);pump_events();
+        if(g_recycle_calls||ev_req||snap().catalog_count!=1)return 1;
+        pgrazor_item_row rows[8]{};uint32_t written=0;
+        if(g_api->catalog(rows,8,&written)||written!=1||rows[0].id!=709||rows[0].count!=5)return 2;
+        g_api->clear(tid);if(g_roots||g_bad_free)return 3;return 0;
+    }
+    case 35: { // An imported Poffin-only cap must not start an automatic inventory scan.
+        auto r=make_rules(true,1);r.count=1;r.entries[0]={709,0};g_current=5;
+        g_api->tick(&r,1,2500,tid);
+        if(g_quantity_calls||g_list_calls||g_recycle_calls)return 1;
+        g_api->clear(tid);return g_roots||g_bad_free?2:0;
     }
     default: return 0;
     }
@@ -681,7 +697,7 @@ int main(int argc, char **argv) {
     bad = c; bad.result_address = bad.error_address;
     if (g_api->install(&bad) != PGR_ITEMS_ERR_DUP_HOOK) { std::puts("FAIL dup"); return 5; }
 
-    const int cases = 33;
+    const int cases = 36;
     for (int i = 0; i < cases; ++i) {
         if (i == 14 && !slow) continue;
         pid_t pid = fork();

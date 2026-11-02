@@ -82,6 +82,11 @@ The map view owns projection, gestures, routes and selection. `MapTileSource` ow
 
 ## Verification map
 
+The responsive overlay policy is in UiViewportPolicy.java, with window-local Android inset
+handling in UiViewport.java. pgrazor/test/test_ui_viewport_policy_java.py compiles and runs
+UiViewportPolicyTest.java against that production policy; tools/check.py discovers the Python
+runner. The 3,360-case host matrix verifies geometry, not on-device layout or accessibility.
+
 `python -B tools/check.py` is the device-free gate used by CI.
 
 | Tests | Runner |

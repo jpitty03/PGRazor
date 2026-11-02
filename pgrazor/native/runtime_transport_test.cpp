@@ -182,6 +182,7 @@ int main(int argc, char **argv) {
     Snap s;
     s.bools[3] = 1;          // active
     s.bools[4] = 1;          // autoIncubate (not guarded)
+    s.bools[40] = 1; s.bools[41] = 1; s.bools[43] = 1;
     s.bools[39] = 1;         // eventBoxesAllowed (v2, guarded)
     s.ints[0] = -12345;      // battleOptions
     s.ints[7] = 2147483647;  // throwGrade at int32 max
@@ -189,7 +190,7 @@ int main(int argc, char **argv) {
     s.doubles[1] = std::nan("");  // longitude -> null coord sentinel
     s.pulses[0] = 3;         // takeCameraSampleRequest count
     s.strings[0] = "signin";                 // accountCommand
-    s.strings[2] = u8"berryÃ©";          // effectiveBerryPriority (multibyte UTF-8)
+    s.strings[2] = u8"berryé";          // effectiveBerryPriority (multibyte UTF-8)
     s.strings[5] = "cmd";                    // accountCommandSnapshot[0]
     s.strings[6] = "18446744073709551615";   // accountCommandSnapshot[1] (beyond JS precision)
     s.strings[12] = "1|123|0|0|0|0|0|1";     // one-shot automation (frame v9)
@@ -198,6 +199,9 @@ int main(int argc, char **argv) {
     int bv = 0; assert(api->get_bool(3, &bv) == PGR_TRANSPORT_OK && bv == 1);
     assert(api->get_bool(4, &bv) == PGR_TRANSPORT_OK && bv == 1);
     assert(api->get_bool(39, &bv) == PGR_TRANSPORT_OK && bv == 1);
+    assert(api->get_bool(40, &bv) == PGR_TRANSPORT_OK && bv == 1);
+    assert(api->get_bool(41, &bv) == PGR_TRANSPORT_OK && bv == 1);
+    assert(api->get_bool(43, &bv) == PGR_TRANSPORT_OK && bv == 1);
     int32_t iv = 0; assert(api->get_int(0, &iv) == PGR_TRANSPORT_OK && iv == -12345);
     assert(api->get_int(7, &iv) == PGR_TRANSPORT_OK && iv == 2147483647);
     double dv = 0; int has = 9;
@@ -206,7 +210,7 @@ int main(int argc, char **argv) {
     char buf[64]; uint32_t n = 0;
     assert(api->get_string(0, buf, sizeof(buf), &n) == PGR_TRANSPORT_OK && std::string(buf, n) == "signin");
     assert(api->get_string(12, buf, sizeof(buf), &n) == PGR_TRANSPORT_OK && std::string(buf, n) == s.strings[12]);
-    assert(api->get_string(2, buf, sizeof(buf), &n) == PGR_TRANSPORT_OK && std::string(buf, n) == u8"berryÃ©");
+    assert(api->get_string(2, buf, sizeof(buf), &n) == PGR_TRANSPORT_OK && std::string(buf, n) == u8"berryé");
     char cmd[32], tok[32]; uint32_t cl = 0, tl = 0;
     assert(api->get_command_snapshot(cmd, sizeof(cmd), &cl, tok, sizeof(tok), &tl) == PGR_TRANSPORT_OK);
     assert(std::string(cmd, cl) == "cmd" && std::string(tok, tl) == "18446744073709551615");
@@ -242,6 +246,9 @@ int main(int argc, char **argv) {
     int32_t iv = 0; assert(api->get_int(0, &iv) == PGR_TRANSPORT_STALE);
     int bv = 7; assert(api->get_bool(3 /*active, guarded*/, &bv) == PGR_TRANSPORT_OK && bv == 0);
     bv=7; assert(api->get_bool(39, &bv) == PGR_TRANSPORT_OK && bv == 0);
+    bv=7; assert(api->get_bool(40, &bv) == PGR_TRANSPORT_OK && bv == 0);
+    assert(api->get_bool(41, &bv) == PGR_TRANSPORT_STALE);
+    bv=7; assert(api->get_bool(43, &bv) == PGR_TRANSPORT_OK && bv == 0);
     int fired = 9; assert(api->take_pulse(0, &fired) == PGR_TRANSPORT_OK && fired == 0);  // stale -> no edge
     // Refresh with a STRICTLY NEWER frame (seq advances past the stored 1; pulses do not regress below 3).
     Snap r; r.seq = 2; r.pulses[0] = 3; assert(push(r.frame()) == PGR_TRANSPORT_OK);
@@ -264,7 +271,7 @@ int main(int argc, char **argv) {
   {
     auto bad_flag = Snap{}.frame(); put_u32(bad_flag, PGR_TRANSPORT_OFF_FLAGS, 0x4);
     assert(push(bad_flag) == PGR_TRANSPORT_ERR_BAD_FRAME);  // unknown flag bit
-    auto bad_pad = Snap{}.frame(); bad_pad[PGR_TRANSPORT_OFF_BOOLS + 40] = 2;  // reserved padding must remain zero
+    auto bad_pad = Snap{}.frame(); bad_pad[PGR_TRANSPORT_OFF_BOOLS + PGR_TRANSPORT_BOOLS] = 2;  // reserved padding must remain zero
     assert(push(bad_pad) == PGR_TRANSPORT_ERR_BAD_FRAME);
     assert(sample().snapshot_seq == 4);  // survived
   }

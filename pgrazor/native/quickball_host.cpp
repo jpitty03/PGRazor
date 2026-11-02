@@ -4,6 +4,7 @@
 #include "catch_animation.h"
 #include "catch_observers.h"
 #include "iv_display.h"
+#include "pvp_metadata.h"
 #include "map_tap.h"
 #include "runtime_bootstrap.h"
 #include "runtime_transport.h"
@@ -167,7 +168,14 @@ int install_leaves(){
    field(45),field(46),field(47),field(48),field(49),field(50),field(62),field(63),field(64)};
   static_assert(sizeof(p)==77*sizeof(void*),"IV pointer layout");std::memcpy(&c.gchandle_new,p,sizeof(p));
   c.overflow_value=md.iv_overflow_value;c.alignment_value=md.iv_alignment_value;c.external_catch_observer=1;
-  rc=iv()->install(&c);if(rc)optional_failure(PGR_QBH_IV,"iv-owned-unavailable",rc);else capabilities.fetch_or(PGR_QBH_IV);
+  auto iv_extended=static_cast<const PgrIvDisplayApiV2*>(pgrazor_iv_display_api(2));
+  auto metadata_api=static_cast<const PgrMetaApi*>(pgrazor_runtime_metadata_api(1));PgrIvPvpConfig pvp{};
+  if(iv_extended&&metadata_api&&pgr_resolve_pvp_metadata(me,*metadata_api,extra.field_static_get_value,klass(C_PK),klass(C_UITEXT),pvp))
+    if(iv_extended->configure_pvp(&pvp)==0)event("pvp-ready");
+  auto cells_api=static_cast<const PgrIvDisplayApiV3*>(pgrazor_iv_display_api(3));PgrIvCellConfig cells{};
+  if(cells_api&&metadata_api&&pgr_resolve_iv_cells(me,*metadata_api,extra.type_is_byref,cells))cells_api->configure_cells(&cells);
+  rc=iv()->install(&c);
+  if(!rc&&cells_api){if(cells_api->cells_ready())event("iv-cells-ready");else event("iv-cells-unavailable");}if(rc)optional_failure(PGR_QBH_IV,"iv-owned-unavailable",rc);else capabilities.fetch_or(PGR_QBH_IV);
  }
  return 0;
 }
@@ -184,7 +192,7 @@ int configure(const PgrQuickballHostConfig *input){
 }
 bool valid_options(const PgrQuickballHostOptions &p){
  return p.version==1&&p.size==sizeof(p)&&!p.reserved&&p.quick_allowed<=1&&p.throw_allowed<=1&&p.ar_allowed<=1&&p.map_allowed<=1&&p.iv_allowed<=1&&
- p.grade<=3&&p.curve<=1&&p.always_hit<=1&&p.ar_enabled<=1&&p.map_mode<=3&&p.iv_catch<=1&&p.iv_owned<=1&&p.lease_ms<=2500&&
+ p.grade<=PGR_THROW_RANDOM&&p.curve<=1&&p.always_hit<=1&&p.ar_enabled<=1&&p.map_mode<=3&&p.iv_catch<=1&&p.iv_owned<=1&&p.lease_ms<=2500&&
  p.map_epoch<=((flags&PGR_QBH_TRANSPORT)?uint64_t(INT32_MAX):9007199254740991ULL);
 }
 int set_options(const PgrQuickballHostOptions *p){

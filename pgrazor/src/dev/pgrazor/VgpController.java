@@ -23,7 +23,7 @@ import java.util.function.LongSupplier;
  * clock is always read before the lock is taken, so the controller lock is never nested with
  * Cooldown's. The notification path and {@code saveSettings} run with no lock held. Turning VGP on
  * is refused while a live cooldown is guarded; a live cooldown trips it off through the heartbeat and
- * it stays off (no auto-resume); losing the foreground switches it off with a sticky reason.
+ * it stays off (no auto-resume); PGRazorX: losing the foreground keeps it on (account switches still turn it off).
  */
 final class VgpController {
     /** Serializes the compound enabled/target/guard decisions; never held across Cooldown. */

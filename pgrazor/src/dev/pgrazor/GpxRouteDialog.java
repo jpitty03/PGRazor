@@ -322,7 +322,9 @@ public final class GpxRouteDialog {
     private static void present(Activity activity, AlertDialog dialog) {
         if (!alive(activity)) return;
         DialogLifecycle.bind(activity, dialog, null); // scoped to the foreground activity like the other map dialogs
+        if (dialog.getWindow() != null) dialog.getWindow().setBackgroundDrawable(MapTheme.dialogBackground(dialog.getContext())); // PGRazorX theme
         dialog.show();
+        MapTheme.styleButtons(dialog);
     }
 
     /** Resolves a readable name from the content URI (off-main); extension stripped. */

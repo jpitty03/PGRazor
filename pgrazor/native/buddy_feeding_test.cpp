@@ -50,6 +50,7 @@ static bool g_clear_rpc_root=false, g_fail_promise=false, g_bad_free=false;
 static int32_t g_count = 5, g_result_val = 1;
 static float   g_remaining = 0.0f, g_fullness = 0.1f;
 static int     g_roots = 0, g_feed_target_calls = 0, g_result_target_calls = 0;
+static int32_t g_last_feed_item = 0, g_last_feed_count = 0;
 static const pgrazor_buddy_api_v1 *g_api = nullptr;
 
 static Obj      g_map{&c_map}, g_container{&c_ctx}, g_pokesvc{&c_pokesvc}, g_bag{&c_bag};
@@ -90,7 +91,7 @@ static void field_get(void *o, void *f, void *out) {
 // Real hooked targets (NOP-padded so Dobby has room). call_* go through the trampoline.
 #define PGR_NOP8() asm volatile("nop; nop; nop; nop; nop; nop; nop; nop;")
 __attribute__((noinline)) void *target_feed(void *self, int32_t item, int32_t count, void *method) {
-    PGR_NOP8(); ++g_feed_target_calls; (void)self; (void)item; (void)count; (void)method; return &g_promise;
+    PGR_NOP8(); ++g_feed_target_calls; g_last_feed_item=item; g_last_feed_count=count; (void)self; (void)method; return &g_promise;
 }
 __attribute__((noinline)) void target_result(void *self, void *proto, void *method) {
     PGR_NOP8(); ++g_result_target_calls; (void)self; (void)proto; (void)method;
@@ -327,6 +328,17 @@ static int scenario(int which) {
         g_api->clear(tid);
         return g_roots || snap().owned_roots || g_bad_free ? 3 : 0;
     }
+    case 17:
+    case 16: { // Silver Pinap reaches the real Feed call as item 708, count 1.
+        g_remaining=0;g_count=3;g_sync_result=true;g_result_val=1;
+        const int32_t treat=which==17?709:708;
+        g_api->tick(treat,2500,tid);
+        if(g_feed_target_calls!=1||g_last_feed_item!=treat||g_last_feed_count!=1)return 1;
+        g_api->tick(treat,2500,tid);
+        if(snap().result_serial!=1||snap().status!=PGR_BUDDY_STATUS_BERRY_FED)return 2;
+        g_api->clear(tid);
+        return g_roots||snap().owned_roots||g_bad_free?3:0;
+    }
     default: return 0;
     }
 }
@@ -354,7 +366,7 @@ int main(int argc, char **argv) {
     bad = c; bad.result_address = bad.feed_address;
     if (g_api->install(&bad) != PGR_BUDDY_ERR_DUP_HOOK) { std::puts("FAIL dup"); return 5; }
 
-    const int cases = 16;
+    const int cases = 18;
     for (int i = 0; i < cases; ++i) {
         pid_t pid = fork();
         if (pid == 0) _exit(scenario(i));          // fresh process -> clean module/hook state

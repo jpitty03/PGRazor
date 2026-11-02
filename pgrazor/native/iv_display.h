@@ -325,8 +325,34 @@ struct PgrIvDisplayApi {
 static_assert(sizeof(PgrIvDisplayApi) == 64,
               "PgrIvDisplayApi must remain a 64-byte version-1 table");
 
-// Standard feature getter. Returns the static const 64-byte table when `version` == 1,
-// else NULL. The coordinator registers it in query_feature as case 15.
+// Optional native PvP extension. API1/config/sample retain their exact layouts.
+struct PgrIvPvpConfig {
+  uint32_t version,size;
+  void *species,*display,*form,*display_class;
+  void *get_vertical,*set_vertical,*vertical_class;
+  int32_t vertical_overflow;uint32_t reserved;
+};
+struct PgrIvDisplayApiV2 {
+  PgrIvDisplayApi base; // version 2 / size 72; all API1 operations keep their signatures
+  int (*configure_pvp)(const PgrIvPvpConfig *config); // immutable, before install()
+};
+static_assert(sizeof(PgrIvPvpConfig)==72,"PvP optional config layout");
+static_assert(sizeof(PgrIvDisplayApiV2)==72,"IV API2 layout");
+
+struct PgrIvCellConfig {
+  uint32_t version,size;
+  void *cell_class,*initializer_class,*name_text,*pokemon_proto,*initialize_code;
+};
+struct PgrIvDisplayApiV3 {
+  PgrIvDisplayApiV2 base;
+  int (*configure_cells)(const PgrIvCellConfig *config); // before install(), immutable
+  int (*cells_ready)(); // optional cell hook only; ordinary IV is independent
+};
+static_assert(sizeof(PgrIvCellConfig)==48,"Cell config layout");
+static_assert(sizeof(PgrIvDisplayApiV3)==88,"IV API3 layout");
+
+// Feature getter: API1 is the original 64-byte table; API2 adds PvP configuration (72).
+// API3 adds optional inventory cells (88). Other versions return NULL; feature id 15.
 const void *pgrazor_iv_display_api(uint32_t version);
 
 #ifdef __cplusplus
