@@ -174,7 +174,7 @@ bool gate_live_locked(uint64_t req_epoch, uint64_t tid, uint64_t now) {
 // --- identity validation (no lock; Inputs keeps native-owned temporary roots) ------
 // Mirrors diagnostics/quick-close.js summary branch exactly: exact SGUI, alive gui, proto exact RESP
 // with CatchSuccess status and the expected nonzero 8-byte id, response == proto, optional SSTATE with
-// dscx == gui / dscy == proto, currentState == STATE_OPEN, and onDismissed non-null == the captured
+// dscx == gui / dscy == proto, currentState == STATE_OPEN or OPENING, and onDismissed non-null == the captured
 // callback. On success *out_before (optional) receives the validated currentState. Returns 1/0.
 int do_validate(const PgrSummaryCompletionRequest *req, const Inputs &in, int32_t *out_before) {
   // The expected caught id must be nonzero (8 raw bytes).
@@ -200,7 +200,7 @@ int do_validate(const PgrSummaryCompletionRequest *req, const Inputs &in, int32_
   }
 
   int32_t before = field_i32(in.gui.get(), g_cfg.f_current_state);
-  if (before != g_cfg.state_open) return 0;
+  if (before != g_cfg.state_open && before != PGR_SC_STATE_OPENING) return 0;
 
   void *on_dismissed = field_ptr(in.gui.get(), g_cfg.f_on_dismissed);
   if (on_dismissed == nullptr || on_dismissed != in.dismissed.get()) return 0;

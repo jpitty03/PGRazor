@@ -298,7 +298,11 @@ int main(int argc, char **argv) {
     resp_split.response = borrow(&other);  // response != proto (distinct object)
     assert(api->validate(&resp_split) == PGR_SC_OK);
 
-    s.gui.current_state = 1;  // not STATE_OPEN
+    s.gui.current_state = PGR_SC_STATE_OPENING;  // still opening: Dismiss accepts it
+    assert(vok(make_req(s, id, 1, tid)) == 1);
+    s.gui.current_state = 0;  // closed
+    assert(vok(make_req(s, id, 1, tid)) == PGR_SC_OK);
+    s.gui.current_state = 3;  // already dismissing
     assert(vok(make_req(s, id, 1, tid)) == PGR_SC_OK);
     s.gui.current_state = kStateOpen;
 

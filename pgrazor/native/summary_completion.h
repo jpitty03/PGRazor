@@ -62,7 +62,11 @@ enum PgrSummaryCompletionInfo {
   PGR_SC_REQUEST_VERSION = 1,
   PGR_SC_OUTPUT_VERSION  = 1,
   PGR_SC_SAMPLE_VERSION  = 1,
-  PGR_SC_MAX_LEASE_MS    = 2500   // residual foreground lease ceiling (JS allowedUntil gate)
+  PGR_SC_MAX_LEASE_MS    = 2500,  // residual foreground lease ceiling (JS allowedUntil gate)
+  // GuiController currentState while its open transition runs. GuiController.Dismiss ignores only
+  // states 0 (closed) and 3 (dismissing) and has its own branch for a still-opening GUI, so a hidden
+  // summary can be dismissed without waiting for HandleOpenComplete.
+  PGR_SC_STATE_OPENING   = 1
 };
 
 // validate() returns 1 VALID / 0 INVALID / negative error. complete() returns 1 DONE (invoked, no
