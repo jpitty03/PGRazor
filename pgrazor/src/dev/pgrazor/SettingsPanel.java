@@ -47,10 +47,11 @@ final class SettingsPanel {
     private Button uiScale;
     private TextView incubatorStatus;
     // Primary action and cycle/dialog rows.
-    private Button mapTap, throwGrade, itemSettings, cameraSample, interactionCapture, transferKeepList;
+    private Button mapTap, throwGrade, storageIv, itemSettings, cameraSample, interactionCapture, transferKeepList;
     // Boolean settings use proper switches.
     private Switch idleWalkSwitch, locationSwitch, vgpSwitch, joystickSwitch, cooldownSwitch, spawnSwitch, autoTransferSwitch,
-        quickSpinSwitch, berrySwitch, quickSummarySwitch, curveSwitch, alwaysHitSwitch, arSwitch, ivCatchSwitch, ivOwnedSwitch, transferOverlaySwitch;
+        quickSpinSwitch, berrySwitch, quickSummarySwitch, curveSwitch, alwaysHitSwitch, arSwitch, transferOverlaySwitch;
+    private CheckBox ivCatchBox, ivOwnedBox, storageIvBox;
     private TextView quickSummaryLabel, vgpStatus;
     private final CheckBox[] vgpChoices=new CheckBox[3];
     private CheckBox vgpCooldownStop;
@@ -192,6 +193,7 @@ final class SettingsPanel {
             box.setChecked(Control.quickMenuVisible(bit));quickMenuChoices[i]=box;menu.addView(box);
             box.setOnClickListener(v->{Control.setQuickMenuVisible(bit,box.isChecked());host.refresh();});
         }
+        buildIvDisplaySection(loc);
         uiScale=button("UI scale: "+Control.uiScalePercent()+"%");loc.addView(uiScale);
         uiScale.setOnClickListener(v->{final int[] values={100,75,50,25};String[] labels={"100%","75%","50%","25%"};int selected=0;for(int i=0;i<values.length;i++)if(values[i]==Control.uiScalePercent())selected=i;
             new AlertDialog.Builder(dialogContext()).setTitle("Overlay scale").setSingleChoiceItems(labels,selected,(dialog,which)->{host.releaseJoystick(true);Control.setUiScalePercent(values[which]);host.refresh();dialog.dismiss();}).setNegativeButton("Cancel",null).show();});
@@ -216,6 +218,23 @@ final class SettingsPanel {
         joystickSwitch = switchRow(loc, "Show joystick"); joystickSwitch.setChecked(Control.joystickVisible());
         joystickSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.joystickVisible())return; host.setJoystickVisible(checked); });
 
+    }
+
+    /** IV Display: the encounter, Pokemon details and storage list IV overlays. */
+    private void buildIvDisplaySection(LinearLayout loc) {
+        LinearLayout iv = section(loc, "IV Display", false);
+        ivOwnedBox = new CheckBox(activity); ivOwnedBox.setText("Inventory: IV/level on Pokémon details"); iv.addView(ivOwnedBox);
+        ivOwnedBox.setChecked(Control.ivOwnedEnabled());
+        ivOwnedBox.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.ivOwnedEnabled())return; Control.setIvOwnedEnabled(checked); host.refresh(); });
+        ivCatchBox = new CheckBox(activity); ivCatchBox.setText("Encounter: CP, level and IV above the Pokémon"); iv.addView(ivCatchBox);
+        ivCatchBox.setChecked(Control.ivCatchEnabled());
+        ivCatchBox.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.ivCatchEnabled())return; Control.setIvCatchEnabled(checked); host.refresh(); });
+        storageIvBox = new CheckBox(activity); storageIvBox.setText("Storage list: IVs under each CP"); iv.addView(storageIvBox);
+        storageIvBox.setChecked(Control.storageIvEnabled());
+        storageIvBox.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.storageIvEnabled())return; Control.setStorageIvEnabled(checked); host.refresh(); });
+        storageIv = button("Storage list format: "+STORAGE_IV_MODES[Control.storageIvFormat()]); iv.addView(storageIv);
+        storageIv.setOnClickListener(v -> { Control.setStorageIvFormat(Control.storageIvFormat()%3+1); host.refresh(); });
+        ivStatus = caption(iv, "");
     }
 
     private void buildCatchSection() {
@@ -365,11 +384,6 @@ final class SettingsPanel {
         arSwitch = switchRow(throwC, "AR+ throw bonus"); arSwitch.setChecked(Control.throwAr());
         arSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.throwAr())return; Control.setThrowAr(arSwitch.isChecked()); host.refresh(); });
         caption(throwC, "Wild encounters. Combines with throw rating and curveball; server bonus unverified.");
-        ivCatchSwitch = switchRow(throwC, "Catch IV/level"); ivCatchSwitch.setChecked(Control.ivCatchEnabled());
-        ivCatchSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.ivCatchEnabled())return; Control.setIvCatchEnabled(ivCatchSwitch.isChecked()); host.refresh(); });
-        ivOwnedSwitch = switchRow(throwC, "Inventory IV/level"); ivOwnedSwitch.setChecked(Control.ivOwnedEnabled());
-        ivOwnedSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.ivOwnedEnabled())return; Control.setIvOwnedEnabled(ivOwnedSwitch.isChecked()); host.refresh(); });
-        ivStatus = caption(throwC, "");
         quickBallStatus = caption(throwC, "");
     }
 
@@ -587,14 +601,19 @@ final class SettingsPanel {
         spawnSwitch.setChecked(Control.spawnBooster());spawnSwitch.setEnabled(Control.spawnAllowed());spawnStatus.setText(Control.spawnStatus());
     }
 
+    private static final String[] STORAGE_IV_MODES={"OFF","15/14/12","91%","91% · 15/14/12"};
+
     private void refreshThrows() {
         throwGrade.setText("Throw rating: "+new String[]{"OFF","Nice","Great","Excellent"}[Control.throwGrade()]);
         throwGrade.setEnabled(Control.quickBallConfigured());
         curveSwitch.setChecked(Control.throwCurve());curveSwitch.setEnabled(Control.quickBallConfigured());
         alwaysHitSwitch.setChecked(Control.throwAlwaysHit());alwaysHitSwitch.setEnabled(Control.throwAlwaysHitReady() || Control.throwAlwaysHit());
         arSwitch.setChecked(Control.throwAr());arSwitch.setEnabled(Control.throwArReady());
-        ivCatchSwitch.setChecked(Control.ivCatchEnabled());ivCatchSwitch.setEnabled(Control.quickBallConfigured());
-        ivOwnedSwitch.setChecked(Control.ivOwnedEnabled());ivOwnedSwitch.setEnabled(Control.quickBallConfigured());
-        ivStatus.setText(Control.ivDisplayStatus());
+        ivCatchBox.setChecked(Control.ivCatchEnabled());ivCatchBox.setEnabled(Control.quickBallConfigured());
+        ivOwnedBox.setChecked(Control.ivOwnedEnabled());ivOwnedBox.setEnabled(Control.quickBallConfigured());
+        storageIvBox.setChecked(Control.storageIvEnabled());
+        storageIv.setText("Storage list format: "+STORAGE_IV_MODES[Control.storageIvFormat()]);storageIv.setEnabled(Control.storageIvEnabled());
+        String ivText=Control.ivDisplayStatus(), storageText=Control.storageIvStatus();
+        ivStatus.setText(ivText.isEmpty()?storageText:storageText.isEmpty()?ivText:ivText+"\n"+storageText);
     }
 }

@@ -1,5 +1,7 @@
 #include "iv_display.h"
 #include "hook_engine.h"
+#include "runtime_bootstrap.h"
+#include <dlfcn.h>
 
 #include <atomic>
 #include <cmath>
@@ -1035,16 +1037,44 @@ int32_t resolve_level(void *gm, float cpmul, float addcpmul, Ctx &c) {
 }
 
 // --- capture bodies (onLeave halves) -----------------------------------------------
+// The Pokemon of an encounter that is not a wild spawn: research rewards, incense, event and other
+// encounters use other IMapPokemon classes, whose Pokemon comes from IMapPokemon.get_Pokemon.
+// The interface method and il2cpp_object_get_virtual_method are resolved once through the runtime
+// bootstrap (owner thread only); when either is unavailable those encounters keep no overlay.
+void *interface_pokemon(void *map, Ctx &c) {
+  static void *getter = nullptr, *virtual_method = nullptr;
+  static bool resolved = false;
+  if (!resolved) {
+    resolved = true;
+    const auto *api = static_cast<const PgrBootApi *>(pgrazor_runtime_bootstrap_api(1));
+    PgrBootBinding b{};
+    b.version = 1;
+    b.size = sizeof(b);
+    if (api != nullptr && api->snapshot != nullptr && api->snapshot(&b) == 0 && b.handle != nullptr &&
+        b.meta.class_get_method_from_name != nullptr) {
+      getter = reinterpret_cast<void *(*)(void *, const char *, int)>(b.meta.class_get_method_from_name)(
+          g_cfg.class_map_pokemon, "get_Pokemon", 0);
+      virtual_method = dlsym(b.handle, "il2cpp_object_get_virtual_method");
+    }
+  }
+  if (getter == nullptr || virtual_method == nullptr) return nullptr;
+  void *method = reinterpret_cast<void *(*)(void *, void *)>(virtual_method)(map, getter);
+  if (method == nullptr) return nullptr;
+  return invoke(method, map, nullptr, c);
+}
+
 void capture_catch(void *plate, void *map, uint64_t tid) {
   Ctx c;
-  // The displayed map object must be exactly WildMapPokemon.
-  if (!is_exact(map, g_cfg.class_wildmap)) return;
-
   ScopedRoot response_root, wh_root, mh_root, th_root, pokemon_root;
   void *pokemon = nullptr;
 
-  void *response = field_ptr(map, g_cfg.f_map_response);
-  if (response != nullptr) {
+  if (!is_exact(map, g_cfg.class_wildmap)) {
+    pokemon = interface_pokemon(map, c);
+    if (!c.ok) {
+      publish_catch_unavailable(c.reason, tid);
+      return;
+    }
+  } else if (void *response = field_ptr(map, g_cfg.f_map_response); response != nullptr) {
     response_root.acquire(response);
     if (!response_root.ok()) {
       publish_catch_unavailable(PGR_IV_REASON_GCHANDLE, tid);

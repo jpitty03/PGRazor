@@ -9972,6 +9972,43 @@
         "value": "0xe184b20",
         "purpose": "active step rva"
       }
+    },
+    "storage_iv_cpp": {
+      "pokemoninventorycellview_initialize_rva": {
+        "kind": "rva",
+        "value": "158877896",
+        "purpose": "PokemonInventoryCellView.Initialize method address"
+      },
+      "pokemoninventorycellview_initialize_fingerprint": {
+        "kind": "bytes",
+        "value": [
+          "0xff",
+          "0x83",
+          "0x03",
+          "0xd1",
+          "0xea",
+          "0x33",
+          "0x00",
+          "0xfd",
+          "0xe9",
+          "0x23",
+          "0x07",
+          "0x6d",
+          "0xfd",
+          "0x7b",
+          "0x08",
+          "0xa9",
+          "0xfc",
+          "0x6f",
+          "0x09",
+          "0xa9",
+          "0xfa",
+          "0x67",
+          "0x0a",
+          "0xa9"
+        ],
+        "purpose": "PokemonInventoryCellView.Initialize prologue (stack setup only)"
+      }
     }
   },
   "schemas": {
