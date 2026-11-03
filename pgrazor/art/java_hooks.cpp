@@ -3,11 +3,29 @@
 #include <dobby.h>
 #include <mutex>
 #include <cstddef>
+#include <cstdint>
+#include <sys/mman.h>
+#include <unistd.h>
 #include "art_symbols.h"
 namespace {
 bool initialized=false;
 PgrArtSymbols symbols;
 std::mutex hooks;
+// Dobby decodes and backs up the target's first instructions before its own RWX
+// patch window. Android 10 maps ARM64 libart code execute-only, so that read
+// faults; make only those execute-only pages readable first. Readable code
+// (Android 9, Android 11+, x86_64) is never touched. A failed mprotect leaves the
+// page as it was, which is the pre-fix behavior.
+constexpr uintptr_t kHookReadBytes=64;
+void make_hook_target_readable(void *target){
+ const auto address=reinterpret_cast<uintptr_t>(target);
+ if(!address||!symbols.execute_only(address))return;
+ const long size=sysconf(_SC_PAGESIZE);if(size<=0)return;
+ const auto page=static_cast<uintptr_t>(size);
+ const uintptr_t first=address&~(page-1),last=(address+kHookReadBytes-1)&~(page-1);
+ for(uintptr_t p=first;p<=last;p+=page)
+  if(symbols.execute_only(p))mprotect(reinterpret_cast<void *>(p),page,PROT_READ|PROT_EXEC);
+}
 using CurrentThread = void *(*)();
 using SuspendCtor = void (*)(void *, const char *, bool);
 using ScopeDtor = void (*)(void *);
@@ -87,7 +105,7 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm,void *){
  try{
   if(symbols.load() && load_publication_scopes()){
    lsplant::InitInfo info;
-   info.inline_hooker=[](void *target,void *hooker)->void *{void *original=nullptr;return DobbyHook(target,hooker,&original)==0?original:nullptr;};
+   info.inline_hooker=[](void *target,void *hooker)->void *{make_hook_target_readable(target);void *original=nullptr;return DobbyHook(target,hooker,&original)==0?original:nullptr;};
    info.inline_unhooker=[](void *target){return DobbyDestroy(target)==0;};
    info.art_symbol_resolver=[](std::string_view name){return symbols.find(name);};
    info.art_symbol_prefix_resolver=[](std::string_view prefix){return symbols.find(prefix,true);};
