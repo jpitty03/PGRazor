@@ -19,10 +19,9 @@ public final class EventPanel {
 
     public static void showSelector(Activity activity, boolean dark) {
         if (activity.isFinishing() || activity.isDestroyed()) return;
-        AlertDialog dialog = new AlertDialog.Builder(theme(activity, dark))
+        AlertDialog dialog = dev.pgrazor.ChoiceList.attach(new AlertDialog.Builder(theme(activity, dark))
             .setTitle("Events")
-            .setItems(new String[]{"Halloween 2026"}, (selected, index) -> showHalloween(activity, dark))
-            .setNegativeButton("Close", null).create();
+            .setNegativeButton("Close", null).create(), new String[]{"Halloween 2026"}, index -> showHalloween(activity, dark));
         bind(activity, dialog, () -> {});
         dialog.show();
     }

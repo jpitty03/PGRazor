@@ -44,6 +44,24 @@ final class MapTheme {
         GradientDrawable d = new GradientDrawable(); d.setColor(color); d.setCornerRadius(dp(c, radius)); return d;
     }
 
+    /**
+     * The app's button look: a raised fill with a thin outline, inset slightly so buttons placed side
+     * by side keep a visible gap instead of merging into one block.
+     */
+    static android.graphics.drawable.Drawable buttonBackground(Context c) {
+        GradientDrawable fill = rounded(c, dark() ? 0xff202b39 : 0xffedf2f6, 9);
+        fill.setStroke(dp(c, 1), dark() ? 0xff3a4d63 : 0xffc9d5df);
+        int inset = dp(c, 2);
+        return new RippleDrawable(ColorStateList.valueOf(0x3345e1ba), new android.graphics.drawable.InsetDrawable(fill, inset), null);
+    }
+
+    /** Applies {@link #buttonBackground}; an inset background would otherwise replace the label's padding. */
+    static void setButtonBackground(View view) {
+        int l = view.getPaddingLeft(), t = view.getPaddingTop(), r = view.getPaddingRight(), b = view.getPaddingBottom();
+        view.setBackground(buttonBackground(view.getContext()));
+        view.setPadding(l, t, r, b);
+    }
+
     /** Recolours a panel: surface background, inked text, and the panel's buttons/checkboxes. */
     static void style(View root) {
         if (root == null) return;
@@ -57,9 +75,7 @@ final class MapTheme {
             t.setTextColor(new ColorStateList(new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}}, new int[]{muted(), ink()}));
             t.setLinkTextColor(accent()); // keep the OpenStreetMap attribution link legible and tappable
         }
-        if (view instanceof Button && !(view instanceof CompoundButton)) {
-            view.setBackground(new RippleDrawable(ColorStateList.valueOf(0x2845e1ba), rounded(c, dark() ? 0xff202b39 : 0xffedf2f6, 9), null));
-        }
+        if (view instanceof Button && !(view instanceof CompoundButton)) setButtonBackground(view);
         if (view instanceof CompoundButton) {
             ((CompoundButton)view).setButtonTintList(new ColorStateList(new int[][]{new int[]{android.R.attr.state_checked}, new int[]{}}, new int[]{accent(), muted()}));
         }

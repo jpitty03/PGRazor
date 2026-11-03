@@ -288,16 +288,54 @@ public final class AutoWalkDialog {
             dialog.dismiss();
         }
 
-        /** Starts the selected GPX route in its exact saved order; the Loop toggle applies as in Nearby mode. */
+        /**
+         * Asks where to start the selected GPX route: from the stop closest to the current position
+         * (when that is not the first stop), from the beginning, or by teleporting to the beginning.
+         * The route keeps its saved order from there; the Loop toggle applies as in Nearby mode.
+         */
         private void startGpx() {
             GpxRoute route = selectedGpx;
             if (route == null) return;
-            double[][] points = route.points();
-            boolean looping = loop.isChecked();
+            final double[][] points = route.points();
+            final boolean looping = loop.isChecked();
+            final double lat = Control.engine.latitude, lon = Control.engine.longitude;
+            final int nearest = RouteStart.closest(points, lat, lon);
+            final double toStart = RouteStart.meters(lat, lon, points[0][0], points[0][1]);
+            final double toNearest = RouteStart.meters(lat, lon, points[nearest][0], points[nearest][1]);
+            final boolean offerNearest = nearest > 0 && toNearest < toStart;
+            java.util.List<String> labels = new java.util.ArrayList<>();
+            java.util.List<Runnable> actions = new java.util.ArrayList<>();
+            if (offerNearest) {
+                labels.add("Walk from the closest point\nStop " + (nearest + 1) + " of " + points.length + ", " + RouteStart.distance(toNearest) + " away");
+                actions.add(() -> walkGpx(route, RouteStart.from(points, nearest, looping), looping, nearest));
+            }
+            labels.add("Walk from the beginning\n" + RouteStart.distance(toStart) + " away");
+            actions.add(() -> walkGpx(route, points, looping, 0));
+            labels.add("Teleport to the beginning\nThen walk the whole route");
+            actions.add(() -> TeleportDialog.confirm(activity, points[0][0], points[0][1], (tlat, tlon) -> {
+                if (closed) return false;
+                try { Control.teleport(tlat, tlon); }
+                catch (IllegalArgumentException e) { toast(e.getMessage()); return false; }
+                Control.event("autowalk-gpx-teleport", String.format(Locale.US, "name=%s lat=%.7f lon=%.7f", route.name, tlat, tlon));
+                walkGpx(route, points, looping, 0);
+                return true;
+            }));
+            AlertDialog choose = ChoiceList.attach(new AlertDialog.Builder(MapTheme.wrap(activity)).setTitle("Start “" + route.name + "”")
+                .setNegativeButton("Cancel", null).create(), labels.toArray(new String[0]), which -> actions.get(which).run());
+            DialogLifecycle.bind(activity, choose, null);
+            choose.setOnShowListener(d -> MapTheme.styleButtons(choose));
+            choose.show();
+        }
+
+        /** Walks the route as given; {@code first} is the saved stop it begins at, for the log and toast. */
+        private void walkGpx(GpxRoute route, double[][] points, boolean looping, int first) {
+            if (closed) return;
             try { Control.startAutoWalk(points, looping); }
             catch (IllegalArgumentException e) { toast(e.getMessage()); return; }
-            Control.event("autowalk-gpx-started", String.format(Locale.US, "name=%s stops=%d loop=%s", route.name, points.length, looping));
-            toast("Walking “" + route.name + "”: " + points.length + (points.length == 1 ? " stop" : " stops") + (looping ? ", looping." : "."));
+            Control.event("autowalk-gpx-started", String.format(Locale.US, "name=%s stops=%d from=%d loop=%s",
+                route.name, route.points().length, first + 1, looping));
+            toast("Walking “" + route.name + "”" + (first > 0 ? " from stop " + (first + 1) : "") + ": "
+                + points.length + (points.length == 1 ? " stop" : " stops") + (looping ? ", looping." : "."));
             pendingGpx = null; // consumed
             dialog.dismiss();
         }

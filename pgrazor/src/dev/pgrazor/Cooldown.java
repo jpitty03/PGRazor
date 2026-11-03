@@ -51,7 +51,9 @@ public final class Cooldown {
         repaint[0]=render;
         previous.setOnClickListener(v->{if(page[0]>0){page[0]--;repaint[0].run();scroll.scrollTo(0,0);}});
         next.setOnClickListener(v->{page[0]++;repaint[0].run();scroll.scrollTo(0,0);});
-        add.setOnClickListener(v->new AlertDialog.Builder(ui).setTitle("Record action here").setItems(new String[]{"Catch / ball throw","Berry feeding","Pok\u00e9Stop spin","Gym placement / feeding","Gym battle","Accessory action"},(d,i)->{record(new String[]{"Catch / ball throw","Berry feeding","Pok\u00e9Stop spin","Gym placement / feeding","Gym battle","Accessory action"}[i]);render.run();}).show());render.run();
+        add.setOnClickListener(v->{String[] kinds={"Catch / ball throw","Berry feeding","Pok\u00e9Stop spin","Gym placement / feeding","Gym battle","Accessory action"};
+            AlertDialog pick=ChoiceList.attach(new AlertDialog.Builder(ui).setTitle("Record action here").setNegativeButton("Cancel",null).create(),kinds,i->{record(kinds[i]);render.run();});
+            pick.setOnShowListener(d->MapTheme.styleButtons(pick));pick.show();});render.run();
         AlertDialog dialog=new AlertDialog.Builder(ui).setTitle("Cooldown history").setView(root).setPositiveButton("Done",null).create();
         dialog.setOnShowListener(d->{MapTheme.fullScreen(dialog);MapTheme.style(root);MapTheme.styleButtons(dialog);});
         DialogLifecycle.bind(a,dialog,null);

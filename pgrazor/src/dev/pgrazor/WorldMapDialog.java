@@ -264,12 +264,12 @@ public final class WorldMapDialog {
             AlertDialog.Builder builder=new AlertDialog.Builder(ui).setTitle("Route stops ("+draft.size()+(draft.size()>LIMIT?"":"/"+LIMIT)+")")
                 .setNegativeButton("Close",null).setPositiveButton("Clear route",null);
             if(draft.isEmpty())builder.setMessage("Select a destination on the map and tap Add stop. Add at least two stops before starting.");
-            else {
-                String[] rows=new String[draft.size()];
-                for(int i=0;i<rows.length;i++)rows[i]=String.format(Locale.US,"%d.  %.6f, %.6f",i+1,draft.get(i)[0],draft.get(i)[1]);
-                builder.setItems(rows,(d,index) -> {double[] stop=draft.get(index);map.select(stop[0],stop[1]);});
-            }
             AlertDialog dialog=builder.create();dialogs.add(dialog);
+            if(!draft.isEmpty()){
+                String[] rows=new String[draft.size()];
+                for(int i=0;i<rows.length;i++)rows[i]=String.format(Locale.US,"Stop %d\n%.6f, %.6f",i+1,draft.get(i)[0],draft.get(i)[1]);
+                ChoiceList.attach(dialog,rows,index -> {double[] stop=draft.get(index);map.select(stop[0],stop[1]);});
+            }
             dialog.setOnDismissListener(d -> dialogs.remove(dialog));
             dialog.setOnShowListener(d -> {
                 Button clear=dialog.getButton(AlertDialog.BUTTON_POSITIVE);clear.setEnabled(!draft.isEmpty());
@@ -358,9 +358,9 @@ public final class WorldMapDialog {
                     SavedPlaces.Entry entry = snapshot.entries.get(i);
                     names[i] = String.format(Locale.US, "%s\n%.6f, %.6f", entry.name, entry.latitude, entry.longitude);
                 }
-                builder.setItems(names, (dialog, which) -> showPlace(snapshot.entries.get(which)));
+                ChoiceList.attach(holder[0] = builder.create(), names, which -> showPlace(snapshot.entries.get(which)));
             }
-            holder[0] = builder.create();
+            if (holder[0] == null) holder[0] = builder.create();
             holder[0].setOnShowListener(d -> holder[0].getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> showSave(holder[0])));
             show(holder[0]);
             if (snapshot.damaged && !snapshot.entries.isEmpty()) Toast.makeText(activity, "Some saved places could not be read. Valid entries are shown.", Toast.LENGTH_LONG).show();

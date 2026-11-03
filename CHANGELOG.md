@@ -8,6 +8,8 @@
 - **Encounter IVs:** The encounter IV overlay now also shows on field research reward encounters, not only wild spawns.
 - **Always Hit:** Now also works when catching after a Max Battle.
 - **AR+ throw bonus:** Wild catches now get the AR+ catch bonus.
+- **GPX routes:** Starting a GPX route in Autowalk now asks where to begin: from the closest point on the route, from the beginning, or by teleporting to the beginning.
+- Menu options and buttons now look like buttons, with an outline and space between neighbouring buttons.
 
 ## v0.1.10
 

@@ -63,8 +63,7 @@ public final class QuickLocationDialogs {
                     SavedPlaces.Entry e = snap.entries.get(i);
                     names[i] = String.format(Locale.US, "%s\n%.6f, %.6f", e.name, e.latitude, e.longitude);
                 }
-                b.setItems(names, (d, which) -> TeleportDialog.confirm(activity,snap.entries.get(which).latitude,snap.entries.get(which).longitude,target::teleport));
-                show(activity,b.create());
+                show(activity,ChoiceList.attach(b.create(),names,which -> TeleportDialog.confirm(activity,snap.entries.get(which).latitude,snap.entries.get(which).longitude,target::teleport)));
                 if (snap.damaged) Toast.makeText(activity, "Some saved places could not be read. Valid entries are shown.", Toast.LENGTH_LONG).show();
             });
         }, "pgrazor-favorites-read").start();
