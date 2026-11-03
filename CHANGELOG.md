@@ -2,8 +2,12 @@
 
 ## Unreleased
 
+## v0.1.10
+
+[Full release notes](docs/releases/v0.1.10.md)
+
 - Quick Catch returns to the map faster after a successful catch.
-- Added backwards compatability for older Android versions
+- Added backwards compatibility for older Android versions.
 
 ## v0.1.9
 

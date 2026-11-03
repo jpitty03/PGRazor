@@ -37,8 +37,8 @@ export default function GetStarted() {
       <p className="cta__release">
         <span className="cta__badge">Stable</span>
         The published{' '}
-        <a href={links.releasesCurrent}>v0.1.9 release</a> updates compatibility
-        for Pokémon GO 0.435.1 and reduces reward-summary flashing during Quick Catch.
+        <a href={links.releasesCurrent}>v0.1.10 release</a> returns
+        to the map faster after Quick Catch and improves compatibility with older Android versions.
       </p>
 
       <div className="faq">
