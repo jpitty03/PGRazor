@@ -36,7 +36,7 @@ public final class QuickMenu {
     static final int MAP = 0, WALK = 1, AUTOWALK = 2, FEEDS = 3, FAVORITES = 4, TELEPORT = 5, ACCOUNTS = 6, SETTINGS = 7, EVENTS = 8, AUTOMATION = 9;
 
     // Append-only order: persisted visibility bits must not follow icon IDs (some are shared).
-    static final String[] CUSTOMIZABLE = {"Map", "Walking speed", "Autowalk", "In-game Routes", "Feeds", "Favorites", "Hotspots", "Teleport", "Switch account", "Events", "Automation"};
+    static final String[] CUSTOMIZABLE = {"Map", "Walking speed", "Autowalk", "In-game Routes", "Feeds", "Favorites", "Hotspots", "Teleport", "Switch account", "Events", "Automation", "Research"};
     private final List<View> rows = new ArrayList<>();
     private final List<Integer> visibilityBits = new ArrayList<>();
     private int appliedHidden = -1;
@@ -71,6 +71,7 @@ public final class QuickMenu {
         card.addView(row(ACCOUNTS, "Switch account", true, listener::onAccounts, 256));
         card.addView(row(EVENTS, "Events", true, () -> dev.pgrazor.events.EventPanel.showSelector(activity, Control.darkTheme()), 512));
         card.addView(row(AUTOMATION, "Automation", true, () -> AutomationPanel.show(activity), 1024));
+        card.addView(row(EVENTS, "Research", true, () -> ResearchSettings.show(activity), 2048));
         card.addView(row(SETTINGS, "Settings", true, listener::onSettings, 0));
         root.addView(card, new FrameLayout.LayoutParams(dp(196), -2));
 

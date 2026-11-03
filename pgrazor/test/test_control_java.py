@@ -150,6 +150,14 @@ public final class GymAutomationSettings {
  public static void read(java.util.Properties p){prefs.read(p);}
  public static void write(java.util.Properties p){prefs.write(p);}
 }''',
+    'dev/pgrazor/ResearchSettings.java': '''package dev.pgrazor;
+public final class ResearchSettings {
+ private static final ResearchPreferences prefs=new ResearchPreferences();
+ public static String config(){return prefs.config();}
+ public static void publish(String detail){}
+ public static void read(java.util.Properties p){prefs.read(p);}
+ public static void write(java.util.Properties p){prefs.write(p);}
+}''',
     'dev/pgrazor/SmartCatchSettings.java': '''package dev.pgrazor;
 public final class SmartCatchSettings {
  private static final SmartCatchPreferences prefs=new SmartCatchPreferences();
@@ -213,7 +221,7 @@ class ControlJavaTests(unittest.TestCase):
                 'Control.java', 'MotionEngine.java', 'LocationState.java', 'GameRoutesController.java',
                 'CameraHeadingState.java', 'CameraSteering.java',
                 'BerryPriority.java', 'MapTapSequence.java', 'CooldownState.java',
-                'VgpController.java', 'CatchOutcomeController.java', 'SettingsWriter.java', 'SmartCatchPreferences.java', 'GymAutomationPreferences.java', 'BuddyEmotionPreferences.java'))
+                'VgpController.java', 'CatchOutcomeController.java', 'SettingsWriter.java', 'SmartCatchPreferences.java', 'GymAutomationPreferences.java', 'BuddyEmotionPreferences.java', 'ResearchPreferences.java'))
             sources.extend([ROOT / 'test/ControlLogRetentionTest.java', ROOT / 'test/ControlQuickSummaryTest.java',ROOT / 'test/ControlQuickBallTest.java',
                             ROOT / 'test/ControlQuickBallOutcomeTest.java',ROOT / 'test/ControlSettingsTest.java',
                             ROOT / 'test/VgpControllerTest.java',ROOT / 'test/CooldownTest.java',ROOT / 'test/ControlCooldownTest.java',

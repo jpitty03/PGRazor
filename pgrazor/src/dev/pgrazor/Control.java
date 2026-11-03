@@ -255,6 +255,7 @@ public final class Control {
     public static boolean automationPlanning(){return autoWalkPlanning||gameRoutesPlanning;}
     public static String oneShotAutomationConfig(){String gift=GiftBatchSettings.config();return gift!=null?gift:OneShotAutomation.config();}
     public static String batchEvolutionConfig(){return BatchEvolutionSettings.config();}
+    public static String researchConfig(){return ResearchSettings.config();}
     public static String buddyEmotionHistory(){return BuddyEmotionSettings.history();}
     public static boolean encounterBerryVisible(){return encounterBerryEnabled&&catchScreenVisible();}
     public static boolean encounterBerryBusy(){return encounterBerryBusy;}
@@ -947,14 +948,16 @@ public final class Control {
             SmartCatchSettings.read(new Properties());
             GymAutomationSettings.read(new Properties());
             BuddyEmotionSettings.read(new Properties());
+            ResearchSettings.read(new Properties());
             try(FileInputStream in=settingsFile.openRead()) {
                 Properties p=new Properties(); p.load(in);
                 SmartCatchSettings.read(p);
                 GymAutomationSettings.read(p);
                 BuddyEmotionSettings.read(p);
+                ResearchSettings.read(p);
                 desiredEnabled=Boolean.parseBoolean(p.getProperty("locationSpoofing","true"));
                 darkTheme=Boolean.parseBoolean(p.getProperty("darkTheme","true"));
-                quickMenuHidden=boundedSetting(p,"quickMenuHidden",2047);
+                quickMenuHidden=boundedSetting(p,"quickMenuHidden",4095);
                 try{uiScalePercent=Integer.parseInt(p.getProperty("uiScalePercent","100"));}catch(NumberFormatException invalid){uiScalePercent=100;}
                 if(uiScalePercent!=25&&uiScalePercent!=50&&uiScalePercent!=75&&uiScalePercent!=100)uiScalePercent=100;
                 joystickVisible=Boolean.parseBoolean(p.getProperty("joystickVisible","true"));
@@ -1053,6 +1056,7 @@ public final class Control {
         SmartCatchSettings.write(p);
         GymAutomationSettings.write(p);
         BuddyEmotionSettings.write(p);
+        ResearchSettings.write(p);
         p.setProperty("locationSpoofing",String.valueOf(desiredEnabled));
         p.setProperty("darkTheme",String.valueOf(darkTheme));p.setProperty("uiScalePercent",String.valueOf(uiScalePercent));
         p.setProperty("joystickVisible",String.valueOf(joystickVisible));
@@ -1103,6 +1107,7 @@ public final class Control {
         if("remote-gym".equals(kind)||"incense-bird".equals(kind)||"incense-session".equals(kind)||"incense-open".equals(kind))OneShotAutomation.publish(kind,detail);
         if("batch-evolution".equals(kind))BatchEvolutionSettings.publish(detail);
         if("gift-batch".equals(kind))GiftBatchSettings.publish(detail);
+        if("research".equals(kind))ResearchSettings.publish(detail);
         if("event-boxes".equals(kind)) {
             boolean available=false;
             try { available=new org.json.JSONObject(detail).optBoolean("available",false); }

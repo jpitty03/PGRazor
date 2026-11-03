@@ -45,6 +45,7 @@
 #include "batch_evolution.h"
 #include "remote_gym.h"
 #include "gift_batch.h"
+#include "research.h"
 #include "incense_guard.h"
 #include "buddy_emotion.h"
 
@@ -677,7 +678,7 @@ static void clear_active_vgp_transfer() {
   memset(&g_vgp_transfer, 0, sizeof(g_vgp_transfer));
 }
 
-static void handle_vgp_transfer_ready(const PgrVgpControllerOut &out, uint64_t tid, uint64_t lease_ms) {
+static void handle_vgp_transfer_ready(const PgrVgpControllerOut &out, uint64_t tid, uint64_t lease_ms, int keep_all = 0) {
   clear_active_vgp_transfer();
   g_vgp_transfer.response_handle = reinterpret_cast<void *>(static_cast<uintptr_t>(out.response_handle));
   g_vgp_transfer.bag_handle = reinterpret_cast<void *>(static_cast<uintptr_t>(out.bag_handle));
@@ -734,7 +735,7 @@ static void handle_vgp_transfer_ready(const PgrVgpControllerOut &out, uint64_t t
   tp_in.protect = protect_mask;
   tp_in.known = tf_out.known;
   tp_in.flags = tf_out.flags;
-  tp_in.keep_all = 0; // VGP/VGP+ use main protection settings, not the manual overlay.
+  tp_in.keep_all = keep_all ? 1 : 0; // VGP/VGP+ use main protection settings; research catches honor Keep All.
   tp_in.keep_count = g_keep_species_count;
   tp_in.keep_ids = g_keep_species_count ? g_keep_species : nullptr;
 
@@ -803,6 +804,21 @@ static void handle_vgp_transfer_ready(const PgrVgpControllerOut &out, uint64_t t
   if (g_vgc && out.transfer_token != 0) {
     g_vgc->transfer_feedback(out.transfer_token, PGR_VGC_FB_REQUESTED, tid);
   }
+}
+
+// Research encounter catches share the single VGP transfer slot and are handed over only while no
+// transfer is in flight. Returns 1 when it adopted all four OWNED handles; 0 leaves them with the caller.
+extern "C" int pgr_research_transfer_caught(uint64_t caught_id, uint64_t response, uint64_t bag,
+                                            uint64_t pokemon, uint64_t gm, uint64_t tid, int keep_all) {
+  if (!caught_id || !response || !bag || !pokemon || !gm || g_vgp_transfer.active) return 0;
+  PgrVgpControllerOut out = {};
+  out.caught_id = caught_id;
+  out.response_handle = response;
+  out.bag_handle = bag;
+  out.pokemon_handle = pokemon;
+  out.gm_handle = gm;
+  handle_vgp_transfer_ready(out, tid, 2500, keep_all);
+  return 1;
 }
 
 static void pump_transfer_events(uint64_t tid, int stopping) {
@@ -2383,6 +2399,7 @@ static int api_tick(uint64_t proven_tid) {
   // 3. MapPOI snapshot scan
   tick_map_poi(os_tid, now, rem_lease);
   pgr_gift_batch_tick(os_tid, &g_md);
+  pgr_research_tick(os_tid, &g_md);
   pgr_remote_gym_tick(os_tid, &g_md);
   pgr_gym_tick(os_tid, &g_md);
   pgr_evolution_tick(os_tid, &g_md);
@@ -2411,6 +2428,7 @@ static int api_stop(uint64_t proven_tid) {
     }
     if (g_vgc && (g_active_caps & PGR_EH_CAP_VGP)) {
       pgr_gift_batch_stop();
+      pgr_research_stop();
       pgr_remote_gym_stop(tid);
       pgr_incense_guard_stop(tid);
       pgr_gym_stop(tid);

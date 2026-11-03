@@ -26,7 +26,7 @@ public final class SettingsBackupRules {
             if(key.equals("smartCatchCandySpecies")){keepSpecies(value);require(value.isEmpty()||value.split(",").length<=200,"Too many candy species");continue;}
             if(key.equals("berryPriority")){try{BerryPriority.parse(value);}catch(IllegalArgumentException invalid){throw new JSONException("Invalid berry priorities");}continue;}
             int n;try{n=Integer.parseInt(value);}catch(NumberFormatException e){throw new JSONException("Invalid "+key);}
-            if(key.equals("quickMenuHidden")){require(n>=0&&n<=2047,"Invalid quick menu visibility");continue;}
+            if(key.equals("quickMenuHidden")){require(n>=0&&n<=4095,"Invalid quick menu visibility");continue;}
             if(key.equals("uiScalePercent")){require(n==25||n==50||n==75||n==100,"Invalid UI scale");continue;}
             if(key.equals("buddyBerry")||key.equals("autoBerry")){require(n==0||n==701||n==703||n==705||n==706||n==707,"Invalid berry");continue;}
             if(key.equals("smartCatchBerry")){require(n==0||n==701||n==703||n==705||n==706||n==708,"Invalid smart catch berry");continue;}
