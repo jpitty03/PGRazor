@@ -35,7 +35,7 @@ Features listed here include unreleased changes on `main`; check your release no
 | Keep rules | Legendary/mythical/Ultra Beasts, shiny, event/costume, background, **XXS**, **XXL**, searchable custom species keep list, and a persistent Keep All overlay; favorites and eggs always kept |
 | Virtual Go Plus | Nearby wild catches with red balls, nearby stop spins, optional notifications, target marker and activity status |
 | Eggs | Unlimited incubator only; shortest- or longest-distance priority |
-| Research | Auto-claim completed field research; auto-delete field research tasks you select from a searchable list (task, reward and event tag); optionally catch waiting field research encounters without the encounter screen using your VGP+ ball and throw settings, then apply transfer rules including Keep All. Special, timed, story and gym bonus research are never deleted |
+| Research | Auto-claim completed field research; auto-delete field research tasks you select from a searchable list grouped into collapsible Item, Encounter and Event categories, each with an All toggle (task, reward and event tag); optionally catch waiting field research encounters without the encounter screen using your VGP+ ball and throw settings, then apply transfer rules including Keep All. Special, timed, story and gym bonus research are never deleted |
 | LivePokeMap | Remote Pokémon, stops, gyms, raids, and stations; requires a LivePokeMap subscription |
 | Battles | Rocket quick/charged attacks, charged minigame and shields; raid/gym/Dynamax attacks, Max attacks and dodging |
 | Other automation | Selectable buddy berry, gift opening/sending with optional stickers, quick spin, local spawn booster |

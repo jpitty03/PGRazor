@@ -6,6 +6,7 @@
 #include "runtime_transport.h"
 #include "vgp_results.h"
 #include "vgp_aux.h"
+#include <cctype>
 #include <cstdlib>
 #include <dlfcn.h>
 #include <unistd.h>
@@ -148,7 +149,7 @@ std::string localized(const std::string &key){
 }
 // The encounter species is best effort (a random encounter has none); a reward list that cannot be
 // read is retried next scan. The species sits in a protobuf oneof, so it is read through its getter.
-std::string reward_label(void *quest){
+std::string reward_label(void *quest,bool &encounter){
  Root list(object_field(quest,"QuestRewards","Niantic.Protobuf.Collections.RepeatedField<Holoholo.Rpc.QuestRewardProto>"));if(!list)return "";
  int n=count(list.get(),16);std::string out;
  for(int i=0;i<n;i++){
@@ -159,27 +160,30 @@ std::string reward_label(void *quest){
    try{Root e(call(r.get(),"get_PokemonEncounter"));int species=unbox<int>(call(e.get(),"get_PokemonId"));
     void *args[]={&species};if(species>0&&st.i18n)pokemon=text(call(st.i18n.get(),"PokemonName",1,args));}
    catch(const Failure&){}
-   name=pokemon.empty()?"Pokémon encounter":"Encounter: "+pokemon;
+   name=pokemon.empty()?"Pokémon encounter":"Encounter: "+pokemon;encounter=true;
   }else if(name=="MegaResource")name="Mega Energy";
   if(!out.empty())out+=", ";out+=name;
  }
  return out;
 }
-// "task text|reward · tag", cached per template once fully localized; until then retried each scan.
-// The game's tag (e.g. Event) tells apart tasks that share their text.
+// "<category>task text|reward · tag", cached per template once fully localized; until then retried
+// each scan. The game's tag (e.g. Event) tells apart tasks that share their text. Category: 'v' for a
+// task the game tags (any tag but Sponsored), else 'e' for a Pokemon encounter reward, else 'i' item.
 std::string label(void *quest,const std::string &id,const std::string &templ,int target){
  auto it=st.labels.find(templ);if(it!=st.labels.end())return it->second;
- std::string task=templ,tags;bool complete=false;
+ std::string task=templ,tags;bool complete=false,tagged=false,encounter=false;
  try{Root qid=managed_string(id);void *args[]={qid.get()};Root display(call(st.quests.get(),"GetQuestDisplayProto",1,args));
   if(display){const std::string key=text(object_field(display.get(),"Description","System.String"));task=localized(key);
    complete=!key.empty()&&task!=key;
    const auto at=task.find("{0}");if(at!=std::string::npos)task.replace(at,3,std::to_string(target));
    try{const std::string key=text(object_field(display.get(),"TagString","System.String"));const std::string tag=localized(key);
-    if(!key.empty()&&tag!=key)tags=tag;}catch(const Failure&){}}}
+    if(!key.empty()&&tag!=key)tags=tag;
+    std::string lower=key;for(char &c:lower)c=static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    tagged=!key.empty()&&lower.find("sponsor")==std::string::npos;}catch(const Failure&){}}}
  catch(const Failure&){}
- std::string reward;try{reward=reward_label(quest);}catch(const Failure&){complete=false;}
+ std::string reward;try{reward=reward_label(quest,encounter);}catch(const Failure&){complete=false;}
  if(!tags.empty())reward+=(reward.empty()?"":" · ")+tags;
- const std::string out=task+"|"+reward;
+ const std::string out=std::string(1,tagged?'v':encounter?'e':'i')+task+"|"+reward;
  if(complete){if(st.labels.size()>=pgr_research::kMaxTemplates)st.labels.clear();st.labels[templ]=out;}
  return out;
 }
@@ -202,7 +206,7 @@ std::vector<pgr_research::Quest> field_research(){
   bool valid=!f.templ.empty()&&f.templ.size()<=pgr_research::kMaxTemplateBytes;for(char c:f.templ)valid=valid&&pgr_research::template_char(c);
   if(!valid)continue;
   if(!f.bonus){const std::string l=label(q.get(),f.id,f.templ,f.target);const auto bar=l.find('|');
-   catalog+=(catalog.empty()?"":",")+std::string("{\"t\":")+quote(f.templ)+",\"d\":"+quote(l.substr(0,bar))+",\"r\":"+quote(l.substr(bar+1))+"}";}
+   catalog+=(catalog.empty()?"":",")+std::string("{\"t\":")+quote(f.templ)+",\"d\":"+quote(l.substr(1,bar-1))+",\"r\":"+quote(l.substr(bar+1))+",\"c\":\""+l[0]+"\"}";}
   out.push_back(f);
  }
  if(catalog!=st.catalog){st.catalog=catalog;event("{\"kind\":\"research\",\"phase\":\"catalog\",\"tasks\":["+catalog+"]}");}

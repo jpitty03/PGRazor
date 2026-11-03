@@ -31,6 +31,9 @@ public final class ResearchSettings {
     private static final Object LOCK = new Object();
     private static String message = "";
     private static int claimed, removed, caught;
+    // Categories the player opened in the Research dialog (UI thread only); closed until opened, and
+    // remembered until the game restarts.
+    private static final java.util.Set<String> expanded = new java.util.HashSet<>();
 
     public static void read(Properties p) { preferences.read(p); }
     public static void write(Properties p) { preferences.write(p); }
@@ -46,7 +49,7 @@ public final class ResearchSettings {
                 boolean changed = false;
                 for (int i = 0; tasks != null && i < tasks.length(); i++) {
                     JSONObject t = tasks.optJSONObject(i);
-                    if (t != null) changed |= preferences.observe(t.optString("t"), t.optString("d"), t.optString("r"));
+                    if (t != null) changed |= preferences.observe(t.optString("t"), t.optString("d"), t.optString("r"), t.optString("c"));
                 }
                 if (changed) Control.saveSettings();
                 return;
@@ -99,25 +102,29 @@ public final class ResearchSettings {
         LinearLayout list = new LinearLayout(ui); list.setOrientation(LinearLayout.VERTICAL); body.addView(list);
         TextView status = new TextView(ui); status.setText(status()); body.addView(status);
 
-        Runnable fill = () -> {
+        Runnable[] fill = new Runnable[1];
+        Runnable refill = () -> list.post(fill[0]);
+        fill[0] = () -> {
             list.removeAllViews();
-            List<String[]> tasks = preferences.tasks(search.getText().toString());
-            empty.setVisibility(tasks.isEmpty() ? android.view.View.VISIBLE : android.view.View.GONE);
+            String query = search.getText().toString().trim();
+            List<String[]> tasks = preferences.tasks(query);
+            empty.setVisibility(tasks.isEmpty() && query.isEmpty() ? android.view.View.VISIBLE : android.view.View.GONE);
             // Different tasks can share their text and reward (an event and a season "Win a raid");
             // the game's task ID tells those rows apart.
             java.util.Map<String, Integer> same = new java.util.HashMap<>();
             for (String[] task : tasks) same.merge(task[1] + "\n" + task[2], 1, Integer::sum);
-            for (String[] task : tasks) {
-                CheckBox box = new CheckBox(ui);
-                String label = task[2].isEmpty() ? task[1] : task[1] + "\n" + task[2];
-                if (same.get(task[1] + "\n" + task[2]) > 1) label += "\n" + task[0];
-                box.setText(label);
-                box.setChecked(preferences.selected(task[0]));
-                box.setOnCheckedChangeListener((v, on) -> {
-                    try { preferences.select(task[0], on); Control.saveSettings(); }
-                    catch (IllegalArgumentException refused) { v.setChecked(!on); toast(activity, refused.getMessage()); }
-                });
-                list.addView(box);
+            for (String category : ResearchPreferences.CATEGORIES) {
+                List<String> templates = new java.util.ArrayList<>();
+                int picked = 0;
+                for (String[] task : tasks) if (task[3].equals(category)) {
+                    templates.add(task[0]);
+                    if (preferences.selected(task[0])) picked++;
+                }
+                if (templates.isEmpty()) continue;
+                // A search opens every category with a match; otherwise the player's choice holds.
+                boolean open = !query.isEmpty() || expanded.contains(category);
+                list.addView(categoryHeader(ui, activity, category, templates, picked, open, query.isEmpty(), refill));
+                if (open) for (String[] task : tasks) if (task[3].equals(category)) list.addView(taskRow(ui, activity, task, same, refill));
             }
             MapTheme.style(list);
         };
@@ -127,9 +134,9 @@ public final class ResearchSettings {
         search.addTextChangedListener(new TextWatcher() {
             public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
             public void onTextChanged(CharSequence s, int a, int b, int c) {}
-            public void afterTextChanged(Editable s) { fill.run(); }
+            public void afterTextChanged(Editable s) { fill[0].run(); }
         });
-        fill.run();
+        fill[0].run();
 
         ScrollView scroll = new ScrollView(ui); scroll.addView(body);
         AlertDialog dialog = new AlertDialog.Builder(ui).setTitle("Research").setView(scroll)
@@ -145,6 +152,60 @@ public final class ResearchSettings {
             handler.post(refresh);
         });
         dialog.show();
+    }
+
+    private static String categoryName(String category) {
+        if (ResearchPreferences.ENCOUNTER.equals(category)) return "Encounter";
+        if (ResearchPreferences.EVENT.equals(category)) return "Event";
+        return "Item";
+    }
+
+    /**
+     * A category's header: tapping its name opens or closes it, and its All box ticks or clears every
+     * task it lists (only the search matches while a search is typed).
+     */
+    private static LinearLayout categoryHeader(Context ui, Activity activity, String category, List<String> templates,
+                                               int picked, boolean open, boolean collapsible, Runnable refill) {
+        LinearLayout row = new LinearLayout(ui);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        row.setPadding(0, MapTheme.dp(ui, 12), 0, MapTheme.dp(ui, 4));
+        TextView title = new TextView(ui);
+        String text = (collapsible ? (open ? "▾ " : "▸ ") : "") + categoryName(category) + " (" + templates.size() + ")";
+        if (picked > 0) text += " · " + picked + " ticked";
+        title.setText(text);
+        title.setTypeface(title.getTypeface(), android.graphics.Typeface.BOLD);
+        title.setPadding(0, MapTheme.dp(ui, 8), 0, MapTheme.dp(ui, 8));
+        if (collapsible) title.setOnClickListener(v -> {
+            if (!expanded.remove(category)) expanded.add(category);
+            refill.run();
+        });
+        row.addView(title, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        CheckBox all = new CheckBox(ui);
+        all.setText("All");
+        all.setChecked(picked == templates.size());
+        all.setOnCheckedChangeListener((v, on) -> {
+            try { preferences.selectAll(templates, on); Control.saveSettings(); }
+            catch (IllegalArgumentException refused) { toast(activity, refused.getMessage()); }
+            refill.run();
+        });
+        row.addView(all);
+        return row;
+    }
+
+    private static CheckBox taskRow(Context ui, Activity activity, String[] task, java.util.Map<String, Integer> same,
+                                    Runnable refill) {
+        CheckBox box = new CheckBox(ui);
+        String label = task[2].isEmpty() ? task[1] : task[1] + "\n" + task[2];
+        if (same.get(task[1] + "\n" + task[2]) > 1) label += "\n" + task[0];
+        box.setText(label);
+        box.setChecked(preferences.selected(task[0]));
+        box.setOnCheckedChangeListener((v, on) -> {
+            try { preferences.select(task[0], on); Control.saveSettings(); }
+            catch (IllegalArgumentException refused) { toast(activity, refused.getMessage()); }
+            refill.run();
+        });
+        return box;
     }
 
     private static void toast(Activity activity, String text) {

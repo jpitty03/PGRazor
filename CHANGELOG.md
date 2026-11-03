@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- **Research:** Auto-claims completed field research, auto-deletes the field research tasks you select, and can catch waiting field research encounters without the encounter screen, applying your transfer rules. Open it from the quick menu.
+- **Research:** Auto-claims completed field research, auto-deletes the field research tasks you select from a list grouped into Item, Encounter and Event, and can catch waiting field research encounters without the encounter screen, applying your transfer rules. Open it from the quick menu.
 
 ## v0.1.10
 
