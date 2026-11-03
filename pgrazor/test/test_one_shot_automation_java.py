@@ -51,6 +51,7 @@ public class Control {
  public static void saveState(){saves++;}
  public static void setVgpEnabled(boolean value){vgp=value;}
  public static android.app.Activity accountActivity(){return new android.app.Activity();}
+ public static boolean overlaysHidden(){return false;}
 }''',
 }
 

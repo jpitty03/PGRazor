@@ -66,6 +66,7 @@ final class CatchOutcomeController {
         }
         Activity screen=activity.get();
         if(reason==null && (screen==null || screen.isFinishing() || screen.isDestroyed())) reason="no resumed game screen";
+        if(reason==null && Control.overlaysHidden()) reason="overlay hidden";
         if(reason!=null) { log.accept("suppressed outcome="+outcome+"; "+reason); return; }
         try {
             cancel();

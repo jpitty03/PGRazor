@@ -14,6 +14,12 @@ import java.util.Locale;
 public final class Pad {
     final Activity activity;
     private final FrameLayout parent;
+    // Every on-screen overlay lives in this full-screen layer so "Hide overlay" can hide them all at once;
+    // the three-finger watcher brings them back.
+    private final FrameLayout overlays;
+    private View unhideWatcher;
+    private boolean overlaysHidden;
+    private AlertDialog hideOverlaysDialog;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Stick stick;
     // The full-screen settings body (switches, captions, sections) owns its own construction/refresh.
@@ -106,45 +112,46 @@ public final class Pad {
 
         // The settings panel is a full-screen modal; it consumes taps so the game behind it stays inert.
         parent.addView(settings.view(), new FrameLayout.LayoutParams(-1, -1));
+        overlays=new FrameLayout(host);parent.addView(overlays,new FrameLayout.LayoutParams(-1,-1));
 
-        FrameLayout.LayoutParams joyLayout=new FrameLayout.LayoutParams(dp(136),-2,Gravity.LEFT|Gravity.BOTTOM);joyLayout.leftMargin=dp(16);joyLayout.bottomMargin=dp(96);parent.addView(joystickOverlay,joyLayout);
+        FrameLayout.LayoutParams joyLayout=new FrameLayout.LayoutParams(dp(136),-2,Gravity.LEFT|Gravity.BOTTOM);joyLayout.leftMargin=dp(16);joyLayout.bottomMargin=dp(96);overlays.addView(joystickOverlay,joyLayout);
 
         // Compact catching-berry overlay; the popup chooses owned berries and Off.
         encounterBerry=new BerryOverlay(activity,this::refresh);
-        FrameLayout.LayoutParams berryLayout=new FrameLayout.LayoutParams(dp(90),dp(50),Gravity.RIGHT|Gravity.CENTER_VERTICAL);berryLayout.rightMargin=dp(10);parent.addView(encounterBerry,berryLayout);encounterBerry.setVisibility(View.GONE);
+        FrameLayout.LayoutParams berryLayout=new FrameLayout.LayoutParams(dp(90),dp(50),Gravity.RIGHT|Gravity.CENTER_VERTICAL);berryLayout.rightMargin=dp(10);overlays.addView(encounterBerry,berryLayout);encounterBerry.setVisibility(View.GONE);
 
-        cooldownTimer=button("History  --:--");cooldownTimer.setTextSize(14);cooldownTimer.setAllCaps(false);cooldownTimer.setTextColor(accent());FrameLayout.LayoutParams timerLayout=new FrameLayout.LayoutParams(dp(165),dp(44),Gravity.TOP|Gravity.RIGHT);timerLayout.topMargin=dp(44);timerLayout.rightMargin=dp(12);parent.addView(cooldownTimer,timerLayout);cooldownTimer.setOnClickListener(v->Cooldown.show(activity));cooldownDrag=OverlayDrag.attach(parent,cooldownTimer,"cooldown");
+        cooldownTimer=button("History  --:--");cooldownTimer.setTextSize(14);cooldownTimer.setAllCaps(false);cooldownTimer.setTextColor(accent());FrameLayout.LayoutParams timerLayout=new FrameLayout.LayoutParams(dp(165),dp(44),Gravity.TOP|Gravity.RIGHT);timerLayout.topMargin=dp(44);timerLayout.rightMargin=dp(12);overlays.addView(cooldownTimer,timerLayout);cooldownTimer.setOnClickListener(v->Cooldown.show(activity));cooldownDrag=OverlayDrag.attach(overlays,cooldownTimer,"cooldown");
 
         // Window attachment: the panel pads itself inside the system bars/IME as insets arrive.
         View panelView=settings.view();
         panelView.setOnApplyWindowInsetsListener((view,insets) -> {settings.applyInsets(insets);return insets;});
         panelView.requestApplyInsets();
 
-        vgpToggle=new VgpToggle(host);FrameLayout.LayoutParams vgpButtonLayout=new FrameLayout.LayoutParams(dp(54),dp(54),Gravity.TOP|Gravity.LEFT);vgpButtonLayout.leftMargin=dp(12);vgpButtonLayout.topMargin=dp(156);parent.addView(vgpToggle,vgpButtonLayout);vgpToggle.setOnClickListener(v->{Control.setVgpEnabled(!Control.vgpEnabled());refresh();});
+        vgpToggle=new VgpToggle(host);FrameLayout.LayoutParams vgpButtonLayout=new FrameLayout.LayoutParams(dp(54),dp(54),Gravity.TOP|Gravity.LEFT);vgpButtonLayout.leftMargin=dp(12);vgpButtonLayout.topMargin=dp(156);overlays.addView(vgpToggle,vgpButtonLayout);vgpToggle.setOnClickListener(v->{Control.setVgpEnabled(!Control.vgpEnabled());refresh();});
         vgpActivity=text("VGP",12,ink());vgpActivity.setPadding(dp(10),dp(6),dp(10),dp(6));vgpActivity.setMaxLines(2);vgpActivity.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        FrameLayout.LayoutParams vgpLayout=new FrameLayout.LayoutParams(dp(220),-2,Gravity.TOP|Gravity.LEFT);vgpLayout.leftMargin=dp(12);vgpLayout.topMargin=dp(216);parent.addView(vgpActivity,vgpLayout);vgpActivity.setVisibility(View.GONE);
+        FrameLayout.LayoutParams vgpLayout=new FrameLayout.LayoutParams(dp(220),-2,Gravity.TOP|Gravity.LEFT);vgpLayout.leftMargin=dp(12);vgpLayout.topMargin=dp(216);overlays.addView(vgpActivity,vgpLayout);vgpActivity.setVisibility(View.GONE);
         buddyEmotionStatus=text("EP: waiting",12,ink());buddyEmotionStatus.setPadding(dp(10),dp(6),dp(10),dp(6));buddyEmotionStatus.setMaxLines(3);
-        FrameLayout.LayoutParams buddyEpLayout=new FrameLayout.LayoutParams(dp(240),-2,Gravity.TOP|Gravity.LEFT);buddyEpLayout.leftMargin=dp(12);buddyEpLayout.topMargin=dp(265);parent.addView(buddyEmotionStatus,buddyEpLayout);buddyEmotionStatus.setVisibility(View.GONE);
-        buddyEmotionStatus.setOnClickListener(v->BuddyEmotionSettings.show(activity));buddyEmotionDrag=OverlayDrag.attach(parent,buddyEmotionStatus,"buddy-emotion");
-        gymFeedOverlay=new GymFeedOverlay(activity);FrameLayout.LayoutParams gymFeedLayout=new FrameLayout.LayoutParams(dp(54),dp(54),Gravity.TOP|Gravity.LEFT);gymFeedLayout.leftMargin=dp(12);gymFeedLayout.topMargin=dp(375);parent.addView(gymFeedOverlay,gymFeedLayout);
+        FrameLayout.LayoutParams buddyEpLayout=new FrameLayout.LayoutParams(dp(240),-2,Gravity.TOP|Gravity.LEFT);buddyEpLayout.leftMargin=dp(12);buddyEpLayout.topMargin=dp(265);overlays.addView(buddyEmotionStatus,buddyEpLayout);buddyEmotionStatus.setVisibility(View.GONE);
+        buddyEmotionStatus.setOnClickListener(v->BuddyEmotionSettings.show(activity));buddyEmotionDrag=OverlayDrag.attach(overlays,buddyEmotionStatus,"buddy-emotion");
+        gymFeedOverlay=new GymFeedOverlay(activity);FrameLayout.LayoutParams gymFeedLayout=new FrameLayout.LayoutParams(dp(54),dp(54),Gravity.TOP|Gravity.LEFT);gymFeedLayout.leftMargin=dp(12);gymFeedLayout.topMargin=dp(375);overlays.addView(gymFeedOverlay,gymFeedLayout);
         gymAutomationStatus=text("Off",11,ink());gymAutomationStatus.setPadding(dp(6),dp(3),dp(6),dp(3));gymAutomationStatus.setMaxLines(1);gymAutomationStatus.setMaxWidth(dp(165));gymAutomationStatus.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        parent.addView(gymAutomationStatus,new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.LEFT));
-        gymFeedDrag=OverlayDrag.attach(parent,gymFeedOverlay,gymAutomationStatus,"gym-feed");
+        overlays.addView(gymAutomationStatus,new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.LEFT));
+        gymFeedDrag=OverlayDrag.attach(overlays,gymFeedOverlay,gymAutomationStatus,"gym-feed");
         automationStatus=text("",11,ink());automationStatus.setPadding(dp(8),dp(5),dp(8),dp(5));automationStatus.setMaxLines(3);
         FrameLayout.LayoutParams automationLayout=new FrameLayout.LayoutParams(dp(220),-2,Gravity.TOP|Gravity.LEFT);automationLayout.leftMargin=dp(12);automationLayout.topMargin=dp(440);
-        parent.addView(automationStatus,automationLayout);automationStatus.setVisibility(View.GONE);
-        automationStatus.setOnClickListener(v->AutomationPanel.show(activity));automationDrag=OverlayDrag.attach(parent,automationStatus,"automation");
+        overlays.addView(automationStatus,automationLayout);automationStatus.setVisibility(View.GONE);
+        automationStatus.setOnClickListener(v->AutomationPanel.show(activity));automationDrag=OverlayDrag.attach(overlays,automationStatus,"automation");
         // The toggle is the drag handle; the status pill follows it as one coherent unit. Tap still flips VGP.
-        vgpDrag=OverlayDrag.attach(parent,vgpToggle,vgpActivity,"vgp");
-        vgpMarker=new VgpMarker(host);parent.addView(vgpMarker,new FrameLayout.LayoutParams(dp(38),dp(46)));vgpMarker.setVisibility(View.GONE);
+        vgpDrag=OverlayDrag.attach(overlays,vgpToggle,vgpActivity,"vgp");
+        vgpMarker=new VgpMarker(host);overlays.addView(vgpMarker,new FrameLayout.LayoutParams(dp(38),dp(46)));vgpMarker.setVisibility(View.GONE);
         // Compact Keep All / transfer-rules overlay; tap toggles Keep All, drag repositions (persists transfer.fx/fy).
-        transferToggle=new TransferToggle(host);FrameLayout.LayoutParams transferLayout=new FrameLayout.LayoutParams(dp(54),dp(54),Gravity.TOP|Gravity.LEFT);transferLayout.leftMargin=dp(12);transferLayout.topMargin=dp(300);parent.addView(transferToggle,transferLayout);transferToggle.setOnClickListener(v->{Control.setTransferKeepAll(!Control.transferKeepAll());refresh();});
-        transferDrag=OverlayDrag.attach(parent,transferToggle,"transfer");transferToggle.setVisibility(View.GONE);
+        transferToggle=new TransferToggle(host);FrameLayout.LayoutParams transferLayout=new FrameLayout.LayoutParams(dp(54),dp(54),Gravity.TOP|Gravity.LEFT);transferLayout.leftMargin=dp(12);transferLayout.topMargin=dp(300);overlays.addView(transferToggle,transferLayout);transferToggle.setOnClickListener(v->{Control.setTransferKeepAll(!Control.transferKeepAll());refresh();});
+        transferDrag=OverlayDrag.attach(overlays,transferToggle,"transfer");transferToggle.setVisibility(View.GONE);
         gameRoutesOverlay=new GameRoutesOverlay(activity);
         FrameLayout.LayoutParams routesLayout=new FrameLayout.LayoutParams(dp(48),dp(48),Gravity.TOP|Gravity.RIGHT);
-        routesLayout.rightMargin=dp(14);routesLayout.topMargin=dp(100);parent.addView(gameRoutesOverlay,routesLayout);
-        gameRoutesOverlay.setVisibility(View.GONE);gameRoutesDrag=OverlayDrag.attach(parent,gameRoutesOverlay,"game-routes");
-        launcher=new RazorIcon(host);FrameLayout.LayoutParams iconLayout=new FrameLayout.LayoutParams(dp(48),dp(48),Gravity.TOP|Gravity.LEFT);iconLayout.leftMargin=dp(12);iconLayout.topMargin=dp(100);parent.addView(launcher,iconLayout);
+        routesLayout.rightMargin=dp(14);routesLayout.topMargin=dp(100);overlays.addView(gameRoutesOverlay,routesLayout);
+        gameRoutesOverlay.setVisibility(View.GONE);gameRoutesDrag=OverlayDrag.attach(overlays,gameRoutesOverlay,"game-routes");
+        launcher=new RazorIcon(host);FrameLayout.LayoutParams iconLayout=new FrameLayout.LayoutParams(dp(48),dp(48),Gravity.TOP|Gravity.LEFT);iconLayout.leftMargin=dp(12);iconLayout.topMargin=dp(100);overlays.addView(launcher,iconLayout);
         launcher.setContentDescription("Open PGRazor quick menu. Drag to reposition.");
         // The R launcher now toggles the compact quick menu; Settings there opens this panel full screen.
         quickMenu=new QuickMenu(host,parent,launcher,new QuickMenu.Listener(){
@@ -158,10 +165,12 @@ public final class Pad {
             public void onHotspots(){stick.release(true);HotspotsDialog.showQuick(activity,Pad.this::quickTeleport,Pad.this::quickWalk);}
             public void onAccounts(){stick.release(true);AccountsDialog.show(activity);}
             public void onSettings(){openSettings();}
+            public void onHideOverlays(){confirmHideOverlays();}
         });
         launcher.setOnClickListener(v->{if(quickMenu!=null)quickMenu.toggle();});draggable(launcher,launcher,true);
 
         settings.hide();joystickOverlay.setVisibility(Control.joystickVisible()?View.VISIBLE:View.GONE);applyTheme();
+        unhideWatcher=new ThreeFingerWatcher(host);parent.addView(unhideWatcher,new FrameLayout.LayoutParams(-1,-1));
         refresh();parent.post(this::applyMapScale); handler.post(tick);
     }
     /** Decode a bundled map-icon once; returns null (never throws, never hits the network) if unavailable. */
@@ -259,7 +268,7 @@ public final class Pad {
         if(transferToggle!=null){transferToggle.setVisibility(Control.transferOverlayVisible()&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);transferToggle.setContentDescription(transferToggleDescription());transferToggle.invalidate();}
 
         String routeReward=Control.takeGameRoutesRewardNotice();
-        if(!routeReward.isEmpty())Toast.makeText(activity,routeReward,Toast.LENGTH_LONG).show();
+        if(!routeReward.isEmpty()&&!overlaysHidden)Toast.makeText(activity,routeReward,Toast.LENGTH_LONG).show();
         if(gameRoutesOverlay!=null)gameRoutesOverlay.refresh(!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing()));
         if(cooldownTimer!=null){cooldownTimer.setVisibility(Control.cooldownOverlay()?View.VISIBLE:View.GONE);setTextIfChanged(cooldownTimer,"☰  "+Cooldown.label());cooldownTimer.setTextColor(Cooldown.remaining()>0?Color.rgb(255,186,95):accent());}
         if (lastEnabled != Control.engine.enabled) { lastEnabled = Control.engine.enabled; stick.invalidate(); }
@@ -325,6 +334,55 @@ public final class Pad {
                 });
             } catch (IllegalArgumentException error) { speed.setError("Enter valid coordinates and speed (0.5–30)."); }
         })); dialog.show();styleTree(form);
+    }
+    /** "Hide overlay": confirm first, naming the three-finger tap that shows the overlays again. */
+    void confirmHideOverlays() {
+        if(closed||overlaysHidden||activity.isFinishing()||activity.isDestroyed()||hideOverlaysDialog!=null)return;
+        AlertDialog dialog=new AlertDialog.Builder(dialogContext())
+            .setTitle("Hide overlay?")
+            .setMessage("All PGRazor buttons, status bars, messages and in-game IV text will be hidden so the game looks stock. To show them again, tap the screen with three fingers at once.")
+            .setNegativeButton("Cancel",null)
+            .setPositiveButton("Hide",(d,w)->setOverlaysHidden(true)).create();
+        hideOverlaysDialog=dialog;
+        DialogLifecycle.bind(activity,dialog,()->{if(hideOverlaysDialog==dialog)hideOverlaysDialog=null;});
+        dialog.setOnShowListener(d->MapTheme.styleButtons(dialog));
+        dialog.show();
+    }
+    private void setOverlaysHidden(boolean hidden){
+        if(closed||overlaysHidden==hidden)return;
+        overlaysHidden=hidden;Control.setOverlaysHidden(hidden);
+        if(hidden){stick.release(true);if(quickMenu!=null&&quickMenu.isShowing())quickMenu.hide();}
+        overlays.setVisibility(hidden?View.GONE:View.VISIBLE);
+        Control.event("overlays",hidden?"hidden":"shown");
+        if(!hidden){Toast.makeText(activity,"PGRazor overlay shown",Toast.LENGTH_SHORT).show();refresh();}
+    }
+    /**
+     * Sees every finger that touches down anywhere on screen and never takes the touch, so the game
+     * and the overlays behave as before. The decor view splits multi-finger touches, so each finger
+     * arrives here as its own down event. While the overlay is hidden, three fingers landing within
+     * 250 ms at least 24dp apart show it again; one finger tapping the same spot quickly does not.
+     */
+    private final class ThreeFingerWatcher extends View {
+        private final long[] times=new long[3];
+        private final float[] xs=new float[3],ys=new float[3];
+        private int next;
+        ThreeFingerWatcher(Context context){super(context);setClickable(false);setFocusable(false);setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);}
+        @Override public boolean dispatchTouchEvent(MotionEvent e){
+            int action=e.getActionMasked();
+            if(!overlaysHidden||(action!=MotionEvent.ACTION_DOWN&&action!=MotionEvent.ACTION_POINTER_DOWN))return false;
+            if(e.getPointerCount()>=3){unhide();return false;}
+            int index=e.getActionIndex();
+            times[next]=e.getEventTime();xs[next]=e.getX(index);ys[next]=e.getY(index);next=(next+1)%3;
+            long newest=e.getEventTime();float apart=dp(24);
+            boolean together=true;
+            for(int i=0;i<3&&together;i++){
+                together=times[i]!=0&&newest-times[i]<=250;
+                for(int j=i+1;j<3&&together;j++)together=Math.hypot(xs[i]-xs[j],ys[i]-ys[j])>=apart;
+            }
+            if(together)unhide();
+            return false;
+        }
+        private void unhide(){java.util.Arrays.fill(times,0);post(()->setOverlaysHidden(false));}
     }
     /** A ground tap must never silently replace a planned route. */
     void confirmStopRoute() {
@@ -415,13 +473,14 @@ public final class Pad {
         if(quickMenu!=null){quickMenu.destroy();quickMenu=null;}
         if(cooldownDrag!=null){cooldownDrag.detach();cooldownDrag=null;}if(vgpDrag!=null){vgpDrag.detach();vgpDrag=null;}if(transferDrag!=null){transferDrag.detach();transferDrag=null;}if(gameRoutesDrag!=null){gameRoutesDrag.detach();gameRoutesDrag=null;}
         if(buddyEmotionDrag!=null){buddyEmotionDrag.detach();buddyEmotionDrag=null;}
-        if(buddyEmotionStatus!=null)parent.removeView(buddyEmotionStatus);
-        if(automationStatus!=null){parent.removeView(automationStatus);automationStatus=null;}
+        if(buddyEmotionStatus!=null)overlays.removeView(buddyEmotionStatus);
+        if(automationStatus!=null){overlays.removeView(automationStatus);automationStatus=null;}
         if(gymFeedDrag!=null){gymFeedDrag.detach();gymFeedDrag=null;}
-        if(gymAutomationStatus!=null){parent.removeView(gymAutomationStatus);gymAutomationStatus=null;}
-        if(gymFeedOverlay!=null){gymFeedOverlay.close();parent.removeView(gymFeedOverlay);gymFeedOverlay=null;}
-        settings.close();
-        parent.removeView(settings.view());parent.removeView(launcher);parent.removeView(joystickOverlay);if(encounterBerry!=null){encounterBerry.close();parent.removeView(encounterBerry);}if(cooldownTimer!=null)parent.removeView(cooldownTimer);if(vgpToggle!=null)parent.removeView(vgpToggle);if(vgpActivity!=null)parent.removeView(vgpActivity);if(vgpMarker!=null)parent.removeView(vgpMarker);if(transferToggle!=null)parent.removeView(transferToggle);if(gameRoutesOverlay!=null){gameRoutesOverlay.close();parent.removeView(gameRoutesOverlay);}
+        if(gymAutomationStatus!=null){overlays.removeView(gymAutomationStatus);gymAutomationStatus=null;}
+        if(gymFeedOverlay!=null){gymFeedOverlay.close();overlays.removeView(gymFeedOverlay);gymFeedOverlay=null;}
+        settings.close();if(hideOverlaysDialog!=null)hideOverlaysDialog.dismiss();
+        parent.removeView(settings.view());overlays.removeView(launcher);overlays.removeView(joystickOverlay);if(encounterBerry!=null){encounterBerry.close();overlays.removeView(encounterBerry);}if(cooldownTimer!=null)overlays.removeView(cooldownTimer);if(vgpToggle!=null)overlays.removeView(vgpToggle);if(vgpActivity!=null)overlays.removeView(vgpActivity);if(vgpMarker!=null)overlays.removeView(vgpMarker);if(transferToggle!=null)overlays.removeView(transferToggle);if(gameRoutesOverlay!=null){gameRoutesOverlay.close();overlays.removeView(gameRoutesOverlay);}
+        parent.removeView(overlays);if(unhideWatcher!=null)parent.removeView(unhideWatcher);
         settings.view().setOnApplyWindowInsetsListener(null);
         Control.event("panel-closed", "Runtime suspended on activity change; desiredEnabled=" + Control.desiredEnabled() + "; movement stopped");
     }

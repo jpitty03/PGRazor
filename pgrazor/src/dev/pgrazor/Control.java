@@ -487,8 +487,13 @@ public final class Control {
     }
     // IV/level overlay preferences. The stored choice is surfaced to the UI and the
     // agent; the agent itself fails closed when owned-details metadata is absent.
-    public static boolean ivCatchEnabled(){return ivCatchEnabled;}
-    public static boolean ivOwnedEnabled(){return ivOwnedEnabled;}
+    // "Hide overlay" (Pad) makes the game look stock: the in-game IV text is off while it is set. These
+    // getters feed the native transport; the saved preferences are unchanged.
+    private static volatile boolean overlaysHidden;
+    public static boolean overlaysHidden(){return overlaysHidden;}
+    public static void setOverlaysHidden(boolean hidden){overlaysHidden=hidden;}
+    public static boolean ivCatchEnabled(){return ivCatchEnabled&&!overlaysHidden;}
+    public static boolean ivOwnedEnabled(){return ivOwnedEnabled&&!overlaysHidden;}
     public static boolean ivOwnedReady(){return ivOwnedReady;}
     public static boolean ivDisplayAllowed(){return quickBallReady&&hostLive();}
     public static void setIvCatchEnabled(boolean enabled){ivCatchEnabled=enabled;saveSettings();event("iv-catch-overlay",enabled?"ON":"OFF");}
@@ -504,7 +509,7 @@ public final class Control {
         storageIvFormat=format>=1&&format<=3?format:3;
         if(storageIvMode!=0)setStorageIvMode(storageIvFormat);else saveSettings();
     }
-    public static String storageIvConfig(){return "S1|"+storageIvMode;}
+    public static String storageIvConfig(){return "S1|"+(overlaysHidden?0:storageIvMode);}
     public static String storageIvStatus(){return storageIvMode==0?"":storageIvStatus;}
     public static void configureQuickBall(boolean configured) {
         synchronized(quickBallLock) {
@@ -918,7 +923,7 @@ public final class Control {
     public static int quickMenuHidden(){return quickMenuHidden;}
     public static boolean quickMenuVisible(int bit){return (quickMenuHidden&bit)==0;}
     public static void setQuickMenuVisible(int bit,boolean visible){
-        if(bit<=0||bit>1024||(bit&(bit-1))!=0)return;
+        if(bit<=0||bit>4096||(bit&(bit-1))!=0)return;
         quickMenuHidden=visible?quickMenuHidden&~bit:quickMenuHidden|bit;
         saveSettings();
     }
@@ -973,7 +978,7 @@ public final class Control {
                 ResearchSettings.read(p);
                 desiredEnabled=Boolean.parseBoolean(p.getProperty("locationSpoofing","true"));
                 darkTheme=Boolean.parseBoolean(p.getProperty("darkTheme","true"));
-                quickMenuHidden=boundedSetting(p,"quickMenuHidden",4095);
+                quickMenuHidden=boundedSetting(p,"quickMenuHidden",8191);
                 try{uiScalePercent=Integer.parseInt(p.getProperty("uiScalePercent","100"));}catch(NumberFormatException invalid){uiScalePercent=100;}
                 if(uiScalePercent!=25&&uiScalePercent!=50&&uiScalePercent!=75&&uiScalePercent!=100)uiScalePercent=100;
                 joystickVisible=Boolean.parseBoolean(p.getProperty("joystickVisible","true"));
