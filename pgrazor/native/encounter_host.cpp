@@ -47,6 +47,7 @@
 #include "gift_batch.h"
 #include "research.h"
 #include "storage_iv.h"
+#include "ar_values.h"
 #include "incense_guard.h"
 #include "buddy_emotion.h"
 
@@ -2402,6 +2403,7 @@ static int api_tick(uint64_t proven_tid) {
   pgr_gift_batch_tick(os_tid, &g_md);
   pgr_research_tick(os_tid, &g_md);
   pgr_storage_iv_tick(os_tid, &g_md);
+  pgr_ar_values_tick(os_tid, &g_md);
   pgr_remote_gym_tick(os_tid, &g_md);
   pgr_gym_tick(os_tid, &g_md);
   pgr_evolution_tick(os_tid, &g_md);

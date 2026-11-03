@@ -31,7 +31,7 @@ int main(int argc,char **argv){
  Object self{&wild,0,0,0};PgrThrowValue t{2,.2f,1,1,0,0xa5};decltype(&capture) volatile call=&capture;
  if(call(&self,t,&cfg,&self)!=&other||last_value!=&cfg||roots)return 5;
  api->update(1,1,2500,gettid());
- if(call(&self,t,&cfg,&self)!=&other||last_value!=&created||last_method!=&self||std::memcmp(&t,&last_throw,12)||roots||created.p||created.a||created.f)return 6;
+ if(call(&self,t,&cfg,&self)!=&other||last_value!=&created||last_method!=&self||std::memcmp(&t,&last_throw,12)||roots||created.p!=0.25f||created.a!=0.05f||created.f)return 6;  // close, calm, non-default values
  t.item=5;call(&self,t,&cfg,&self);if(last_value!=&cfg)return 7;
  t.item=1;t.missed=1;call(&self,t,&cfg,&self);if(last_value!=&cfg)return 8;t.missed=0;
  self.klass=&other;call(&self,t,&cfg,&self);if(last_value!=&cfg)return 9;self.klass=&wild;

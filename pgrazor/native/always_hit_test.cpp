@@ -148,9 +148,11 @@ int main(int argc, char **argv) {
     if (orig_coll != oc + 1 || applied_hits != 3 || roots != 0) return 15; // wrong ball class
     ball.klass = &ball_class;
 
+    // A Max Battle (HoldingBreadBall) ball is eligible like any other: one apply, original
+    // suppressed.
     call_launch(&ball); ball.bread = 1; oc = orig_coll;
     call_coll(&ball, &arg_obj, &method_obj);
-    if (orig_coll != oc + 1 || roots != 0) return 16; // bread guard set
+    if (orig_coll != oc || applied_hits != 4 || roots != 1) return 16;
     ball.bread = 0;
 
     call_launch(&ball); ball.item = 4; oc = orig_coll;
@@ -181,7 +183,7 @@ int main(int argc, char **argv) {
     // (F) Gate: wrong thread, invalid lease, off, expiry each pass the original through.
     api->update(1, 1, 2500, gettid() + 1); oc = orig_coll;
     call_coll(&ball, &arg_obj, &method_obj);
-    if (orig_coll != oc + 1 || applied_hits != 3) return 23; // not the proven Unity thread
+    if (orig_coll != oc + 1 || applied_hits != 4) return 23; // not the proven Unity thread
 
     if (api->update(1, 1, 3000, gettid()) == 0) return 24;   // lease > cap must be refused
     oc = orig_coll; call_coll(&ball, &arg_obj, &method_obj);
@@ -194,7 +196,7 @@ int main(int argc, char **argv) {
     api->update(1, 1, 1, gettid());
     timespec pause{0, 10000000}; nanosleep(&pause, nullptr);
     oc = orig_coll; call_coll(&ball, &arg_obj, &method_obj);
-    if (orig_coll != oc + 1 || applied_hits != 3) return 27; // lease expired
+    if (orig_coll != oc + 1 || applied_hits != 4) return 27; // lease expired
 
     // (G) Managed exception latches a permanent fault: the root taken before the invoke stays
     //     held, the original is suppressed, and every later event passes through.
@@ -202,7 +204,7 @@ int main(int argc, char **argv) {
     call_launch(&ball); if (roots != 0) return 28; // clear any residual handled root
     invoke_throws = true; oc = orig_coll;
     call_coll(&ball, &arg_obj, &method_obj);
-    if (orig_coll != oc || applied_hits != 3 || roots != 1) return 29; // faulted, rooted, suppressed
+    if (orig_coll != oc || applied_hits != 4 || roots != 1) return 29; // faulted, rooted, suppressed
     // (H) tick() root clear: a stop requests the free, an off-thread tick must NOT free, and a
     //     tick proven to be on the game thread frees the single handled root.
     api->update(0, 0, 0, 0);
@@ -214,7 +216,7 @@ int main(int argc, char **argv) {
     if (orig_coll != oc + 1 || roots != 0) return 30; // fault stays latched; root already retired
 
     PgrAlwaysHitSample s{}; api->sample(&s);
-    if (s.applied != 3 || s.normalized != 1 || s.errors != 1) return 33;
+    if (s.applied != 4 || s.normalized != 1 || s.errors != 1) return 33;
 
     std::puts("PASS native Always Hit: ABI/forwarding, single-apply dedupe, launch/release rearm, "
               "exclusions, missed normalisation, thread/lease/off/expiry gate, root balance, "

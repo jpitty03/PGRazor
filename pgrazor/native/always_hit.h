@@ -68,7 +68,7 @@ struct PgrAlwaysHitConfig {  // 192 bytes: 8-byte header then 23 pointers in tab
     void *gchandle_new;      // 104 void* (*)(void* obj, int pinned) -> pointer-sized handle
     void *gchandle_get_target; // 112 void* (*)(void* handle)
     void *gchandle_free;     // 120 void  (*)(void* handle)
-    void *field_bread;       // 128 FieldInfo* <HoldingBreadBall> guard byte (bool)
+    void *field_bread;       // 128 FieldInfo* <HoldingBreadBall> (bool): Max Battle ball, logged only
     void *field_item;        // 136 FieldInfo* <BallType> backing field (int enum)
     void *field_state;       // 144 FieldInfo* the ball's state-machine reference
     void *field_current;     // 152 FieldInfo* the machine's current-state reference

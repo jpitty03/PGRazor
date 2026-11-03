@@ -2,6 +2,9 @@
 #include "hook_engine.h"
 #include "dobby.h"
 
+#if defined(__ANDROID__)
+#include <android/log.h>
+#endif
 #include <atomic>
 #include <cstdlib>
 #include <cstring>
@@ -155,12 +158,27 @@ inline void  gc_free(void *h)     { reinterpret_cast<void (*)(void *)>(g_config.
 // exact(o,k): nonnull AND object's class is exactly k (object_get_class().equals(k)).
 inline bool exact(void *o, void *k) { return o != nullptr && obj_class(o) == k; }
 
-// valid(ball): exact ball class, bread guard clear, eligible item. Mirrors the JS valid().
+// Dynamax (Max Battle) catch balls carry HoldingBreadBall. They used to be skipped as special
+// balls; they are now eligible like any other. Once per ball, log whether such a throw was hit
+// or which check turned it away, so a Max Battle report can say why it did not apply.
+void note_bread(void *ball, const char *what, int32_t value = 0) {
+    static void *last = nullptr;
+    if (ball == last || read_bool(ball, g_config.field_bread) != 1) return;
+    last = ball;
+#if defined(__ANDROID__)
+    __android_log_print(ANDROID_LOG_INFO, "PGRazor", "always-hit max-battle ball: %s %d", what, static_cast<int>(value));
+#else
+    (void)what; (void)value;
+#endif
+}
+
+// valid(ball): exact ball class and an eligible item (Poke, Great, Ultra, Premier).
 bool valid_ball(void *ball) {
     if (!exact(ball, g_config.ball_class)) return false;
-    if (read_bool(ball, g_config.field_bread) != 0) return false;
     int32_t item = read_int(ball, g_config.field_item);
-    return item == 1 || item == 2 || item == 3 || item == 5;
+    if (item == 1 || item == 2 || item == 3 || item == 5) return true;
+    note_bread(ball, "skipped: ball item", item);
+    return false;
 }
 
 // Free the handled root when a stop requested it. Game-thread only.
@@ -195,7 +213,7 @@ void collision_body(void *ball, void *arg, void *method, CollisionFn orig) {
     if (!valid_ball(ball)) { orig(ball, arg, method); return; }
 
     void *machine = read_ptr(ball, g_config.field_state);
-    if (!exact(machine, g_config.machine_class)) { orig(ball, arg, method); return; }
+    if (!exact(machine, g_config.machine_class)) { note_bread(ball, "skipped: state machine"); orig(ball, arg, method); return; }
 
     void *current = read_ptr(machine, g_config.field_current);
     void *flying  = read_ptr(ball, g_config.field_flying);
@@ -207,7 +225,11 @@ void collision_body(void *ball, void *arg, void *method, CollisionFn orig) {
 
     void *action  = read_ptr(ball, g_config.field_hit);
     void *pokemon = read_ptr(ball, g_config.field_pokemon);
-    if (!exact(action, g_config.action_class) || pokemon == nullptr) { orig(ball, arg, method); return; }
+    if (!exact(action, g_config.action_class) || pokemon == nullptr) {
+        note_bread(ball, pokemon == nullptr ? "skipped: no target" : "skipped: hit action");
+        orig(ball, arg, method);
+        return;
+    }
 
     // Qualified. Root the ball as the handled identity BEFORE invoking (the JS set
     // `handled` before invoke). Rooting is the native equivalent of the JS pointer string;
@@ -235,8 +257,10 @@ void collision_body(void *ball, void *arg, void *method, CollisionFn orig) {
     if (exc != nullptr) {
         g_fault.store(1, std::memory_order_relaxed);   // latch; gate closes on next read
         g_errors.fetch_add(1, std::memory_order_relaxed);
+        note_bread(ball, "hit failed: managed exception");
     } else {
         g_applied.fetch_add(1, std::memory_order_relaxed);
+        note_bread(ball, "hit applied");
     }
     // Suppress the original site either way (preserves old suppression semantics).
 }
