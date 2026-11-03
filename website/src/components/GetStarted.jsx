@@ -37,8 +37,8 @@ export default function GetStarted() {
       <p className="cta__release">
         <span className="cta__badge">Stable</span>
         The published{' '}
-        <a href={links.releasesCurrent}>v0.1.10 release</a> returns
-        to the map faster after Quick Catch and improves compatibility with older Android versions.
+        <a href={links.releasesCurrent}>v0.2.0 release</a> adds field research automation,
+        storage list IVs, a stock-look overlay hider and GPX routes that resume from the closest point.
       </p>
 
       <div className="faq">
