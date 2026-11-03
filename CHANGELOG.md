@@ -9,6 +9,7 @@
 - **Always Hit:** Now also works when catching after a Max Battle.
 - **AR+ throw bonus:** Wild catches now get the AR+ catch bonus.
 - **GPX routes:** Starting a GPX route in Autowalk now asks where to begin: from the closest point on the route, from the beginning, or by teleporting to the beginning.
+- **Copy coordinates:** The World map has Copy my location and Copy pin location buttons, which center the map on that spot and copy its coordinates. The quick menu Teleport dialog shows your current coordinates with a Copy button.
 - Menu options and buttons now look like buttons, with an outline and space between neighbouring buttons.
 
 ## v0.1.10

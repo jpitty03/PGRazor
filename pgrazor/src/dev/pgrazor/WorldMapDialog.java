@@ -130,15 +130,24 @@ public final class WorldMapDialog {
         LinearLayout routeTools = new LinearLayout(ui);
         routeTools.setGravity(Gravity.CENTER_VERTICAL);
         routeTools.addView(loop,new LinearLayout.LayoutParams(0,dp(activity,48),1));
-        Button current=button(ui,"My location");
-        current.setContentDescription("Center map on your current in-game location");
-        current.setOnClickListener(v -> map.centerCurrentLocation());
-        routeTools.addView(current,new LinearLayout.LayoutParams(dp(activity,112),dp(activity,48)));
         Button clearRoute=button(ui,"Clear route");
         clearRoute.setContentDescription("Clear all stops from the route draft");
         clearRoute.setVisibility(View.GONE);
         routeTools.addView(clearRoute,new LinearLayout.LayoutParams(dp(activity,112),dp(activity,48)));
         layout.addView(routeTools);
+        // Each centers the map on its location and copies the coordinates.
+        LinearLayout copyRow = new LinearLayout(ui);
+        Button current=button(ui,"Copy my location"), pin=button(ui,"Copy pin location");
+        current.setContentDescription("Center the map on your current in-game location and copy its coordinates");
+        pin.setContentDescription("Center the map on the red pin and copy its coordinates");
+        current.setOnClickListener(v -> {
+            map.centerCurrentLocation();
+            CoordinateClipboard.copy(activity, Control.engine.latitude, Control.engine.longitude, "Your location copied");
+        });
+        pin.setOnClickListener(v -> { map.centerSelection(); CoordinateClipboard.copy(activity, map.latitude, map.longitude, "Pin location copied"); });
+        copyRow.addView(current, new LinearLayout.LayoutParams(0, dp(activity, 48), 1));
+        copyRow.addView(pin, new LinearLayout.LayoutParams(0, dp(activity, 48), 1));
+        layout.addView(copyRow);
         LinearLayout actions = new LinearLayout(ui);
         Button globe = button(ui, "World"), center = button(ui, "Selected"), retry = button(ui, "Retry");
         // The GPX menu button only exists when the route builder is available, and stays hidden until route mode.

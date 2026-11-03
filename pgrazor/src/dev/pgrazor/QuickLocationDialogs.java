@@ -27,6 +27,19 @@ public final class QuickLocationDialogs {
         Context ctx = themed(activity);
         LinearLayout form = new LinearLayout(ctx); form.setOrientation(LinearLayout.VERTICAL);
         int p = dp(ctx, 22); form.setPadding(p, dp(ctx, 8), p, dp(ctx, 8));
+        // Where you are now, with a button to copy it.
+        final double hereLat = Control.engine.latitude, hereLon = Control.engine.longitude;
+        LinearLayout here = new LinearLayout(ctx); here.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        android.widget.TextView hereText = new android.widget.TextView(ctx);
+        hereText.setText("You are at\n" + CoordinateClipboard.text(hereLat, hereLon)); hereText.setTextSize(14);
+        here.addView(hereText, new LinearLayout.LayoutParams(0, -2, 1));
+        android.widget.Button copy = new android.widget.Button(ctx); copy.setText("Copy"); copy.setAllCaps(false); copy.setTextSize(13);
+        copy.setContentDescription("Copy your current coordinates");
+        MapTheme.setButtonBackground(copy);
+        copy.setOnClickListener(v -> CoordinateClipboard.copy(activity, hereLat, hereLon, "Your location copied"));
+        here.addView(copy, new LinearLayout.LayoutParams(dp(ctx, 88), dp(ctx, 48)));
+        LinearLayout.LayoutParams hereLp = new LinearLayout.LayoutParams(-1, -2); hereLp.bottomMargin = dp(ctx, 8);
+        form.addView(here, hereLp);
         EditText coordinates = input(ctx, "Latitude, longitude");
         form.addView(coordinates);
         AlertDialog dialog = new AlertDialog.Builder(ctx).setTitle("Teleport to coordinates").setView(form)
