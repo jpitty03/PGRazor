@@ -50,7 +50,8 @@ final class SettingsPanel {
     private Button mapTap, throwGrade, storageIv, itemSettings, cameraSample, interactionCapture, transferKeepList;
     // Boolean settings use proper switches.
     private Switch idleWalkSwitch, locationSwitch, vgpSwitch, joystickSwitch, cooldownSwitch, spawnSwitch, autoTransferSwitch,
-        quickSpinSwitch, berrySwitch, quickSummarySwitch, curveSwitch, alwaysHitSwitch, arSwitch, transferOverlaySwitch;
+        quickSpinSwitch, berrySwitch, quickSummarySwitch, curveSwitch, alwaysHitSwitch, arSwitch, transferOverlaySwitch, catchChanceSwitch, autoBallSwitch;
+    private Button autoBallTarget;
     private CheckBox ivCatchBox, ivOwnedBox, storageIvBox;
     private TextView quickSummaryLabel, vgpStatus;
     private final CheckBox[] vgpChoices=new CheckBox[3];
@@ -383,7 +384,17 @@ final class SettingsPanel {
         alwaysHitSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.throwAlwaysHit())return; Control.setThrowAlwaysHit(alwaysHitSwitch.isChecked()); host.refresh(); });
         arSwitch = switchRow(throwC, "AR+ throw bonus"); arSwitch.setChecked(Control.throwAr());
         arSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.throwAr())return; Control.setThrowAr(arSwitch.isChecked()); host.refresh(); });
-        caption(throwC, "Wild encounters. Combines with throw rating and curveball; server bonus unverified.");
+        caption(throwC, "Wild encounters. Combines with throw rating and curveball.");
+        catchChanceSwitch = switchRow(throwC, "Show catch chance"); catchChanceSwitch.setChecked(Control.catchChanceShown());
+        catchChanceSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.catchChanceShown())return; Control.setCatchChanceShown(checked); host.refresh(); });
+        autoBallSwitch = switchRow(throwC, "Auto ball"); autoBallSwitch.setChecked(Control.autoBall());
+        autoBallSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.autoBall())return; Control.setAutoBall(checked); host.refresh(); });
+        autoBallTarget = button("Auto ball target: "+Control.autoBallTarget()+"%"); throwC.addView(autoBallTarget);
+        autoBallTarget.setOnClickListener(v -> {
+            int[] targets=Control.AUTO_BALL_TARGETS;int next=targets[0];
+            for(int i=0;i<targets.length;i++)if(targets[i]==Control.autoBallTarget()){next=targets[(i+1)%targets.length];break;}
+            Control.setAutoBallTarget(next); host.refresh(); });
+        caption(throwC, "Manual encounters. The chance uses the server's catch rate for each ball with your berry, throw rating and curveball; type medals are not included. Auto ball picks the cheapest Poké, Great or Ultra Ball that reaches the target, when the encounter opens and after each escape; a ball you pick by hand is kept until the next escape. It never uses a Master Ball.");
         quickBallStatus = caption(throwC, "");
     }
 
@@ -609,6 +620,8 @@ final class SettingsPanel {
         curveSwitch.setChecked(Control.throwCurve());curveSwitch.setEnabled(Control.quickBallConfigured());
         alwaysHitSwitch.setChecked(Control.throwAlwaysHit());alwaysHitSwitch.setEnabled(Control.throwAlwaysHitReady() || Control.throwAlwaysHit());
         arSwitch.setChecked(Control.throwAr());arSwitch.setEnabled(Control.throwArReady());
+        catchChanceSwitch.setChecked(Control.catchChanceShown());autoBallSwitch.setChecked(Control.autoBall());
+        autoBallTarget.setText("Auto ball target: "+Control.autoBallTarget()+"%");autoBallTarget.setEnabled(Control.autoBall());
         ivCatchBox.setChecked(Control.ivCatchEnabled());ivCatchBox.setEnabled(Control.quickBallConfigured());
         ivOwnedBox.setChecked(Control.ivOwnedEnabled());ivOwnedBox.setEnabled(Control.quickBallConfigured());
         storageIvBox.setChecked(Control.storageIvEnabled());

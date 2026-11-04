@@ -150,6 +150,10 @@ public final class GymAutomationSettings {
  public static void read(java.util.Properties p){prefs.read(p);}
  public static void write(java.util.Properties p){prefs.write(p);}
 }''',
+    'dev/pgrazor/CatchChance.java': '''package dev.pgrazor;
+public final class CatchChance {
+ public static void publish(String detail){}
+}''',
     'dev/pgrazor/ResearchSettings.java': '''package dev.pgrazor;
 public final class ResearchSettings {
  private static final ResearchPreferences prefs=new ResearchPreferences();

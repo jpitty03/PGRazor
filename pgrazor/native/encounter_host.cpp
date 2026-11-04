@@ -48,6 +48,7 @@
 #include "research.h"
 #include "storage_iv.h"
 #include "ar_values.h"
+#include "catch_chance.h"
 #include "incense_guard.h"
 #include "buddy_emotion.h"
 
@@ -464,6 +465,7 @@ static void hook_berry_enter(void *scope, void *method_info) {
   if (tid != 0 && !g_stopped && g_berries && (g_active_caps & PGR_EH_CAP_BERRIES)) {
     g_berries->observe_enter(pin_scope.get(), tid);
   }
+  if (tid != 0 && !g_stopped) pgr_catch_chance_enter(pin_scope.get());
   if (g_orig_berry_enter) {
     g_orig_berry_enter(pin_scope.get(), method_info);
   }
@@ -478,6 +480,7 @@ static void hook_berry_exit(void *scope, void *method_info) {
   if (tid != 0 && !g_stopped && g_berries && (g_active_caps & PGR_EH_CAP_BERRIES)) {
     g_berries->observe_exit(pin_scope.get(), tid);
   }
+  if (tid != 0 && !g_stopped) pgr_catch_chance_exit(pin_scope.get());
   if (g_orig_berry_exit) {
     g_orig_berry_exit(pin_scope.get(), method_info);
   }
@@ -2404,6 +2407,7 @@ static int api_tick(uint64_t proven_tid) {
   pgr_research_tick(os_tid, &g_md);
   pgr_storage_iv_tick(os_tid, &g_md);
   pgr_ar_values_tick(os_tid, &g_md);
+  pgr_catch_chance_tick(os_tid, &g_md);
   pgr_remote_gym_tick(os_tid, &g_md);
   pgr_gym_tick(os_tid, &g_md);
   pgr_evolution_tick(os_tid, &g_md);
@@ -2434,6 +2438,7 @@ static int api_stop(uint64_t proven_tid) {
       pgr_gift_batch_stop();
       pgr_research_stop();
       pgr_storage_iv_stop();
+      pgr_catch_chance_stop();
       pgr_remote_gym_stop(tid);
       pgr_incense_guard_stop(tid);
       pgr_gym_stop(tid);

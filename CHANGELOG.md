@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Catch chance:** Manual encounters show each ball's chance to catch, from the server's catch rate for that encounter with your berry, throw rating and curveball applied. Type medals are not included. Turn it off under Settings > Throws.
+- **Auto ball:** Optionally picks the cheapest Poké, Great or Ultra Ball that reaches your target chance when a manual encounter opens and after each escape. A ball you pick by hand is kept until the next escape, and it never uses a Master Ball. Turn it on under Settings > Throws.
+
 ## v0.2.0
 
 [Full release notes](docs/releases/v0.2.0.md)

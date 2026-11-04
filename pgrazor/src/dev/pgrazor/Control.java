@@ -511,6 +511,23 @@ public final class Control {
     }
     public static String storageIvConfig(){return "S1|"+(overlaysHidden?0:storageIvMode);}
     public static String storageIvStatus(){return storageIvMode==0?"":storageIvStatus;}
+    // Catch chance overlay (on by default) and auto ball (off by default) for manual encounters.
+    // autoBallTarget is the chance the cheapest ball must reach, in percent.
+    private static volatile boolean catchChanceShown=true, autoBall;
+    private static volatile int autoBallTarget=75;
+    static final int[] AUTO_BALL_TARGETS={50,65,75,85,95};
+    public static boolean catchChanceShown(){return catchChanceShown;}
+    public static void setCatchChanceShown(boolean shown){catchChanceShown=shown;saveSettings();event("catch-chance-overlay",shown?"ON":"OFF");}
+    public static boolean autoBall(){return autoBall;}
+    public static void setAutoBall(boolean on){autoBall=on;saveSettings();event("auto-ball",on?"ON":"OFF");}
+    public static int autoBallTarget(){return autoBallTarget;}
+    public static void setAutoBallTarget(int percent){autoBallTarget=percent>=1&&percent<=99?percent:75;saveSettings();}
+    /**
+     * "C1|show|auto|target|berry". berry is the one PGRazor's berry picker will feed on the next
+     * throw (0 when the picker is off); the game only sees it at release, so the chance needs it from
+     * here. While the overlay is hidden the chance line is off; auto ball keeps running.
+     */
+    public static String catchChanceConfig(){return "C1|"+(catchChanceShown&&!overlaysHidden?1:0)+"|"+(autoBall?1:0)+"|"+autoBallTarget+"|"+autoBerry();}
     public static void configureQuickBall(boolean configured) {
         synchronized(quickBallLock) {
             quickBallConfigured=configured; quickBallReady=false; ivOwnedReady=false; setThrowReady(false);setMapTapReady(false);
@@ -1023,6 +1040,8 @@ public final class Control {
                 ivCatchEnabled=Boolean.parseBoolean(p.getProperty("ivCatch","true"));
                 ivOwnedEnabled=Boolean.parseBoolean(p.getProperty("ivOwned","false"));
                 storageIvMode=boundedSetting(p,"storageIv",3);
+                catchChanceShown=Boolean.parseBoolean(p.getProperty("catchChance","true"));autoBall=Boolean.parseBoolean(p.getProperty("autoBall","false"));
+                int target=boundedSetting(p,"autoBallTarget",99);autoBallTarget=target>0?target:75;
                 int format=boundedSetting(p,"storageIvFormat",3);storageIvFormat=format>0?format:storageIvMode>0?storageIvMode:3;
                 // Migrate the former independent animation preference to Quick Catch.
                 quickBallEnabled=quickSummaryEnabled;
@@ -1102,6 +1121,7 @@ public final class Control {
         p.setProperty("autoTransfer",String.valueOf(autoTransferEnabled)); p.setProperty("transferProtect",String.valueOf(transferProtect));
         p.setProperty("transferKeepAll",String.valueOf(transferKeepAll)); p.setProperty("transferOverlay",String.valueOf(transferOverlayEnabled)); p.setProperty("transferKeepSpecies",transferKeepSpecies);
         p.setProperty("ivCatch",String.valueOf(ivCatchEnabled)); p.setProperty("ivOwned",String.valueOf(ivOwnedEnabled)); p.setProperty("storageIv",String.valueOf(storageIvMode)); p.setProperty("storageIvFormat",String.valueOf(storageIvFormat));
+        p.setProperty("catchChance",String.valueOf(catchChanceShown)); p.setProperty("autoBall",String.valueOf(autoBall)); p.setProperty("autoBallTarget",String.valueOf(autoBallTarget));
         p.setProperty("autoDismiss",String.valueOf(quickSummaryEnabled)); p.setProperty("fastBall",String.valueOf(quickBallEnabled));
         p.setProperty("throwAr",String.valueOf(throwAr)); p.setProperty("curve",String.valueOf(throwCurve)); p.setProperty("grade",String.valueOf(throwGrade));
         p.setProperty("throwAlwaysHit",String.valueOf(throwAlwaysHit));
@@ -1131,6 +1151,7 @@ public final class Control {
         if("batch-evolution".equals(kind))BatchEvolutionSettings.publish(detail);
         if("gift-batch".equals(kind))GiftBatchSettings.publish(detail);
         if("research".equals(kind))ResearchSettings.publish(detail);
+        if("catch-chance".equals(kind))CatchChance.publish(detail);
         if("storage-iv".equals(kind)){
             try{org.json.JSONObject o=new org.json.JSONObject(detail);storageIvStatus="error".equals(o.optString("phase"))?o.optString("message",""):"";}
             catch(Exception ignored){}

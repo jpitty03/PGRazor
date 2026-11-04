@@ -42,15 +42,15 @@ enum PgrRuntimeTransportInfo {
   PGR_TRANSPORT_API_VERSION     = 1,
   PGR_TRANSPORT_CONFIG_VERSION  = 1,
   PGR_TRANSPORT_SAMPLE_VERSION  = 1,
-  PGR_TRANSPORT_FRAME_VERSION   = 11,
+  PGR_TRANSPORT_FRAME_VERSION   = 12,
 
   // Version 9 appends one-shot automation commands at string slot 12; version 10 appends the
-  // field research config at string slot 13; version 11 appends the storage IV config at slot 14.
+  // field research config at string slot 13; version 11 appends the storage IV config at slot 14; version 12 the catch chance config at slot 15.
   // 40+10+2+6 scalar readers plus accountCommandSnapshot; 3 pulses; 59 actions.
   PGR_TRANSPORT_BOOLS           = 40,
   PGR_TRANSPORT_INTS            = 10,
   PGR_TRANSPORT_DOUBLES         = 2,
-  PGR_TRANSPORT_STRINGS         = 15,   // 5 strings + account command/token pair + smart catch config
+  PGR_TRANSPORT_STRINGS         = 16,   // 5 strings + account command/token pair + smart catch config
   PGR_TRANSPORT_PULSES          = 3,
   PGR_TRANSPORT_ACTIONS         = 59,
 

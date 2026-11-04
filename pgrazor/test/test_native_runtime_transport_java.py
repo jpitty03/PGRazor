@@ -28,6 +28,7 @@ def control_shell():
     specs.append(('oneShotAutomationConfig', '', 'String'))
     specs.append(('researchConfig', '', 'String'))
     specs.append(('storageIvConfig', '', 'String'))
+    specs.append(('catchChanceConfig', '', 'String'))
     methods = []
     for name, params, expected_result in specs:
         actual = re.search(r'public static\s+(?:synchronized\s+)?([\w\[\]]+)\s+' + name + r'\(([^)]*)\)', source)
@@ -41,6 +42,8 @@ def control_shell():
             body = 'reads++;return "1;1;0;0;50;10";'
         elif name == 'oneShotAutomationConfig':
             body = 'reads++;return "1|123|0|0|0|0|0|0";'
+        elif name == 'catchChanceConfig':
+            body = 'reads++;return "C1|1|0|75";'
         elif name == 'storageIvConfig':
             body = 'reads++;return "S1|2";'
         elif name == 'researchConfig':

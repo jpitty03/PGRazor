@@ -47,6 +47,9 @@ public class SettingsBackupRulesTest {
         v=valid();v.getJSONObject("settings").put("storageIv","4");rejects(v);
         v=valid();v.getJSONObject("settings").put("storageIvFormat","2");SettingsBackupRules.validate(v);
         v=valid();v.getJSONObject("settings").put("storageIvFormat","9");rejects(v);
+        v=valid();v.getJSONObject("settings").put("catchChance","false").put("autoBall","true").put("autoBallTarget","85");SettingsBackupRules.validate(v);
+        v=valid();v.getJSONObject("settings").put("autoBallTarget","100");rejects(v);
+        v=valid();v.getJSONObject("settings").put("autoBall","yes");rejects(v);
         v=valid();v.getJSONObject("preferences").put("pgrazor-overlays",new JSONObject().put("vgp.fx",1.2));rejects(v);
         v=valid();v.getJSONObject("settings").put("gymAutomationOverlay","false");SettingsBackupRules.validate(v);
         v=valid();v.getJSONObject("settings").put("gymAutomationOverlay","maybe");rejects(v);
