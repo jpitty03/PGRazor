@@ -43,6 +43,10 @@ public class SettingsBackupRulesTest {
         v=valid();v.getJSONObject("settings").put("locationSpoofing","invalid");rejects(v);
         v=valid();v.getJSONObject("settings").put("ivCatch","false").put("ivOwned","true");SettingsBackupRules.validate(v);
         v=valid();v.getJSONObject("settings").put("ivOwned","maybe");rejects(v);
+        v=valid();v.getJSONObject("settings").put("storageIv","3");SettingsBackupRules.validate(v);
+        v=valid();v.getJSONObject("settings").put("storageIv","4");rejects(v);
+        v=valid();v.getJSONObject("settings").put("storageIvFormat","2");SettingsBackupRules.validate(v);
+        v=valid();v.getJSONObject("settings").put("storageIvFormat","9");rejects(v);
         v=valid();v.getJSONObject("preferences").put("pgrazor-overlays",new JSONObject().put("vgp.fx",1.2));rejects(v);
         v=valid();v.getJSONObject("settings").put("gymAutomationOverlay","false");SettingsBackupRules.validate(v);
         v=valid();v.getJSONObject("settings").put("gymAutomationOverlay","maybe");rejects(v);

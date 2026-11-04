@@ -1,4 +1,5 @@
 #pragma once
+#include "game_bindings.h"
 #include "runtime_metadata.h"
 #include <cstdint>
 
@@ -182,34 +183,34 @@ static_assert(kClassCount == C_CLASS_END, "class table matches ClassIndex enum")
 // 0x50 (check()/field()); the static dsjv field uses forbidden 0x40 + required 0x10 (static,non-literal).
 inline constexpr FieldSpec kFields[] = {
   // --- CORE (mandatory) ---
-  {GROUP_CORE, C_BALL, "animator", 0xb0, PGR_MD_FIELD_ANY, 0, 0x50, 0, "UnityEngine.Animator"},
-  {GROUP_CORE, C_BALL, "<HoldingBreadBall>k__BackingField", 0x240, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Boolean"},
-  {GROUP_CORE, C_RESPONSE, "Status", 0x10, PGR_MD_FIELD_ENUM_I32, 4, 0x50, 0, "Holoholo.Rpc.CatchPokemonOutProto.Types.Status"},
+  {GROUP_CORE, C_BALL, PGR_GAME_QUICKBALL_METADATA_H_ANIMATOR_NAME, PGR_GAME_QUICKBALL_METADATA_H_ANIMATOR_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "UnityEngine.Animator"},
+  {GROUP_CORE, C_BALL, PGR_GAME_QUICKBALL_METADATA_H_HOLDINGBREADBALL_K__BACKINGFIELD_NAME, PGR_GAME_QUICKBALL_METADATA_H_HOLDINGBREADBALL_K__BACKINGFIELD_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Boolean"},
+  {GROUP_CORE, C_RESPONSE, PGR_GAME_QUICKBALL_METADATA_H_STATUS_NAME, PGR_GAME_QUICKBALL_METADATA_H_STATUS_OFFSET, PGR_MD_FIELD_ENUM_I32, 4, 0x50, 0, "Holoholo.Rpc.CatchPokemonOutProto.Types.Status"},
   // --- TRACE: AnimatorStateInfo layout (0x10 + i*4) ---
-  {GROUP_TRACE, C_INFO, "m_Name", 0x10, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_TRACE, C_INFO, "m_Path", 0x14, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_TRACE, C_INFO, "m_FullPath", 0x18, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_TRACE, C_INFO, "m_NormalizedTime", 0x1c, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Single"},
-  {GROUP_TRACE, C_INFO, "m_Length", 0x20, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Single"},
-  {GROUP_TRACE, C_INFO, "m_Speed", 0x24, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Single"},
-  {GROUP_TRACE, C_INFO, "m_SpeedMultiplier", 0x28, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Single"},
-  {GROUP_TRACE, C_INFO, "m_Tag", 0x2c, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_TRACE, C_INFO, "m_Loop", 0x30, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE, C_INFO, PGR_GAME_QUICKBALL_METADATA_H_M_NAME_NAME, PGR_GAME_QUICKBALL_METADATA_H_M_NAME_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE, C_INFO, PGR_GAME_QUICKBALL_METADATA_H_M_PATH_NAME, PGR_GAME_QUICKBALL_METADATA_H_M_PATH_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE, C_INFO, PGR_GAME_QUICKBALL_METADATA_H_M_FULLPATH_NAME, PGR_GAME_QUICKBALL_METADATA_H_M_FULLPATH_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE, C_INFO, PGR_GAME_QUICKBALL_METADATA_H_M_NORMALIZEDTIME_NAME, PGR_GAME_QUICKBALL_METADATA_H_M_NORMALIZEDTIME_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Single"},
+  {GROUP_TRACE, C_INFO, PGR_GAME_QUICKBALL_METADATA_H_M_LENGTH_NAME, PGR_GAME_QUICKBALL_METADATA_H_M_LENGTH_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Single"},
+  {GROUP_TRACE, C_INFO, PGR_GAME_QUICKBALL_METADATA_H_M_SPEED_NAME, PGR_GAME_QUICKBALL_METADATA_H_M_SPEED_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Single"},
+  {GROUP_TRACE, C_INFO, PGR_GAME_QUICKBALL_METADATA_H_M_SPEEDMULTIPLIER_NAME, PGR_GAME_QUICKBALL_METADATA_H_M_SPEEDMULTIPLIER_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Single"},
+  {GROUP_TRACE, C_INFO, PGR_GAME_QUICKBALL_METADATA_H_M_TAG_NAME, PGR_GAME_QUICKBALL_METADATA_H_M_TAG_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE, C_INFO, PGR_GAME_QUICKBALL_METADATA_H_M_LOOP_NAME, PGR_GAME_QUICKBALL_METADATA_H_M_LOOP_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
   // --- TRACE_IDENTITY: BALL_HASHES dsmh..dsmt (0x340 + i*4) + static dsjv ---
-  {GROUP_TRACE_IDENTITY, C_BALL, "dsmh", 0x340, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_TRACE_IDENTITY, C_BALL, "dsmi", 0x344, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_TRACE_IDENTITY, C_BALL, "dsmj", 0x348, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_TRACE_IDENTITY, C_BALL, "dsmk", 0x34c, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_TRACE_IDENTITY, C_BALL, "dsml", 0x350, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_TRACE_IDENTITY, C_BALL, "dsmm", 0x354, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_TRACE_IDENTITY, C_BALL, "dsmn", 0x358, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_TRACE_IDENTITY, C_BALL, "dsmo", 0x35c, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_TRACE_IDENTITY, C_BALL, "dsmp", 0x360, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_TRACE_IDENTITY, C_BALL, "dsmq", 0x364, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_TRACE_IDENTITY, C_BALL, "dsmr", 0x368, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_TRACE_IDENTITY, C_BALL, "dsms", 0x36c, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_TRACE_IDENTITY, C_BALL, "dsmt", 0x370, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_TRACE_IDENTITY, C_BALL, "dsjv", 0x4, PGR_MD_FIELD_ANY, 0, 0x40, 0x10, "System.Int32"},
+  {GROUP_TRACE_IDENTITY, C_BALL, PGR_GAME_QUICKBALL_METADATA_H_DSQC_NAME, PGR_GAME_QUICKBALL_METADATA_H_DSQC_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE_IDENTITY, C_BALL, PGR_GAME_QUICKBALL_METADATA_H_DSQD_NAME, PGR_GAME_QUICKBALL_METADATA_H_DSQD_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE_IDENTITY, C_BALL, PGR_GAME_QUICKBALL_METADATA_H_DSQE_NAME, PGR_GAME_QUICKBALL_METADATA_H_DSQE_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE_IDENTITY, C_BALL, PGR_GAME_QUICKBALL_METADATA_H_DSQF_NAME, PGR_GAME_QUICKBALL_METADATA_H_DSQF_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE_IDENTITY, C_BALL, PGR_GAME_QUICKBALL_METADATA_H_DSQG_NAME, PGR_GAME_QUICKBALL_METADATA_H_DSQG_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE_IDENTITY, C_BALL, PGR_GAME_QUICKBALL_METADATA_H_DSQH_NAME, PGR_GAME_QUICKBALL_METADATA_H_DSQH_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE_IDENTITY, C_BALL, PGR_GAME_QUICKBALL_METADATA_H_DSQI_NAME, PGR_GAME_QUICKBALL_METADATA_H_DSQI_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE_IDENTITY, C_BALL, PGR_GAME_QUICKBALL_METADATA_H_DSQJ_NAME, PGR_GAME_QUICKBALL_METADATA_H_DSQJ_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE_IDENTITY, C_BALL, PGR_GAME_QUICKBALL_METADATA_H_DSQK_NAME, PGR_GAME_QUICKBALL_METADATA_H_DSQK_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE_IDENTITY, C_BALL, PGR_GAME_QUICKBALL_METADATA_H_DSQL_NAME, PGR_GAME_QUICKBALL_METADATA_H_DSQL_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE_IDENTITY, C_BALL, PGR_GAME_QUICKBALL_METADATA_H_DSQM_NAME, PGR_GAME_QUICKBALL_METADATA_H_DSQM_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE_IDENTITY, C_BALL, PGR_GAME_QUICKBALL_METADATA_H_DSQN_NAME, PGR_GAME_QUICKBALL_METADATA_H_DSQN_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE_IDENTITY, C_BALL, PGR_GAME_QUICKBALL_METADATA_H_DSQO_NAME, PGR_GAME_QUICKBALL_METADATA_H_DSQO_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_TRACE_IDENTITY, C_BALL, PGR_GAME_QUICKBALL_METADATA_H_DSNQ_NAME, PGR_GAME_QUICKBALL_METADATA_H_DSNQ_OFFSET, PGR_MD_FIELD_ANY, 0, 0x40, 0x10, "System.Int32"},
   // --- THROWS: PokeballThrow layout ---
   {GROUP_THROWS, C_THROW, "BallType", 16, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Holoholo.Rpc.Item"},
   {GROUP_THROWS, C_THROW, "ReticleSize", 20, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Single"},
@@ -217,16 +218,16 @@ inline constexpr FieldSpec kFields[] = {
   {GROUP_THROWS, C_THROW, "Spinning", 25, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Boolean"},
   {GROUP_THROWS, C_THROW, "Missed", 26, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Boolean"},
   // --- ALWAYSHIT: Pokeball coroutine/state wiring ---
-  {GROUP_ALWAYSHIT, C_BALL, "dsld", 0x258, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Niantic.Holoholo.SchedulerStateMachine"},
-  {GROUP_ALWAYSHIT, C_BALL, "dsly", 0x2f8, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Niantic.Holoholo.SchedulerStateCoroutine"},
-  {GROUP_ALWAYSHIT, C_BALL, "dslx", 0x2f0, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Niantic.Holoholo.SchedulerStateCoroutine"},
-  {GROUP_ALWAYSHIT, C_BALL, "dslc", 0x250, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Niantic.Holoholo.Encounter.IEncounterPokemon"},
-  {GROUP_ALWAYSHIT, C_BALL, "HitPokemon", 0x50, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Action"},
-  {GROUP_ALWAYSHIT, C_BALL, "<BallType>k__BackingField", 0x374, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Holoholo.Rpc.Item"},
+  {GROUP_ALWAYSHIT, C_BALL, PGR_GAME_QUICKBALL_METADATA_H_DSOY_NAME, PGR_GAME_QUICKBALL_METADATA_H_DSOY_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Niantic.Holoholo.SchedulerStateMachine"},
+  {GROUP_ALWAYSHIT, C_BALL, PGR_GAME_QUICKBALL_METADATA_H_DSPT_NAME, PGR_GAME_QUICKBALL_METADATA_H_DSPT_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Niantic.Holoholo.SchedulerStateCoroutine"},
+  {GROUP_ALWAYSHIT, C_BALL, PGR_GAME_QUICKBALL_METADATA_H_DSPS_NAME, PGR_GAME_QUICKBALL_METADATA_H_DSPS_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Niantic.Holoholo.SchedulerStateCoroutine"},
+  {GROUP_ALWAYSHIT, C_BALL, PGR_GAME_QUICKBALL_METADATA_H_DSOX_NAME, PGR_GAME_QUICKBALL_METADATA_H_DSOX_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Niantic.Holoholo.Encounter.IEncounterPokemon"},
+  {GROUP_ALWAYSHIT, C_BALL, PGR_GAME_QUICKBALL_METADATA_H_HITPOKEMON_NAME, PGR_GAME_QUICKBALL_METADATA_H_HITPOKEMON_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Action"},
+  {GROUP_ALWAYSHIT, C_BALL, PGR_GAME_QUICKBALL_METADATA_H_BALLTYPE_K__BACKINGFIELD_NAME, PGR_GAME_QUICKBALL_METADATA_H_BALLTYPE_K__BACKINGFIELD_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Holoholo.Rpc.Item"},
   // --- ARTHROWS: ARPlusEncounterValuesProto ---
-  {GROUP_ARTHROWS, C_ARVALUES, "Proximity", 0x10, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Single"},
-  {GROUP_ARTHROWS, C_ARVALUES, "Awareness", 0x14, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Single"},
-  {GROUP_ARTHROWS, C_ARVALUES, "PokemonFrightened", 0x18, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Boolean"},
+  {GROUP_ARTHROWS, C_ARVALUES, PGR_GAME_QUICKBALL_METADATA_H_PROXIMITY_NAME, PGR_GAME_QUICKBALL_METADATA_H_PROXIMITY_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Single"},
+  {GROUP_ARTHROWS, C_ARVALUES, PGR_GAME_QUICKBALL_METADATA_H_AWARENESS_NAME, PGR_GAME_QUICKBALL_METADATA_H_AWARENESS_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Single"},
+  {GROUP_ARTHROWS, C_ARVALUES, PGR_GAME_QUICKBALL_METADATA_H_POKEMONFRIGHTENED_NAME, PGR_GAME_QUICKBALL_METADATA_H_POKEMONFRIGHTENED_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Boolean"},
   // --- MAPTAP: LatLng + Vector3 layout ---
   {GROUP_MAPTAP, C_LATLNG, "Latitude", 16, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Double"},
   {GROUP_MAPTAP, C_LATLNG, "Longitude", 24, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Double"},
@@ -234,46 +235,46 @@ inline constexpr FieldSpec kFields[] = {
   {GROUP_MAPTAP, C_VEC3, "y", 20, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Single"},
   {GROUP_MAPTAP, C_VEC3, "z", 24, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Single"},
   // --- IV: PokemonProto / nameplate / wild-map chain ---
-  {GROUP_IV, C_PK, "cp_", 0x2c, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_IV, C_PK, "individualAttack_", 0x70, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_IV, C_PK, "individualDefense_", 0x74, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_IV, C_PK, "individualStamina_", 0x78, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
-  {GROUP_IV, C_PK, "cpMultiplier_", 0x7c, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Single"},
-  {GROUP_IV, C_PK, "additionalCpMultiplier_", 0xac, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Single"},
-  {GROUP_IV, C_NAMEPLATE, "cpText", 0x80, PGR_MD_FIELD_ANY, 0, 0x50, 0, "UnityEngine.UI.Text"},
-  {GROUP_IV, C_NAMEPLATE, "dsqf", 0x68, PGR_MD_FIELD_ANY, 0, 0x50, 0, "IGameMasterData"},
-  {GROUP_IV, C_WILDMAP, "eluo", 0x270, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Holoholo.Rpc.WildPokemonProto"},
-  {GROUP_IV, C_WILDMAP, "elup", 0x278, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Holoholo.Rpc.EncounterOutProto"},
-  {GROUP_IV, C_WILDMAP, "elus", 0x290, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Holoholo.Rpc.TappableEncounterProto"},
-  {GROUP_IV, C_WILDPROTO, "Latitude", 0x20, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Double"},
-  {GROUP_IV, C_WILDPROTO, "Longitude", 0x28, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Double"},
-  {GROUP_IV, C_WILDPROTO, "Pokemon", 0x38, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Holoholo.Rpc.PokemonProto"},
-  {GROUP_IV, C_WILDPROTO, "EncounterId", 0x10, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.UInt64"},
-  {GROUP_IV, C_ENCOUNTEROUT, "Pokemon", 0x10, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Holoholo.Rpc.WildPokemonProto"},
-  {GROUP_IV, C_TAPPABLE, "Pokemon", 0x18, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Holoholo.Rpc.PokemonProto"},
+  {GROUP_IV, C_PK, PGR_GAME_QUICKBALL_METADATA_H_CP__NAME, PGR_GAME_QUICKBALL_METADATA_H_CP__OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_IV, C_PK, PGR_GAME_QUICKBALL_METADATA_H_INDIVIDUALATTACK__NAME, PGR_GAME_QUICKBALL_METADATA_H_INDIVIDUALATTACK__OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_IV, C_PK, PGR_GAME_QUICKBALL_METADATA_H_INDIVIDUALDEFENSE__NAME, PGR_GAME_QUICKBALL_METADATA_H_INDIVIDUALDEFENSE__OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_IV, C_PK, PGR_GAME_QUICKBALL_METADATA_H_INDIVIDUALSTAMINA__NAME, PGR_GAME_QUICKBALL_METADATA_H_INDIVIDUALSTAMINA__OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Int32"},
+  {GROUP_IV, C_PK, PGR_GAME_QUICKBALL_METADATA_H_CPMULTIPLIER__NAME, PGR_GAME_QUICKBALL_METADATA_H_CPMULTIPLIER__OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Single"},
+  {GROUP_IV, C_PK, PGR_GAME_QUICKBALL_METADATA_H_ADDITIONALCPMULTIPLIER__NAME, PGR_GAME_QUICKBALL_METADATA_H_ADDITIONALCPMULTIPLIER__OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Single"},
+  {GROUP_IV, C_NAMEPLATE, PGR_GAME_QUICKBALL_METADATA_H_CPTEXT_NAME, PGR_GAME_QUICKBALL_METADATA_H_CPTEXT_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "UnityEngine.UI.Text"},
+  {GROUP_IV, C_NAMEPLATE, PGR_GAME_QUICKBALL_METADATA_H_DSUA_NAME, PGR_GAME_QUICKBALL_METADATA_H_DSUA_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "IGameMasterData"},
+  {GROUP_IV, C_WILDMAP, PGR_GAME_QUICKBALL_METADATA_H_EMBR_NAME, PGR_GAME_QUICKBALL_METADATA_H_EMBR_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Holoholo.Rpc.WildPokemonProto"},
+  {GROUP_IV, C_WILDMAP, PGR_GAME_QUICKBALL_METADATA_H_EMBS_NAME, PGR_GAME_QUICKBALL_METADATA_H_EMBS_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Holoholo.Rpc.EncounterOutProto"},
+  {GROUP_IV, C_WILDMAP, PGR_GAME_QUICKBALL_METADATA_H_EMBV_NAME, PGR_GAME_QUICKBALL_METADATA_H_EMBV_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Holoholo.Rpc.TappableEncounterProto"},
+  {GROUP_IV, C_WILDPROTO, PGR_GAME_QUICKBALL_METADATA_H_LATITUDE_NAME, PGR_GAME_QUICKBALL_METADATA_H_LATITUDE_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Double"},
+  {GROUP_IV, C_WILDPROTO, PGR_GAME_QUICKBALL_METADATA_H_LONGITUDE_NAME, PGR_GAME_QUICKBALL_METADATA_H_LONGITUDE_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.Double"},
+  {GROUP_IV, C_WILDPROTO, PGR_GAME_QUICKBALL_METADATA_H_POKEMON_NAME, PGR_GAME_QUICKBALL_METADATA_H_POKEMON_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Holoholo.Rpc.PokemonProto"},
+  {GROUP_IV, C_WILDPROTO, PGR_GAME_QUICKBALL_METADATA_H_ENCOUNTERID_NAME, PGR_GAME_QUICKBALL_METADATA_H_ENCOUNTERID_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "System.UInt64"},
+  {GROUP_IV, C_ENCOUNTEROUT, PGR_GAME_QUICKBALL_METADATA_H_POKEMON_NAME, PGR_GAME_QUICKBALL_METADATA_H_POKEMON_OFFSET_2, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Holoholo.Rpc.WildPokemonProto"},
+  {GROUP_IV, C_TAPPABLE, PGR_GAME_QUICKBALL_METADATA_H_POKEMON_NAME, PGR_GAME_QUICKBALL_METADATA_H_POKEMON_OFFSET_3, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Holoholo.Rpc.PokemonProto"},
   // --- IVOWNED: PokemonInfoPanel ---
-  {GROUP_IVOWNED, C_PANEL, "cpValueText", 0x3c8, PGR_MD_FIELD_ANY, 0, 0x50, 0, "UnityEngine.UI.Text"},
-  {GROUP_IVOWNED, C_PANEL, "<PokemonProto>k__BackingField", 0xa60, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Holoholo.Rpc.PokemonProto"},
-  {GROUP_IVOWNED, C_PANEL, "egfu", 0x80, PGR_MD_FIELD_ANY, 0, 0x50, 0, "IGameMasterData"},
+  {GROUP_IVOWNED, C_PANEL, PGR_GAME_QUICKBALL_METADATA_H_CPVALUETEXT_NAME, PGR_GAME_QUICKBALL_METADATA_H_CPVALUETEXT_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "UnityEngine.UI.Text"},
+  {GROUP_IVOWNED, C_PANEL, PGR_GAME_QUICKBALL_METADATA_H_POKEMONPROTO_K__BACKINGFIELD_NAME, PGR_GAME_QUICKBALL_METADATA_H_POKEMONPROTO_K__BACKINGFIELD_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "Holoholo.Rpc.PokemonProto"},
+  {GROUP_IVOWNED, C_PANEL, PGR_GAME_QUICKBALL_METADATA_H_EGMN_NAME, PGR_GAME_QUICKBALL_METADATA_H_EGMN_OFFSET, PGR_MD_FIELD_ANY, 0, 0x50, 0, "IGameMasterData"},
 };
 inline constexpr uint32_t kFieldCount = sizeof(kFields) / sizeof(kFields[0]);
 static_assert(kFieldCount == 65, "quick-ball resolves exactly 65 pinned fields (source cross-check)");
 
 inline constexpr MethodSpec kMethods[] = {
   // --- CORE (mandatory) ---
-  {GROUP_CORE, C_CAPTURE, "btdf", "System.Void", PGR_MD_MATCH_EXACT, 1, "Holoholo.Rpc.CatchPokemonOutProto", nullptr, 0,
-   0xacf104c, "fd7bbaa9fc6f01a9fa6702a9f85f03a9f65704a9f44f05a9f51e02d0f40301aa"},
-  {GROUP_CORE, C_BALL, "btxu", "Holoholo.Rpc.CatchPokemonOutProto", PGR_MD_MATCH_EXACT, 0, nullptr, nullptr, 0,
-   0xad58170, "fe0f1df8f65701a9f44f02a9b41b02f0f30300aa8886623928040037e0ef01d0"},
+  {GROUP_CORE, C_CAPTURE, PGR_GAME_QUICKBALL_METADATA_H_BSWF_NAME, "System.Void", PGR_MD_MATCH_EXACT, 1, "Holoholo.Rpc.CatchPokemonOutProto", nullptr, 0,
+   PGR_GAME_QUICKBALL_METADATA_H_CORE_CAPTURE_BSWF_RVA, PGR_GAME_QUICKBALL_METADATA_H_CORE_CAPTURE_BSWF_PROLOGUE},
+  {GROUP_CORE, C_BALL, PGR_GAME_QUICKBALL_METADATA_H_BTQU_NAME, "Holoholo.Rpc.CatchPokemonOutProto", PGR_MD_MATCH_EXACT, 0, nullptr, nullptr, 0,
+   PGR_GAME_QUICKBALL_METADATA_H_CORE_BALL_BTQU_RVA, PGR_GAME_QUICKBALL_METADATA_H_CORE_BALL_BTQU_PROLOGUE},
   {GROUP_CORE, C_ANIMATOR, "get_speed", "System.Single", PGR_MD_MATCH_EXACT, 0, nullptr, nullptr, 0,
-   0xd954a40, "fe57bea9f44f01a974bc00d0f30300aa8866793908010037809700d000800c91"},
+   PGR_GAME_QUICKBALL_METADATA_H_CORE_ANIMATOR_GET_SPEED_RVA, PGR_GAME_QUICKBALL_METADATA_H_CORE_ANIMATOR_GET_SPEED_PROLOGUE},
   {GROUP_CORE, C_ANIMATOR, "set_speed", "System.Void", PGR_MD_MATCH_EXACT, 1, "System.Single", nullptr, 0,
-   0xd954b48, "e80f1dfcfe5701a9f44f02a90840201e74bc00d0f30300aa886a793908010037"},
+   PGR_GAME_QUICKBALL_METADATA_H_CORE_ANIMATOR_SET_SPEED_RVA, PGR_GAME_QUICKBALL_METADATA_H_CORE_ANIMATOR_SET_SPEED_PROLOGUE},
   {GROUP_CORE, C_OBJECT, "op_Implicit", "System.Boolean", PGR_MD_MATCH_EXACT, 1, "UnityEngine.Object", nullptr, 1,
-   0xda6bba0, "fe0f1df8f65701a9f44f02a9f4b30090f30300aa882e673988020036f48800d0"},
+   PGR_GAME_QUICKBALL_METADATA_H_CORE_OBJECT_OP_IMPLICIT_RVA, PGR_GAME_QUICKBALL_METADATA_H_CORE_OBJECT_OP_IMPLICIT_PROLOGUE},
   {GROUP_CORE, C_SYNCCTX, "ExecuteTasks", "System.Void", PGR_MD_MATCH_EXACT, 0, nullptr, nullptr, 1, 0, nullptr},
-  {GROUP_CORE, C_CAPTURE, "btdd", "System.Void", PGR_MD_MATCH_EXACT, 1, "Holoholo.Rpc.CatchPokemonOutProto", nullptr, 0,
-   0xacf0a8c, "fd7bbaa9fc6f01a9fa6702a9f85f03a9f65704a9f44f05a9f51e02f0f40301aa"},
+  {GROUP_CORE, C_CAPTURE, PGR_GAME_QUICKBALL_METADATA_H_BSWD_NAME, "System.Void", PGR_MD_MATCH_EXACT, 1, "Holoholo.Rpc.CatchPokemonOutProto", nullptr, 0,
+   PGR_GAME_QUICKBALL_METADATA_H_CORE_CAPTURE_BSWD_RVA, PGR_GAME_QUICKBALL_METADATA_H_CORE_CAPTURE_BSWF_PROLOGUE},
   // --- TRACE ---
   {GROUP_TRACE, C_ANIMATOR, "GetCurrentAnimatorStateInfo", "UnityEngine.AnimatorStateInfo", PGR_MD_MATCH_EXACT, 1, "System.Int32", nullptr, 0, 0, nullptr},
   {GROUP_TRACE, C_ANIMATOR, "GetNextAnimatorStateInfo", "UnityEngine.AnimatorStateInfo", PGR_MD_MATCH_EXACT, 1, "System.Int32", nullptr, 0, 0, nullptr},
@@ -285,41 +286,41 @@ inline constexpr MethodSpec kMethods[] = {
   // --- TRACE_NAME ---
   {GROUP_TRACE_NAME, C_OBJECT, "get_name", "System.String", PGR_MD_MATCH_EXACT, 0, nullptr, nullptr, 0, 0, nullptr},
   // --- THROWS ---
-  {GROUP_THROWS, C_BALL, "btyl", "System.Void", PGR_MD_MATCH_EXACT, 1, "Niantic.Holoholo.Encounter.PokeballThrow", nullptr, 0,
-   0xad5fbdc, "fe5fbda9f65701a9f44f02a9961b0290f50302aaf40301aac8026539f30300aa"},
+  {GROUP_THROWS, C_BALL, PGR_GAME_QUICKBALL_METADATA_H_BTRL_NAME, "System.Void", PGR_MD_MATCH_EXACT, 1, "Niantic.Holoholo.Encounter.PokeballThrow", nullptr, 0,
+   PGR_GAME_QUICKBALL_METADATA_H_THROWS_BALL_BTRL_RVA, PGR_GAME_QUICKBALL_METADATA_H_THROWS_BALL_BTRL_PROLOGUE},
   {GROUP_THROWS, C_ENCOUNTER, "NotifyPokeballHit", "System.Void", PGR_MD_MATCH_EXACT, 1, "Niantic.Holoholo.Encounter.PokeballThrow", nullptr, 0,
-   0xad93280, "080441f9c80000b4002140f9031540f9427c4092040d40f980001fd6c0035fd6"},
+   PGR_GAME_QUICKBALL_METADATA_H_THROWS_ENCOUNTER_NOTIFYPOKEBALLHIT_RVA, PGR_GAME_QUICKBALL_METADATA_H_THROWS_ENCOUNTER_NOTIFYPOKEBALLHIT_PROLOGUE},
   // --- ALWAYSHIT ---
   {GROUP_ALWAYSHIT, C_ACTION, "Invoke", "System.Void", PGR_MD_MATCH_EXACT, 0, nullptr, nullptr, 0, 0, nullptr},
   {GROUP_ALWAYSHIT, C_BALL, "OnCollisionEnter", "System.Void", PGR_MD_MATCH_EXACT, 1, "UnityEngine.Collision", nullptr, 0,
-   0xad5a18c, "fe5fbda9f65701a9f44f02a9b51b02b0f40301aaf30300aa"},
+   PGR_GAME_QUICKBALL_METADATA_H_ALWAYSHIT_BALL_ONCOLLISIONENTER_RVA, PGR_GAME_QUICKBALL_METADATA_H_ALWAYSHIT_BALL_ONCOLLISIONENTER_PROLOGUE},
   {GROUP_ALWAYSHIT, C_BALL, "OnTriggerEnter", "System.Void", PGR_MD_MATCH_EXACT, 1, "UnityEngine.Collider", nullptr, 0,
-   0xad5aa08, "fe0f1df8f65701a9f44f02a9b51b02b0f40301aaf30300aa"},
+   PGR_GAME_QUICKBALL_METADATA_H_ALWAYSHIT_BALL_ONTRIGGERENTER_RVA, PGR_GAME_QUICKBALL_METADATA_H_ALWAYSHIT_BALL_ONTRIGGERENTER_PROLOGUE},
   {GROUP_ALWAYSHIT, C_BALL, "Launch", "System.Void", PGR_MD_MATCH_EXACT, 1, "UnityEngine.Vector2", nullptr, 0,
-   0xad5b58c, "ff8302d1ef3b036ded33046deb2b056de923066dfe5f07a9"},
+   PGR_GAME_QUICKBALL_METADATA_H_ALWAYSHIT_BALL_LAUNCH_RVA, PGR_GAME_QUICKBALL_METADATA_H_ALWAYSHIT_BALL_LAUNCH_PROLOGUE},
   {GROUP_ALWAYSHIT, C_BALL, "EndDrag", "System.Void", PGR_MD_MATCH_EXACT, 0, nullptr, nullptr, 0,
-   0xad5b470, "fe57bea9f44f01a9b41b0290f30300aa88a2623908010037"},
-  {GROUP_ALWAYSHIT, C_BALL, "btyb", "Niantic.Holoholo.Encounter.PokeballThrow", PGR_MD_MATCH_EXACT, 1, "System.Boolean", nullptr, 0,
-   0xad5ad20, "ea0f1cfce9a3006dfe0f00f9f65702a9f44f03a9b51b02b0"},
+   PGR_GAME_QUICKBALL_METADATA_H_ALWAYSHIT_BALL_ENDDRAG_RVA, PGR_GAME_QUICKBALL_METADATA_H_ALWAYSHIT_BALL_ENDDRAG_PROLOGUE},
+  {GROUP_ALWAYSHIT, C_BALL, PGR_GAME_QUICKBALL_METADATA_H_BTRB_NAME, "Niantic.Holoholo.Encounter.PokeballThrow", PGR_MD_MATCH_EXACT, 1, "System.Boolean", nullptr, 0,
+   PGR_GAME_QUICKBALL_METADATA_H_ALWAYSHIT_BALL_BTRB_RVA, PGR_GAME_QUICKBALL_METADATA_H_ALWAYSHIT_BALL_BTRB_PROLOGUE},
   // --- ARTHROWS: TryCapture return is checked for exact IPromise(`1)?<CatchPokemonOutProto> in resolve().
   {GROUP_ARTHROWS, C_MAPPOKEMON, "TryCapture", "Holoholo.Rpc.CatchPokemonOutProto", PGR_MD_MATCH_CONTAINS, 2,
    "Niantic.Holoholo.Encounter.PokeballThrow", "Holoholo.Rpc.ARPlusEncounterValuesProto", 0,
-   0x9e1cba0, "ff4302d1e81300fdfd7b03a9fc6f04a9fa6705a9f85f06a9"},
+   PGR_GAME_QUICKBALL_METADATA_H_ARTHROWS_MAPPOKEMON_TRYCAPTURE_RVA, PGR_GAME_QUICKBALL_METADATA_H_ARTHROWS_MAPPOKEMON_TRYCAPTURE_PROLOGUE},
   // --- MAPTAP: GetGroundPosition param1 is checked for Vector3(&) + type_is_byref in resolve().
-  {GROUP_MAPTAP, C_GROUND, "OnTap", "System.Void", PGR_MD_MATCH_EXACT, 2, "System.Object", "System.EventArgs", 0,
-   0x9e8307c, "ff0302d1e923036dfe2300f9f85f05a9f65706a9f44f07a9349202f0f30300aa"},
+  {GROUP_MAPTAP, C_GROUND, PGR_GAME_QUICKBALL_METADATA_H_MAP_GROUND_TAP_NAME, "System.Void", PGR_MD_MATCH_EXACT, 2, "System.Object", "System.EventArgs", 0,
+   PGR_GAME_QUICKBALL_METADATA_H_MAPTAP_GROUND_MAP_GROUND_TAP_RVA, PGR_GAME_QUICKBALL_METADATA_H_MAPTAP_GROUND_MAP_GROUND_TAP_PROLOGUE},
   {GROUP_MAPTAP, C_MAPVIEW, "GetGroundPosition", "System.Boolean", PGR_MD_MATCH_EXACT, 2, "UnityEngine.Vector2", "UnityEngine.Vector3", 0,
-   0x9e87638, "e923bc6dfe0b00f9f65702a9f44f03a92840201e0940201e159202f0a8026539"},
+   PGR_GAME_QUICKBALL_METADATA_H_MAPTAP_MAPVIEW_GETGROUNDPOSITION_RVA, PGR_GAME_QUICKBALL_METADATA_H_MAPTAP_MAPVIEW_GETGROUNDPOSITION_PROLOGUE},
   {GROUP_MAPTAP, C_MAPVIEW, "GetWorldLocation", "Niantic.LatLng", PGR_MD_MATCH_EXACT, 1, "UnityEngine.Vector3", nullptr, 0,
-   0x9e87568, "ea0f1cfce923016dfe5702a9f44f03a94840201e2940201e149202f00a40201e"},
+   PGR_GAME_QUICKBALL_METADATA_H_MAPTAP_MAPVIEW_GETWORLDLOCATION_RVA, PGR_GAME_QUICKBALL_METADATA_H_MAPTAP_MAPVIEW_GETWORLDLOCATION_PROLOGUE},
   // --- IV ---
   {GROUP_IV, C_NAMEPLATE, "SetPokemonUI", "System.Void", PGR_MD_MATCH_EXACT, 2,
    "Niantic.Holoholo.Map.IMapPokemon", "Niantic.Rpc.GameplayWeatherProto.Types.WeatherCondition", 0,
-   0xad84364, "ff8303d1fd7b08a9fc6f09a9fa670aa9f85f0ba9f6570ca9f44f0da9541a02f0"},
+   PGR_GAME_QUICKBALL_METADATA_H_IV_NAMEPLATE_SETPOKEMONUI_RVA, PGR_GAME_QUICKBALL_METADATA_H_IV_NAMEPLATE_SETPOKEMONUI_PROLOGUE},
   {GROUP_IV, C_LEVELS, "GetPokemonLevelOfCpMultiplier", "System.Int32", PGR_MD_MATCH_EXACT, 2, "IGameMasterData", "System.Single", 1,
-   0xa85eed4, "ff4301d1e81300fdfe5703a9f44f04a90840201e744302f0f30300aa88d67239"},
+   PGR_GAME_QUICKBALL_METADATA_H_IV_LEVELS_GETPOKEMONLEVELOFCPMULTIPLIER_RVA, PGR_GAME_QUICKBALL_METADATA_H_IV_LEVELS_GETPOKEMONLEVELOFCPMULTIPLIER_PROLOGUE},
   {GROUP_IV, C_LEVELS, "CpMultiplierAtLevel", "System.Single", PGR_MD_MATCH_EXACT, 2, "IGameMasterData", "System.Int32", 1,
-   0xa85f504, "ff4301d1fe1300f9f65703a9f44f04a9754302d0f303012af40300aaa8de7239"},
+   PGR_GAME_QUICKBALL_METADATA_H_IV_LEVELS_CPMULTIPLIERATLEVEL_RVA, PGR_GAME_QUICKBALL_METADATA_H_IV_LEVELS_CPMULTIPLIERATLEVEL_PROLOGUE},
   {GROUP_IV, C_UITEXT, "set_text", "System.Void", PGR_MD_MATCH_EXACT, 1, "System.String", nullptr, 0, 0, nullptr},
   {GROUP_IV, C_UITEXT, "set_supportRichText", "System.Void", PGR_MD_MATCH_EXACT, 1, "System.Boolean", nullptr, 0, 0, nullptr},
   {GROUP_IV, C_UITEXT, "get_fontSize", "System.Int32", PGR_MD_MATCH_EXACT, 0, nullptr, nullptr, 0, 0, nullptr},
@@ -335,7 +336,7 @@ inline constexpr MethodSpec kMethods[] = {
   {GROUP_IVTEXT, C_UITEXT, "get_alignment", "UnityEngine.TextAnchor", PGR_MD_MATCH_EXACT, 0, nullptr, nullptr, 0, 0, nullptr},
   // --- IVOWNED ---
   {GROUP_IVOWNED, C_PANEL, "DoUpdate", "System.Void", PGR_MD_MATCH_EXACT, 1, "Holoholo.Rpc.PokemonProto", nullptr, 0,
-   0x9a3a8e0, "ff0302d1fd7b02a9fc6f03a9fa6704a9f85f05a9f65706a9"},
+   PGR_GAME_QUICKBALL_METADATA_H_IVOWNED_PANEL_DOUPDATE_RVA, PGR_GAME_QUICKBALL_METADATA_H_IVOWNED_PANEL_DOUPDATE_PROLOGUE},
   // --- IVOUTLINE ---
   {GROUP_IVOUTLINE, C_COMPONENT, "get_gameObject", "UnityEngine.GameObject", PGR_MD_MATCH_EXACT, 0, nullptr, nullptr, 0, 0, nullptr},
   {GROUP_IVOUTLINE, C_GAMEOBJECT, "GetComponent", "UnityEngine.Component", PGR_MD_MATCH_EXACT, 1, "System.Type", nullptr, 0, 0, nullptr},
@@ -366,29 +367,29 @@ inline constexpr ValueSizeSpec kValueSizes[] = {
 inline constexpr uint32_t kValueSizeCount = sizeof(kValueSizes) / sizeof(kValueSizes[0]);
 
 // Standalone caller-code check (prepare line 189) + the returned caller RETURN ADDRESS (line 325,
-// p.caller = module.base + 0xad691d0). The check and the returned address are DISTINCT: the check
-// validates 16 bytes at 0xad691c8 with the fixed prologue; the returned caller is +8 past that start
-// (0xad691d0) and is a plain module-relative pointer the adapter re-derives, NOT a validated handle.
-inline constexpr uint64_t kCallerCheckRva = 0xad691c8ULL;
+// p.caller = module.base + 0xace0e4c). The check and the returned address are DISTINCT: the check
+// validates 16 bytes at 0xace0e44 with the fixed prologue; the returned caller is +8 past that start
+// (0xace0e4c) and is a plain module-relative pointer the adapter re-derives, NOT a validated handle.
+inline constexpr uint64_t kCallerCheckRva = PGR_GAME_QUICKBALL_METADATA_H_KCALLERCHECKRVA_RVA;
 inline constexpr uint64_t kCallerCheckLen = 16;
-inline constexpr const char *kCallerCheckPrologue = "e00314aae9bbff97c82c02b0f60313aa";
-inline constexpr uint64_t kCallerRva = 0xad691d0ULL;
+inline constexpr const char *kCallerCheckPrologue = PGR_GAME_QUICKBALL_METADATA_H_KCALLERCHECKPROLOGUE_PROLOGUE;
+inline constexpr uint64_t kCallerRva = PGR_GAME_QUICKBALL_METADATA_H_KCALLERRVA_RVA;
 static_assert(kCallerRva == kCallerCheckRva + 8, "returned caller sits 8 bytes into the checked range");
 
 // pointerHandleAbi (prepare lines 109..140): read-only fingerprint of il2cpp_gchandle_new /
 // _get_target / _free. Each export is validated readable+executable and its instruction words
 // compared; the first body target is reached through an AArch64 'B imm26' branch. No handle is created.
-inline constexpr uint32_t kGcCreateWords[] = {0xaa0003e8, 0x52800049, 0x7200003f, 0x1a890520, 0xaa0803e1};
+inline constexpr uint32_t kGcCreateWords[] = PGR_GAME_QUICKBALL_METADATA_H_KGCCREATEWORDS_FINGERPRINT;
 inline constexpr uint32_t kGcCreateWordCount = 5;
-inline constexpr uint64_t kGcCreateBranchOff = 20;    // branch(create.add(20))
-inline constexpr uint64_t kGcCreateBodyOff   = 0x384; // csel x0,x9,x21,lo : full-width return
-inline constexpr uint32_t kGcCreateBodyWord  = 0x9a953120;
-inline constexpr uint32_t kGcGetHead  = 0xf81b0ffe;   // words(getBody,[...])
-inline constexpr uint64_t kGcGetTailOff = 20;
-inline constexpr uint32_t kGcGetTail[] = {0x9273c817, 0x394082e8};
-inline constexpr uint32_t kGcFreeHead = 0xf81b0ffe;   // words(freeBody,[...])
-inline constexpr uint64_t kGcFreeTailOff = 24;
-inline constexpr uint32_t kGcFreeTail[] = {0x9273c816, 0x394082c8};
+inline constexpr uint64_t kGcCreateBranchOff = PGR_GAME_QUICKBALL_METADATA_H_KGCCREATEBRANCHOFF;    // branch(create.add(20))
+inline constexpr uint64_t kGcCreateBodyOff   = PGR_GAME_QUICKBALL_METADATA_H_KGCCREATEBODYOFF; // csel x0,x9,x21,lo : full-width return
+inline constexpr uint32_t kGcCreateBodyWord  = PGR_GAME_QUICKBALL_METADATA_H_KGCCREATEBODYWORD;
+inline constexpr uint32_t kGcGetHead  = PGR_GAME_QUICKBALL_METADATA_H_KGCGETHEAD;   // words(getBody,[...])
+inline constexpr uint64_t kGcGetTailOff = PGR_GAME_QUICKBALL_METADATA_H_KGCGETTAILOFF;
+inline constexpr uint32_t kGcGetTail[] = PGR_GAME_QUICKBALL_METADATA_H_KGCGETTAIL_FINGERPRINT;
+inline constexpr uint32_t kGcFreeHead = PGR_GAME_QUICKBALL_METADATA_H_KGCFREEHEAD;   // words(freeBody,[...])
+inline constexpr uint64_t kGcFreeTailOff = PGR_GAME_QUICKBALL_METADATA_H_KGCFREETAILOFF;
+inline constexpr uint32_t kGcFreeTail[] = PGR_GAME_QUICKBALL_METADATA_H_KGCFREETAIL_FINGERPRINT;
 
 // CatchPokemonOutProto.Types.Status literal names (prepare line 16: LITERALS).
 inline constexpr const char *kStatusEnumName = "Holoholo.Rpc.CatchPokemonOutProto.Types.Status";
@@ -396,12 +397,7 @@ inline constexpr const char *kOutcomeLiterals[PGR_QB_OUTCOME_MAX] = {
   "CatchError", "CatchSuccess", "CatchEscape", "CatchFlee", "CatchMissed", "CatchItemReplacement"};
 
 // 80-byte il2cpp_debug_get_method_info prologue (prepare lines 56..59, 179..180).
-inline constexpr unsigned char kDebugPrologue[] = {
-  0x08,0x10,0x05,0x90, 0x08,0x45,0x47,0xf9, 0x48,0x01,0x00,0xb4, 0x09,0x10,0x05,0x90,
-  0x29,0x49,0x47,0xf9, 0xe9,0x00,0x00,0xb4, 0x0a,0x04,0x40,0xf9, 0x1f,0x01,0x0a,0xeb,
-  0xe8,0x03,0x1f,0x2a, 0x28,0x01,0x00,0x54, 0x3f,0x01,0x0a,0xeb, 0xe3,0x00,0x00,0x54,
-  0xa1,0x00,0x00,0xb4, 0x08,0x04,0x40,0xf9, 0x3f,0x08,0x00,0xb9, 0x3f,0x08,0x00,0xf9,
-  0x28,0x00,0x00,0xf9, 0x28,0x00,0x80,0x52, 0xe0,0x03,0x08,0x2a, 0xc0,0x03,0x5f,0xd6};
+inline constexpr unsigned char kDebugPrologue[] = PGR_GAME_QUICKBALL_METADATA_H_KDEBUGPROLOGUE_FINGERPRINT;
 inline constexpr uint32_t kDebugPrologueLen = sizeof(kDebugPrologue);
 
 }  // namespace pgr_quickball_schema

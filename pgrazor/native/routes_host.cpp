@@ -1,3 +1,4 @@
+#include "game_bindings.h"
 #include "routes_host.h"
 
 #include "routes_actions.h"
@@ -33,38 +34,22 @@ constexpr char kRoutesVersion[] = "routes-native-0.1.0";
 constexpr uint64_t kMaxSafeInt = 9007199254740991ULL;
 
 // Disasm-pinned instruction prefixes for leaves 45, 46, 50 (identical to routes.js).
-constexpr unsigned char kPrefixRequestNearby[] = {
-    0xfe, 0x67, 0xbc, 0xa9, 0xf8, 0x5f, 0x01, 0xa9, 0xf6, 0x57, 0x02, 0xa9,
-    0xf4, 0x4f, 0x03, 0xa9, 0xf3, 0x4e, 0x02, 0xb0, 0xf4, 0x03, 0x00, 0xaa};
-constexpr unsigned char kPrefixInRangeOfEnd[] = {
-    0xeb, 0x2b, 0xbc, 0x6d, 0xe9, 0x23, 0x01, 0x6d, 0xfe, 0x57, 0x02, 0xa9,
-    0xf4, 0x4f, 0x03, 0xa9, 0x54, 0x51, 0x02, 0x90, 0xf3, 0x03, 0x00, 0xaa};
-constexpr unsigned char kPrefixRewardInit[] = {
-    0xff, 0x43, 0x03, 0xd1, 0xea, 0x2b, 0x00, 0xfd, 0xe9, 0x23, 0x06, 0x6d,
-    0xfd, 0x7b, 0x07, 0xa9, 0xfc, 0x6f, 0x08, 0xa9, 0xfa, 0x67, 0x09, 0xa9};
-constexpr unsigned char kPrefixRatingInit[] = {
-    0xff, 0x83, 0x01, 0xd1, 0xfe, 0x6f, 0x01, 0xa9, 0xfa, 0x67, 0x02, 0xa9,
-    0xf8, 0x5f, 0x03, 0xa9, 0xf6, 0x57, 0x04, 0xa9, 0xf4, 0x4f, 0x05, 0xa9};
-constexpr unsigned char kPrefixCompletionResp[] = {
-    0xfe, 0x67, 0xbc, 0xa9, 0xf8, 0x5f, 0x01, 0xa9, 0xf6, 0x57, 0x02, 0xa9,
-    0xf4, 0x4f, 0x03, 0xa9, 0xb5, 0x50, 0x02, 0xd0, 0xf4, 0x03, 0x01, 0xaa};
-constexpr unsigned char kPrefixTrackingStatus[] = {
-    0xff, 0x83, 0x01, 0xd1, 0xfe, 0x6f, 0x01, 0xa9, 0xfa, 0x67, 0x02, 0xa9,
-    0xf8, 0x5f, 0x03, 0xa9, 0xf6, 0x57, 0x04, 0xa9, 0xf4, 0x4f, 0x05, 0xa9};
-constexpr unsigned char kPrefixTrackingWaypoint[] = {
-    0xfe, 0x0f, 0x1d, 0xf8, 0xf6, 0x57, 0x01, 0xa9, 0xf4, 0x4f, 0x02, 0xa9,
-    0xd5, 0x4f, 0x02, 0xf0, 0xf4, 0x03, 0x01, 0xaa, 0xf3, 0x03, 0x00, 0xaa};
-constexpr unsigned char kRoutesDebugPrologue[] = {
-    0x08, 0x10, 0x05, 0x90, 0x08, 0x45, 0x47, 0xf9, 0x48, 0x01, 0x00, 0xb4,
-    0x09, 0x10, 0x05, 0x90, 0x29, 0x49, 0x47, 0xf9, 0xe9, 0x00, 0x00, 0xb4};
+constexpr unsigned char kPrefixRequestNearby[] = PGR_GAME_ROUTES_HOST_CPP_KPREFIXREQUESTNEARBY_FINGERPRINT;
+constexpr unsigned char kPrefixInRangeOfEnd[] = PGR_GAME_ROUTES_HOST_CPP_KPREFIXINRANGEOFEND_FINGERPRINT;
+constexpr unsigned char kPrefixRewardInit[] = PGR_GAME_ROUTES_HOST_CPP_KPREFIXREWARDINIT_FINGERPRINT;
+constexpr unsigned char kPrefixRatingInit[] = PGR_GAME_ROUTES_HOST_CPP_KPREFIXRATINGINIT_FINGERPRINT;
+constexpr unsigned char kPrefixCompletionResp[] = PGR_GAME_ROUTES_HOST_CPP_KPREFIXCOMPLETIONRESP_FINGERPRINT;
+constexpr unsigned char kPrefixTrackingStatus[] = PGR_GAME_ROUTES_HOST_CPP_KPREFIXTRACKINGSTATUS_FINGERPRINT;
+constexpr unsigned char kPrefixTrackingWaypoint[] = PGR_GAME_ROUTES_HOST_CPP_KPREFIXTRACKINGWAYPOINT_FINGERPRINT;
+constexpr unsigned char kRoutesDebugPrologue[] = PGR_GAME_ROUTES_HOST_CPP_KROUTESDEBUGPROLOGUE_FINGERPRINT;
 
-constexpr uint64_t kRvaRequestNearby    = 175049024ULL;
-constexpr uint64_t kRvaInRangeOfEnd     = 174741504ULL;
-constexpr uint64_t kRvaRewardInit       = 175272412ULL;
-constexpr uint64_t kRvaRatingInit       = 175286128ULL;
-constexpr uint64_t kRvaCompletionResp   = 174816912ULL;
-constexpr uint64_t kRvaTrackingStatus   = 174921352ULL;
-constexpr uint64_t kRvaTrackingWaypoint = 174925564ULL;
+constexpr uint64_t kRvaRequestNearby    = PGR_GAME_ROUTES_HOST_CPP_KRVAREQUESTNEARBY_RVA;
+constexpr uint64_t kRvaInRangeOfEnd     = PGR_GAME_ROUTES_HOST_CPP_KRVAINRANGEOFEND_RVA;
+constexpr uint64_t kRvaRewardInit       = PGR_GAME_ROUTES_HOST_CPP_KRVAREWARDINIT_RVA;
+constexpr uint64_t kRvaRatingInit       = PGR_GAME_ROUTES_HOST_CPP_KRVARATINGINIT_RVA;
+constexpr uint64_t kRvaCompletionResp   = PGR_GAME_ROUTES_HOST_CPP_KRVACOMPLETIONRESP_RVA;
+constexpr uint64_t kRvaTrackingStatus   = PGR_GAME_ROUTES_HOST_CPP_KRVATRACKINGSTATUS_RVA;
+constexpr uint64_t kRvaTrackingWaypoint = PGR_GAME_ROUTES_HOST_CPP_KRVATRACKINGWAYPOINT_RVA;
 constexpr char kLocationIcallName[]     = "UnityEngine.LocationService::IsServiceEnabledByUser()";
 
 const char *const kActionReasons[] = {
@@ -1399,7 +1384,7 @@ bool init_metadata_and_leaves(uint64_t tid, std::string *err_reason) {
   dcfg.m_listItem = const_cast<void *>(meta_out.list_item);
   dcfg.m_wpCount = const_cast<void *>(meta_out.waypoint_count);
   dcfg.m_wpItem = const_cast<void *>(meta_out.waypoint_item);
-  dcfg.f_routes_didn = const_cast<void *>(meta_out.fields[find_field_idx(static_cast<uint32_t>(c_routes), "didn")]);
+  dcfg.f_routes_didn = const_cast<void *>(meta_out.fields[find_field_idx(static_cast<uint32_t>(c_routes), PGR_GAME_ROUTES_HOST_CPP_NEARBY_ROUTES_FIELD_NAME)]);
   dcfg.f_nearby_routes = const_cast<void *>(meta_out.fields[f_nearby_list]);
   dcfg.f_shared_id = const_cast<void *>(meta_out.fields[f_shared_id]);
   dcfg.f_shared_name = const_cast<void *>(meta_out.fields[find_field_idx(static_cast<uint32_t>(c_shared), "Name")]);
@@ -1454,7 +1439,7 @@ bool init_metadata_and_leaves(uint64_t tid, std::string *err_reason) {
   scfg.thread_current = eb.thread_current;
   scfg.class_routes = const_cast<void *>(meta_out.classes[c_routes]);
   scfg.class_consumption = const_cast<void *>(meta_out.classes[c_consumption]);
-  scfg.f_routes_dica = const_cast<void *>(meta_out.fields[find_field_idx(static_cast<uint32_t>(c_routes), "dica")]);
+  scfg.f_routes_dica = const_cast<void *>(meta_out.fields[find_field_idx(static_cast<uint32_t>(c_routes), PGR_GAME_ROUTES_HOST_CPP_DIKX_NAME)]);
   scfg.addr_request_nearby = eb.fixture_hooks && eb.fixture_request_nearby ? eb.fixture_request_nearby : const_cast<void *>(addr_req);
   scfg.addr_in_range_of_end = eb.fixture_hooks && eb.fixture_in_range_of_end ? eb.fixture_in_range_of_end : const_cast<void *>(addr_ir);
 

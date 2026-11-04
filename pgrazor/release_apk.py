@@ -100,6 +100,12 @@ def release(run, destination):
         path = Path(row['file']).resolve()
         if path.parent != run or runtime_assets.sha256(path) != row['sha256']: raise ValueError('Build receipt mismatch')
         apks.append(path)
+    _, base, rows, _ = nonroot.inspect_set(apks)
+    identity = next(info for path, info in rows if path == base)
+    game_version = identity.get('versionName')
+    game_code = identity.get('versionCode')
+    if not isinstance(game_version, str) or not game_version or not isinstance(game_code, int):
+        raise ValueError('Base game must declare versionName and numeric versionCode')
     destination.mkdir(parents=True, exist_ok=True)
     unsigned, aligned, signed = (destination/name for name in ('unsigned.apk', 'aligned.apk', 'PGRazor.apk'))
     merge(apks, unsigned)
@@ -108,7 +114,7 @@ def release(run, destination):
     nonroot.command(build.TOOLS/'apksigner.bat', 'verify', signed)
     nonroot.command(build.TOOLS/'zipalign.exe', '-c', '-P', '16', '4', signed)
     (destination/'SHA256SUMS.txt').write_text(runtime_assets.sha256(signed)+'  PGRazor.apk\n', encoding='utf8')
-    (destination/'build-info.json').write_text(json.dumps({'game_version':'0.433.1','game_version_code':2026101502,'architecture':'arm64-v8a','hook_runtime_architectures':report.get('runtime_abis',[report.get('runtime_abi','arm64-v8a')]),'input_sha256':report['input_sha256'],'apk_sha256':runtime_assets.sha256(signed),'source_commit':os.environ.get('GITHUB_SHA'),'device_tested':False},indent=2)+'\n',encoding='utf8')
+    (destination/'build-info.json').write_text(json.dumps({'game_version':game_version,'game_version_code':game_code,'architecture':'arm64-v8a','hook_runtime_architectures':report.get('runtime_abis',[report.get('runtime_abi','arm64-v8a')]),'input_sha256':report['input_sha256'],'apk_sha256':runtime_assets.sha256(signed),'source_commit':os.environ.get('GITHUB_SHA'),'device_tested':False},indent=2)+'\n',encoding='utf8')
     unsigned.unlink(); aligned.unlink()
     print('Release candidate:', signed)
     return signed

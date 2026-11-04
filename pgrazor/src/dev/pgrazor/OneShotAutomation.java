@@ -103,7 +103,7 @@ public final class OneShotAutomation {
         new android.os.Handler(android.os.Looper.getMainLooper()).post(()->{
             android.app.Activity activity=Control.accountActivity();
             if(activity==null||activity.isFinishing())return;
-            android.widget.Toast.makeText(activity,"Galarian bird found — walking and VGP stopped",android.widget.Toast.LENGTH_LONG).show();
+            if(!Control.overlaysHidden())android.widget.Toast.makeText(activity,"Galarian bird found — walking and VGP stopped",android.widget.Toast.LENGTH_LONG).show();
             try{
                 final android.media.ToneGenerator tone=new android.media.ToneGenerator(android.media.AudioManager.STREAM_NOTIFICATION,90);
                 tone.startTone(android.media.ToneGenerator.TONE_PROP_BEEP2,1000);

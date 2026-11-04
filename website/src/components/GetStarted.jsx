@@ -37,9 +37,8 @@ export default function GetStarted() {
       <p className="cta__release">
         <span className="cta__badge">Stable</span>
         The published{' '}
-        <a href={links.releasesCurrent}>v0.1.8 release</a> adds
-        gift batches, Quick Menu customization, reorganized battle settings, and lighter buddy and VGP+ automation.
-        Read its release notes for setup and validation limits.
+        <a href={links.releasesCurrent}>v0.2.0 release</a> adds field research automation,
+        storage list IVs, a stock-look overlay hider and GPX routes that resume from the closest point.
       </p>
 
       <div className="faq">

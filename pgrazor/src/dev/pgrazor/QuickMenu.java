@@ -31,12 +31,14 @@ public final class QuickMenu {
         void onTeleport();
         void onAccounts();
         void onSettings();
+        /** Asks to hide every PGRazor overlay (three fingers on screen show them again). */
+        void onHideOverlays();
     }
 
-    static final int MAP = 0, WALK = 1, AUTOWALK = 2, FEEDS = 3, FAVORITES = 4, TELEPORT = 5, ACCOUNTS = 6, SETTINGS = 7, EVENTS = 8, AUTOMATION = 9;
+    static final int MAP = 0, WALK = 1, AUTOWALK = 2, FEEDS = 3, FAVORITES = 4, TELEPORT = 5, ACCOUNTS = 6, SETTINGS = 7, EVENTS = 8, AUTOMATION = 9, HIDE = 10;
 
     // Append-only order: persisted visibility bits must not follow icon IDs (some are shared).
-    static final String[] CUSTOMIZABLE = {"Map", "Walking speed", "Autowalk", "In-game Routes", "Feeds", "Favorites", "Hotspots", "Teleport", "Switch account", "Events", "Automation"};
+    static final String[] CUSTOMIZABLE = {"Map", "Walking speed", "Autowalk", "In-game Routes", "Feeds", "Favorites", "Hotspots", "Teleport", "Switch account", "Events", "Automation", "Research", "Hide overlay"};
     private final List<View> rows = new ArrayList<>();
     private final List<Integer> visibilityBits = new ArrayList<>();
     private int appliedHidden = -1;
@@ -72,6 +74,8 @@ public final class QuickMenu {
         card.addView(row(ACCOUNTS, "Switch account", true, listener::onAccounts, 256));
         card.addView(row(EVENTS, "Events", true, () -> dev.pgrazor.events.EventPanel.showSelector(activity, Control.darkTheme()), 512));
         card.addView(row(AUTOMATION, "Automation", true, () -> AutomationPanel.show(activity), 1024));
+        card.addView(row(EVENTS, "Research", true, () -> ResearchSettings.show(activity), 2048));
+        card.addView(row(HIDE, "Hide overlay", true, listener::onHideOverlays, 4096));
         card.addView(row(SETTINGS, "Settings", true, listener::onSettings, 0));
         viewport=new ScrollView(activity);viewport.setFillViewport(false);
         viewport.addView(card,new ScrollView.LayoutParams(-1,-2));
@@ -261,6 +265,15 @@ public final class QuickMenu {
                     Path bolt = new Path(); bolt.moveTo(13, 3); bolt.lineTo(6, 13.5f); bolt.lineTo(11, 13.5f);
                     bolt.lineTo(10, 21); bolt.lineTo(18, 10); bolt.lineTo(13, 10); bolt.close();
                     canvas.drawPath(bolt, paint);
+                    break;
+                }
+                case HIDE: {
+                    // An eye with a line through it.
+                    paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(1.8f);
+                    Path eye = new Path(); eye.moveTo(3, 12); eye.quadTo(12, 3, 21, 12); eye.quadTo(12, 21, 3, 12); eye.close();
+                    canvas.drawPath(eye, paint);
+                    canvas.drawCircle(12, 12, 3, paint);
+                    paint.setStrokeWidth(2f); canvas.drawLine(5, 19, 19, 5, paint);
                     break;
                 }
             }

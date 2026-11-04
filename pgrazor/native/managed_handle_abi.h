@@ -1,4 +1,5 @@
 #pragma once
+#include "game_bindings.h"
 #include "runtime_metadata.h"
 #include <cstring>
 // Supported Unity6000.3.22f1 ARM64 pointer-width GC handle ABI. Read-only proof;
@@ -16,11 +17,11 @@ inline int pgr_pointer_handles(const PgrMetaApi *md,const void *create,const voi
   if((delta<0&&address<uint64_t(-delta))||(delta>0&&address>UINTPTR_MAX-uint64_t(delta)))return 0;
   return delta<0?address-uintptr_t(-delta):address+uintptr_t(delta);
  };
- const uint32_t head[]={0xaa0003e8,0x52800049,0x7200003f,0x1a890520,0xaa0803e1};
- const uint32_t makeTail[]={0x9a953120},pro[]={0xf81b0ffe},getTail[]={0x9273c817,0x394082e8},freeTail[]={0x9273c816,0x394082c8};
+ const uint32_t head[]=PGR_GAME_MANAGED_HANDLE_ABI_H_HEAD_FINGERPRINT;
+ const uint32_t makeTail[]=PGR_GAME_MANAGED_HANDLE_ABI_H_MAKETAIL_FINGERPRINT,pro[]=PGR_GAME_MANAGED_HANDLE_ABI_H_PRO_FINGERPRINT,getTail[]=PGR_GAME_MANAGED_HANDLE_ABI_H_GETTAIL_FINGERPRINT,freeTail[]=PGR_GAME_MANAGED_HANDLE_ABI_H_FREETAIL_FINGERPRINT;
  const auto c=reinterpret_cast<uintptr_t>(create),g=reinterpret_cast<uintptr_t>(get),f=reinterpret_cast<uintptr_t>(free);
- if(!c||!g||!f||c>UINTPTR_MAX-20||!words(c,head,5))return -1;
- const auto cb=branch(c+20),gb=branch(g),fb=branch(f);
- if(!cb||!gb||!fb||cb>UINTPTR_MAX-0x384||gb>UINTPTR_MAX-20||fb>UINTPTR_MAX-24)return -1;
- return words(cb+0x384,makeTail,1)&&words(gb,pro,1)&&words(gb+20,getTail,2)&&words(fb,pro,1)&&words(fb+24,freeTail,2)?0:-1;
+ if(!c||!g||!f||c>UINTPTR_MAX-PGR_GAME_SHARED_GC_CREATE_BRANCH_OFFSET||!words(c,head,5))return -1;
+ const auto cb=branch(c+PGR_GAME_SHARED_GC_CREATE_BRANCH_OFFSET),gb=branch(g),fb=branch(f);
+ if(!cb||!gb||!fb||cb>UINTPTR_MAX-PGR_GAME_SHARED_GC_CREATE_BODY_OFFSET||gb>UINTPTR_MAX-PGR_GAME_SHARED_GC_GET_TAIL_OFFSET||fb>UINTPTR_MAX-PGR_GAME_SHARED_GC_FREE_TAIL_OFFSET)return -1;
+ return words(cb+PGR_GAME_SHARED_GC_CREATE_BODY_OFFSET,makeTail,1)&&words(gb,pro,1)&&words(gb+PGR_GAME_SHARED_GC_GET_TAIL_OFFSET,getTail,2)&&words(fb,pro,1)&&words(fb+PGR_GAME_SHARED_GC_FREE_TAIL_OFFSET,freeTail,2)?0:-1;
 }

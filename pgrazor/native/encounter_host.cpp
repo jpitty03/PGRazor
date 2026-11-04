@@ -1,3 +1,4 @@
+#include "game_bindings.h"
 #include "encounter_host.h"
 
 #include <dlfcn.h>
@@ -44,6 +45,9 @@
 #include "batch_evolution.h"
 #include "remote_gym.h"
 #include "gift_batch.h"
+#include "research.h"
+#include "storage_iv.h"
+#include "ar_values.h"
 #include "incense_guard.h"
 #include "buddy_emotion.h"
 
@@ -657,7 +661,7 @@ static void *resolve_rpc_field(void *bag_class,void *rpc_class){
   auto value=reinterpret_cast<bool(*)(void*)>(g_exp.meta.class_is_valuetype);
   auto accepts=reinterpret_cast<bool(*)(void*,void*)>(g_exp.meta.class_is_assignable_from);
   for(unsigned i=0;bag_class&&i<16;++i,bag_class=parent(bag_class)){
-    void *f=field(bag_class,"cynr");if(!f)continue;void *k=klass(type(f));
+    void *f=field(bag_class,PGR_GAME_ENCOUNTER_HOST_CPP_ERHP_NAME);if(!f)continue;void *k=klass(type(f));
     if(offset(f)<16||offset(f)>512||!k||value(k)||!accepts(k,rpc_class))return nullptr;
     return f;
   }return nullptr;
@@ -676,7 +680,7 @@ static void clear_active_vgp_transfer() {
   memset(&g_vgp_transfer, 0, sizeof(g_vgp_transfer));
 }
 
-static void handle_vgp_transfer_ready(const PgrVgpControllerOut &out, uint64_t tid, uint64_t lease_ms) {
+static void handle_vgp_transfer_ready(const PgrVgpControllerOut &out, uint64_t tid, uint64_t lease_ms, int keep_all = 0) {
   clear_active_vgp_transfer();
   g_vgp_transfer.response_handle = reinterpret_cast<void *>(static_cast<uintptr_t>(out.response_handle));
   g_vgp_transfer.bag_handle = reinterpret_cast<void *>(static_cast<uintptr_t>(out.bag_handle));
@@ -733,7 +737,7 @@ static void handle_vgp_transfer_ready(const PgrVgpControllerOut &out, uint64_t t
   tp_in.protect = protect_mask;
   tp_in.known = tf_out.known;
   tp_in.flags = tf_out.flags;
-  tp_in.keep_all = 0; // VGP/VGP+ use main protection settings, not the manual overlay.
+  tp_in.keep_all = keep_all ? 1 : 0; // VGP/VGP+ use main protection settings; research catches honor Keep All.
   tp_in.keep_count = g_keep_species_count;
   tp_in.keep_ids = g_keep_species_count ? g_keep_species : nullptr;
 
@@ -802,6 +806,21 @@ static void handle_vgp_transfer_ready(const PgrVgpControllerOut &out, uint64_t t
   if (g_vgc && out.transfer_token != 0) {
     g_vgc->transfer_feedback(out.transfer_token, PGR_VGC_FB_REQUESTED, tid);
   }
+}
+
+// Research encounter catches share the single VGP transfer slot and are handed over only while no
+// transfer is in flight. Returns 1 when it adopted all four OWNED handles; 0 leaves them with the caller.
+extern "C" int pgr_research_transfer_caught(uint64_t caught_id, uint64_t response, uint64_t bag,
+                                            uint64_t pokemon, uint64_t gm, uint64_t tid, int keep_all) {
+  if (!caught_id || !response || !bag || !pokemon || !gm || g_vgp_transfer.active) return 0;
+  PgrVgpControllerOut out = {};
+  out.caught_id = caught_id;
+  out.response_handle = response;
+  out.bag_handle = bag;
+  out.pokemon_handle = pokemon;
+  out.gm_handle = gm;
+  handle_vgp_transfer_ready(out, tid, 2500, keep_all);
+  return 1;
 }
 
 static void pump_transfer_events(uint64_t tid, int stopping) {
@@ -1420,7 +1439,7 @@ static int install_berries_leaf() {
   void *iter=nullptr;
   for(unsigned i=0;g_berry_response_class && i<128;++i){
     void *f=fields(g_berry_response_class,&iter);if(!f)break;
-    if(offset(f)!=0x10 || (flags(f)&0x10))continue;
+    if(offset(f)!=PGR_GAME_ENCOUNTER_HOST_CPP_BOXED_VALUE_OFFSET || (flags(f)&0x10))continue;
     void *klass=from_type(type(f));int align=0;
     if(!klass || !is_enum(klass) || size(klass,&align)!=4 || g_berry_status_field) return PGR_EH_ERR_METADATA;
     g_berry_status_field=f;
@@ -2382,6 +2401,9 @@ static int api_tick(uint64_t proven_tid) {
   // 3. MapPOI snapshot scan
   tick_map_poi(os_tid, now, rem_lease);
   pgr_gift_batch_tick(os_tid, &g_md);
+  pgr_research_tick(os_tid, &g_md);
+  pgr_storage_iv_tick(os_tid, &g_md);
+  pgr_ar_values_tick(os_tid, &g_md);
   pgr_remote_gym_tick(os_tid, &g_md);
   pgr_gym_tick(os_tid, &g_md);
   pgr_evolution_tick(os_tid, &g_md);
@@ -2410,6 +2432,8 @@ static int api_stop(uint64_t proven_tid) {
     }
     if (g_vgc && (g_active_caps & PGR_EH_CAP_VGP)) {
       pgr_gift_batch_stop();
+      pgr_research_stop();
+      pgr_storage_iv_stop();
       pgr_remote_gym_stop(tid);
       pgr_incense_guard_stop(tid);
       pgr_gym_stop(tid);

@@ -218,8 +218,8 @@ final class MapPoiLayer {
         if (closed || hits.isEmpty()) return;
         if (hits.size() == 1) { showPoiDetails(hits.get(0)); return; }
         String[] labels = new String[hits.size()]; for (int i = 0; i < labels.length; i++) labels[i] = poiShortLabel(hits.get(i));
-        AlertDialog chooser = new AlertDialog.Builder(dialogContext).setTitle("Nearby here (" + hits.size() + ")")
-            .setItems(labels, (d, which) -> showPoiDetails(hits.get(which))).setNegativeButton("Close", null).create();
+        AlertDialog chooser = ChoiceList.attach(new AlertDialog.Builder(dialogContext).setTitle("Nearby here (" + hits.size() + ")")
+            .setNegativeButton("Close", null).create(), labels, which -> showPoiDetails(hits.get(which)));
         registerPoiDialog(chooser); chooser.show();
     }
     private String poiShortLabel(JSONObject point) {

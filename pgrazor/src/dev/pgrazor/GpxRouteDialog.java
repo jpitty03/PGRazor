@@ -83,15 +83,15 @@ public final class GpxRouteDialog {
     public static void menu(Activity activity, Source source, Selection selection) {
         if (!alive(activity)) return;
         String[] items = {"Save route", "Import GPX", "Saved routes", "Export route"};
-        AlertDialog dialog = new AlertDialog.Builder(MapTheme.wrap(activity)).setTitle("GPX routes")
-            .setItems(items, (d, which) -> {
+        AlertDialog dialog = ChoiceList.attach(new AlertDialog.Builder(MapTheme.wrap(activity)).setTitle("GPX routes")
+            .setNegativeButton("Close", null).create(), items, which -> {
                 switch (which) {
                     case 0: saveRoute(activity, source); break;
                     case 1: importGpx(activity, "the route builder", selection); break;
                     case 2: chooseSaved(activity, selection); break;
                     case 3: exportRoute(activity, source); break;
                 }
-            }).setNegativeButton("Close", null).create();
+            });
         present(activity, dialog);
     }
 
@@ -127,9 +127,8 @@ public final class GpxRouteDialog {
             GpxRoute r = routes.get(i);
             names[i] = String.format(Locale.US, "%s\n%d stops", title(r.name, i), r.points().length);
         }
-        AlertDialog dialog = new AlertDialog.Builder(MapTheme.wrap(activity)).setTitle("Choose a route (" + routes.size() + ")")
-            .setItems(names, (d, which) -> deliverImported(activity, routes.get(which), where, selection))
-            .setNegativeButton("Cancel", null).create();
+        AlertDialog dialog = ChoiceList.attach(new AlertDialog.Builder(MapTheme.wrap(activity)).setTitle("Choose a route (" + routes.size() + ")")
+            .setNegativeButton("Cancel", null).create(), names, which -> deliverImported(activity, routes.get(which), where, selection));
         present(activity, dialog);
     }
 
@@ -178,16 +177,13 @@ public final class GpxRouteDialog {
     private static void showList(Activity activity, List<GpxStore.Entry> entries, Selection selection) {
         AlertDialog.Builder builder = new AlertDialog.Builder(MapTheme.wrap(activity))
             .setTitle("Saved routes (" + entries.size() + ")").setNegativeButton("Close", null);
-        if (entries.isEmpty()) builder.setMessage("No saved routes yet. Import a GPX file, or save a route you build on the map.");
-        else {
-            String[] rows = new String[entries.size()];
-            for (int i = 0; i < rows.length; i++) {
-                GpxStore.Entry e = entries.get(i);
-                rows[i] = String.format(Locale.US, "%s\n%d stops", e.name, e.count);
-            }
-            builder.setItems(rows, (d, which) -> showEntry(activity, entries.get(which), selection));
+        if (entries.isEmpty()) { builder.setMessage("No saved routes yet. Import a GPX file, or save a route you build on the map."); present(activity, builder.create()); return; }
+        String[] rows = new String[entries.size()];
+        for (int i = 0; i < rows.length; i++) {
+            GpxStore.Entry e = entries.get(i);
+            rows[i] = String.format(Locale.US, "%s\n%d stops", e.name, e.count);
         }
-        present(activity, builder.create());
+        present(activity, ChoiceList.attach(builder.create(), rows, which -> showEntry(activity, entries.get(which), selection)));
     }
 
     private static void showEntry(Activity activity, GpxStore.Entry entry, Selection selection) {

@@ -5,7 +5,7 @@ import org.json.*;
 
 /** Validation is completed before any settings are written. No credential stores are accepted. */
 public final class SettingsBackupRules {
-    public static final String[] SETTINGS=("quickMenuHidden uiScalePercent locationSpoofing idleWalking darkTheme joystickVisible spawnBooster giftOptions vgpOverlay vgpStopOnCooldown vgpOptions buddyBerry autoIncubate incubateLongest cooldownOverlay autoBerry berryPriority encounterBerry battleOptions rocketOptions itemTransfer itemRules itemLimits quickSpin autoTransfer transferProtect transferKeepAll transferOverlay transferKeepSpecies autoDismiss throwAr curve grade mapTap ivCatch ivOwned smartCatchEnabled smartCatchBall smartCatchBerry smartCatchPremium smartCatchHighCp smartCatchHighLevel smartCatchGrade smartCatchCurve smartCatchSpinGyms smartCatchCandySpecies gymAutomationDeploy gymAutomationFeed gymAutomationSpin gymAutomationOverlay gymAutomationFallback gymAutomationNanabReserve gymAutomationRazzReserve buddyEmotionOverlay buddyEmotionEnabled buddyEmotionBerry buddyEmotionBerries buddyEmotionReserve buddyEmotionGifts").split(" ");
+    public static final String[] SETTINGS=("quickMenuHidden uiScalePercent locationSpoofing idleWalking darkTheme joystickVisible spawnBooster giftOptions vgpOverlay vgpStopOnCooldown vgpOptions buddyBerry autoIncubate incubateLongest cooldownOverlay autoBerry berryPriority encounterBerry battleOptions rocketOptions itemTransfer itemRules itemLimits quickSpin autoTransfer transferProtect transferKeepAll transferOverlay transferKeepSpecies autoDismiss throwAr curve grade mapTap ivCatch ivOwned storageIv storageIvFormat smartCatchEnabled smartCatchBall smartCatchBerry smartCatchPremium smartCatchHighCp smartCatchHighLevel smartCatchGrade smartCatchCurve smartCatchSpinGyms smartCatchCandySpecies gymAutomationDeploy gymAutomationFeed gymAutomationSpin gymAutomationOverlay gymAutomationFallback gymAutomationNanabReserve gymAutomationRazzReserve buddyEmotionOverlay buddyEmotionEnabled buddyEmotionBerry buddyEmotionBerries buddyEmotionReserve buddyEmotionGifts").split(" ");
     private static final Set<String> BOOLEANS=new HashSet<>(Arrays.asList(("locationSpoofing idleWalking darkTheme joystickVisible spawnBooster vgpOverlay vgpStopOnCooldown autoIncubate incubateLongest cooldownOverlay encounterBerry itemTransfer quickSpin autoTransfer transferKeepAll transferOverlay autoDismiss throwAr curve ivCatch ivOwned smartCatchEnabled smartCatchPremium smartCatchCurve smartCatchSpinGyms gymAutomationDeploy gymAutomationFeed gymAutomationSpin gymAutomationOverlay gymAutomationFallback buddyEmotionOverlay buddyEmotionEnabled buddyEmotionGifts").split(" ")));
     private static void require(boolean yes,String message)throws JSONException{if(!yes)throw new JSONException(message);}
     private static double number(Object o,double min,double max,String label)throws JSONException{
@@ -26,7 +26,7 @@ public final class SettingsBackupRules {
             if(key.equals("smartCatchCandySpecies")){keepSpecies(value);require(value.isEmpty()||value.split(",").length<=200,"Too many candy species");continue;}
             if(key.equals("berryPriority")){try{BerryPriority.parse(value);}catch(IllegalArgumentException invalid){throw new JSONException("Invalid berry priorities");}continue;}
             int n;try{n=Integer.parseInt(value);}catch(NumberFormatException e){throw new JSONException("Invalid "+key);}
-            if(key.equals("quickMenuHidden")){require(n>=0&&n<=2047,"Invalid quick menu visibility");continue;}
+            if(key.equals("quickMenuHidden")){require(n>=0&&n<=8191,"Invalid quick menu visibility");continue;}
             if(key.equals("uiScalePercent")){require(n==25||n==50||n==75||n==100,"Invalid UI scale");continue;}
             if(key.equals("buddyBerry")||key.equals("autoBerry")){require(n==0||n==701||n==703||n==705||n==706||n==707,"Invalid berry");continue;}
             if(key.equals("smartCatchBerry")){require(n==0||n==701||n==703||n==705||n==706||n==708,"Invalid smart catch berry");continue;}
@@ -37,7 +37,7 @@ public final class SettingsBackupRules {
             if(key.equals("smartCatchHighCp")){require(n>=0&&n<=10000,"Invalid high CP threshold");continue;}
             if(key.equals("smartCatchHighLevel")){require(n>=0&&n<=50,"Invalid high level threshold");continue;}
             if(key.equals("smartCatchGrade")){require(n>=0&&n<=3,"Invalid smart catch throw grade");continue;}
-            int max=key.equals("battleOptions")?1023:key.equals("transferProtect")?63:key.equals("grade")?3:key.equals("mapTap")?3:7;
+            int max=key.equals("battleOptions")?1023:key.equals("transferProtect")?63:key.equals("grade")?3:key.equals("mapTap")?3:key.equals("storageIv")||key.equals("storageIvFormat")?3:7;
             require(n>=0&&n<=max,"Invalid "+key);
         }
         JSONObject preferences=root.getJSONObject("preferences");

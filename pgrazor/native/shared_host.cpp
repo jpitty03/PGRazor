@@ -1,3 +1,4 @@
+#include "game_bindings.h"
 #include "shared_host.h"
 #include "shared_catch.h"
 #include "summary_completion.h"
@@ -98,7 +99,7 @@ void transport_event(uint32_t kind,uint64_t slot,int status,uint32_t flags,int b
  const char *name="native-shared-event",*why="";
  switch(kind){case 1:name="candidate-initialized";break;case 2:name="candidate-cancelled";break;case 3:name="summary-dismiss-invoked";break;case 4:name="details-dismiss-invoked";break;case 5:name="transfer-requested";break;
  case 6:name=status==PGR_TX_EVENT_COMPLETE&&(flags&1)?"transfer-confirmed":"transfer-error";why=status==PGR_TX_EVENT_TIMEOUT?"response-timeout":"server-result";break;
- case 7:name="transfer-kept";why=keep_reason(status);break;case 8:name="fault";break;case 9:name="metadata-ready";break;case 10:name="direct-catch-fallback";break;case 11:name="direct-catch-returned";break;case 12:name="candidate-armed";break;case 13:name="stopped";break;}
+ case 7:name="transfer-kept";why=keep_reason(status);break;case 8:name="fault";break;case 9:name="metadata-ready";break;case 10:name="direct-catch-fallback";break;case 11:name="direct-catch-returned";break;case 12:name="candidate-armed";break;case 13:name="stopped";break;case 14:name="summary-canvas-hide";break;case 15:name="summary-canvas-before-dismiss";break;case 16:name="summary-alpha-hook";break;}
  char json[768];const int n=std::snprintf(json,sizeof(json),"{\"kind\":\"%s\",\"backend\":\"native\",\"boottimeMs\":%llu,\"tid\":%llu,\"slot\":%llu,\"status\":%d,\"invoked\":%s,\"stateBefore\":%d,\"stateAfter\":%d,\"guiGone\":%s,\"advanced\":%s,\"reason\":\"%s\",\"reasonCode\":%d,\"transferAvailable\":%s}",name,(unsigned long long)now(),(unsigned long long)tid(),(unsigned long long)slot,status,(flags&1)?"true":"false",before,after,(flags&2)?"true":"false",((flags&2)||((flags&4)&&after!=2))?"true":"false",why,reason,(capabilities&PGR_SHH_TRANSFER)?"true":"false");
  if(n<=0||size_t(n)>=sizeof(json)){failed=true;stopping=true;return;}
  PgrRuntimeTransportString strings[]={{"quick-close",11},{json,uint32_t(n)}};
@@ -128,11 +129,12 @@ void poll_transport(){if(!(cfg.transport_flags&1))return;PgrRuntimeTransportSamp
 struct Record {
  uint64_t key=0,slot=0,epoch=0,id=0,canvas=0,transfer_token=0;
  void *gui=nullptr,*state=nullptr,*proto=nullptr,*response=nullptr,*dismissed=nullptr,*data=nullptr,*pokemon=nullptr;
- bool details=false,cancelled=false,invoked=false,transfer_checked=false,transfer_complete=false,transfer_failed=false;
+ bool details=false,cancelled=false,invoked=false,transfer_checked=false,transfer_complete=false,transfer_failed=false,opening=false;
 };
 std::array<Record,4> records{};
 struct Pending {void *response=nullptr,*layer=nullptr;uint64_t id=0,epoch=0,expires=0;bool returned=false;} pending;
 void release_pending(){free_root(pending.response);free_root(pending.layer);pending={};}
+bool bridge_armed=false; // see poll_bridge
 void release(Record &r){Record old=r;r={};if(old.slot)record_count.fetch_sub(1);if(old.canvas&&(capabilities&PGR_SHH_CANVAS))cv->release(old.canvas,tid());free_root(old.gui);free_root(old.state);free_root(old.proto);free_root(old.response);free_root(old.dismissed);free_root(old.data);free_root(old.pokemon);}
 
 Record *by_slot(uint64_t slot){for(auto &r:records)if(r.slot==slot&&slot)return &r;return nullptr;}
@@ -174,14 +176,24 @@ struct HookFrame {
 std::array<std::atomic<void*>,10> originals{};
 void *original(unsigned i){auto p=originals[i].load();if(!p){std::lock_guard<std::mutex> lock(setup_mutex);p=originals[i].load();}if(!p)std::abort();return p;}
 using One=void(*)(void*,const void*);using Two=void(*)(void*,void*,const void*);using Scores=void(*)(void*,void*,int32_t,const void*);
-void hook_initialize(void *self,void *value,const void *info){auto fn=reinterpret_cast<Two>(original(0));HookFrame frame(self,value);if(frame.active()){sh->cancel_all(7,tid());}
- try{fn(frame.a?target(frame.a):self,frame.b?target(frame.b):value,info);}catch(...){if(frame.observe)fault(-11);throw;}
+// PoGO 0.435.1 inserted a System.Boolean followsDisguiseReveal parameter into
+// EncounterSummaryState.Initialize, between the CatchPokemonOutProto argument and
+// the trailing MethodInfo. hook_initialize forwards it (and the MethodInfo)
+// unchanged; the other Two-shaped hooks are untouched by this ABI change.
+using Init=void(*)(void*,void*,bool,const void*);
+void hook_initialize(void *self,void *value,bool follows_disguise_reveal,const void *info){auto fn=reinterpret_cast<Init>(original(0));HookFrame frame(self,value);if(frame.active()){sh->cancel_all(7,tid());}
+ try{fn(frame.a?target(frame.a):self,frame.b?target(frame.b):value,follows_disguise_reveal,info);}catch(...){if(frame.observe)fault(-11);throw;}
  if(!frame.active()||!exact(target(frame.a),c(2))||!exact(target(frame.b),c(3)))return;
  if(field<int32_t>(target(frame.b),f(5))!=md.success)return;auto gui=field<void*>(target(frame.a),f(3));if(!exact(gui,c(1)))return;
  Record *r=create(gui);if(!r)return;if(!assign(r->state,target(frame.a))||!assign(r->proto,target(frame.b))){fault(-12);return;}
  if(field<void*>(target(r->state),f(4))!=target(r->proto)||(r->response&&target(r->response)!=target(r->proto))){cancel(*r);return;}
  if(!assign(r->dismissed,field<void*>(target(r->gui),f(2)))){fault(-12);return;}
  r->id=field<uint64_t>(target(r->proto),f(0));sh->mark(r->slot,PGR_SH_STAGE_INIT,1|(r->id?2:0),tid());emit(1,r->slot);
+ // Keep the successful catch summary hidden while its normal open/dismiss
+ // lifecycle runs. The canvas lease restores visibility if Quick Catch stops.
+ if((capabilities&PGR_SHH_CANVAS)&&(gate().flags&PGR_SHH_DISMISS)&&current(r->epoch)){
+  uint64_t token=0;const int hidden=cv->hide_opening(r->gui,r->epoch,tid(),&token);if(hidden==1)r->canvas=token;PgrCatchCanvasSample sample{};cv->sample(&sample);emit(14,r->slot,hidden,0,int(sample.owned),int(sample.masked_count));
+ }
 }
 void hook_scores(void *self,void *value,int32_t berry,const void *info){auto fn=reinterpret_cast<Scores>(original(1));HookFrame frame(self,value);try{fn(frame.a?target(frame.a):self,frame.b?target(frame.b):value,berry,info);}catch(...){if(frame.observe)fault(-11);throw;}
  if(!frame.active()||!exact(target(frame.a),c(1))||!exact(target(frame.b),c(3)))return;Record *r=create(target(frame.a));if(!r)return;if(!assign(r->response,target(frame.b))){fault(-12);return;}if(r->proto&&target(r->proto)!=target(r->response)){cancel(*r);return;}sh->mark(r->slot,PGR_SH_STAGE_SET_SCORES,0,tid());
@@ -256,7 +268,7 @@ void hook_present(void *self,void *pokemon,void *awards,bool flag,const void *in
   for(auto &r:records)if(r.slot&&r.details)cancel(r);
   void *response=field<void*>(target(frame.a),h(H_DET_VIEW_RESP));const uint64_t id=exact(response,c(3))?field<uint64_t>(response,f(0)):0;
   if(exact(response,c(3))&&field<int32_t>(response,f(5))==md.success&&id&&field<uint64_t>(target(frame.b),h(H_DET_ID))==id){
-   void *response_root=hold(response);if(response_root){auto r=create(nullptr,true);if(r){r->id=id;r->response=response_root;response_root=nullptr;if(!assign(r->state,target(frame.a))||!assign(r->pokemon,target(frame.b)))fault(-12);slot=r->slot;if(target(pending.response)==target(r->response))release_pending();}free_root(response_root);}
+   void *response_root=hold(response);if(response_root){auto r=create(nullptr,true);if(r){r->id=id;r->response=response_root;response_root=nullptr;if(!assign(r->state,target(frame.a))||!assign(r->pokemon,target(frame.b)))fault(-12);slot=r->slot;if(target(pending.response)==target(r->response)&&!bridge_armed)release_pending();}free_root(response_root);}
   }
  }
  try{fn(frame.a?target(frame.a):self,frame.b?target(frame.b):pokemon,awards_root?target(awards_root):awards,flag,info);}catch(...){free_root(awards_root);if(frame.observe)fault(-11);throw;}free_root(awards_root);
@@ -343,38 +355,68 @@ bool transfer(Record &r,bool direct=false){auto g=gate();if(!(capabilities&PGR_S
  if(result!=1&&!r.transfer_token){if(r.slot){uint64_t slot=0;sh->transfer_resolve(r.key,tid(),&slot);}r.transfer_failed=true;emit(7,r.slot,17);}
  transfer_drain();return result==1&&!r.transfer_complete&&!r.transfer_failed&&!(g.flags&PGR_SHH_DISMISS);
 }
-void discover(){if(!(capabilities&PGR_SHH_DISCOVERY)||!pending.response||!pending.returned||invoking||!current(pending.epoch))return;
+// Present was observed and the armed bridge awaits its ShowPokemonInfo; recovery would
+// only adopt the uninitialized details screen that presentation is about to replace.
+bool presented_for_bridge(){if(!bridge_armed)return false;for(const auto &x:records)if(x.slot&&x.details&&!x.cancelled&&x.id==pending.id)return true;return false;}
+void discover(){if(!(capabilities&PGR_SHH_DISCOVERY)||!pending.response||!pending.returned||invoking||!current(pending.epoch)||presented_for_bridge())return;
  PgrCatchDiscoveryRequest q{1,sizeof(q),tid(),gate().remaining,pending.layer};PgrCatchDiscoveryOutput out{};
  if(pending.layer){if(cd->top(&q,&out)==1&&out.count)recover(target(out.handles[0]));cd->release(&out);}
  const auto n=now();if(!pending.response||n-last_scene<250)return;last_scene=n;
  q.layer=nullptr;if(cd->scene(&q,&out)==1){for(uint32_t i=0;i<out.count&&pending.response;++i)recover(target(out.handles[i]));}cd->release(&out);
 }
-bool replay(PgrCatchCapture &capture){int32_t values[]={int32_t(capture.confirm),int32_t(capture.persist),capture.open_hyper_training,int32_t(capture.hide_ar),int32_t(capture.post),int32_t(capture.suppress)};
- void *args[]={target(capture.pokemon),&values[0],&values[1],&values[2],target(capture.callback),nullptr,nullptr,&values[3],&values[4],&values[5]};bool ok=false;invoke(h(H_DP_SHOW),target(capture.service),args,&ok);emit(10,0,ok?0:-11);return ok;}
+bool replay(PgrCatchCapture &capture,int why=0){int32_t values[]={int32_t(capture.confirm),int32_t(capture.persist),capture.open_hyper_training,int32_t(capture.hide_ar),int32_t(capture.post),int32_t(capture.suppress)};
+ void *args[]={target(capture.pokemon),&values[0],&values[1],&values[2],target(capture.callback),nullptr,nullptr,&values[3],&values[4],&values[5]};bool ok=false;invoke(h(H_DP_SHOW),target(capture.service),args,&ok);emit(10,0,ok?0:-11,0,0,0,why);return ok;}
 void complete_direct(PgrCatchCapture &capture,bool advanced){if(!capture.service)return;root_count.fetch_add((capture.service?1:0)+(capture.pokemon?1:0)+(capture.callback?1:0));
  Record r{};r.epoch=gate().epoch;r.pokemon=capture.pokemon;capture.pokemon=nullptr;r.dismissed=capture.callback;capture.callback=nullptr;
- auto fallback=[&](){capture.pokemon=r.pokemon;capture.callback=r.dismissed;replay(capture);capture.pokemon=capture.callback=nullptr;};
- if(!pending.response){fallback();release(r);free_root(capture.service);return;}
+ int why=0;auto fallback=[&](){capture.pokemon=r.pokemon;capture.callback=r.dismissed;replay(capture,why);capture.pokemon=capture.callback=nullptr;};
+ if(!pending.response){why=64;fallback();release(r);free_root(capture.service);return;}
  r.id=pending.id;r.state=hold(field<void*>(target(r.dismissed),h(H_DET_DELEGATE_TARGET)));r.response=hold(target(pending.response));
  auto request=[&](){return PgrCatchCompletionRequest{1,sizeof(PgrCatchCompletionRequest),r.id,r.epoch,tid(),target(r.state),target(r.response),target(r.pokemon),target(r.dismissed)};};
  auto q=request();const auto g=gate();
- if(!advanced||!(g.flags&PGR_SHH_DISMISS)||!current(r.epoch)||cc->validate(&q)!=1){fallback();release(r);free_root(capture.service);return;}
+ // Fallback reason bits: 1 not advanced, 2 dismiss off, 4 stale epoch, 8 validation, 16 inactive view.
+ if(!advanced)why|=1;if(!(g.flags&PGR_SHH_DISMISS))why|=2;if(!current(r.epoch))why|=4;
+ if(!why&&cc->validate(&q)!=1)why|=8|(field<uint8_t>(target(r.state),h(H_DP_ACTIVE))!=1?16:0);
+ if(why){fallback();release(r);free_root(capture.service);return;}
  transfer(r,true);q=request();uint64_t token=0;cc->acquire(r.epoch,tid(),&token);const int rc=token?cc->complete(&q,token):0;
- if(rc==1){release_pending();emit(11);}else {q=request();if(cc->validate(&q)==1)fallback();}
+ // The presented details record never initializes once its presentation was consumed.
+ if(rc==1){for(auto &x:records)if(x.slot&&x.details&&!x.gui&&x.id==r.id)cancel(x);release_pending();emit(11);}else {q=request();if(cc->validate(&q)==1)fallback();}
  release(r);free_root(capture.service);
 }
+// 0.435.1 calls ShowPokemonInfo a few frames after the summary Dismiss returns, not
+// inside it. Unless the bridge is still armed then, the details screen becomes visible
+// with its loading background (the post-catch gray) ~500 ms before Initialize lets the
+// canvas hide it. Keep the bridge armed tick to tick while the returned summary's
+// response is pending; a capture completes on the next tick, and closing early with a
+// capture replays the original presentation.
+void poll_bridge(bool keep){if(!bridge_armed)return;bridge_armed=false;PgrCatchCapture capture{};const bool captured=bridge->end(&capture)==1;
+ if(captured){complete_direct(capture,keep);return;}
+ // An initialized details screen means the presentation went the ordinary way.
+ for(const auto &x:records)if(x.slot&&x.details&&x.gui&&pending.response&&x.id==pending.id){release_pending();return;}
+ if(keep&&pending.response&&pending.returned&&current(pending.epoch)&&now()<pending.expires&&(gate().flags&PGR_SHH_DISMISS))bridge_armed=bridge->begin(target(pending.response),int32_t(tid()))==0;}
 void hide_after(Record &r,uint32_t flags,int after,int result){if((capabilities&PGR_SHH_CANVAS)&&result==1&&(flags&4)&&after!=2&&(gate().flags&PGR_SHH_DISMISS)&&current(r.epoch))cv->hide_dismissed(r.gui,r.epoch,tid(),after);}
-void complete_summary(Record &r){auto q=summary_request(r);if(sc->validate(&q)!=1){cancel(r);return;}if(!current(r.epoch))return;
+// The hidden summary's open transition (~500 ms) shows only the camera clear colour:
+// the encounter scene is already off. Dismiss accepts a still-opening GUI, so a
+// confirmed summary is ready once Initialize and SetScores have been observed.
+// Mark once: every progress mark restarts the strictly-later arming tick.
+void mark_opening(){for(auto &r:records){if(!r.slot||r.opening||r.details||r.cancelled||r.invoked||!r.id||!r.state||!r.response||!current(r.epoch))continue;
+ void *gui=target(r.gui);if(exact(gui,c(1))&&field<int32_t>(gui,f(1))==PGR_SC_STATE_OPENING){r.opening=true;sh->mark(r.slot,PGR_SH_STAGE_OPEN_COMPLETE,0,tid());}}}
+// A Dismiss that left the summary open or opening did not advance it.
+bool summary_advanced(uint32_t flags,int after){return (flags&PGR_SC_FLAG_GONE)||((flags&PGR_SC_FLAG_AFTER_KNOWN)&&after!=2&&after!=PGR_SC_STATE_OPENING);}
+void complete_summary(Record &r){if(capabilities&PGR_SHH_CANVAS){PgrCatchCanvasSample sample{};cv->sample(&sample);emit(15,r.slot,int(r.canvas!=0),0,int(sample.owned),int(sample.masked_count));}auto q=summary_request(r);if(sc->validate(&q)!=1){cancel(r);return;}if(!current(r.epoch))return;
+ poll_bridge(false); // close an earlier catch's window before arming this one
  if(capabilities&PGR_SHH_DETAILS){release_pending();pending.response=hold(target(r.proto));if(!pending.response){fault(-12);return;}pending.id=r.id;pending.epoch=r.epoch;pending.expires=now()+8000;
   if(capabilities&PGR_SHH_DISCOVERY){void *layer=field<void*>(target(r.gui),h(H_CD_LAYER));if(exact(layer,h(H_CD_CLASS)))pending.layer=hold(layer);}}
  bool opened=false;PgrCatchCapture capture{};if((capabilities&PGR_SHH_DIRECT)&&(gate().flags&PGR_SHH_DISMISS)&&pending.response)opened=bridge->begin(target(pending.response),int32_t(tid()))==0;
+ // Some Dismisses present synchronously: present must keep pending for this bracket too.
+ bridge_armed=opened;
  r.invoked=true;invoking=true;invoking_gui=target(r.gui);uint64_t token=0;sc->acquire(r.epoch,tid(),&token);PgrSummaryCompletionOutput out{};int rc=0;
- try{if(token)rc=sc->complete(&q,token,&out);}catch(...){if(opened)bridge->end(&capture);invoking=false;invoking_gui=nullptr;complete_direct(capture,false);fault(-11);throw;}
- if(opened)bridge->end(&capture);invoking=false;invoking_gui=nullptr;
- const bool advanced=(out.flags&2)||((out.flags&4)&&out.after!=2);
+ try{if(token)rc=sc->complete(&q,token,&out);}catch(...){if(opened)bridge->end(&capture);bridge_armed=false;invoking=false;invoking_gui=nullptr;complete_direct(capture,false);fault(-11);throw;}
+ if(opened)bridge->end(&capture);bridge_armed=false;invoking=false;invoking_gui=nullptr;
+ const bool advanced=summary_advanced(out.flags,out.after);const bool captured=capture.service!=nullptr;
  complete_direct(capture,rc==1&&advanced);
  if(pending.response){if(rc==1&&advanced){pending.returned=true;discover();}else release_pending();}
- hide_after(r,out.flags,out.after,rc);emit(3,r.slot,rc,out.flags,out.before,out.after);sh->finish(r.slot,advanced?1:0,tid());release(r);
+ if(opened&&!captured&&pending.response&&pending.returned)bridge_armed=bridge->begin(target(pending.response),int32_t(tid()))==0;
+ hide_after(r,advanced?out.flags:0,out.after,rc);emit(3,r.slot,rc,out.flags,out.before,out.after);sh->finish(r.slot,advanced?1:0,tid());release(r);
 }
 void complete_details(Record &r){auto q=details_request(r);if(dc->validate(&q)!=1){cancel(r);return;}if(field<int32_t>(target(r.gui),f(1))!=2){cancel(r);return;}
  if(!current(r.epoch)||opener_depth)return;if(transfer(r))return;
@@ -389,9 +431,11 @@ int tick(uint64_t proven,uint64_t sequence){if(!ready)return -1;if(proven!=tid()
  if(capabilities&PGR_SHH_TRANSFER){tx->tick(tid(),stopping?1:0);transfer_drain();}
  if(capabilities&PGR_SHH_CANVAS)cv->tick(tid());
  if(pending.response&&(!current(pending.epoch)||now()>=pending.expires))release_pending();
+ if(!opener_depth)poll_bridge(!stopping);
  PgrSharedCatchDecision decision{};sh->select(0,tid(),&decision);drain();
  if(stopping){if(!opener_depth){for(auto &r:records)release(r);release_pending();}return 0;}
  discover();if(!g.remaining||opener_depth||!sequence)return 0;
+ mark_opening();
  const int rc=sh->select(sequence,tid(),&decision);drain();if(rc<0){fault(rc);return rc;}if(decision.action==PGR_SH_ACT_NONE)return 0;
  auto r=by_slot(decision.slot);if(!r||r->cancelled)return 0;if(decision.action==PGR_SH_ACT_ARM){emit(12,r->slot);return 0;}
  if(decision.action!=PGR_SH_ACT_DISMISS)return -3;if(r->details)complete_details(*r);else complete_summary(*r);drain();return 0;
@@ -408,6 +452,21 @@ PgrSharedHostConfig default_config{};
 PgrMetaExports default_exports{};
 PgrSharedMetaExtraExports default_extra{};
 bool default_built=false;
+int install_summary_alpha(){
+ const auto meta=table<PgrMetaApi>(pgrazor_runtime_metadata_api(1));
+ auto klass=[&](const char *ns,const char *name)->const void*{PgrMetaClassQuery q{1,sizeof(q)};q.name_space=ns;q.name=name;PgrMetaClassResult r{};return meta->resolve_class(&q,&r)?nullptr:r.klass;};
+ const void *group=klass("UnityEngine","CanvasGroup"),*object=klass("UnityEngine","Object");
+ if(!group||!object)return -1;
+ PgrMetaFieldQuery q{1,sizeof(q)};q.owner=c(0);q.name="cachedRootCanvasGroup";q.offset=PGR_GAME_SHARED_HOST_CPP_CACHEDROOTCANVASGROUP_OFFSET;q.forbidden_mask=0x50;q.kind=PGR_MD_FIELD_REF;q.type_name="UnityEngine.CanvasGroup";
+ PgrMetaFieldResult root{},native{};if(meta->validate_field(&q,&root))return -2;
+ q.owner=object;q.name="m_CachedPtr";q.offset=PGR_GAME_SHARED_HOST_CPP_M_CACHEDPTR_OFFSET;q.kind=PGR_MD_FIELD_VALUE;q.value_size=8;q.type_name="System.IntPtr";
+ if(meta->validate_field(&q,&native))return -3;
+ PgrBootBinding binding{};if(table<PgrBootApi>(pgrazor_runtime_bootstrap_api(1))->snapshot(&binding)||!binding.handle)return -4;
+ auto resolve=reinterpret_cast<void*(*)(const char*)>(dlsym(binding.handle,"il2cpp_resolve_icall"));if(!resolve)return -5;
+ void *address=resolve("UnityEngine.CanvasGroup::set_alpha_Injected(System.IntPtr,System.Single)");if(!address)return -6;
+ PgrCatchCanvasAlphaConfig alpha{1,sizeof(alpha),address,const_cast<void*>(root.field),const_cast<void*>(native.field),const_cast<void*>(group)};
+ return table<PgrCatchCanvasApi3>(pgrazor_catch_canvas_api(3))->install_alpha(&alpha);
+}
 int configure_default(){
  if(default_busy.test_and_set(std::memory_order_acquire))return 1;
  struct Clear{~Clear(){default_busy.clear(std::memory_order_release);}} clear;
@@ -434,7 +493,9 @@ int configure_default(){
   default_config=c;default_built=true;
  }
  if(!reinterpret_cast<void *(*)()>(default_config.metadata.thread_current)())return 1;
- default_config.metadata.owner_tid=tid();return configure(&default_config);
+ default_config.metadata.owner_tid=tid();const int rc=configure(&default_config);
+ if(rc==0&&(capabilities&PGR_SHH_CANVAS)){static bool attempted=false;if(!attempted){attempted=true;emit(16,0,install_summary_alpha());}}
+ return rc;
 }
 int configure(const PgrSharedHostConfig *input){
  if(!input)return configure_default();

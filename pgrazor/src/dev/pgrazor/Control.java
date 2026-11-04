@@ -139,6 +139,11 @@ public final class Control {
     // defaults ON (prior behavior); owned Pokemon details defaults OFF. ivOwnedReady
     // is runtime only: whether the agent resolved the owned-details metadata.
     private static volatile boolean ivCatchEnabled=true, ivOwnedEnabled, ivOwnedReady;
+    // Pokemon storage list IVs: 0 off, 1 attack/defense/stamina, 2 percent, 3 both. storageIvFormat is
+    // the chosen format (1-3), kept while the display is off. storageIvStatus is the native module's
+    // last error, runtime only.
+    private static volatile int storageIvMode, storageIvFormat=3;
+    private static volatile String storageIvStatus="";
     private static volatile int mapTapMode, mapTapEpoch;
     private static final MapTapSequence mapTapSequence=new MapTapSequence();
     private static volatile boolean mapTapReady;
@@ -255,6 +260,7 @@ public final class Control {
     public static boolean automationPlanning(){return autoWalkPlanning||gameRoutesPlanning;}
     public static String oneShotAutomationConfig(){String gift=GiftBatchSettings.config();return gift!=null?gift:OneShotAutomation.config();}
     public static String batchEvolutionConfig(){return BatchEvolutionSettings.config();}
+    public static String researchConfig(){return ResearchSettings.config();}
     public static String buddyEmotionHistory(){return BuddyEmotionSettings.history();}
     public static boolean encounterBerryVisible(){return encounterBerryEnabled&&catchScreenVisible();}
     public static boolean encounterBerryBusy(){return encounterBerryBusy;}
@@ -481,14 +487,30 @@ public final class Control {
     }
     // IV/level overlay preferences. The stored choice is surfaced to the UI and the
     // agent; the agent itself fails closed when owned-details metadata is absent.
-    public static boolean ivCatchEnabled(){return ivCatchEnabled;}
-    public static boolean ivOwnedEnabled(){return ivOwnedEnabled;}
+    // "Hide overlay" (Pad) makes the game look stock: the in-game IV text is off while it is set. These
+    // getters feed the native transport; the saved preferences are unchanged.
+    private static volatile boolean overlaysHidden;
+    public static boolean overlaysHidden(){return overlaysHidden;}
+    public static void setOverlaysHidden(boolean hidden){overlaysHidden=hidden;}
+    public static boolean ivCatchEnabled(){return ivCatchEnabled&&!overlaysHidden;}
+    public static boolean ivOwnedEnabled(){return ivOwnedEnabled&&!overlaysHidden;}
     public static boolean ivOwnedReady(){return ivOwnedReady;}
     public static boolean ivDisplayAllowed(){return quickBallReady&&hostLive();}
     public static void setIvCatchEnabled(boolean enabled){ivCatchEnabled=enabled;saveSettings();event("iv-catch-overlay",enabled?"ON":"OFF");}
     public static void setIvOwnedEnabled(boolean enabled){ivOwnedEnabled=enabled;saveSettings();event("iv-owned-overlay",enabled?"ON":"OFF");}
     public static void setIvOwnedReady(boolean ready){ivOwnedReady=ready;}
     public static String ivDisplayStatus(){return (quickBallConfigured&&ivOwnedEnabled&&!ivOwnedReady)?"Details overlay unsupported on this app version":"";}
+    public static int storageIvMode(){return storageIvMode;}
+    public static void setStorageIvMode(int mode){storageIvMode=mode>=0&&mode<=3?mode:0;if(storageIvMode>0)storageIvFormat=storageIvMode;saveSettings();event("storage-iv-mode",""+storageIvMode);}
+    public static boolean storageIvEnabled(){return storageIvMode!=0;}
+    public static int storageIvFormat(){return storageIvFormat;}
+    public static void setStorageIvEnabled(boolean enabled){setStorageIvMode(enabled?storageIvFormat:0);}
+    public static void setStorageIvFormat(int format){
+        storageIvFormat=format>=1&&format<=3?format:3;
+        if(storageIvMode!=0)setStorageIvMode(storageIvFormat);else saveSettings();
+    }
+    public static String storageIvConfig(){return "S1|"+(overlaysHidden?0:storageIvMode);}
+    public static String storageIvStatus(){return storageIvMode==0?"":storageIvStatus;}
     public static void configureQuickBall(boolean configured) {
         synchronized(quickBallLock) {
             quickBallConfigured=configured; quickBallReady=false; ivOwnedReady=false; setThrowReady(false);setMapTapReady(false);
@@ -901,7 +923,7 @@ public final class Control {
     public static int quickMenuHidden(){return quickMenuHidden;}
     public static boolean quickMenuVisible(int bit){return (quickMenuHidden&bit)==0;}
     public static void setQuickMenuVisible(int bit,boolean visible){
-        if(bit<=0||bit>1024||(bit&(bit-1))!=0)return;
+        if(bit<=0||bit>4096||(bit&(bit-1))!=0)return;
         quickMenuHidden=visible?quickMenuHidden&~bit:quickMenuHidden|bit;
         saveSettings();
     }
@@ -947,14 +969,16 @@ public final class Control {
             SmartCatchSettings.read(new Properties());
             GymAutomationSettings.read(new Properties());
             BuddyEmotionSettings.read(new Properties());
+            ResearchSettings.read(new Properties());
             try(FileInputStream in=settingsFile.openRead()) {
                 Properties p=new Properties(); p.load(in);
                 SmartCatchSettings.read(p);
                 GymAutomationSettings.read(p);
                 BuddyEmotionSettings.read(p);
+                ResearchSettings.read(p);
                 desiredEnabled=Boolean.parseBoolean(p.getProperty("locationSpoofing","true"));
                 darkTheme=Boolean.parseBoolean(p.getProperty("darkTheme","true"));
-                quickMenuHidden=boundedSetting(p,"quickMenuHidden",2047);
+                quickMenuHidden=boundedSetting(p,"quickMenuHidden",8191);
                 try{uiScalePercent=Integer.parseInt(p.getProperty("uiScalePercent","100"));}catch(NumberFormatException invalid){uiScalePercent=100;}
                 if(uiScalePercent!=25&&uiScalePercent!=50&&uiScalePercent!=75&&uiScalePercent!=100)uiScalePercent=100;
                 joystickVisible=Boolean.parseBoolean(p.getProperty("joystickVisible","true"));
@@ -998,6 +1022,8 @@ public final class Control {
                 if(keepDamaged[0])autoTransferEnabled=false;
                 ivCatchEnabled=Boolean.parseBoolean(p.getProperty("ivCatch","true"));
                 ivOwnedEnabled=Boolean.parseBoolean(p.getProperty("ivOwned","false"));
+                storageIvMode=boundedSetting(p,"storageIv",3);
+                int format=boundedSetting(p,"storageIvFormat",3);storageIvFormat=format>0?format:storageIvMode>0?storageIvMode:3;
                 // Migrate the former independent animation preference to Quick Catch.
                 quickBallEnabled=quickSummaryEnabled;
                 throwCurve=Boolean.parseBoolean(p.getProperty("curve","false"));
@@ -1053,6 +1079,7 @@ public final class Control {
         SmartCatchSettings.write(p);
         GymAutomationSettings.write(p);
         BuddyEmotionSettings.write(p);
+        ResearchSettings.write(p);
         p.setProperty("locationSpoofing",String.valueOf(desiredEnabled));
         p.setProperty("darkTheme",String.valueOf(darkTheme));p.setProperty("uiScalePercent",String.valueOf(uiScalePercent));
         p.setProperty("joystickVisible",String.valueOf(joystickVisible));
@@ -1074,7 +1101,7 @@ public final class Control {
         p.setProperty("quickSpin",String.valueOf(quickSpinEnabled));
         p.setProperty("autoTransfer",String.valueOf(autoTransferEnabled)); p.setProperty("transferProtect",String.valueOf(transferProtect));
         p.setProperty("transferKeepAll",String.valueOf(transferKeepAll)); p.setProperty("transferOverlay",String.valueOf(transferOverlayEnabled)); p.setProperty("transferKeepSpecies",transferKeepSpecies);
-        p.setProperty("ivCatch",String.valueOf(ivCatchEnabled)); p.setProperty("ivOwned",String.valueOf(ivOwnedEnabled));
+        p.setProperty("ivCatch",String.valueOf(ivCatchEnabled)); p.setProperty("ivOwned",String.valueOf(ivOwnedEnabled)); p.setProperty("storageIv",String.valueOf(storageIvMode)); p.setProperty("storageIvFormat",String.valueOf(storageIvFormat));
         p.setProperty("autoDismiss",String.valueOf(quickSummaryEnabled)); p.setProperty("fastBall",String.valueOf(quickBallEnabled));
         p.setProperty("throwAr",String.valueOf(throwAr)); p.setProperty("curve",String.valueOf(throwCurve)); p.setProperty("grade",String.valueOf(throwGrade));
         p.setProperty("throwAlwaysHit",String.valueOf(throwAlwaysHit));
@@ -1103,6 +1130,11 @@ public final class Control {
         if("remote-gym".equals(kind)||"incense-bird".equals(kind)||"incense-session".equals(kind)||"incense-open".equals(kind))OneShotAutomation.publish(kind,detail);
         if("batch-evolution".equals(kind))BatchEvolutionSettings.publish(detail);
         if("gift-batch".equals(kind))GiftBatchSettings.publish(detail);
+        if("research".equals(kind))ResearchSettings.publish(detail);
+        if("storage-iv".equals(kind)){
+            try{org.json.JSONObject o=new org.json.JSONObject(detail);storageIvStatus="error".equals(o.optString("phase"))?o.optString("message",""):"";}
+            catch(Exception ignored){}
+        }
         if("event-boxes".equals(kind)) {
             boolean available=false;
             try { available=new org.json.JSONObject(detail).optBoolean("available",false); }

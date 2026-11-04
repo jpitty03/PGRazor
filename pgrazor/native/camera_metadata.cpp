@@ -574,7 +574,7 @@ int resolve(const PgrCameraMetaConfig *input, PgrCameraMetaOutput *out) {
         return set_status_reason(out, PGR_CAM_UNAVAILABLE, "map-debug-info-abi-unverified");
       }
 
-      // CameraStack.get_MainCamera() -> UnityEngine.Camera at RVA 0xae09554 with 2-word prologue.
+      // CameraStack.get_MainCamera() -> UnityEngine.Camera at RVA 0xad814b8 with 2-word prologue.
       const void *main_cam_method = nullptr;
       int mrc = validate_map_gate_method(md, md_bound, c, stack, "get_MainCamera", "UnityEngine.Camera",
                                          /*is_static*/ 0, /*param_count*/ 0, nullptr, out, &main_cam_method);

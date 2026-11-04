@@ -15,7 +15,7 @@ Download the installable **PGRazor.apk** from [Releases](https://github.com/jpit
 3. Transfer it to your ARM64 Android phone, allow installation from your chosen file manager, and open the APK.
 4. Launch **Pokémon GO** (the installed app name) and tap the small **R** icon to open the quick menu. Choose **Settings** for the full-screen controls.
 
-Pre-releases are test candidates; check their release notes for device-validation status. The current game baseline is **Pokémon GO 0.433.1 / 2026101502**. Native hooks are version-specific. A different game version can leave features unavailable.
+Pre-releases are test candidates; check their release notes for device-validation status. The source build targets **Pokémon GO 0.435.1 / 2026102802**. Native hooks are version-specific. A different game version can leave features unavailable.
 
 The Android package identity stays compatible with the game. An official-store installation uses a different signing certificate and cannot be updated in place with a PGRazor build. See [installation and builds](docs/BUILDING.md).
 
@@ -30,20 +30,22 @@ Features listed here include unreleased changes on `main`; check your release no
 | Area | Controls |
 | --- | --- |
 | Map | Optional location spoofing, including with app location permission denied; camera-relative joystick, saved locations, GPX import/export and saved routes, Autowalk, tap-to-walk/teleport, nearby stop/gym/raid layers |
-| Catching | Quick Catch; Always Hit; Nice/Great/Excellent throws; always curveball; optional AR+ flag; optional level and color-graded IV display; berry selector |
-| Inventory | Optional IV/level on Pokémon details; transfer newly caught Pokémon below 90% IV; configurable item limits |
+| Catching | Quick Catch; Always Hit; Nice/Great/Excellent throws; always curveball; optional AR+ flag; optional level and color-graded IV display on wild and field research reward encounters; berry selector |
+| Inventory | Optional IV/level on Pokémon details; optional IVs (attack/defense/HP, percentage or both) under each CP in the Pokémon storage list; transfer newly caught Pokémon below 90% IV; configurable item limits |
 | Keep rules | Legendary/mythical/Ultra Beasts, shiny, event/costume, background, **XXS**, **XXL**, searchable custom species keep list, and a persistent Keep All overlay; favorites and eggs always kept |
 | Virtual Go Plus | Nearby wild catches with red balls, nearby stop spins, optional notifications, target marker and activity status |
 | Eggs | Unlimited incubator only; shortest- or longest-distance priority |
+| Research | Auto-claim completed field research; auto-delete field research tasks you select from a searchable list grouped into collapsible Item, Encounter and Event categories, each with an All toggle (task, reward and event tag); optionally catch waiting field research encounters without the encounter screen using your VGP+ ball and throw settings, then apply transfer rules including Keep All. Special, timed, story and gym bonus research are never deleted |
 | LivePokeMap | Remote Pokémon, stops, gyms, raids, and stations; requires a LivePokeMap subscription |
 | Battles | Rocket quick/charged attacks, charged minigame and shields; raid/gym/Dynamax attacks, Max attacks and dodging |
 | Other automation | Selectable buddy berry, gift opening/sending with optional stickers, quick spin, local spawn booster |
 | Interface | Quick menu, full-screen settings, separate joystick, cooldown history, light/dark themes, settings export/import, scrollable Quick Menu and window-safe overlays |
+| Interface | Quick menu, hide-all overlay toggle (three-finger tap restores), full-screen settings, separate joystick, cooldown history, light/dark themes, settings export/import |
 | Accounts (experimental) | Quick Menu switching, remembered Google/PTC sessions, deletion of saved accounts, and separate settings, location, cooldown history, favorites and saved GPX routes |
 
 **Accounts:** Open **Quick Menu → Switch account** or **Settings → Accounts** to manage profiles. Delete removes an inactive profile and its saved sign-in, settings, location, favorites and routes from this device; it does not delete the Pokémon GO account. Switch away before deleting the current profile. Switching stops movement and automation, saves the outgoing account, and restarts the game with the selected account's remembered session. Sign in once per account to establish a saved session; expired or revoked sessions may require sign-in again. Sessions are encrypted on-device using Android Keystore, excluded from settings exports and Android backups, and never include saved passwords. The signed-in game identity determines the profile, including when you choose a different account at login. Existing settings become the first profile; new profiles start with defaults. LivePokeMap authentication remains shared, while its filters are per profile. Settings export/import applies to the current profile and does not export the account list. If sign-in choices are missing while signed out, **Accounts → Reset sign-in choices** restarts the game and asks for your date of birth again. Enter your own date of birth; the game controls which providers are available.
 
-**Quick menu:** Map, speed presets (0, 9.3, 16, 30 km/h), Autowalk, In-game Routes, Feeds, Favorites, Teleport, Switch account, Events, and Settings. Favorites shares the map's saved places. Autowalk builds a route through up to 50 nearby loaded stops and gyms, with optional looping. Routes use direct segments between locations. Zero speed pauses travel; selecting another speed resumes the current route. Backgrounding stops routes rather than resuming movement automatically.
+**Quick menu:** Map, speed presets (0, 9.3, 16, 30 km/h), Autowalk, In-game Routes, Feeds, Favorites, Teleport, Switch account, Events, Automation, Research, Hide overlay, and Settings. Hide overlay asks for confirmation, then makes the game look stock (no PGRazor buttons, status bars, messages or in-game IV text) until you tap the screen with three fingers at once; the game still receives that tap. Favorites shares the map's saved places. Autowalk builds a route through up to 50 nearby loaded stops and gyms, with optional looping. Routes use direct segments between locations. Zero speed pauses travel; selecting another speed resumes the current route. Backgrounding stops routes rather than resuming movement automatically.
 
 **Events:** Open **Quick Menu > Events > Halloween 2026** to enable **Open boxes and skip encounters**. It opens visible boxes and collects rewards, skipping its Pokemon encounter screens without catching. It does not filter for candy-only boxes.
 
@@ -81,7 +83,7 @@ Smart Catcher attempts loaded, visible wild Pokémon without the normal VGP's lo
 
 The map and cooldown history open full screen using the selected PGRazor theme. Select a map pin, then choose Walk here or Teleport. The manual route planner also offers Loop route (off by default). Map tiles retain their original colors.
 
-The world map layers show locations currently loaded by the game near your avatar, not remote search results. Markers use bundled game artwork, with gym team-color rings and distinct raid categories. Tap a marker for live gym/raid details; overlapping markers open a chooser. Each location offers Walk and Teleport; teleporting first shows the destination cooldown confirmation. Egg badges identify unhatched raids. Small x/6 labels show gym defenders directly on the map; raid details resolve base-species names from bundled English game text. Unknown species keep their numeric fallback. Layer choices persist. Tile loading uses the [OpenStreetMap tile policy](https://operations.osmfoundation.org/policies/tiles/), including local caching and visible tiles only.
+On the world map, Copy my location and Copy pin location center the map on your position or the red pin and copy its coordinates; the quick menu Teleport dialog also shows your current coordinates with Copy and Favorite (save to Favorites) buttons. The world map layers show locations currently loaded by the game near your avatar, not remote search results. Markers use bundled game artwork, with gym team-color rings and distinct raid categories. Tap a marker for live gym/raid details; overlapping markers open a chooser. Each location offers Walk and Teleport; teleporting first shows the destination cooldown confirmation. Egg badges identify unhatched raids. Small x/6 labels show gym defenders directly on the map; raid details resolve base-species names from bundled English game text. Unknown species keep their numeric fallback. Layer choices persist. Tile loading uses the [OpenStreetMap tile policy](https://operations.osmfoundation.org/policies/tiles/), including local caching and visible tiles only.
 
 These are experimental client modifications. Server outcomes are not guaranteed. The AR+ option and local spawn-range changes do not prove server-side bonuses. Cooldown is a local estimate. Do not interpret a successful build as device validation.
 
@@ -130,7 +132,7 @@ PGRazor uses the `pgrazor/` project directory and `dev.pgrazor` Java namespace. 
 
 Original PGRazor source is available under the [MIT License](LICENSE). Third-party components retain their own licenses. Pokémon GO and its assets are not covered by this license. PGRazor is an independent project and is not affiliated with the game publisher.
 
-### Idle walking (unreleased)
+### Idle walking
 
 Enable **Settings > Location & overlays > Idle walking** to walk a small closed loop after 3 seconds without movement. The 10 m-radius loop stays within 20 m of its starting point and uses your chosen speed up to 5 km/h. Speed 0 pauses it. Joystick, destination walking, autowalk and in-game Routes take priority; when they finish, a new loop starts at the current position. Backgrounding or unavailable location support stops it. The setting defaults off and is saved per account. Small loops may not earn walking distance consistently; the game decides what movement counts.
 

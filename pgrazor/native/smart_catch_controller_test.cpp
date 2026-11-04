@@ -14,10 +14,11 @@ int desired_berry=705;
 int encounter_accepted=1;
 uint64_t idle_clock=0,idle_deadline=0;
 unsigned idle_enumerations=0;
+uint32_t last_discovery_kind=0;
 int idle_due(uint64_t){return idle_clock>=idle_deadline?PGR_VP_YES:PGR_VP_OK;}
 int idle_arm(uint64_t,uint64_t delay){idle_deadline=idle_clock+delay;return 0;}
 int idle_enumerate(uint32_t kind,uint64_t owner,uint64_t lease,PgrVgpDiscoveryEnumeration *out){
- ++idle_enumerations;return dsc_enumerate(kind,owner,lease,out);
+ last_discovery_kind=kind;++idle_enumerations;return dsc_enumerate(kind,owner,lease,out);
 }
 bool (*admission)(void*)=nullptr;void *admission_context=nullptr;
 uint64_t clock_ms(){return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();}
@@ -74,6 +75,16 @@ int main(){
  api=static_cast<const PgrVgpControllerApi*>(pgrazor_vgp_controller_api(1));assert(api);tid=gettid();
  smart_transport.version=1;smart_transport.size=sizeof(smart_transport);smart_transport.get_string=smart_string;smart_transport.emit=smart_emit;
  auto cfg=makeConfig();assert(api->install(&cfg)==0);pgr_vgp_smart_escape_status(2);
+ // Visible map uses active-only discovery; menus retain inactive discovery.
+ // Ordinary VGP remains active-only in either state.
+ resetScenario();g_count=0;DSC.enumerate=idle_enumerate;
+ auto visible=smart_tick();visible.flags|=PGR_VGC_TF_MAP_VISIBLE;
+ run(visible);assert(last_discovery_kind==PGR_VD_KIND_CATCH);
+ step();assert(last_discovery_kind==PGR_VD_KIND_CATCH_LOADED);
+ smart_text="1;0;3;0;1;1500;30;3;1;";
+ run(visible);assert(last_discovery_kind==PGR_VD_KIND_CATCH);
+ step();assert(last_discovery_kind==PGR_VD_KIND_CATCH);
+ smart_text="1;1;3;0;1;1500;30;3;1;";idle_enumerations=0;assert_clean();
  // Thirty minutes of simulated 10 Hz host ticks: empty discovery must remain
  // bounded, release all roots, and still find a new target at the next deadline.
  resetScenario();g_count=0;POL.due=idle_due;POL.arm=idle_arm;DSC.enumerate=idle_enumerate;

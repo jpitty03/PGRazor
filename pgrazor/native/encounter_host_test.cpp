@@ -57,6 +57,8 @@ extern "C" const void *pgrazor_vgp_maintenance_api(uint32_t v){return core?core-
 extern "C" const void *pgrazor_vgp_marker_api(uint32_t v){return core?core->query_feature(28,v):nullptr;}
 extern "C" const void *pgrazor_vgp_policy_api(uint32_t v){return core?core->query_feature(25,v):nullptr;}
 extern "C" const void *pgrazor_vgp_results_api(uint32_t v){return core?core->query_feature(30,v):nullptr;}
+extern "C" const void *pgrazor_incoming_gifts_api(uint32_t v){return core?core->query_feature(17,v):nullptr;}
+extern "C" const void *pgrazor_outgoing_gifts_api(uint32_t v){return core?core->query_feature(22,v):nullptr;}
 
 using namespace berry_universe;
 static int enter_calls,exit_calls,result_calls,error_calls,submit_calls,peek_calls,rewrite_calls;

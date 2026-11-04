@@ -55,3 +55,11 @@ struct PgrArThrowApi {           // 32 bytes: ordered, read-only table
 // Hidden getter. NOT exported by the version script; the coordinator registers it in the
 // core getter registry under feature id 5, answering only on an exact version match.
 const void *pgrazor_ar_throw_api(uint32_t version);
+
+// AR+ values for the next throws: proximity (meters, closer is smaller) and awareness, both
+// above zero. Called by ar_values.cpp; out-of-range values are ignored.
+void pgr_ar_throw_set_values(float proximity, float awareness);
+
+// GC handle of the last AR+ throw's catch promise (IPromise<CatchPokemonOutProto>), or null. The
+// caller owns and frees the handle.
+void *pgr_ar_throw_take_promise();

@@ -11,7 +11,7 @@
 
 // Feature 39 native catch-canvas visibility control. See catch_canvas.h for the ABI and the division of
 // labour with the host JS. This module owns BOTH the set_CanvasGroupVisible hook (true->false masking
-// for owned opening-details roots) and the managed hide/restore operations. The gate/lease/owner/epoch
+// for owned opening catch roots) and the managed hide/restore operations. The gate/lease/owner/epoch
 // machinery mirrors feature 36/37 (summary/details completion); the GC rooting mirrors feature 10's
 // spin_camera owned-root slots. Built -fno-exceptions / -fno-rtti like every sibling: a JS "throw"
 // becomes a fail-closed refusal. No mutex is held across runtime_invoke, a field read or a GC op; the
@@ -245,16 +245,16 @@ uintptr_t detach_slot(int idx) {
   return h;
 }
 
-// Restore a detached GUI root to visible, ONLY when it is still exact DGUI + Unity alive + STATE_OPEN,
+// Restore a detached GUI root to visible, ONLY when it is still exact SGUI/DGUI + Unity alive + STATE_OPEN,
 // then free the root. An unknown class / failed root / alive error never assumes the GUI is gone; it is
 // just freed safely. The slot MUST already be detached so the hook cannot re-hide during the set-true.
 void restore_and_free(uintptr_t handle) {
   Root root;
   root.handle = handle;
   void *obj = root.get();
-  if (is_exact(obj, g_cfg.class_details) && alive_state(root) == ALIVE_TRUE) {
+  if (is_summary_or_details(obj) && alive_state(root) == ALIVE_TRUE) {
     obj = root.get();  // re-resolve after the managed alive probe
-    if (is_exact(obj, g_cfg.class_details) && field_i32(obj, g_cfg.f_current_state) == g_cfg.state_open) {
+    if (is_summary_or_details(obj) && field_i32(obj, g_cfg.f_current_state) == g_cfg.state_open) {
       if (set_canvas(obj, true)) g_restore_count.fetch_add(1, std::memory_order_relaxed);
     }
   }
@@ -263,7 +263,7 @@ void restore_and_free(uintptr_t handle) {
 
 // --- the set_CanvasGroupVisible hook ----------------------------------------------
 // Chains the original exactly once with the same MethodInfo. Masks a true->false ONLY for an owned
-// opening-details root, on the current actual owner thread, under a live gate with the slot's matching
+// opening catch root, on the current actual owner thread, under a live gate with the slot's matching
 // epoch. Everything else passes through. NEVER invokes a managed method and NEVER latches the owner.
 CanvasSetterFn original_canvas() {
   CanvasSetterFn fn = g_orig_canvas.load(std::memory_order_acquire);
@@ -310,6 +310,39 @@ void hook_set_canvas(void *self, bool visible, void *method_info) {
   }
   if (orig != nullptr) orig(self, masked, method_info);
 }
+
+using AlphaSetter = void (*)(void *,float);
+std::atomic<AlphaSetter> g_alpha_original{nullptr};
+PgrCatchCanvasAlphaConfig g_alpha{};
+std::mutex g_alpha_mutex;
+void hook_alpha(void *native_group,float value){
+ auto original=g_alpha_original.load(std::memory_order_acquire);
+ if(!original){std::lock_guard<std::mutex> lock(g_alpha_mutex);original=g_alpha_original.load();}
+ if(!original) return;
+ const auto owner=g_owner_tid.load(std::memory_order_acquire);
+ if(native_group&&owner&&current_tid()==owner){
+  for(int i=0;i<PGR_CANVAS_MAX_SLOTS;++i){
+   void *gui=g_slots[i].handle?gc_get(g_slots[i].handle):nullptr;
+   if(!is_summary_or_details(gui)||!hook_should_mask(gui))continue;
+   void *group=nullptr;field_get()(gui,g_alpha.root_group_field,&group);
+   if(!is_exact(group,g_alpha.group_class))continue;
+   void *native=nullptr;field_get()(group,g_alpha.cached_ptr_field,&native);
+   if(native&&native==native_group){value=0.0f;g_masked_count.fetch_add(1,std::memory_order_relaxed);break;}
+  }
+ }
+ original(native_group,value);
+}
+int install_alpha(const PgrCatchCanvasAlphaConfig *config){
+ if(!config||config->version!=1||config->size!=sizeof(*config)||!config->address||!config->root_group_field||!config->cached_ptr_field||!config->group_class)return PGR_CANVAS_ERR_MISSING_PTR;
+ if(!g_installed.load(std::memory_order_acquire))return PGR_CANVAS_ERR_NOT_INSTALLED;
+ std::lock_guard<std::mutex> lock(g_alpha_mutex);
+ if(g_alpha_original.load())return std::memcmp(config,&g_alpha,sizeof(g_alpha))?PGR_CANVAS_ERR_RECONFIG:0;
+ g_alpha=*config;void *original=nullptr;
+ const int rc=pgrazor_hook(config->address,reinterpret_cast<void*>(hook_alpha),&original);
+ if(rc||!original)return -10;
+ g_alpha_original.store(reinterpret_cast<AlphaSetter>(original),std::memory_order_release);return 0;
+}
+const PgrCatchCanvasApi3 kApi3{3,sizeof(PgrCatchCanvasApi3),install_alpha};
 
 // --- install -----------------------------------------------------------------------
 bool validate_config(const PgrCatchCanvasConfig *c, int *rc) {
@@ -412,12 +445,12 @@ int api_hide_opening(void *gui, uint64_t epoch, uint64_t tid, uint64_t *out_toke
   if (!g.duplicate(gui)) return PGR_CANVAS_OK;  // root failure: refused
   void *obj = g.get();
 
-  if (!is_exact(obj,g_cfg.class_details)) return PGR_CANVAS_OK;
+  if (!is_summary_or_details(obj)) return PGR_CANVAS_OK;
   // Reuse: a slot already owning this GUI at the current epoch keeps its token with no redundant set.
   int existing = find_slot_by_object(obj);
   if (existing >= 0) {
     if (g_slots[existing].epoch == epoch) {
-      if (alive_state(g)!=ALIVE_TRUE || !is_exact(g.get(),g_cfg.class_details)) return PGR_CANVAS_OK;
+      if (alive_state(g)!=ALIVE_TRUE || !is_summary_or_details(g.get())) return PGR_CANVAS_OK;
       uint64_t current=0;
       std::lock_guard<std::mutex> lock(g_state_mutex);
       if (!read_boottime_ms(&current) || g_gen!=generation || !gate_live_locked(epoch,tid,current)) return PGR_CANVAS_OK;
@@ -429,11 +462,11 @@ int api_hide_opening(void *gui, uint64_t epoch, uint64_t tid, uint64_t *out_toke
     obj=g.get(); // restoration can relocate the GUI and all temporary roots
   }
 
-  // Identity: exact DGUI + Unity alive. No STATE_OPEN gate (this may run while the canvas is opening).
-  if (!is_exact(obj, g_cfg.class_details)) return PGR_CANVAS_OK;
+  // Identity: exact SGUI/DGUI + Unity alive. No STATE_OPEN gate (this may run while the canvas is opening).
+  if (!is_summary_or_details(obj)) return PGR_CANVAS_OK;
   if (alive_state(g) != ALIVE_TRUE) return PGR_CANVAS_OK;
   obj = g.get();  // re-resolve after the managed alive probe
-  if (!is_exact(obj, g_cfg.class_details)) return PGR_CANVAS_OK;
+  if (!is_summary_or_details(obj)) return PGR_CANVAS_OK;
 
   // Final gate re-check: a racing stop()/epoch change (generation move) or an expired lease refuses.
   {
@@ -601,6 +634,7 @@ const PgrCatchCanvasApi2 kApi2{2,sizeof(PgrCatchCanvasApi2),api_subscribe};
 }  // namespace
 
 extern "C" const void *pgrazor_catch_canvas_api(uint32_t version) {
+  if(version==3)return &kApi3;
   if(version==2)return &kApi2;
   if (version != PGR_CANVAS_API_VERSION) return nullptr;
   return &kApiTable;

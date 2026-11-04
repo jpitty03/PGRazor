@@ -1,4 +1,5 @@
 #pragma once
+#include "game_bindings.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -7,11 +8,11 @@
 // routes_observers) deliberately left as thin Gum Interceptor attaches in
 // runtime/features/routes.js because their native signatures were not yet established:
 //
-//   * Niantic.Holoholo.Routes.RoutesLocationService::CheckTrackingErrorStatus  (RVA 174921352)
+//   * Niantic.Holoholo.Routes.RoutesLocationService::CheckTrackingErrorStatus  (RVA 174337636)
 //       managed:  .ErrorType CheckTrackingErrorStatus()         [instance, 0 managed args]
 //       native :  int32_t fn(void *self, const void *method)    [trailing MethodInfo* unused]
 //       -> the ErrorType enum is returned int32 in w0; see .artifacts/route-research disasm.
-//   * Niantic.Holoholo.Routes.RoutesLocationService::bjfz        (RVA 174925564, waypoint add)
+//   * Niantic.Holoholo.Routes.RoutesLocationService::bjfz        (RVA 174341848, waypoint add)
 //       managed:  void bjfz(Holoholo.Rpc.RouteWaypointProto wp)  [instance, 1 managed arg]
 //       native :  void fn(void *self, void *waypoint, const void *method)  [MethodInfo* unused]
 //   * UnityEngine.LocationService::IsServiceEnabledByUser()       (libunity.so icall)
@@ -19,8 +20,8 @@
 //       native :  uint8_t fn(void)                               [bool in w0]
 //
 // SIGNATURE EVIDENCE (not guessed; see .artifacts/native-migration/routes-tracking-contract.txt):
-//   * .artifacts/account-management/all-methods.json -- RVA->name (174921352 CheckTrackingErrorStatus,
-//     174925564 bjfz, owner 4970 RoutesLocationService).
+//   * .artifacts/account-management/all-methods.json -- RVA->name (174337636 CheckTrackingErrorStatus,
+//     174341848 bjfz, owner 4970 RoutesLocationService).
 //   * .artifacts/route-research/location-methods.txt L114/L119 -- CheckTrackingErrorStatus -> .ErrorType ()
 //     and bjfz -> void (Holoholo.Rpc.RouteWaypointProto).
 //   * .artifacts/route-research/location-disasm.txt L1356+ / L2609+ -- CheckTrackingErrorStatus reads only
@@ -58,9 +59,9 @@ enum PgrRoutesTrackingInfo {
   PGR_RT_API_VERSION         = 1,
   PGR_RT_CONFIG_VERSION      = 1,
   PGR_RT_PTR_COUNT           = 5,     // config pointer slots 0..4, all mandatory (non-null)
-  PGR_RT_WAYPOINT_LAT_OFFSET = 0x18,  // expected RouteWaypointProto.LatDegrees byte offset (fields.txt L501)
-  PGR_RT_WAYPOINT_LNG_OFFSET = 0x20,  // expected RouteWaypointProto.LngDegrees byte offset (fields.txt L502)
-  PGR_RT_MAX_FIELD_OFFSET    = 0x1000 // sanity ceiling on the validated field offsets
+  PGR_RT_WAYPOINT_LAT_OFFSET = PGR_GAME_ROUTES_TRACKING_H_PGR_RT_WAYPOINT_LAT_OFFSET,  // expected RouteWaypointProto.LatDegrees byte offset (fields.txt L501)
+  PGR_RT_WAYPOINT_LNG_OFFSET = PGR_GAME_ROUTES_TRACKING_H_PGR_RT_WAYPOINT_LNG_OFFSET,  // expected RouteWaypointProto.LngDegrees byte offset (fields.txt L502)
+  PGR_RT_MAX_FIELD_OFFSET    = PGR_GAME_ROUTES_TRACKING_H_PGR_RT_MAX_FIELD_OFFSET // sanity ceiling on the validated field offsets
 };
 
 // install() returns 0 on success; negatives are faults. installed() returns 1/0.

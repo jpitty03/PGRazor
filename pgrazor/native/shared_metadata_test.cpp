@@ -157,8 +157,9 @@ void build_fixture() {
   assert(kFields[0].owner == 3 && kFields[0].offset == 0x20 && kFields[0].kind == PGR_MD_FIELD_VALUE && kFields[0].value_size == 8);
   assert(!std::strcmp(kFields[0].type_name, "System.UInt64"));
   assert(kFields[1].owner == 0 && kFields[1].offset == 0x70 && kFields[1].kind == PGR_MD_FIELD_ENUM_I32);
-  assert(kFields[2].owner == 1 && kFields[2].offset == 0x2a8 && kFields[2].kind == PGR_MD_FIELD_REF);
+  assert(kFields[2].owner == 1 && kFields[2].offset == 0x2a0 && kFields[2].kind == PGR_MD_FIELD_REF);
   assert(kFields[5].owner == 3 && kFields[5].offset == 0x10 && kFields[5].kind == PGR_MD_FIELD_ENUM_I32);
+  assert(kMethods[2].param_count == 2 && !std::strcmp(kMethods[2].param1, "System.Boolean"));
   assert(kMethods[3].param_count == 2 && !std::strcmp(kMethods[3].param1, "Holoholo.Rpc.Item"));
   assert(kMethods[5].is_static == 1 && kMethods[6].is_static == 1 && kMethods[6].prologue == nullptr);
 

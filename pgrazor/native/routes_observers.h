@@ -1,4 +1,5 @@
 #pragma once
+#include "game_bindings.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -51,8 +52,8 @@ enum PgrRoutesObserversInfo {
   PGR_RO_PENDING_UI_MAX    = 4,     // pendingUi queue ceiling (routes.js pendingUi.length>=4)
   PGR_RO_MAX_EVENTS        = 8,     // events drained per poll()
   PGR_RO_PTR_COUNT         = 22,    // config pointer slots 0..21, all mandatory (non-null)
-  PGR_RO_PROGRESS_STATUS_OFFSET = 0x14, // ProgressRouteOutProto.Status (int32)
-  PGR_RO_GUI_STATE_OFFSET       = 0x70, // GuiController.currentState (int32)
+  PGR_RO_PROGRESS_STATUS_OFFSET = PGR_GAME_ROUTES_OBSERVERS_H_PGR_RO_PROGRESS_STATUS_OFFSET, // ProgressRouteOutProto.Status (int32)
+  PGR_RO_GUI_STATE_OFFSET       = PGR_GAME_ROUTES_OBSERVERS_H_PGR_RO_GUI_STATE_OFFSET, // GuiController.currentState (int32)
   PGR_RO_GUI_STATE_DISMISSED    = 2,    // currentState value that permits Dismiss()
   PGR_RO_COMPLETION_SUCCESS     = 1     // bjan progress Status success branch
 };

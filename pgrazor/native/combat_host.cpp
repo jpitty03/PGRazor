@@ -1,3 +1,4 @@
+#include "game_bindings.h"
 #include "combat_host.h"
 
 #include "battles.h"
@@ -785,10 +786,10 @@ bool install_gym_next(){
   PgrMetaMethodQuery q{};q.version=1;q.size=sizeof(q);q.owner=owner;q.name=name;q.return_type=ret;
   q.param_count=p1?2:p0?1:0;q.param_types[0]=p0;q.param_types[1]=p1;
   q.return_match=q.param_match[0]=q.param_match[1]=PGR_MD_MATCH_EXACT;
-  if(owner==k&&std::strcmp(name,"HandleDismissComplete")==0){static const uint8_t bytes[]={0xfe,0x57,0xbe,0xa9,0xf4,0x4f,0x01,0xa9,0x33,0xdc,0x02,0xb0,0xf4,0x03,0x00,0xaa,0x68,0xce,0x6c,0x39,0x08,0x01,0x00,0x37};q.expected_code=static_cast<const char*>(binding.module_base)+156510272;q.prologue=bytes;q.prologue_len=sizeof(bytes);}
-  if(owner==k&&std::strcmp(name,"Initialize")==0){static const uint8_t bytes[]={0xfe,0x67,0xbc,0xa9,0xf8,0x5f,0x01,0xa9,0xf6,0x57,0x02,0xa9,0xf4,0x4f,0x03,0xa9,0x36,0xdc,0x02,0xb0,0xf4,0x03,0x02,0x2a};q.expected_code=static_cast<const char*>(binding.module_base)+156510496;q.prologue=bytes;q.prologue_len=sizeof(bytes);}
-  if(owner==k&&std::strcmp(name,"LeaveBattle")==0){static const uint8_t bytes[]={0x09,0x88,0x40,0xf9,0x49,0x01,0x00,0xb4,0xfe,0x4f,0xbf,0xa9,0x28,0x21,0x40,0xf9,0x2a,0x0d,0x40,0xf9,0xf3,0x03,0x00,0xaa};q.expected_code=static_cast<const char*>(binding.module_base)+156512340;q.prologue=bytes;q.prologue_len=sizeof(bytes);}
-  if(owner==k&&std::strcmp(name,"ContinueToNextBattle")==0){static const uint8_t bytes[]={0x09,0x84,0x40,0xf9,0x49,0x01,0x00,0xb4,0xfe,0x4f,0xbf,0xa9,0x28,0x21,0x40,0xf9,0x2a,0x0d,0x40,0xf9,0xf3,0x03,0x00,0xaa};q.expected_code=static_cast<const char*>(binding.module_base)+156512392;q.prologue=bytes;q.prologue_len=sizeof(bytes);}
+  if(owner==k&&std::strcmp(name,"HandleDismissComplete")==0){static const uint8_t bytes[]=PGR_GAME_COMBAT_HOST_CPP_BYTES_FINGERPRINT;q.expected_code=static_cast<const char*>(binding.module_base)+PGR_GAME_COMBAT_HOST_CPP_GYMBATTLECONTINUEGUICONTROLLER_HANDLEDISMISSCOMPLETE_RVA;q.prologue=bytes;q.prologue_len=sizeof(bytes);}
+  if(owner==k&&std::strcmp(name,"Initialize")==0){static const uint8_t bytes[]=PGR_GAME_COMBAT_HOST_CPP_BYTES_FINGERPRINT_2;q.expected_code=static_cast<const char*>(binding.module_base)+PGR_GAME_COMBAT_HOST_CPP_GYMBATTLECONTINUEGUICONTROLLER_INITIALIZE_RVA;q.prologue=bytes;q.prologue_len=sizeof(bytes);}
+  if(owner==k&&std::strcmp(name,"LeaveBattle")==0){static const uint8_t bytes[]=PGR_GAME_COMBAT_HOST_CPP_BYTES_FINGERPRINT_3;q.expected_code=static_cast<const char*>(binding.module_base)+PGR_GAME_COMBAT_HOST_CPP_GYMBATTLECONTINUEGUICONTROLLER_LEAVEBATTLE_RVA;q.prologue=bytes;q.prologue_len=sizeof(bytes);}
+  if(owner==k&&std::strcmp(name,"ContinueToNextBattle")==0){static const uint8_t bytes[]=PGR_GAME_COMBAT_HOST_CPP_BYTES_FINGERPRINT_4;q.expected_code=static_cast<const char*>(binding.module_base)+PGR_GAME_COMBAT_HOST_CPP_GYMBATTLECONTINUEGUICONTROLLER_CONTINUETONEXTBATTLE_RVA;q.prologue=bytes;q.prologue_len=sizeof(bytes);}
   PgrMetaMethodResult r{};if(api->validate_method(&q,&r)!=0)return PgrMetaMethodResult{};return r;};
  auto init=method(k,"Initialize","System.Void","Holoholo.Rpc.GymDefenderProto","System.Int32");
  auto press=method(k,"ContinueToNextBattle","System.Void");

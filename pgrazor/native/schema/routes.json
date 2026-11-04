@@ -111,7 +111,7 @@
     },
     {
       "owner": "routes",
-      "name": "didn",
+      "name": "dimj",
       "offset": 528,
       "kind": 1,
       "type": null,
@@ -119,7 +119,7 @@
     },
     {
       "owner": "routes",
-      "name": "dica",
+      "name": "dikx",
       "offset": 128,
       "kind": 1,
       "type": null,
@@ -297,7 +297,7 @@
     {
       "key": "trackingWaypoint",
       "owner": "tracking",
-      "name": "bjfz",
+      "name": "bjfc",
       "return": "System.Void",
       "params": [
         "Holoholo.Rpc.RouteWaypointProto"
@@ -392,14 +392,14 @@
     {
       "key": "confirmComplete",
       "owner": "consumption",
-      "name": "bizv",
+      "name": "biyu",
       "return": "System.Void",
       "params": []
     },
     {
       "key": "completionResponse",
       "owner": "consumption",
-      "name": "bjan",
+      "name": "bizm",
       "return": "System.Void",
       "params": [
         "Holoholo.Rpc.ProgressRouteOutProto"

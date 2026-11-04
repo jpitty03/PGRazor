@@ -120,7 +120,7 @@ struct PgrCatchCanvasApi {
   // thread. Never frees or restores a root.
   int (*update)(int enabled, uint64_t remaining_lease_ms, uint64_t epoch, uint64_t proven_tid);
   // Hide a confirmed, still-OPENING post-catch details canvas. Owner thread only. Duplicates the
-  // borrowed GUI into an OWN root, proves exact DGUI + Unity alive + a live gate (NO STATE_OPEN gate),
+  // borrowed GUI into an OWN root, proves exact SGUI/DGUI + Unity alive + a live gate (NO STATE_OPEN gate),
   // inserts the owned slot BEFORE the managed set-false (so the hook can keep it hidden), and returns a
   // nonzero token on success. A same-GUI/current-epoch request reuses its token without a redundant set.
   // Returns 1 HIDDEN / 0 refused / negative error; *out_token is nonzero only on 1.
@@ -163,6 +163,19 @@ struct PgrCatchCanvasApi2 {
 };
 static_assert(sizeof(PgrCatchCanvasObserver)==32,"observer ABI");
 static_assert(sizeof(PgrCatchCanvasApi2)==16,"observer table ABI");
+
+// API3 masks native alpha writes, including inlined Unity transition setters.
+// Only groups belonging to live, owned canvas slots on the Unity owner thread match.
+struct PgrCatchCanvasAlphaConfig {
+ uint32_t version,size;
+ void *address,*root_group_field,*cached_ptr_field,*group_class;
+};
+struct PgrCatchCanvasApi3 {
+ uint32_t version,size;
+ int (*install_alpha)(const PgrCatchCanvasAlphaConfig *);
+};
+static_assert(sizeof(PgrCatchCanvasAlphaConfig)==40,"alpha config ABI");
+static_assert(sizeof(PgrCatchCanvasApi3)==16,"alpha table ABI");
 
 // Hidden getter. NOT exported by the version script; the coordinator registers it in query_feature
 // under feature id 39 and answers only on an exact version match.

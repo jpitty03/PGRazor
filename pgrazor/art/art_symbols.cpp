@@ -32,14 +32,16 @@ int PgrArtSymbols::visit(dl_phdr_info *info,size_t,void *context){
  if(path.size()<10||path.substr(path.size()-10)!="/libart.so")return 0;
  self.base_=info->dlpi_addr;self.path_=path;
  for(size_t i=0;i<info->dlpi_phnum;i++){
-  const auto &p=info->dlpi_phdr[i];if(p.p_type!=PT_LOAD||!p.p_memsz||!(p.p_flags&PF_R))continue;
+  const auto &p=info->dlpi_phdr[i];if(p.p_type!=PT_LOAD||!p.p_memsz||!(p.p_flags&(PF_R|PF_X)))continue;
   if(p.p_vaddr>UINTPTR_MAX-self.base_||p.p_memsz>UINTPTR_MAX-(self.base_+p.p_vaddr))return 1;
-  self.ranges_.push_back({self.base_+p.p_vaddr,self.base_+p.p_vaddr+p.p_memsz});
+  const Range range{self.base_+p.p_vaddr,self.base_+p.p_vaddr+p.p_memsz};
+  self.ranges_.push_back(range);
+  if(!(p.p_flags&PF_R))self.execute_only_.push_back(range);
  }
  return 1;
 }
 bool PgrArtSymbols::load(){
- symbols_.clear();ranges_.clear();path_.clear();base_=0;
+ symbols_.clear();ranges_.clear();execute_only_.clear();path_.clear();base_=0;
  dl_iterate_phdr(visit,this);if(path_.empty()||ranges_.empty())return false;
  const int fd=open(path_.c_str(),O_RDONLY|O_CLOEXEC);if(fd<0)return false;
  struct stat st{};if(fstat(fd,&st)||st.st_size<64||uint64_t(st.st_size)>kFileMax){close(fd);return false;}
@@ -101,6 +103,10 @@ bool PgrArtSymbols::parse(const unsigned char *data,size_t size,bool mini){
   break;
  }
  return true;
+}
+bool PgrArtSymbols::execute_only(uintptr_t address)const{
+ for(const auto &r:execute_only_)if(address>=r.begin&&address<r.end)return true;
+ return false;
 }
 void *PgrArtSymbols::find(std::string_view name,bool prefix)const{
  if(name.empty()||name.size()>4095)return nullptr;

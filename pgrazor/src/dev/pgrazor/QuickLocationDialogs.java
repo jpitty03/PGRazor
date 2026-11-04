@@ -27,6 +27,25 @@ public final class QuickLocationDialogs {
         Context ctx = themed(activity);
         LinearLayout form = new LinearLayout(ctx); form.setOrientation(LinearLayout.VERTICAL);
         int p = dp(ctx, 22); form.setPadding(p, dp(ctx, 8), p, dp(ctx, 8));
+        // Where you are now, with a button to copy it.
+        final double hereLat = Control.engine.latitude, hereLon = Control.engine.longitude;
+        LinearLayout here = new LinearLayout(ctx); here.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        android.widget.TextView hereText = new android.widget.TextView(ctx);
+        hereText.setText("You are at\n" + CoordinateClipboard.text(hereLat, hereLon)); hereText.setTextSize(14);
+        here.addView(hereText, new LinearLayout.LayoutParams(0, -2, 1));
+        android.widget.Button copy = new android.widget.Button(ctx); copy.setText("Copy"); copy.setAllCaps(false); copy.setTextSize(13);
+        copy.setContentDescription("Copy your current coordinates");
+        MapTheme.setButtonBackground(copy);
+        copy.setOnClickListener(v -> CoordinateClipboard.copy(activity, hereLat, hereLon, "Your location copied"));
+        here.addView(copy, new LinearLayout.LayoutParams(dp(ctx, 76), dp(ctx, 48)));
+        android.widget.Button favorite = new android.widget.Button(ctx); favorite.setText("Favorite"); favorite.setAllCaps(false); favorite.setTextSize(13);
+        favorite.setContentDescription("Save your current location to Favorites");
+        MapTheme.setButtonBackground(favorite);
+        favorite.setOnClickListener(v -> saveFavorite(activity, hereLat, hereLon));
+        LinearLayout.LayoutParams favoriteLp = new LinearLayout.LayoutParams(dp(ctx, 92), dp(ctx, 48)); favoriteLp.leftMargin = dp(ctx, 6);
+        here.addView(favorite, favoriteLp);
+        LinearLayout.LayoutParams hereLp = new LinearLayout.LayoutParams(-1, -2); hereLp.bottomMargin = dp(ctx, 8);
+        form.addView(here, hereLp);
         EditText coordinates = input(ctx, "Latitude, longitude");
         form.addView(coordinates);
         AlertDialog dialog = new AlertDialog.Builder(ctx).setTitle("Teleport to coordinates").setView(form)
@@ -63,8 +82,7 @@ public final class QuickLocationDialogs {
                     SavedPlaces.Entry e = snap.entries.get(i);
                     names[i] = String.format(Locale.US, "%s\n%.6f, %.6f", e.name, e.latitude, e.longitude);
                 }
-                b.setItems(names, (d, which) -> TeleportDialog.confirm(activity,snap.entries.get(which).latitude,snap.entries.get(which).longitude,target::teleport));
-                show(activity,b.create());
+                show(activity,ChoiceList.attach(b.create(),names,which -> TeleportDialog.confirm(activity,snap.entries.get(which).latitude,snap.entries.get(which).longitude,target::teleport)));
                 if (snap.damaged) Toast.makeText(activity, "Some saved places could not be read. Valid entries are shown.", Toast.LENGTH_LONG).show();
             });
         }, "pgrazor-favorites-read").start();
@@ -72,6 +90,41 @@ public final class QuickLocationDialogs {
 
     private static void show(Activity activity,AlertDialog dialog){
         DialogLifecycle.bind(activity,dialog,null);dialog.show();
+    }
+
+    /** Names and saves a location as a favorite (the World map's saved places). */
+    private static void saveFavorite(Activity activity, double latitude, double longitude) {
+        if (activity.isFinishing() || activity.isDestroyed()) return;
+        Context ctx = themed(activity);
+        LinearLayout form = new LinearLayout(ctx); form.setOrientation(LinearLayout.VERTICAL);
+        int p = dp(ctx, 22); form.setPadding(p, dp(ctx, 8), p, dp(ctx, 8));
+        android.widget.TextView where = new android.widget.TextView(ctx); where.setText(CoordinateClipboard.text(latitude, longitude)); where.setTextSize(14);
+        form.addView(where);
+        EditText name = input(ctx, "Place name (up to " + SavedPlaces.NAME_LIMIT + " characters)");
+        name.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        name.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(SavedPlaces.NAME_LIMIT)});
+        form.addView(name);
+        AlertDialog dialog = new AlertDialog.Builder(ctx).setTitle("Add to Favorites").setView(form)
+            .setNegativeButton("Cancel", null).setPositiveButton("Save", null).create();
+        dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            final SavedPlaces.Entry entry;
+            try { entry = new SavedPlaces.Entry(name.getText().toString(), latitude, longitude); }
+            catch (IllegalArgumentException e) { name.setError(e.getMessage()); return; }
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
+            new Thread(() -> {
+                String error = null;
+                try { new SavedPlaces(activity).add(entry); }
+                catch (java.io.IOException | RuntimeException e) { error = e.getMessage() == null ? "Could not save this place." : e.getMessage(); }
+                final String failed = error;
+                activity.runOnUiThread(() -> {
+                    if (!dialog.isShowing()) return;
+                    if (failed != null) { dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(true); name.setError(failed); return; }
+                    dialog.dismiss();
+                    Toast.makeText(activity, "Saved " + entry.name + " to Favorites", Toast.LENGTH_SHORT).show();
+                });
+            }, "pgrazor-favorites-save").start();
+        }));
+        show(activity, dialog);
     }
 
     private static EditText input(Context ctx, String hint) {

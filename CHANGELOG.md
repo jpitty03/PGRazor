@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+## v0.2.0
+
+[Full release notes](docs/releases/v0.2.0.md)
+
+- **Research:** Auto-claims completed field research, auto-deletes the field research tasks you select from a list grouped into Item, Encounter and Event, and can catch waiting field research encounters without the encounter screen, applying your transfer rules. Open it from the quick menu.
+- **Hide overlay:** A new quick menu entry makes the game look stock after a confirmation: it hides every PGRazor button, status bar and message, plus the in-game IV text. Tap the screen with three fingers at once to show them again.
+- **Storage list IVs:** Shows each Pokémon's IVs under its CP in the Pokémon storage list, as attack/defense/HP, a percentage, or both, colored like the encounter IV overlay. All IV display settings (inventory, encounter and storage list) are now together under Settings > Location & overlays > IV Display.
+- **Encounter IVs:** The encounter IV overlay now also shows on field research reward encounters, not only wild spawns.
+- **Always Hit:** Now also works when catching after a Max Battle.
+- **AR+ throw bonus:** Wild catches now get the AR+ catch bonus.
+- **GPX routes:** Starting a GPX route in Autowalk now asks where to begin: from the closest point on the route, from the beginning, or by teleporting to the beginning.
+- **Copy coordinates:** The World map has Copy my location and Copy pin location buttons, which center the map on that spot and copy its coordinates. The quick menu Teleport dialog shows your current coordinates with Copy and Favorite buttons; Favorite saves the spot to Favorites under a name you choose.
+- Menu options and buttons now look like buttons, with an outline and space between neighbouring buttons.
+
+## v0.1.10
+
+[Full release notes](docs/releases/v0.1.10.md)
+
+- Quick Catch returns to the map faster after a successful catch.
+- Added backwards compatibility for older Android versions.
+
+## v0.1.9
+
+[Full release notes](docs/releases/v0.1.9.md)
+
+- Updated compatibility for Pokémon GO 0.435.1.
+- Reduced reward-summary flashing during Quick Catch.
+
 ## v0.1.8
 
 [Full release notes](docs/releases/v0.1.8.md)

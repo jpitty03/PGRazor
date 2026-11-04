@@ -90,7 +90,7 @@ int scenario(const char *name) {
       assert(out.routes_handle==old.routes_handle&&out.consumption_handle==old.consumption_handle);
     }
     assert(g_handle_targets.size()==allocated && "hot getter must not churn roots");
-  } else if (!std::strcmp(name,"replacement-null-dica")) {
+  } else if (!std::strcmp(name,"replacement-null-dikx")) {
     poll_now();request_target(&routesA,nullptr);auto old=poll_now();assert(old.consumption_handle);
     routesB.dica=nullptr;request_target(&routesB,nullptr);auto out=poll_now();
     assert(out.routes_handle && !out.consumption_handle && !(out.flags&PGR_RS_FLAG_CONSUMPTION_PRESENT));
@@ -134,7 +134,7 @@ int scenario(const char *name) {
 }
 int main(int argc,char **argv) {
   if(argc==2) {
-    const char *cases[]={"detached-owner","moving-pending","stable-authority","replacement-null-dica",
+    const char *cases[]={"detached-owner","moving-pending","stable-authority","replacement-null-dikx",
       "revoke-cleanup","revoke-derivation","cleanup-reentry","original-reentry-return","detached-passthrough"};
     for(auto name:cases) {
       const auto child=fork();assert(child>=0);

@@ -122,7 +122,8 @@ def main(argv=None):
                     dependencies = ('hook_engine.cpp', 'incense_guard.cpp', 'gift_batch.cpp', 'remote_gym.cpp',
                                     'gym_runtime.cpp', 'gym_automation.cpp', 'batch_evolution.cpp',
                                     'buddy_emotion.cpp', 'profile_scroll.cpp', 'vgp_controller.cpp', 'smart_catch.cpp',
-                                    'smart_catch_binding.cpp', 'vgp_discovery.cpp')
+                                    'smart_catch_binding.cpp', 'vgp_discovery.cpp', 'research.cpp', 'storage_iv.cpp',
+                                    'ar_values.cpp', 'ar_throw.cpp')
                     extra_flags[:0] = [root/'native'/name for name in dependencies]
                     entry['linked_sources_sha256'] = {name: native_build.sha256(root/'native'/name)
                                                      for name in dependencies}

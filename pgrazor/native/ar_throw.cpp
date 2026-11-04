@@ -58,6 +58,16 @@ std::atomic<int>      g_allowed{0};
 std::atomic<uint64_t> g_lease_deadline{0};  // CLOCK_BOOTTIME ms; 0 == closed
 std::atomic<uint64_t> g_tid{0};             // proven Unity thread id
 
+// AR+ values sent with each throw: a proximity in meters and an awareness, both small and
+// non-zero. Replaced by ar_values.cpp with half the game master's close-proximity and
+// low-awareness thresholds once those are read.
+std::atomic<float>    g_proximity{0.25f};
+std::atomic<float>    g_awareness{0.05f};
+// GC handle of the last AR+ throw's catch promise, taken by pgr_ar_throw_take_promise.
+// Kept only once a consumer has asked for one (the first take), so nothing is left rooted otherwise.
+std::atomic<void *>   g_last_promise{nullptr};
+std::atomic<bool>     g_keep_promise{false};
+
 std::atomic<uint64_t> g_applied{0};
 std::atomic<uint64_t> g_errors{0};
 std::atomic<int>      g_fault{0};           // latched after an alloc/root failure
@@ -156,10 +166,14 @@ void *ar_capture_replacement(void *self, PgrThrowValue thr, void *values, void *
         return orig(self, thr, values, method);
     }
 
-    float   zero  = 0.0f;
+    // Close and calm. Zero would be the protobuf default, which is never sent, so the server
+    // would see no AR+ values at all; these are inside the game's own close-proximity and
+    // low-awareness thresholds (see pgr_ar_throw_set_values).
+    float   proximity = g_proximity.load(std::memory_order_relaxed);
+    float   awareness = g_awareness.load(std::memory_order_relaxed);
     uint8_t clear = 0;
-    set_value(rooted, g_config.field_proximity,  &zero);
-    set_value(rooted, g_config.field_awareness,  &zero);
+    set_value(rooted, g_config.field_proximity,  &proximity);
+    set_value(rooted, g_config.field_awareness,  &awareness);
     set_value(rooted, g_config.field_frightened, &clear);
 
     // Replace only the AR values argument; every other argument and the IPromise return
@@ -167,6 +181,12 @@ void *ar_capture_replacement(void *self, PgrThrowValue thr, void *values, void *
     void *result = orig(self, thr, rooted, method);
     gc_free(handle);
     g_applied.fetch_add(1, std::memory_order_relaxed);
+    // Keep the catch promise so ar_values.cpp can report whether the server gave the AR+ bonus.
+    if (result != nullptr && g_keep_promise.load(std::memory_order_relaxed)) {
+        if (void *promise = gc_new(result, 0)) {
+            if (void *old = g_last_promise.exchange(promise, std::memory_order_acq_rel)) gc_free(old);
+        }
+    }
     return result;
 }
 
@@ -246,4 +266,15 @@ const PgrArThrowApi g_api = {
 const void *pgrazor_ar_throw_api(uint32_t version) {
     if (version != 1) return nullptr;
     return &g_api;
+}
+
+void *pgr_ar_throw_take_promise() {
+    g_keep_promise.store(true, std::memory_order_relaxed);
+    return g_last_promise.exchange(nullptr, std::memory_order_acq_rel);
+}
+
+void pgr_ar_throw_set_values(float proximity, float awareness) {
+    if (!(proximity > 0.0f && proximity < 100.0f) || !(awareness > 0.0f && awareness < 100.0f)) return;
+    g_proximity.store(proximity, std::memory_order_relaxed);
+    g_awareness.store(awareness, std::memory_order_relaxed);
 }

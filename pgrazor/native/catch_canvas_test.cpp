@@ -32,7 +32,13 @@ using GetApiFn = const void *(*)(uint32_t);
 
 // ----- class / field / method tokens (distinct addresses) --------------------------
 int summaryClass, detailsClass, boolClass, otherClass;
-int f_current_state, m_alive, m_canvas_method;
+int f_current_state, m_alive, m_canvas_method, groupClass, f_root_group, f_native_group;
+int native_group_token, unrelated_native_group;
+struct Group {void *klass; void *native;};
+Group alpha_group{&groupClass,&native_group_token};
+float last_alpha=1;
+__attribute__((noinline)) void target_alpha(void*,float value){asm volatile("nop; nop; nop; nop; nop; nop; nop; nop" ::: "memory");last_alpha=value;}
+void (*volatile call_alpha)(void*,float)=target_alpha;
 
 constexpr int32_t kStateOpen = 2;      // GuiController currentState == STATE_OPEN
 constexpr int32_t kStateOpening = 1;   // a still-opening canvas (hide_opening tolerates it)
@@ -90,6 +96,8 @@ void *fake_unbox(void *boxed) { return boxed ? static_cast<char *>(boxed) + size
 
 void fake_field_get(void *obj, void *field, void *out) {
   assert(obj && fake_obj_class(obj) != &otherClass);  // poisoned copies must never be read
+  if(field==&f_root_group){*static_cast<void**>(out)=&alpha_group;return;}
+  if(field==&f_native_group){*static_cast<void**>(out)=static_cast<Group*>(obj)->native;return;}
   if (field == &f_current_state) { *static_cast<int32_t *>(out) = static_cast<Gui *>(obj)->state; return; }
   assert(false && "unknown field token");
 }
@@ -378,9 +386,28 @@ int main(int argc, char **argv) {
     assert(api->hide_opening(h, 7, tid, &t) == PGR_CANVAS_OK && t == 0 && sample().owned == 0);
     balanced(); }
 
-  // 15. Wrong class refuses (hide_opening requires exact DGUI).
+  const auto *alpha=static_cast<const PgrCatchCanvasApi3*>(core->query_feature(39,3));assert(alpha&&alpha->size==16);
+  PgrCatchCanvasAlphaConfig ac{1,sizeof(ac),reinterpret_cast<void*>(target_alpha),&f_root_group,&f_native_group,&groupClass};
+  assert(alpha->install_alpha(&ac)==0&&alpha->install_alpha(&ac)==0);
+  // 15. Successful summary opening uses the same mask and restores on release.
   { void *h = build_gui(&summaryClass, kStateOpen); arm();
     uint64_t t = 7;
+    assert(api->hide_opening(h, 7, tid, &t) == PGR_CANVAS_HIDDEN && t && sample().owned == 1);
+    assert(!g_canvas.last_visible);
+    const auto invokes=g_runtime_invoke_calls;
+    call_alpha(&native_group_token,0.7f);assert(last_alpha==0.0f&&g_runtime_invoke_calls==invokes);
+    call_alpha(&unrelated_native_group,0.7f);assert(last_alpha==0.7f);
+    std::thread foreign([&](){call_alpha(&native_group_token,0.6f);assert(last_alpha==0.6f);});foreign.join();
+    assert(api->release(t, tid) == PGR_CANVAS_OK);
+    assert(g_canvas.last_visible && sample().owned == 0);call_alpha(&native_group_token,0.8f);assert(last_alpha==0.8f); balanced(); }
+  // OFF revokes alpha masking immediately, before owner-thread cleanup.
+  {void *h=build_gui(&summaryClass,kStateOpen);arm();uint64_t t=0;
+   assert(api->hide_opening(h,7,tid,&t)==PGR_CANVAS_HIDDEN);
+   call_alpha(&native_group_token,1.0f);assert(last_alpha==0.0f);
+   assert(api->stop()==0);call_alpha(&native_group_token,0.9f);assert(last_alpha==0.9f);
+   assert(api->tick(tid)==0);assert(g_canvas.last_visible);balanced();}
+  // Unrelated GUI classes must remain visible.
+  { void *h = build_gui(&otherClass, kStateOpen); arm(); uint64_t t = 7;
     assert(api->hide_opening(h, 7, tid, &t) == PGR_CANVAS_OK && t == 0 && sample().owned == 0);
     assert(api->stop() == PGR_CANVAS_OK); balanced(); }
 

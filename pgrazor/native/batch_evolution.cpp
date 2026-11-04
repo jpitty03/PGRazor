@@ -1,3 +1,4 @@
+#include "game_bindings.h"
 #include "batch_evolution.h"
 #include "batch_evolution_policy.h"
 #include "shared_metadata.h"
@@ -125,7 +126,7 @@ bool same(const Candidate&a,const Candidate&b){return a.id==b.id&&a.species==b.s
 void validate_tag_removal();
 void prepare(const Command &cmd){
  batch=Batch{};batch.token=cmd.token;batch.tag=cmd.tag;batch.remove_tag=cmd.remove_tag;
- batch.bag=resolve("Niantic.Holoholo","IPokemonBag");batch.player=resolve("Niantic.Holoholo","IPlayerService");batch.buddy=resolve("Niantic.Holoholo.Buddy","IBuddyPokemonService");batch.itembag=resolve("Niantic.Holoholo","IItemBag");require(batch.bag&&batch.player&&batch.buddy&&batch.itembag,"inventory services unavailable");batch.gm=reference(batch.bag.get(),"cypm","IGameMasterData");require(bool(batch.gm),"game settings unavailable");batch.account=string(call(batch.player.get(),"get_PlayerId"));require(!batch.account.empty(),"account identity unavailable");
+ batch.bag=resolve("Niantic.Holoholo","IPokemonBag");batch.player=resolve("Niantic.Holoholo","IPlayerService");batch.buddy=resolve("Niantic.Holoholo.Buddy","IBuddyPokemonService");batch.itembag=resolve("Niantic.Holoholo","IItemBag");require(batch.bag&&batch.player&&batch.buddy&&batch.itembag,"inventory services unavailable");batch.gm=reference(batch.bag.get(),PGR_GAME_BATCH_EVOLUTION_CPP_ERIK_NAME,"IGameMasterData");require(bool(batch.gm),"game settings unavailable");batch.account=string(call(batch.player.get(),"get_PlayerId"));require(!batch.account.empty(),"account identity unavailable");
  Root tags=resolve("Niantic.Holoholo.Tagging","ITaggingRpcService");require(bool(tags),"tag service unavailable");Root ready(call(tags.get(),"WaitForTagCacheInitialized"));require(ready&&field<bool>(ready.get(),"completeCalled","System.Boolean")&&!field<bool>(ready.get(),"errorCalled","System.Boolean"),"tag cache not ready; preview again");
  int n=boxed<int>(call(tags.get(),"get_NumberOfTags"),"System.Int32");require(n>=0&&n<=1000,"tag count");for(int i=0;i<n;i++){void *a[]={&i};Root row(call(tags.get(),"GetCachedTagToPokemonBindingForIndex",1,a));if(!row)continue;Root tag(field<void*>(row.get(),"TagProto","Holoholo.Rpc.PokemonTagProto"));if(normalize_tag(string(field<void*>(tag.get(),"Name","System.String")))!=normalize_tag(cmd.tag))continue;
  require(!batch.rows,"multiple tags share this name");batch.tag_id=field<uint64_t>(tag.get(),"Id","System.UInt64");batch.rows=reference(row.get(),"PokemonProtos","System.Collections.Generic.List");if(batch.remove_tag)batch.tag_proto=std::move(tag);}

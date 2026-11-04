@@ -1,3 +1,4 @@
+#include "../game_bindings.h"
 #include "event_collector.h"
 #include <cmath>
 #include "../runtime_bootstrap.h"
@@ -88,34 +89,34 @@ void read_key(void *object,size_t offset,char (&out)[97]) {
   void *key=nullptr;if(!read_field(object,offset,key)||!exact(key,string_class)){std::strcpy(out,"<unknown>");return;}
   // Pinned IL2CPP String layout: length +0x10, UTF-16 data +0x14.
   // The private kernel pipe copy rejects unreadable data without signal handlers.
-  int32_t n=0;if(!read_field(key,0x10,n)||n<0||n>96){std::strcpy(out,"<oversize>");return;}
-  uint16_t chars[96]{};if(n&&!read_bytes(key,0x14,chars,size_t(n)*2)){std::strcpy(out,"<unreadable>");return;}
+  int32_t n=0;if(!read_field(key,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_KEY_N_OFFSET,n)||n<0||n>96){std::strcpy(out,"<oversize>");return;}
+  uint16_t chars[96]{};if(n&&!read_bytes(key,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_KEY_CHARS_OFFSET,chars,size_t(n)*2)){std::strcpy(out,"<unreadable>");return;}
   for(int32_t i=0;i<n;++i){auto c=chars[i];out[i]=(c>=32&&c<=126&&c!='"'&&c!=92)?char(c):'_';}
 }
 bool repeated(void *object,const RepeatedLayout &layout,void **array,int32_t *count) {
-  if(!exact(object,layout.klass)||!read_field(object,0x18,*count)||*count<0||*count>64)return false;
+  if(!exact(object,layout.klass)||!read_field(object,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_OBJECT_COUNT_OFFSET,*count)||*count<0||*count>64)return false;
   *array=nullptr;if(!*count)return true;
   uintptr_t capacity=0;
-  return read_field(object,0x10,*array)&&exact(*array,layout.array_class)&&read_field(*array,0x18,capacity)&&capacity>=uint32_t(*count)&&capacity<=4096;
+  return read_field(object,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_OBJECT_ARRAY_OFFSET,*array)&&exact(*array,layout.array_class)&&read_field(*array,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ARRAY_CAPACITY_OFFSET,capacity)&&capacity>=uint32_t(*count)&&capacity<=4096;
 }
 bool decode_rewards(void *reward,Record &r) {
   void *array=nullptr;int32_t size=0;if(!repeated(reward,reward_layout,&array,&size))return false;
   r.reward_count=unsigned(size);
   for(int32_t i=0;i<size;++i){
     void *loot=nullptr,*items=nullptr,*item_array=nullptr;int32_t n=0;
-    if(!read_field(array,0x20+size_t(i)*8,loot)||!exact(loot,loot_class)||!read_field(loot,0x10,items)||!repeated(items,items_layout,&item_array,&n))return false;
+    if(!read_field(array,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ARRAY_LOOT_OFFSET+size_t(i)*8,loot)||!exact(loot,loot_class)||!read_field(loot,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_LOOT_ITEMS_OFFSET,items)||!repeated(items,items_layout,&item_array,&n))return false;
     if(r.item_count+unsigned(n)>128)return false;r.item_count+=unsigned(n);
     for(int32_t j=0;j<n;++j){
       void *item=nullptr,*payload=nullptr;int32_t quantity=0,kind=0,value=0;
-      if(!read_field(item_array,0x20+size_t(j)*8,item)||!exact(item,loot_item_class)||!read_field(item,0x10,quantity)||quantity<0||!read_field(item,0x20,kind))return false;
+      if(!read_field(item_array,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ITEM_ARRAY_ITEM_OFFSET+size_t(j)*8,item)||!exact(item,loot_item_class)||!read_field(item,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ITEM_QUANTITY_OFFSET,quantity)||quantity<0||!read_field(item,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ITEM_KIND_OFFSET,kind))return false;
       if(kind<0||kind>=64)return false;r.loot_type_mask|=uint64_t(1)<<unsigned(kind);
       uint64_t *sum=nullptr;
       if(kind==4||kind==11||kind==1){
         // Public setters box the enum; protobuf wire readers can box System.Int32.
         // Accept only those exact validated classes, never arbitrary four-byte values.
-        if(!read_field(item,0x18,payload)||
+        if(!read_field(item,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ITEM_PAYLOAD_OFFSET,payload)||
            !(exact(payload,kind==1?item_class:species_class)||exact(payload,int32_class))||
-           !read_field(payload,0x10,value))return false;
+           !read_field(payload,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_PAYLOAD_VALUE_OFFSET,value))return false;
         if(kind!=1&&value<=0)return false;
         if(kind==4)sum=&r.candy;else if(kind==11)sum=&r.xl_candy;
         else if(value==1301)sum=&r.rare_candy;else if(value==1302)sum=&r.xl_rare_candy;
@@ -139,8 +140,8 @@ int repeated_layout(const void *owner_class,const char *name,uint64_t offset,Rep
   PgrMetaFieldResult r{},array{};
   int rc=check_field(owner_class,name,offset,PGR_MD_FIELD_REF,0,nullptr,&r);if(rc)return rc;
   layout.klass=r.type_class;if(!layout.klass)return -20;
-  if((rc=check_field(layout.klass,"array",0x10,PGR_MD_FIELD_REF,0,nullptr,&array))||
-     (rc=check_field(layout.klass,"count",0x18,PGR_MD_FIELD_VALUE,4,"System.Int32")))return rc;
+  if((rc=check_field(layout.klass,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ARRAY_NAME,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ARRAY_OFFSET,PGR_MD_FIELD_REF,0,nullptr,&array))||
+     (rc=check_field(layout.klass,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_COUNT_NAME,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_COUNT_OFFSET,PGR_MD_FIELD_VALUE,4,"System.Int32")))return rc;
   layout.array_class=array.type_class;return layout.array_class?0:-21;
 }
 bool constant(const void *klass,const char *name,int32_t expected) {
@@ -166,9 +167,9 @@ unsigned result_depth=0;
 struct Scope {uintptr_t controller=0,encounter=0;uint64_t id=0;};
 thread_local Scope encounter_scope{};
 thread_local unsigned natural_result_depth=0;
-// Pinned bfvy 0xa4b3380 captures .cay and passes its Action to
+// Pinned bftv 0xa4b3380 captures .cay and passes its Action to
 // IDynamicTappable.AnimateInteraction at0xa4b342c. Method usage0xec3cef8
-// resolves cay.bfvr (0xa4b6d4c), which tailcalls bfwa at0xa4b6d70.
+// resolves cay.bfvr (0xa40f040), which tailcalls bftx at0xa4b6d70.
 // Therefore response-stack lifetime alone cannot authorize suppression.
 struct OwnedEncounter {uintptr_t service=0,controller=0,encounter=0;uint64_t id=0,created=0;bool stale=false;};
 // Missing animation callbacks must not hold the dispatch slot forever. Keep
@@ -221,7 +222,7 @@ void update_hook(void *self,const void *mi){
   if(!ready.load()||!owner_thread())return;
   owner_updates.fetch_add(1,std::memory_order_relaxed);
   if(!exact(self,session_class)){std::lock_guard<std::mutex> l(state_mutex);counters.pump_reason=14;return;}
-  uint8_t active=0;bool readable=read_field(self,0x98,active);
+  uint8_t active=0;bool readable=read_field(self,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ISSESSIONACTIVE_K__BACKINGFIELD_OFFSET,active);
   {std::lock_guard<std::mutex> l(state_mutex);counters.session_active=readable?int(active):-1;}
   if(!readable||active!=1){std::lock_guard<std::mutex> l(state_mutex);counters.pump_reason=15;return;}
   if(!session_root||root_get(session_root)!=self){
@@ -234,7 +235,7 @@ void tap_hook(void *self,void *target,uint8_t flag,const void *mi){
   auto f=original(original_tap);
   if(ready.load()&&owner_thread()&&active_id&&controller_root&&root_get(controller_root)==target){
     uint64_t id=0;
-    if(read_field(target,0xd0,id)&&id==active_id){
+    if(read_field(target,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ENCOUNTERID_K__BACKINGFIELD_OFFSET,id)&&id==active_id){
       if(dispatching&&!service_root){
         if(!exact(self,service_class)){ambiguous=true;return;}
         service_root=pin(self);if(!service_root){ambiguous=true;return;}
@@ -243,7 +244,7 @@ void tap_hook(void *self,void *target,uint8_t flag,const void *mi){
     }
   }
   if(ready.load()&&owner_thread()&&!dispatching&&exact(target,controller_class)){
-    uint64_t manual_id=0;if(read_field(target,0xd0,manual_id)&&manual_id){remember(manual_id,now_ms()+3600000);revoke_owned(target,manual_id);}
+    uint64_t manual_id=0;if(read_field(target,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ENCOUNTERID_K__BACKINGFIELD_OFFSET,manual_id)&&manual_id){remember(manual_id,now_ms()+3600000);revoke_owned(target,manual_id);}
   }
   f(self,target,flag,mi);
 }
@@ -251,8 +252,8 @@ void encounter_hook(void *self,void *target,void *encounter,const void *mi){
   auto f=original(original_encounter);
   if(ready.load()&&owner_thread()&&!natural_result_depth&&exact(target,controller_class)&&exact(encounter,encounter_class)){
     uint64_t id=0;
-    if(read_field(target,0xd0,id)&&id){
-      // bfvy schedules cay.bfvr through AnimateInteraction. The exact three
+    if(read_field(target,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ENCOUNTERID_K__BACKINGFIELD_OFFSET,id)&&id){
+      // bftv schedules cay.bfvr through AnimateInteraction. The exact three
       // rooted objects survive that asynchronous boundary; an ID alone is never
       // authority to drop another encounter, and OFF does not revoke an open RPC.
       for(auto &r:owned_encounters)if(r.id==id&&r.service&&r.controller&&r.encounter&&
@@ -273,7 +274,7 @@ void result_hook(void *self,void *target,void *response,const void *mi){
   bool ours=false,identity=false;uint64_t id=0;
   if(ready.load()&&owner_thread()&&!result_depth&&active_id&&service_root&&controller_root&&
      root_get(service_root)==self&&root_get(controller_root)==target&&exact(target,controller_class)&&
-     exact(response,response_class)&&read_field(target,0xd0,id)&&id==active_id)identity=true;
+     exact(response,response_class)&&read_field(target,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ENCOUNTERID_K__BACKINGFIELD_OFFSET,id)&&id==active_id)identity=true;
   ours=identity&&!ambiguous;
   if(!ours){
     SuppressionFrame natural({});f(self,target,response,mi);
@@ -283,7 +284,7 @@ void result_hook(void *self,void *target,void *response,const void *mi){
   // Pin every managed response used across the original callback. Suppression is
   // scoped to this exact response's Encounter object, not an ID-only global gate.
   uintptr_t response_pin=pin(response);void *enc=nullptr;
-  bool read_ok=response_pin&&read_field(root_get(response_pin),0x20,enc);
+  bool read_ok=response_pin&&read_field(root_get(response_pin),PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ROOT_GET_RESPONSE_PIN__ENC_OFFSET,enc);
   uintptr_t enc_pin=read_ok&&enc?pin(enc):0;
   if(!read_ok||(enc&&!enc_pin)){
     release(enc_pin);release(response_pin);
@@ -298,7 +299,7 @@ void result_hook(void *self,void *target,void *response,const void *mi){
     std::lock_guard<std::mutex> l(state_mutex);counters.error=-50;counters.inflight=0;++counters.failed;return;
   }
   Record rewards{};void *reward=nullptr;int32_t status=0;
-  bool complete=read_field(root_get(response_pin),0x10,status)&&read_field(root_get(response_pin),0x18,reward)&&decode_rewards(reward,rewards);
+  bool complete=read_field(root_get(response_pin),PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ROOT_GET_RESPONSE_PIN__STATUS_OFFSET,status)&&read_field(root_get(response_pin),PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ROOT_GET_RESPONSE_PIN__REWARD_OFFSET,reward)&&decode_rewards(reward,rewards);
   {
     SuppressionFrame frame({controller_root,enc_pin,id},response_pin,enc_pin,true);
     f(self,target,root_get(response_pin),mi);
@@ -333,45 +334,45 @@ int install(uint64_t tid){
   Cls classes[]={{"Niantic.Holoholo.Services.DynamicTappables","DynamicTappablesSession",&session_class},{"Niantic.Holoholo.Services.DynamicTappables","DynamicTappableBehaviorService",&service},{"","DynamicTappableController",&controller_class},{"Holoholo.Rpc","ProcessTappableOutProto",&response_class},{"Holoholo.Rpc","TappableEncounterProto",&encounter_class},{"System","String",&string_class},{"System","Int32",&int32_class},{"Holoholo.Rpc","LootProto",&loot_class},{"Holoholo.Rpc","LootItemProto",&loot_item_class},{"Holoholo.Rpc","HoloPokemonId",&species_class},{"Holoholo.Rpc","Item",&item_class}};
   for(auto &c:classes)if((rc=resolve(c.ns,c.name,c.out)))return rc;
   struct F{const void *k;const char *n;uint64_t off;uint32_t kind,size;const char *type;};
-  F fields[]={{session_class,"<IsSessionActive>k__BackingField",0x98,PGR_MD_FIELD_VALUE,1,"System.Boolean"},
-   {controller_class,"<EncounterId>k__BackingField",0xd0,PGR_MD_FIELD_VALUE,8,"System.UInt64"},
-   {controller_class,"<TypeKey>k__BackingField",0xe0,PGR_MD_FIELD_REF,0,"System.String"},
-   {controller_class,"<Location>k__BackingField",0xe8,PGR_MD_FIELD_VALUE,16,"Niantic.LatLng"},
-   {controller_class,"<DespawnTimeMs>k__BackingField",0x100,PGR_MD_FIELD_VALUE,8,"System.Int64"},
-   {response_class,"Status",0x10,PGR_MD_FIELD_ENUM_I32,4,nullptr},{response_class,"Encounter",0x20,PGR_MD_FIELD_REF,0,"Holoholo.Rpc.TappableEncounterProto"},
-   {loot_item_class,"Count",0x10,PGR_MD_FIELD_VALUE,4,"System.Int32"},{loot_item_class,"csrn",0x18,PGR_MD_FIELD_REF,0,"System.Object"},{loot_item_class,"csro",0x20,PGR_MD_FIELD_ENUM_I32,4,nullptr},
-   {int32_class,"m_value",0x10,PGR_MD_FIELD_VALUE,4,"System.Int32"},{species_class,"value__",0x10,PGR_MD_FIELD_VALUE,4,"System.Int32"},{item_class,"value__",0x10,PGR_MD_FIELD_VALUE,4,"System.Int32"}};
+  F fields[]={{session_class,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ISSESSIONACTIVE_K__BACKINGFIELD_NAME,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ISSESSIONACTIVE_K__BACKINGFIELD_OFFSET,PGR_MD_FIELD_VALUE,1,"System.Boolean"},
+   {controller_class,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ENCOUNTERID_K__BACKINGFIELD_NAME,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ENCOUNTERID_K__BACKINGFIELD_OFFSET,PGR_MD_FIELD_VALUE,8,"System.UInt64"},
+   {controller_class,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_TYPEKEY_K__BACKINGFIELD_NAME,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_TYPEKEY_K__BACKINGFIELD_OFFSET,PGR_MD_FIELD_REF,0,"System.String"},
+   {controller_class,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_LOCATION_K__BACKINGFIELD_NAME,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_LOCATION_K__BACKINGFIELD_OFFSET,PGR_MD_FIELD_VALUE,16,"Niantic.LatLng"},
+   {controller_class,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_DESPAWNTIMEMS_K__BACKINGFIELD_NAME,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_DESPAWNTIMEMS_K__BACKINGFIELD_OFFSET,PGR_MD_FIELD_VALUE,8,"System.Int64"},
+   {response_class,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_STATUS_NAME,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_STATUS_OFFSET,PGR_MD_FIELD_ENUM_I32,4,nullptr},{response_class,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ENCOUNTER_NAME,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ENCOUNTER_OFFSET,PGR_MD_FIELD_REF,0,"Holoholo.Rpc.TappableEncounterProto"},
+   {loot_item_class,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_COUNT_NAME_2,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_COUNT_OFFSET_2,PGR_MD_FIELD_VALUE,4,"System.Int32"},{loot_item_class,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_CSYX_NAME,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_CSYX_OFFSET,PGR_MD_FIELD_REF,0,"System.Object"},{loot_item_class,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_CSYY_NAME,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_CSYY_OFFSET,PGR_MD_FIELD_ENUM_I32,4,nullptr},
+   {int32_class,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_M_VALUE_NAME,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_M_VALUE_OFFSET,PGR_MD_FIELD_VALUE,4,"System.Int32"},{species_class,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_VALUE___NAME,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_VALUE___OFFSET,PGR_MD_FIELD_VALUE,4,"System.Int32"},{item_class,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_VALUE___NAME,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_VALUE___OFFSET,PGR_MD_FIELD_VALUE,4,"System.Int32"}};
   for(auto &f:fields)if((rc=check_field(f.k,f.n,f.off,f.kind,f.size,f.type)))return rc;
   PgrMetaFieldResult list{},array{};
-  if((rc=check_field(session_class,"visibleTappables",0x58,PGR_MD_FIELD_REF,0,nullptr,&list)))return rc;
+  if((rc=check_field(session_class,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_VISIBLETAPPABLES_NAME,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_VISIBLETAPPABLES_OFFSET,PGR_MD_FIELD_REF,0,nullptr,&list)))return rc;
   list_class=list.type_class;
-  if((rc=check_field(list_class,"_items",0x10,PGR_MD_FIELD_REF,0,nullptr,&array))||
-     (rc=check_field(list_class,"_size",0x18,PGR_MD_FIELD_VALUE,4,"System.Int32")))return rc;
+  if((rc=check_field(list_class,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ITEMS_NAME,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ITEMS_OFFSET,PGR_MD_FIELD_REF,0,nullptr,&array))||
+     (rc=check_field(list_class,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_SIZE_NAME,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_SIZE_OFFSET,PGR_MD_FIELD_VALUE,4,"System.Int32")))return rc;
   list_array_class=array.type_class;
   if(!list_class||!list_array_class)return -41;
-  if((rc=repeated_layout(response_class,"Reward",0x18,reward_layout))||(rc=repeated_layout(loot_class,"LootItem",0x10,items_layout)))return rc;
-  PgrMetaFieldResult cases{};if((rc=check_field(loot_item_class,"csro",0x20,PGR_MD_FIELD_ENUM_I32,4,nullptr,&cases)))return rc;
+  if((rc=repeated_layout(response_class,"Reward",PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_REWARD_OFFSET,reward_layout))||(rc=repeated_layout(loot_class,"LootItem",PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_LOOTITEM_OFFSET,items_layout)))return rc;
+  PgrMetaFieldResult cases{};if((rc=check_field(loot_item_class,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_CSYY_NAME,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_CSYY_OFFSET,PGR_MD_FIELD_ENUM_I32,4,nullptr,&cases)))return rc;
   if(!constant(cases.type_class,"Item",1)||!constant(cases.type_class,"PokemonCandy",4)||!constant(cases.type_class,"XlCandy",11)||!constant(item_class,"RareCandy",1301)||!constant(item_class,"XlRareCandy",1302))return -42;
-  const unsigned char new_pre[16]={0xe8,0x03,0x00,0xaa,0x49,0x00,0x80,0x52,0x3f,0x00,0x00,0x72,0x20,0x05,0x89,0x1a};
-  const unsigned char get_pre[16]={0x13,0x16,0x00,0x14,0xff,0x03,0x01,0xd1,0xfe,0x5f,0x01,0xa9,0xf6,0x57,0x02,0xa9};
-  const unsigned char free_pre[16]={0x01,0x16,0x00,0x14,0x00,0x02,0x80,0x52,0xc0,0x03,0x5f,0xd6,0x00,0x04,0x80,0x52};
-  const unsigned char invoke_pre[16]={0xb5,0xe9,0x01,0x14,0xb2,0xde,0x01,0x14,0xa1,0xec,0x01,0x14,0xfe,0x0f,0x1e,0xf8};
-  if((rc=validate_export(binding.runtime.gchandle_new,0x4eed760,new_pre))||(rc=validate_export(binding.runtime.gchandle_get_target,0x4eed83c,get_pre))||(rc=validate_export(binding.runtime.gchandle_free,0x4eeda3c,free_pre))||(rc=validate_export(binding.runtime.runtime_invoke,0x4eee1d8,invoke_pre)))return rc;
+  const unsigned char new_pre[16]=PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_NEW_PRE_FINGERPRINT;
+  const unsigned char get_pre[16]=PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_GET_PRE_FINGERPRINT;
+  const unsigned char free_pre[16]=PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_FREE_PRE_FINGERPRINT;
+  const unsigned char invoke_pre[16]=PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_INVOKE_PRE_FINGERPRINT;
+  if((rc=validate_export(binding.runtime.gchandle_new,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_GCHANDLE_NEW_RVA,new_pre))||(rc=validate_export(binding.runtime.gchandle_get_target,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_GCHANDLE_GET_TARGET_RVA,get_pre))||(rc=validate_export(binding.runtime.gchandle_free,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_GCHANDLE_FREE_RVA,free_pre))||(rc=validate_export(binding.runtime.runtime_invoke,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_RUNTIME_INVOKE_RVA,invoke_pre)))return rc;
   root_new=reinterpret_cast<NewRoot>(binding.runtime.gchandle_new);root_get=reinterpret_cast<GetRoot>(binding.runtime.gchandle_get_target);root_free=reinterpret_cast<FreeRoot>(binding.runtime.gchandle_free);invoke=reinterpret_cast<Invoke>(binding.runtime.runtime_invoke);
   if(!initialize_memory_copy())return -43;
-  const unsigned char tap_pre[16]={0xfe,0x0f,0x1c,0xf8,0xf8,0x5f,0x01,0xa9,0xf6,0x57,0x02,0xa9,0xf4,0x4f,0x03,0xa9};
-  const unsigned char result_pre[16]={0xff,0x83,0x02,0xd1,0xfd,0x7b,0x04,0xa9,0xfc,0x6f,0x05,0xa9,0xfa,0x67,0x06,0xa9};
-  const unsigned char encounter_pre[16]={0xff,0x43,0x03,0xd1,0xe8,0x33,0x00,0xfd,0xfd,0x7b,0x07,0xa9,0xfc,0x6f,0x08,0xa9};
-  const unsigned char update_pre[16]={0xee,0x0f,0x1a,0xfc,0xed,0xb3,0x00,0x6d,0xeb,0xab,0x01,0x6d,0xe9,0xa3,0x02,0x6d};
-  const unsigned char visible_pre[16]={0xfe,0x57,0xbe,0xa9,0xf4,0x4f,0x01,0xa9,0xe1,0x03,0x1f,0xaa,0xbc,0x89,0xe8,0x94};
+  const unsigned char tap_pre[16]=PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_TAP_PRE_FINGERPRINT;
+  const unsigned char result_pre[16]=PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_RESULT_PRE_FINGERPRINT;
+  const unsigned char encounter_pre[16]=PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ENCOUNTER_PRE_FINGERPRINT;
+  const unsigned char update_pre[16]=PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_UPDATE_PRE_FINGERPRINT;
+  const unsigned char visible_pre[16]=PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_VISIBLE_PRE_FINGERPRINT;
   PgrMetaMethodResult tap{},result{},enc{},update{},session_tap{},visible{};
   const char *iface="Niantic.Holoholo.Services.DynamicTappables.IDynamicTappable";
-  if((rc=validate_method(service,"ProcessTappableTapped","System.Void",{iface,"System.Boolean"},0xa4b2a98,tap_pre,tap))||
-     (rc=validate_method(service,"bfvy","System.Void",{iface,"Holoholo.Rpc.ProcessTappableOutProto"},0xa4b3080,result_pre,result))||
-     (rc=validate_method(service,"bfwa","System.Void",{iface,"Holoholo.Rpc.TappableEncounterProto"},0xa4b4ce0,encounter_pre,enc))||
-     (rc=validate_method(session_class,"Update","System.Void",{},0xa4bafa8,update_pre,update))||
-     (rc=validate_method(session_class,"TapTappable","System.Void",{iface},0xa4b9ed8,tap_pre,session_tap))||
-     (rc=validate_method(controller_class,"get_VisibleOnMap","System.Boolean",{},0xa037a00,visible_pre,visible)))return rc;
+  if((rc=validate_method(service,"ProcessTappableTapped","System.Void",{iface,"System.Boolean"},PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_DYNAMICTAPPABLEBEHAVIORSERVICE_PROCESSTAPPABLETAPPED_RVA,tap_pre,tap))||
+     (rc=validate_method(service,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_BFTV_NAME,"System.Void",{iface,"Holoholo.Rpc.ProcessTappableOutProto"},PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_DYNAMICTAPPABLEBEHAVIORSERVICE_BFTV_RVA,result_pre,result))||
+     (rc=validate_method(service,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_BFTX_NAME,"System.Void",{iface,"Holoholo.Rpc.TappableEncounterProto"},PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_DYNAMICTAPPABLEBEHAVIORSERVICE_BFTX_RVA,encounter_pre,enc))||
+     (rc=validate_method(session_class,"Update","System.Void",{},PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_DYNAMICTAPPABLESSESSION_UPDATE_RVA,update_pre,update))||
+     (rc=validate_method(session_class,"TapTappable","System.Void",{iface},PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_DYNAMICTAPPABLESSESSION_TAPTAPPABLE_RVA,tap_pre,session_tap))||
+     (rc=validate_method(controller_class,"get_VisibleOnMap","System.Boolean",{},PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_DYNAMICTAPPABLECONTROLLER_GET_VISIBLEONMAP_RVA,visible_pre,visible)))return rc;
   tap_method=session_tap.method;visible_method=visible.method;owner.store(tid);
   // All contracts validated before any mutation. Partial install never enables dispatch.
   void *out=nullptr;rc=pgrazor_hook(const_cast<void*>(enc.code),reinterpret_cast<void*>(&encounter_hook),&out);if(out)original_encounter.store(reinterpret_cast<Result>(out));if(rc||!out)return -44;
@@ -405,10 +406,10 @@ void pump(bool enabled,uint64_t n,bool diagnose){
   Location loc;{std::lock_guard<std::mutex> l(location_mutex);loc=location;}
   if(!loc.at||n<loc.at||n-loc.at>5000){reason(6);return;}
   void *session=root_get(session_root);uint8_t active=0;
-  if(!exact(session,session_class)||!read_field(session,0x98,active)||active!=1){release(session_root);reason(7);return;}
+  if(!exact(session,session_class)||!read_field(session,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ISSESSIONACTIVE_K__BACKINGFIELD_OFFSET,active)||active!=1){release(session_root);reason(7);return;}
   void *list=nullptr,*array=nullptr;int32_t count=0;uintptr_t capacity=0;
-  if(!read_field(session,0x58,list)||!exact(list,list_class)||!read_field(list,0x18,count)||count<0||count>128||
-     !read_field(list,0x10,array)||!exact(array,list_array_class)||!read_field(array,0x18,capacity)||capacity<uint32_t(count)||capacity>4096){reason(8);return;}
+  if(!read_field(session,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_VISIBLETAPPABLES_OFFSET,list)||!exact(list,list_class)||!read_field(list,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_SIZE_OFFSET,count)||count<0||count>128||
+     !read_field(list,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ITEMS_OFFSET,array)||!exact(array,list_array_class)||!read_field(array,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ARRAY_CAPACITY_OFFSET,capacity)||capacity<uint32_t(count)||capacity>4096){reason(8);return;}
   uintptr_t array_pin=pin(array);if(!array_pin){reason(9);return;}
   uintptr_t best=0;double nearest=1e30,nearest_any=1e30;
   int candidates=0,matched_boxes=0,in_range=0,visible_count=0,expired_count=0,zero_expiry=0;
@@ -416,7 +417,7 @@ void pump(bool enabled,uint64_t n,bool diagnose){
   timespec wall{};clock_gettime(CLOCK_REALTIME,&wall);int64_t epoch_ms=int64_t(wall.tv_sec)*1000+wall.tv_nsec/1000000;
   for(int32_t i=0;i<count;++i){
     void *candidate=nullptr;uint64_t id=0;int64_t expiry=0;double pos[2]{};char key[97]{};
-    if(!read_field(root_get(array_pin),0x20+size_t(i)*8,candidate)||!exact(candidate,controller_class))continue;
+    if(!read_field(root_get(array_pin),PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ROOT_GET_ARRAY_PIN__CANDIDATE_OFFSET+size_t(i)*8,candidate)||!exact(candidate,controller_class))continue;
     ++candidates;
     uintptr_t candidate_pin=pin(candidate);if(!candidate_pin)continue;
     candidate=root_get(candidate_pin);
@@ -425,11 +426,11 @@ void pump(bool enabled,uint64_t n,bool diagnose){
     // It is diagnostic, not an extra eligibility deadline: live visible boxes
     // with elapsed values still open manually. Match TapTappable's active-list
     // path and the game's VisibleOnMap getter; let the server validate the tap.
-    bool expiry_ok=read_field(candidate,0x100,expiry);
+    bool expiry_ok=read_field(candidate,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_DESPAWNTIMEMS_K__BACKINGFIELD_OFFSET,expiry);
     if(expiry_ok&&expiry==0)++zero_expiry;
     if(expiry_ok&&expiry!=0&&expiry<=epoch_ms)++expired_count;
-    bool valid=read_field(candidate,0xd0,id)&&id&&!seen_before(id,n)&&expiry_ok&&expiry>=0&&
-       read_bytes(candidate,0xe8,pos,sizeof(pos))&&std::isfinite(pos[0])&&std::isfinite(pos[1])&&std::fabs(pos[0])<=90&&std::fabs(pos[1])<=180;
+    bool valid=read_field(candidate,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ENCOUNTERID_K__BACKINGFIELD_OFFSET,id)&&id&&!seen_before(id,n)&&expiry_ok&&expiry>=0&&
+       read_bytes(candidate,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_LOCATION_K__BACKINGFIELD_OFFSET,pos,sizeof(pos))&&std::isfinite(pos[0])&&std::isfinite(pos[1])&&std::fabs(pos[0])<=90&&std::fabs(pos[1])<=180;
     if(valid)valid=box_key;
     double distance=1e30;
     if(valid){
@@ -441,7 +442,7 @@ void pump(bool enabled,uint64_t n,bool diagnose){
     }
     if(valid){
       void *exc=nullptr;void *visible=invoke(visible_method,root_get(candidate_pin),nullptr,&exc);uint8_t yes=0;
-      valid=!exc&&visible&&read_field(visible,0x10,yes)&&yes==1;if(valid)++visible_count;
+      valid=!exc&&visible&&read_field(visible,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_VISIBLE_YES_OFFSET,yes)&&yes==1;if(valid)++visible_count;
     }
     if(valid){release(best);best=candidate_pin;candidate_pin=0;nearest=distance;}
     release(candidate_pin);
@@ -456,9 +457,9 @@ void pump(bool enabled,uint64_t n,bool diagnose){
   {std::lock_guard<std::mutex> l(location_mutex);fresh=location;}
   uint8_t still_active=0;int64_t expiry=0;double pos[2]{};char key[97]{};
   bool authorized=!stopped.load()&&action_now<=enable_until_ms.load()&&fresh.at&&action_now>=fresh.at&&action_now-fresh.at<=5000&&
-    root_get(session_root)==session&&read_field(session,0x98,still_active)&&still_active==1&&
-    exact(candidate,controller_class)&&read_field(candidate,0xd0,id)&&id&&!seen_before(id,action_now)&&
-    read_field(candidate,0x100,expiry)&&expiry>=0&&read_bytes(candidate,0xe8,pos,sizeof(pos))&&
+    root_get(session_root)==session&&read_field(session,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ISSESSIONACTIVE_K__BACKINGFIELD_OFFSET,still_active)&&still_active==1&&
+    exact(candidate,controller_class)&&read_field(candidate,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_ENCOUNTERID_K__BACKINGFIELD_OFFSET,id)&&id&&!seen_before(id,action_now)&&
+    read_field(candidate,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_DESPAWNTIMEMS_K__BACKINGFIELD_OFFSET,expiry)&&expiry>=0&&read_bytes(candidate,PGR_GAME_EVENTS_EVENT_COLLECTOR_CPP_LOCATION_K__BACKINGFIELD_OFFSET,pos,sizeof(pos))&&
     std::isfinite(pos[0])&&std::isfinite(pos[1])&&std::fabs(pos[0])<=90&&std::fabs(pos[1])<=180;
   if(authorized){
     read_key(candidate,0xe0,key);authorized=std::strcmp(key,"TAPPABLE_TYPE_BOX")==0;

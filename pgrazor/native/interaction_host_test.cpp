@@ -248,7 +248,7 @@ static int fx_class_value_size(void *klass, int *out_align) {
     return c->value_size;
 }
 static void *fx_class_get_method_from_name(void *klass, const char *name, int argc) {
-    if (klass == &g_classes[10] && strcmp(name, "btxu") == 0 && argc == 0) {
+    if (klass == &g_classes[10] && strcmp(name, "btqu") == 0 && argc == 0) {
         return g_btxu_present ? &g_btxu_method : nullptr;
     }
     auto *c = static_cast<FakeClass *>(klass);
@@ -600,7 +600,7 @@ static void reset_fake_universe(PgrInteractionHostConfig *out_cfg) {
 
     memset(&g_btxu_method, 0, sizeof(g_btxu_method));
     g_btxu_method.owner = &g_classes[10];
-    g_btxu_method.name = "btxu";
+    g_btxu_method.name = "btqu";
     g_btxu_method.return_type = g_classes[5].self_type;
     g_btxu_method.param_count = 0;
     g_btxu_method.flags = 0x0006;

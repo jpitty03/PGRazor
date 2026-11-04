@@ -44,7 +44,7 @@ final class SettingsUi {
             if(!(view instanceof Button))t.setPadding(dp(context,4),dp(context,3),dp(context,4),dp(context,3));
         }
         if(view instanceof Button){TextView t=(TextView)view;t.setTextSize(14);t.setMinHeight(dp(context,48));t.setPadding(dp(context,10),dp(context,6),dp(context,10),dp(context,6));t.setGravity(Gravity.CENTER_VERTICAL|Gravity.START);
-            if(!(view instanceof CompoundButton))view.setBackground(new android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x2845e1ba),rounded(context,Control.darkTheme()?0xff202b39:0xffedf2f6,9),null));
+            if(!(view instanceof CompoundButton))MapTheme.setButtonBackground(view);
         }
         if(view instanceof CompoundButton)((CompoundButton)view).setButtonTintList(new android.content.res.ColorStateList(new int[][]{new int[]{-android.R.attr.state_enabled},new int[]{android.R.attr.state_checked},new int[]{}},new int[]{muted(),accent(),muted()}));
         if(view instanceof Switch){Switch s=(Switch)view;int off=Control.darkTheme()?0xff4a5a6a:0xffb4c2ce;s.setText("");s.setMinHeight(0);s.setPadding(dp(context,8),0,0,0);
