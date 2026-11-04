@@ -332,3 +332,17 @@ const void *pgrazor_iv_display_api(uint32_t version);
 #ifdef __cplusplus
 }
 #endif
+
+#ifdef __cplusplus
+// Optional light-panel IV line (iv_panel.cpp). When registered, an applied overlay is shown as
+// a separate "Lv .. · IV ..%" line on a soft off-white panel under the game's CP label (the
+// storage list style) instead of re-texting the label. Both calls run on the owner thread
+// with a live, caller-rooted UnityEngine.UI.Text. show() returning false (the panel cannot be
+// built) falls back to the label rewrite for that record. Unregistered (fixtures) = rewrite.
+struct PgrIvPanelHooks {
+  bool (*available)();  // runtime ready and not faulted; false keeps the rewrite + Outline path
+  bool (*show)(bool owned, void *text_obj, int32_t level_half, int atk, int def, int sta);
+  void (*hide)(void *text_obj);
+};
+void pgr_iv_display_set_panel_hooks(const PgrIvPanelHooks *hooks);
+#endif

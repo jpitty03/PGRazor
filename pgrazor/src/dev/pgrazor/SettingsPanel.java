@@ -47,12 +47,11 @@ final class SettingsPanel {
     private Button uiScale;
     private TextView incubatorStatus;
     // Primary action and cycle/dialog rows.
-    private Button mapTap, throwGrade, storageIv, itemSettings, cameraSample, interactionCapture, transferKeepList;
+    private Button mapTap, throwGrade, storageIv, ivCatchMode, ivOwnedMode, itemSettings, cameraSample, interactionCapture, transferKeepList;
     // Boolean settings use proper switches.
     private Switch idleWalkSwitch, locationSwitch, vgpSwitch, joystickSwitch, cooldownSwitch, spawnSwitch, autoTransferSwitch,
         quickSpinSwitch, berrySwitch, quickSummarySwitch, curveSwitch, alwaysHitSwitch, arSwitch, transferOverlaySwitch, catchChanceSwitch, autoBallSwitch;
     private Button autoBallTarget;
-    private CheckBox ivCatchBox, ivOwnedBox, storageIvBox;
     private TextView quickSummaryLabel, vgpStatus;
     private final CheckBox[] vgpChoices=new CheckBox[3];
     private CheckBox vgpCooldownStop;
@@ -224,17 +223,13 @@ final class SettingsPanel {
     /** IV Display: the encounter, Pokemon details and storage list IV overlays. */
     private void buildIvDisplaySection(LinearLayout loc) {
         LinearLayout iv = section(loc, "IV Display", false);
-        ivOwnedBox = new CheckBox(activity); ivOwnedBox.setText("Inventory: IV/level on Pokémon details"); iv.addView(ivOwnedBox);
-        ivOwnedBox.setChecked(Control.ivOwnedEnabled());
-        ivOwnedBox.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.ivOwnedEnabled())return; Control.setIvOwnedEnabled(checked); host.refresh(); });
-        ivCatchBox = new CheckBox(activity); ivCatchBox.setText("Encounter: CP, level and IV above the Pokémon"); iv.addView(ivCatchBox);
-        ivCatchBox.setChecked(Control.ivCatchEnabled());
-        ivCatchBox.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.ivCatchEnabled())return; Control.setIvCatchEnabled(checked); host.refresh(); });
-        storageIvBox = new CheckBox(activity); storageIvBox.setText("Storage list: IVs under each CP"); iv.addView(storageIvBox);
-        storageIvBox.setChecked(Control.storageIvEnabled());
-        storageIvBox.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.storageIvEnabled())return; Control.setStorageIvEnabled(checked); host.refresh(); });
-        storageIv = button("Storage list format: "+STORAGE_IV_MODES[Control.storageIvFormat()]); iv.addView(storageIv);
-        storageIv.setOnClickListener(v -> { Control.setStorageIvFormat(Control.storageIvFormat()%3+1); host.refresh(); });
+        // One button per screen; each tap moves to the next format, with Off between the last and first.
+        ivCatchMode = button(""); iv.addView(ivCatchMode);
+        ivCatchMode.setOnClickListener(v -> { Control.setIvCatchMode(Control.nextIvMode(Control.ivCatchMode())); host.refresh(); });
+        ivOwnedMode = button(""); iv.addView(ivOwnedMode);
+        ivOwnedMode.setOnClickListener(v -> { Control.setIvOwnedMode(Control.nextIvMode(Control.ivOwnedMode())); host.refresh(); });
+        storageIv = button(""); iv.addView(storageIv);
+        storageIv.setOnClickListener(v -> { Control.setStorageIvMode(Control.nextIvMode(Control.storageIvMode())); host.refresh(); });
         ivStatus = caption(iv, "");
     }
 
@@ -612,7 +607,8 @@ final class SettingsPanel {
         spawnSwitch.setChecked(Control.spawnBooster());spawnSwitch.setEnabled(Control.spawnAllowed());spawnStatus.setText(Control.spawnStatus());
     }
 
-    private static final String[] STORAGE_IV_MODES={"OFF","15/14/12","91%","91% · 15/14/12"};
+    // Indexed by IV mode: 0 off, 1 level and attack/defense/stamina, 2 level and percent, 3 all three.
+    private static final String[] IV_MODES={"Off","Lv · 15/14/12","Lv · IV","Lv · IV · 15/14/12"};
 
     private void refreshThrows() {
         throwGrade.setText("Throw rating: "+new String[]{"OFF","Nice","Great","Excellent"}[Control.throwGrade()]);
@@ -622,10 +618,9 @@ final class SettingsPanel {
         arSwitch.setChecked(Control.throwAr());arSwitch.setEnabled(Control.throwArReady());
         catchChanceSwitch.setChecked(Control.catchChanceShown());autoBallSwitch.setChecked(Control.autoBall());
         autoBallTarget.setText("Auto ball target: "+Control.autoBallTarget()+"%");autoBallTarget.setEnabled(Control.autoBall());
-        ivCatchBox.setChecked(Control.ivCatchEnabled());ivCatchBox.setEnabled(Control.quickBallConfigured());
-        ivOwnedBox.setChecked(Control.ivOwnedEnabled());ivOwnedBox.setEnabled(Control.quickBallConfigured());
-        storageIvBox.setChecked(Control.storageIvEnabled());
-        storageIv.setText("Storage list format: "+STORAGE_IV_MODES[Control.storageIvFormat()]);storageIv.setEnabled(Control.storageIvEnabled());
+        ivCatchMode.setText("Encounter: "+IV_MODES[Control.ivCatchMode()]);ivCatchMode.setEnabled(Control.quickBallConfigured());
+        ivOwnedMode.setText("Pokémon stats screen: "+IV_MODES[Control.ivOwnedMode()]);ivOwnedMode.setEnabled(Control.quickBallConfigured());
+        storageIv.setText("Pokémon storage list: "+IV_MODES[Control.storageIvMode()]);
         String ivText=Control.ivDisplayStatus(), storageText=Control.storageIvStatus();
         ivStatus.setText(ivText.isEmpty()?storageText:storageText.isEmpty()?ivText:ivText+"\n"+storageText);
     }

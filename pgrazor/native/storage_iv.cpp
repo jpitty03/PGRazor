@@ -4,17 +4,21 @@
 #include "runtime_bootstrap.h"
 #include "runtime_metadata.h"
 #include "runtime_transport.h"
+#include "shared_metadata.h"
 #include <atomic>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <dlfcn.h>
 #include <string>
+#include <time.h>
 #include <unistd.h>
+#include <vector>
 // Pokemon storage list IVs. PokemonInventoryCellView.Initialize fills one storage cell each time it
 // shows a Pokemon (cells are reused while scrolling). After the game's own Initialize, a copy of the
 // cell's CP label, on a soft off-white panel named PGRazorIv, is placed just under it and shows the
-// Pokemon's IVs, and the CP header is drawn in front of the Pokemon image. Turning the setting off
+// Pokemon's level and IVs, and the CP header is drawn in front of the Pokemon image. Turning the setting off
 // hides the panel; the game's own label text is never changed. The hook is installed the first time
 // the setting is on and stays for the process, like every other code hook.
 namespace {
@@ -50,11 +54,12 @@ const PgrRuntimeTransportApi *transport(){return static_cast<const PgrRuntimeTra
 void event(const std::string &json){auto tr=transport();if(!tr)return;PgrRuntimeTransportString strings[]={{"storage-iv",10},{json.c_str(),uint32_t(json.size())}};tr->emit(19,nullptr,0,strings,2);}
 void status(const char *phase,const std::string &message){event(std::string("{\"phase\":\"")+phase+"\",\"message\":\""+message+"\"}");}
 
-// "S1|<mode>" from the current snapshot; anything else means off.
+// The storage mode of "S2|<storage>|<encounter>|<details>" from the current snapshot (0 off,
+// 1 level and attack/defense/stamina, 2 level and percent, 3 all three); anything else means off.
 int configured_mode(){
  auto tr=transport();char s[16];uint32_t n=0;PgrRuntimeTransportSample a{};
  if(!tr||tr->sample(&a)||!a.snapshot_fresh||a.fault)return 0;
- if(tr->get_string(14,s,sizeof(s),&n)||n!=4||std::memcmp(s,"S1|",3)!=0||s[3]<'0'||s[3]>'3')return 0;
+ if(tr->get_string(14,s,sizeof(s),&n)||n!=8||std::memcmp(s,"S2|",3)!=0||s[3]<'0'||s[3]>'3')return 0;
  return s[3]-'0';
 }
 
@@ -87,6 +92,71 @@ void *overload(const char *ns,const char *owner,const char *name,const char *p0,
 }
 void *type_object(void *o){return fn<void*(*)(void*)>(exp("type_get_object"))(fn<void*(*)(void*)>(boot.meta.class_get_type)(klass(o)));}
 
+// Levels. The cells show no level, so it comes from the Pokemon's CP multiplier and the game
+// master's multiplier per whole level (GameMasterDataExt_PlayerLevelSettings.CpMultiplierAtLevel),
+// read once on the owner thread when the game master is ready. A half level's multiplier is the
+// quadratic mean of its neighbors, with the same tolerance as the encounter overlay. Without the
+// table the line simply has no level; a failure here never stops the IVs.
+std::vector<float> cpm;  // cpm[i] = multiplier at level i+1, strictly increasing
+const PgrSharedMetadataOutput *md=nullptr;
+uint64_t next_table_try=0;int table_tries=0;
+constexpr int kLevelUnknown=-1,kTableTries=60;
+uint64_t clock_ms(){timespec t{};clock_gettime(CLOCK_BOOTTIME,&t);return uint64_t(t.tv_sec)*1000+t.tv_nsec/1000000;}
+struct Root {
+ uintptr_t h=0;
+ Root()=default;explicit Root(void *v){if(v){h=fn<uintptr_t(*)(void*,int)>(boot.runtime.gchandle_new)(v,0);require(h,"GC root");}}
+ Root(const Root&)=delete;Root& operator=(const Root&)=delete;
+ ~Root(){if(h)fn<void(*)(uintptr_t)>(boot.runtime.gchandle_free)(h);}
+ void *get()const{return h?fn<void*(*)(uintptr_t)>(boot.runtime.gchandle_get_target)(h):nullptr;}
+};
+void *handle(unsigned id){require(md,"metadata");void *p=const_cast<void*>(md->opt_handles[id]);require(p,"game services");return p;}
+void *class_type_object(void *k){return fn<void*(*)(void*)>(exp("type_get_object"))(fn<void*(*)(void*)>(boot.meta.class_get_type)(k));}
+// IGameMasterData from the game's service container, as ar_values.cpp resolves it.
+void *game_master(){
+ using namespace pgr_shared_meta;
+ Root type(class_type_object(handle(H_IL_MAP)));void *args[]={type.get()};
+ Root map(invoke(handle(H_IL_FIND_M),nullptr,args));if(!map.get())return nullptr;
+ Root container(invoke(handle(H_IL_CONTAINER_M),map.get()));if(!container.get())return nullptr;
+ Root target(class_type_object(class_of("","IGameMasterData")));void *resolve_args[]={target.get()};
+ return invoke(handle(H_IL_RESOLVE_M),container.get(),resolve_args);
+}
+// True once the table is read; false to try again later.
+bool load_levels(){
+ Root gm(game_master());if(!gm.get())return false;
+ if(!unbox<bool>(call(gm.get(),"get_IsReady")))return false;
+ void *levels=class_of("Niantic.Holoholo","GameMasterDataExt_PlayerLevelSettings");
+ void *at=fn<void*(*)(void*,const char*,int)>(boot.meta.class_get_method_from_name)(levels,"CpMultiplierAtLevel",2);require(at,"CpMultiplierAtLevel");
+ std::vector<float> table;
+ for(int level=1;level<=100;level++){
+  void *args[]={gm.get(),&level};void *ex=nullptr;
+  void *boxed=fn<void*(*)(void*,void*,void**,void**)>(boot.runtime.runtime_invoke)(at,nullptr,args,&ex);
+  if(ex||!boxed)break;  // past the last level
+  const float v=unbox<float>(boxed);
+  if(!std::isfinite(v)||v<=0||(!table.empty()&&v<=table.back()))break;
+  table.push_back(v);
+ }
+ require(table.size()>=40,"level table");
+ cpm.swap(table);return true;
+}
+int level_half(float multiplier){
+ if(cpm.empty()||!std::isfinite(multiplier)||multiplier<=0)return kLevelUnknown;
+ const double m=multiplier;
+ for(size_t i=0;i<cpm.size();i++){
+  if(std::fabs(cpm[i]-m)<0.00002)return int(i+1)*2;
+  if(i+1<cpm.size()&&std::fabs(std::sqrt((double(cpm[i])*cpm[i]+double(cpm[i+1])*cpm[i+1])/2.0)-m)<0.00002)return int(i+1)*2+1;
+ }
+ return kLevelUnknown;
+}
+void tick_levels(){
+ if(!cpm.empty()||table_tries>=kTableTries)return;
+ const uint64_t now=clock_ms();if(now<next_table_try)return;next_table_try=now+5000;
+ std::string why="game master not ready";
+ try{if(load_levels()){status("levels",std::to_string(cpm.size())+" levels");return;}}
+ catch(const Failure &f){why=f.where;}
+ catch(...){why="native failure";}
+ if(++table_tries>=kTableTries)status("levels","No storage list levels: "+why);
+}
+
 // The encounter overlay's IV tiers (iv_display.cpp iv_color): 100% red, 90%+ a purple and 80%+ a
 // green that brighten toward the next tier, below that the label's own color. The shades here are
 // darker than the overlay's, which is drawn on a dark plate; storage cells are white.
@@ -101,12 +171,15 @@ std::string tier_color(int sum){
  if(percent>=80.0)return shade(g80a,g80b,(percent-80.0)/10.0);
  return "";
 }
-std::string label(int atk,int def,int sta,int m){
+// "Lv 25 · 91% · 15/14/12" for mode 3, without the percent for 1 and without the stats for 2. The
+// percent (or the stats, when they stand alone) takes the tier color. No level when it is unknown.
+std::string label(int atk,int def,int sta,int m,int half){
  const std::string stats=std::to_string(atk)+"/"+std::to_string(def)+"/"+std::to_string(sta);
  const std::string pct=std::to_string(((atk+def+sta)*100+22)/45)+"%";
  const std::string color=tier_color(atk+def+sta);
  auto paint=[&](const std::string &s){return color.empty()?s:"<color="+color+">"+s+"</color>";};
- return m==1?paint(stats):m==2?paint(pct):paint(pct)+" · "+stats;
+ const std::string lv=half>0?"Lv "+std::to_string(half/2)+(half%2?".5":"")+" · ":"";
+ return lv+(m==1?paint(stats):m==2?paint(pct):paint(pct)+" · "+stats);
 }
 void *layout_element_type(){
  return fn<void*(*)(void*)>(exp("type_get_object"))(fn<void*(*)(void*)>(boot.meta.class_get_type)(class_of("UnityEngine.UI","LayoutElement")));
@@ -163,15 +236,23 @@ Label iv_label(void *cp_text,bool create){
  else if(void *m=optional_method(text,"set_alignment",1)){int center=0x202;void *a[]={&center};invoke(m,text,a);}
  return out;
 }
-// A smaller font than the CP label (smallest for the longest format, so it fits the cell). The
-// panel hugs the text: one line tall, so the Pokemon image stays close below, and a little wider.
-void size_label(void *cp_text,const Label &l,int m){
- const float scale=m==3?0.45f:0.6f;void *size=call(cp_text,"get_fontSize");const std::string size_type=class_name(size);
+// A smaller font than the CP label (smallest for the longest format), shrunk further when the line
+// would be wider than the cell. The panel hugs the text: one line tall, so the Pokemon image stays
+// close below, and a little wider.
+void size_label(void *cell,void *cp_text,const Label &l,int m){
+ const float scale=m==3?0.42f:0.55f;void *size=call(cp_text,"get_fontSize");const std::string size_type=class_name(size);
  float font=0;
- if(size_type=="Int32"){int v=int(unbox<int>(size)*scale);if(v<8)v=8;font=float(v);void *a[]={&v};call(l.text,"set_fontSize",1,a);}
- else if(size_type=="Single"){float v=unbox<float>(size)*scale;font=v;void *a[]={&v};call(l.text,"set_fontSize",1,a);}
+ auto set_font=[&](float f){
+  if(size_type=="Int32"){int v=int(f);if(v<8)v=8;font=float(v);void *a[]={&v};call(l.text,"set_fontSize",1,a);}
+  else if(size_type=="Single"){float v=f<8?8:f;font=v;void *a[]={&v};call(l.text,"set_fontSize",1,a);}};
+ if(size_type=="Int32")set_font(unbox<int>(size)*scale);else if(size_type=="Single")set_font(unbox<float>(size)*scale);
  if(font<=0)return;
- float line=font*1.25f,width=unbox<float>(call(l.text,"get_preferredWidth"))+font*0.8f;
+ struct Rect{float x,y,w,h;};
+ const float cell_width=unbox<Rect>(call(call(cell,"get_transform"),"get_rect")).w;
+ float text_width=unbox<float>(call(l.text,"get_preferredWidth"));
+ if(cell_width>0&&text_width+font*0.8f>cell_width*0.96f&&font>8){
+  set_font(font*(cell_width*0.96f)/(text_width+font*0.8f));text_width=unbox<float>(call(l.text,"get_preferredWidth"));}
+ float line=font*1.25f,width=text_width+font*0.8f;
  set_vector(call(l.panel,"get_transform"),"set_sizeDelta",width,line);
  void *layout_type[]={layout_element_type()};void *layout=invoke(get_component,call(l.panel,"get_transform"),layout_type);require(layout,"IV label layout");
  void *line_args[]={&line},*width_args[]={&width};
@@ -203,8 +284,10 @@ void render(void *cell,void *pokemon){
  const int def=field<int>(pokemon,PGR_GAME_QUICKBALL_METADATA_H_INDIVIDUALDEFENSE__NAME,"System.Int32");
  const int sta=field<int>(pokemon,PGR_GAME_QUICKBALL_METADATA_H_INDIVIDUALSTAMINA__NAME,"System.Int32");
  require(atk>=0&&atk<=15&&def>=0&&def<=15&&sta>=0&&sta<=15,"IV range");
- void *args[]={managed_string(label(atk,def,sta,m))};call(l.text,"set_text",1,args);
- size_label(cp_text,l,m);
+ const float multiplier=field<float>(pokemon,PGR_GAME_QUICKBALL_METADATA_H_CPMULTIPLIER__NAME,"System.Single")+
+                        field<float>(pokemon,PGR_GAME_QUICKBALL_METADATA_H_ADDITIONALCPMULTIPLIER__NAME,"System.Single");
+ void *args[]={managed_string(label(atk,def,sta,m,level_half(multiplier)))};call(l.text,"set_text",1,args);
+ size_label(cell,cp_text,l,m);
  draw_over_icon(cell,cp_text);
 }
 void hook_initialize(void *self,void *initializer,const void *info){
@@ -248,10 +331,11 @@ void install(){
 }
 }  // namespace
 
-void pgr_storage_iv_tick(uint64_t tid,const PgrSharedMetadataOutput *){
+void pgr_storage_iv_tick(uint64_t tid,const PgrSharedMetadataOutput *metadata){
  if(busy||!tid||tid!=uint64_t(gettid())||(owner&&owner!=tid))return;
- struct Guard{Guard(){busy=true;}~Guard(){busy=false;}}guard;owner=tid;
+ struct Guard{Guard(){busy=true;}~Guard(){busy=false;}}guard;owner=tid;md=metadata;
  const int m=configured_mode();mode.store(m,std::memory_order_release);
+ if(m&&installed.load(std::memory_order_acquire)&&!faulted.load(std::memory_order_acquire))tick_levels();
  if(!m||installed.load(std::memory_order_acquire)||faulted.load(std::memory_order_acquire))return;
  try{
   if(!ready){auto api=static_cast<const PgrBootApi*>(pgrazor_runtime_bootstrap_api(1));boot.version=1;boot.size=sizeof(boot);require(api&&api->snapshot(&boot)==0,"Runtime unavailable");ready=true;}

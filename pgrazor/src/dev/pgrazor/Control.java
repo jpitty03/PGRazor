@@ -139,7 +139,10 @@ public final class Control {
     // defaults ON (prior behavior); owned Pokemon details defaults OFF. ivOwnedReady
     // is runtime only: whether the agent resolved the owned-details metadata.
     private static volatile boolean ivCatchEnabled=true, ivOwnedEnabled, ivOwnedReady;
-    // Pokemon storage list IVs: 0 off, 1 attack/defense/stamina, 2 percent, 3 both. storageIvFormat is
+    // What the encounter and details IV panels show, chosen like storageIvFormat: 1 level and
+    // attack/defense/stamina, 2 level and percent, 3 all three. Kept while that display is off.
+    private static volatile int ivCatchFormat=2, ivOwnedFormat=2;
+    // Pokemon storage list IVs: 0 off, 1 level and attack/defense/stamina, 2 level and percent, 3 all three. storageIvFormat is
     // the chosen format (1-3), kept while the display is off. storageIvStatus is the native module's
     // last error, runtime only.
     private static volatile int storageIvMode, storageIvFormat=3;
@@ -509,7 +512,16 @@ public final class Control {
         storageIvFormat=format>=1&&format<=3?format:3;
         if(storageIvMode!=0)setStorageIvMode(storageIvFormat);else saveSettings();
     }
-    public static String storageIvConfig(){return "S1|"+(overlaysHidden?0:storageIvMode);}
+    // One tap-to-cycle mode per screen: 0 off, else the format above.
+    public static int ivCatchMode(){return ivCatchEnabled?ivCatchFormat:0;}
+    public static int ivOwnedMode(){return ivOwnedEnabled?ivOwnedFormat:0;}
+    public static void setIvCatchMode(int mode){if(mode>=1&&mode<=3)ivCatchFormat=mode;setIvCatchEnabled(mode>=1&&mode<=3);}
+    public static void setIvOwnedMode(int mode){if(mode>=1&&mode<=3)ivOwnedFormat=mode;setIvOwnedEnabled(mode>=1&&mode<=3);}
+    /** Off, then all three, level and percent, level and attack/defense/stamina, back to off. */
+    public static int nextIvMode(int mode){return (mode+3)%4;}
+    // "S2|<storage mode>|<encounter format>|<details format>"; whether the encounter and details
+    // panels show at all travels separately as ivCatchEnabled/ivOwnedEnabled.
+    public static String storageIvConfig(){return "S2|"+(overlaysHidden?0:storageIvMode)+"|"+ivCatchFormat+"|"+ivOwnedFormat;}
     public static String storageIvStatus(){return storageIvMode==0?"":storageIvStatus;}
     // Catch chance overlay (on by default) and auto ball (off by default) for manual encounters.
     // autoBallTarget is the chance the cheapest ball must reach, in percent.
@@ -1039,6 +1051,8 @@ public final class Control {
                 if(keepDamaged[0])autoTransferEnabled=false;
                 ivCatchEnabled=Boolean.parseBoolean(p.getProperty("ivCatch","true"));
                 ivOwnedEnabled=Boolean.parseBoolean(p.getProperty("ivOwned","false"));
+                int catchFormat=boundedSetting(p,"ivCatchFormat",3),ownedFormat=boundedSetting(p,"ivOwnedFormat",3);
+                ivCatchFormat=catchFormat>0?catchFormat:2;ivOwnedFormat=ownedFormat>0?ownedFormat:2;
                 storageIvMode=boundedSetting(p,"storageIv",3);
                 catchChanceShown=Boolean.parseBoolean(p.getProperty("catchChance","true"));autoBall=Boolean.parseBoolean(p.getProperty("autoBall","false"));
                 int target=boundedSetting(p,"autoBallTarget",99);autoBallTarget=target>0?target:75;
@@ -1120,7 +1134,7 @@ public final class Control {
         p.setProperty("quickSpin",String.valueOf(quickSpinEnabled));
         p.setProperty("autoTransfer",String.valueOf(autoTransferEnabled)); p.setProperty("transferProtect",String.valueOf(transferProtect));
         p.setProperty("transferKeepAll",String.valueOf(transferKeepAll)); p.setProperty("transferOverlay",String.valueOf(transferOverlayEnabled)); p.setProperty("transferKeepSpecies",transferKeepSpecies);
-        p.setProperty("ivCatch",String.valueOf(ivCatchEnabled)); p.setProperty("ivOwned",String.valueOf(ivOwnedEnabled)); p.setProperty("storageIv",String.valueOf(storageIvMode)); p.setProperty("storageIvFormat",String.valueOf(storageIvFormat));
+        p.setProperty("ivCatch",String.valueOf(ivCatchEnabled)); p.setProperty("ivOwned",String.valueOf(ivOwnedEnabled)); p.setProperty("ivCatchFormat",String.valueOf(ivCatchFormat)); p.setProperty("ivOwnedFormat",String.valueOf(ivOwnedFormat)); p.setProperty("storageIv",String.valueOf(storageIvMode)); p.setProperty("storageIvFormat",String.valueOf(storageIvFormat));
         p.setProperty("catchChance",String.valueOf(catchChanceShown)); p.setProperty("autoBall",String.valueOf(autoBall)); p.setProperty("autoBallTarget",String.valueOf(autoBallTarget));
         p.setProperty("autoDismiss",String.valueOf(quickSummaryEnabled)); p.setProperty("fastBall",String.valueOf(quickBallEnabled));
         p.setProperty("throwAr",String.valueOf(throwAr)); p.setProperty("curve",String.valueOf(throwCurve)); p.setProperty("grade",String.valueOf(throwGrade));

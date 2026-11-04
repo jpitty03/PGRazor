@@ -103,8 +103,8 @@ public final class NativeRuntimeTransportTest {
         at += 4 + "1|123|0|0|0|0|0|0".length(); // One-shot automation slot 12.
         require(readString(snap, at).equals("R1|1|1|CHALLENGE_CATCH_EASY"));
         at += 4 + "R1|1|1|CHALLENGE_CATCH_EASY".length(); // Field research slot 13.
-        require(readString(snap, at).equals("S1|2"));
-        at += 4 + "S1|2".length(); // Storage IV slot 14.
+        require(readString(snap, at).equals("S2|2|2|3"));
+        at += 4 + "S2|2|2|3".length(); // Storage IV slot 14.
         require(readString(snap, at).equals("C1|1|0|75"));
         at += 4 + "C1|1|0|75".length(); // Catch chance slot 15.
         require(at == fake.lastSnapshot.length);

@@ -45,7 +45,7 @@ def control_shell():
         elif name == 'catchChanceConfig':
             body = 'reads++;return "C1|1|0|75";'
         elif name == 'storageIvConfig':
-            body = 'reads++;return "S1|2";'
+            body = 'reads++;return "S2|2|2|3";'
         elif name == 'researchConfig':
             body = 'reads++;return "R1|1|1|CHALLENGE_CATCH_EASY";'
         elif name in ('accountIdentity', 'accountSessionSaved'):

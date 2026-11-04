@@ -67,6 +67,8 @@ bool g_install_attempted = false;
 int g_install_error = PGR_IV_ERR_NOT_INSTALLED;
 std::atomic<SetupFn> g_orig_setup{nullptr};
 std::atomic<OwnedFn> g_orig_owned{nullptr};
+// Light-panel IV line (iv_panel.cpp); null = re-text the CP label as before.
+std::atomic<const PgrIvPanelHooks *> g_panel_hooks{nullptr};
 
 // Permanent Unity owner, latched once from a genuine on-thread hook observation.
 std::atomic<uint64_t> g_owner_tid{0};
@@ -107,6 +109,10 @@ struct Record {
   uintptr_t text;    // durable GC root to the UI.Text
   uintptr_t outline; // durable GC root to the UI.Outline (0 when none)
   bool applied;
+  bool owned;
+  bool panel;  // applied as the light-panel line (restore hides it; the label is untouched)
+  int32_t level_half;
+  int atk, def, sta;
   bool outline_created;
   bool outline_enabled;  // snapshotted enabled state (restore target)
   int32_t font_size, rich, fit, overflow, alignment;
@@ -786,6 +792,16 @@ void render(Record &r, bool enabled, Ctx &c) {
   if (enabled) {
     // Gate once up front; if already revoked nothing is mutated and applied stays false.
     if (!check_apply_gate(c)) return;
+    const PgrIvPanelHooks *ph = g_panel_hooks.load(std::memory_order_acquire);
+    if (ph != nullptr && ph->available()) {
+      void *obj = refresh_durable(r.text, c, PGR_IV_REASON_RENDER);
+      if (obj == nullptr || !check_apply_gate(c)) return;
+      if (ph->show(r.owned, obj, r.level_half, r.atk, r.def, r.sta)) {
+        r.applied = true;
+        r.panel = true;
+        return;
+      }
+    }
     r.applied = true;
     render_outline(r, true);
     set_i32_rooted(g_cfg.m_set_rich, r.text, 1, c);
@@ -810,6 +826,14 @@ void render(Record &r, bool enabled, Ctx &c) {
     ApplyScope saved = g_apply_scope;
     g_apply_scope = ApplyScope{};
     void *obj = gc_get()(r.text);
+    if (r.panel) {
+      const PgrIvPanelHooks *ph = g_panel_hooks.load(std::memory_order_acquire);
+      if (obj != nullptr && ph != nullptr) ph->hide(obj);
+      r.panel = false;
+      r.applied = false;
+      g_apply_scope = saved;
+      return;
+    }
     char cur[kLabelCap];
     Ctx read;
     bool got = obj != nullptr && get_text(obj, cur, sizeof(cur), read);
@@ -941,6 +965,11 @@ void capture_overlay(bool is_catch, void *text_obj, int32_t cp, int32_t level_ha
     return;
   }
   std::snprintf(r.original, kLabelCap, "%s", original);
+  r.owned = !is_catch;
+  r.level_half = level_half;
+  r.atk = atk;
+  r.def = def;
+  r.sta = sta;
   char full[kLabelCap];
   build_labels(!is_catch, original, cp, level_half, atk, def, sta, full, r.label);
 
@@ -963,7 +992,9 @@ void capture_overlay(bool is_catch, void *text_obj, int32_t cp, int32_t level_ha
   // Open the apply scope (AddComponent in prepare_outline and every setter in render are now
   // gated/revocable). apply_gen == 0 => born-revoked (captured while disabled/expired).
   g_apply_scope = ApplyScope{true, is_catch, apply_gen, apply_gen == 0};
-  if (!is_catch) prepare_outline(r);
+  // The light panel needs no Outline on the game's label.
+  const PgrIvPanelHooks *panel_hooks = g_panel_hooks.load(std::memory_order_acquire);
+  if (!is_catch && (panel_hooks == nullptr || !panel_hooks->available())) prepare_outline(r);
 
   // Re-check the residual lease / revocation generation AFTER the managed getters and root
   // allocations, immediately before the UI mutation (a disable during a getter revokes here).
@@ -1678,6 +1709,10 @@ const PgrIvDisplayApi kApiTable = {
 };
 
 }  // namespace
+
+void pgr_iv_display_set_panel_hooks(const PgrIvPanelHooks *hooks) {
+  g_panel_hooks.store(hooks, std::memory_order_release);
+}
 
 extern "C" const void *pgrazor_iv_display_api(uint32_t version) {
   if (version != PGR_IV_API_VERSION) return nullptr;
