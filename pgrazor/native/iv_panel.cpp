@@ -2,6 +2,8 @@
 #include "runtime_bootstrap.h"
 #include "runtime_metadata.h"
 #include "runtime_transport.h"
+#include "pvp_icons.h"
+#include "pvp_keep.h"
 #include <cstdio>
 #include <cstring>
 #include <dlfcn.h>
@@ -39,14 +41,14 @@ void *class_of(const char *ns,const char *name){
  PgrMetaClassQuery q{};q.version=1;q.size=sizeof(q);q.name_space=ns;q.name=name;q.canonical_match=PGR_MD_MATCH_EXACT;
  PgrMetaClassResult r{};require(api->resolve_class(&q,&r)==0,name);return const_cast<void*>(r.klass);
 }
-// The non-generic overload of ns.owner.name whose parameters are exactly p0[, p1].
-void *overload(const char *ns,const char *owner,const char *name,const char *p0,const char *p1=nullptr){
- void *k=class_of(ns,owner);const unsigned count=p1?2:1;void *iter=nullptr;
+// The non-generic overload of ns.owner.name whose parameters are exactly p0[, p1[, p2]].
+void *overload(const char *ns,const char *owner,const char *name,const char *p0,const char *p1=nullptr,const char *p2=nullptr){
+ void *k=class_of(ns,owner);const unsigned count=p2?3:p1?2:1;void *iter=nullptr;
  while(void *m=fn<void*(*)(const void*,void**)>(exp("class_get_methods"))(k,&iter)){
   if(std::strcmp(fn<const char*(*)(void*)>(exp("method_get_name"))(m),name)!=0)continue;
   if(fn<bool(*)(void*)>(boot.meta.method_is_generic)(m)||fn<unsigned(*)(void*)>(boot.meta.method_get_param_count)(m)!=count)continue;
   auto param=[&](unsigned i){return typename_of(fn<const void*(*)(void*,unsigned)>(exp("method_get_param"))(m,i));};
-  if(param(0)==p0&&(!p1||param(1)==p1))return m;
+  if(param(0)==p0&&(!p1||param(1)==p1)&&(!p2||param(2)==p2))return m;
  }
  require(false,name);return nullptr;
 }
@@ -96,7 +98,7 @@ int format(bool owned){
  auto tr=transport();char s[16];uint32_t n=0;PgrRuntimeTransportSample a{};
  if(!tr||tr->sample(&a)||!a.snapshot_fresh||a.fault)return 2;
  if(tr->get_string(14,s,sizeof(s),&n)||n!=8||std::memcmp(s,"S2|",3)!=0)return 2;
- const char c=s[owned?7:5];return c>='1'&&c<='3'?c-'0':2;
+ const char c=s[owned?7:5];return c>='1'&&c<='4'?c-'0':2;
 }
 // "Lv 25 · IV 91.1% · 15/14/12", the same numbers iv_display used on the label (one decimal, '--'
 // unknown), without the stats for format 2 and without the percent for format 1. The percent, or
@@ -115,19 +117,72 @@ std::string line(int32_t level_half,int atk,int def,int sta,int fmt){
  const std::string color=valid?tier_color(atk+def+sta):"";
  auto paint=[&](const std::string &s){return color.empty()?s:"<color="+color+">"+s+"</color>";};
  const char *dot=" \xc2\xb7 ";
+ // Format 4 is format 3 with a second row of PvP crests and ranks, drawn by separate pieces.
  return "Lv "+lv+dot+(fmt==1?paint(stats):fmt==2?paint(iv):paint(iv)+dot+stats);
 }
 
-struct Line {void *panel=nullptr,*text=nullptr;};
+// PvP pieces of a format-4 line, per league (Great, Ultra, Master): the crest (an Image) and the rank
+// (a further text copy), children of the panel after the main text.
+const char *const kRankNames[]={"PGRazorPvpRank0","PGRazorPvpRank1","PGRazorPvpRank2"};
+const char *const kIconNames[]={"PGRazorPvpIcon0","PGRazorPvpIcon1","PGRazorPvpIcon2"};
+const char *const kLeagueColor[]={"#2a63c4","#a87405","#6a3fb5"};
+struct Line {void *panel=nullptr,*text=nullptr,*rank[3]={},*icon[3]={};};
+void *child_named(void *transform,const char *name){void *args[]={managed_string(name)};return invoke(find_child,transform,args);}
 // The panel under this CP label, or null. Its first child is the text copy.
 Line find_line(void *cp_text){
- Line out;void *args[]={managed_string(kName)};
- void *found=invoke(find_child,call(cp_text,"get_transform"),args);if(!found)return out;
+ Line out;void *found=child_named(call(cp_text,"get_transform"),kName);if(!found)return out;
  require(unbox<int>(call(found,"get_childCount"))>=1,"IV line text");int first=0;void *index[]={&first};
  void *component_args[]={type_object(cp_text)};
  out.text=invoke(get_component,call(found,"GetChild",1,index),component_args);require(out.text,"IV line component");
+ for(int i=0;i<3;i++){
+  if(void *rank=child_named(found,kRankNames[i]))out.rank[i]=invoke(get_component,rank,component_args);
+  if(void *icon=child_named(found,kIconNames[i])){void *image_type[]={class_type("UnityEngine.UI","Image")};out.icon[i]=invoke(get_component,icon,image_type);}
+ }
  out.panel=call(found,"get_gameObject");return out;
 }
+
+// League crest sprites (Great, Ultra, Master), made once from the bundled PNGs and kept for the process.
+uintptr_t sprites[3]={0,0,0};
+void *sprite(int crest){
+ require(crest>=0&&crest<3,"PvP crest");
+ if(!sprites[crest]){
+  void *texture_class=class_of("UnityEngine","Texture2D");
+  void *texture=fn<void*(*)(void*)>(boot.runtime.object_new)(texture_class);require(texture,"PvP texture");
+  int two=2;void *size[]={&two,&two};invoke(overload("UnityEngine","Texture2D",".ctor","System.Int32","System.Int32"),texture,size);
+  const unsigned length=pgr_pvp_icons::size[crest];
+  void *bytes=fn<void*(*)(void*,uintptr_t)>(boot.runtime.array_new)(class_of("System","Byte"),length);require(bytes,"PvP crest bytes");
+  std::memcpy(static_cast<char*>(bytes)+32,pgr_pvp_icons::png[crest],length);
+  void *load[]={texture,bytes};
+  require(unbox<bool>(invoke(overload("UnityEngine","ImageConversion","LoadImage","UnityEngine.Texture2D","System.Byte[]"),nullptr,load)),"PvP crest decode");
+  const float w=float(unbox<int>(call(texture,"get_width"))),h=float(unbox<int>(call(texture,"get_height")));
+  float rect[4]={0,0,w,h},pivot[2]={0.5f,0.5f};void *create[]={texture,rect,pivot};
+  void *made=invoke(overload("UnityEngine","Sprite","Create","UnityEngine.Texture2D","UnityEngine.Rect","UnityEngine.Vector2"),nullptr,create);
+  require(made,"PvP crest sprite");
+  sprites[crest]=fn<uintptr_t(*)(void*,int)>(boot.runtime.gchandle_new)(made,0);require(sprites[crest],"PvP crest root");
+ }
+ void *value=fn<void*(*)(uintptr_t)>(boot.runtime.gchandle_get_target)(sprites[crest]);require(value,"PvP crest sprite");return value;
+}
+// Adds one league's rank text and crest image to a panel that lacks them.
+void add_pvp_pieces(Line &l,int league){
+ void *panel_transform=call(l.panel,"get_transform");
+ if(!l.rank[league]){
+  void *copy_args[]={l.text,panel_transform};void *rank=invoke(instantiate,nullptr,copy_args);require(rank&&klass(rank)==klass(l.text),"PvP rank copy");
+  void *name[]={managed_string(kRankNames[league])};call(call(rank,"get_gameObject"),"set_name",1,name);l.rank[league]=rank;
+ }
+ if(!l.icon[league]){
+  void *types=fn<void*(*)(void*,uintptr_t)>(boot.runtime.array_new)(class_of("System","Type"),2);require(types,"PvP icon types");
+  void *components[]={class_type("UnityEngine","RectTransform"),class_type("UnityEngine.UI","Image")};
+  for(int i=0;i<2;i++){void **slot=reinterpret_cast<void**>(static_cast<char*>(types)+32+i*8);fn<void(*)(void*,void**,void*)>(exp("gc_wbarrier_set_field"))(types,slot,components[i]);}
+  void *icon=fn<void*(*)(void*)>(boot.runtime.object_new)(class_of("UnityEngine","GameObject"));require(icon,"PvP icon");
+  void *ctor_args[]={managed_string(kIconNames[league]),types};invoke(new_game_object,icon,ctor_args);
+  void *icon_transform=call(icon,"get_transform");
+  bool keep_world=false;void *parent_args[]={panel_transform,&keep_world};invoke(set_parent,icon_transform,parent_args);
+  void *image_type[]={class_type("UnityEngine.UI","Image")};l.icon[league]=invoke(get_component,icon_transform,image_type);require(l.icon[league],"PvP icon image");
+  set_bool(l.icon[league],"set_raycastTarget",false);set_bool(l.icon[league],"set_preserveAspect",true);
+  void *sprite_args[]={sprite(league)};call(l.icon[league],"set_sprite",1,sprite_args);
+ }
+}
+void set_active(void *component,bool on){if(component){void *a[]={&on};call(call(component,"get_gameObject"),"SetActive",1,a);}}
 // A new UI GameObject with a RectTransform, an Image and a LayoutElement, not yet parented.
 void *new_panel(){
  void *types=fn<void*(*)(void*,uintptr_t)>(boot.runtime.array_new)(class_of("System","Type"),3);require(types,"IV panel types");
@@ -173,10 +228,20 @@ Line create_line(void *cp_text){
 // encounter and just above them on the details screen. The label's alignment says where its glyphs
 // sit relative to its rectangle (the rectangle can be zero wide when the text overflows), so the
 // panel is anchored at that point.
-void place(void *cp_text,const Line &l,bool owned){
+// A rect centered in the panel at x with the given size.
+void put(void *component,float x,float y,float w,float h){
+ void *t=call(component,"get_transform");
+ set_vector(t,"set_anchorMin",0.5f,0.5f);set_vector(t,"set_anchorMax",0.5f,0.5f);set_vector(t,"set_pivot",0.5f,0.5f);
+ set_vector(t,"set_sizeDelta",w,h);set_vector(t,"set_anchoredPosition",x,y);
+ float one[3]={1,1,1};void *scale_args[]={one};call(t,"set_localScale",1,scale_args);
+}
+// shown[league]: that league's crest and rank go on the second row.
+void place(void *cp_text,const Line &l,bool owned,const bool shown[3]){
  const int label_font=unbox<int>(call(cp_text,"get_fontSize"));
  int font=int(label_font*(owned?0.45f:0.5f));if(font<10)font=10;if(font>40)font=40;
  {void *a[]={&font};call(l.text,"set_fontSize",1,a);}
+ const bool pvp=shown[0]||shown[1]||shown[2];
+ for(int i=0;i<3;i++)if(shown[i]){void *a[]={&font};call(l.rank[i],"set_fontSize",1,a);}
  const float glyph_w=unbox<float>(call(cp_text,"get_preferredWidth")),glyph_h=unbox<float>(call(cp_text,"get_preferredHeight"));
  int alignment=4;if(void *m=optional_method(cp_text,"get_alignment",0))alignment=unbox<int>(invoke(m,cp_text));
  if(alignment<0||alignment>8)alignment=4;
@@ -184,7 +249,28 @@ void place(void *cp_text,const Line &l,bool owned){
  const float ax=column*0.5f,ay=row==0?1.f:row==1?0.5f:0.f;
  const float x=column==0?glyph_w*0.5f:column==2?-glyph_w*0.5f:0.f;
  const float glyph_bottom=row==0?-glyph_h:row==1?-glyph_h*0.5f:0.f,glyph_top=glyph_bottom+glyph_h;
- const float height=font*1.3f,width=unbox<float>(call(l.text,"get_preferredWidth"))+font*0.9f;
+ const float line_h=font*1.3f,text_w=unbox<float>(call(l.text,"get_preferredWidth"));
+ float width=text_w+font*0.9f,height=line_h;
+ void *text_transform=call(l.text,"get_transform");
+ if(pvp){
+  // Second row: [crest] [rank] per league, centered under the IVs.
+  const float icon=font*1.25f,gap=font*0.25f,spacing=font*0.7f;
+  float rank_w[3]={0,0,0},row_w=0;int count=0;
+  for(int i=0;i<3;i++)if(shown[i]){rank_w[i]=unbox<float>(call(l.rank[i],"get_preferredWidth"));row_w+=(count?spacing:0.f)+icon+gap+rank_w[i];++count;}
+  if(row_w+font*0.9f>width)width=row_w+font*0.9f;
+  height=line_h*2;
+  put(l.text,0,line_h*0.5f,text_w+2,line_h);
+  float at=-row_w*0.5f;count=0;
+  for(int i=0;i<3;i++)if(shown[i]){
+   if(count++)at+=spacing;
+   put(l.icon[i],at+icon*0.5f,-line_h*0.5f,icon,icon);at+=icon+gap;
+   put(l.rank[i],at+rank_w[i]*0.5f,-line_h*0.5f,rank_w[i]+2,line_h);at+=rank_w[i];
+  }
+ }else{
+  // The text fills the panel.
+  set_vector(text_transform,"set_anchorMin",0,0);set_vector(text_transform,"set_anchorMax",1,1);
+  set_vector(text_transform,"set_pivot",0.5f,0.5f);set_vector(text_transform,"set_sizeDelta",0,0);set_vector(text_transform,"set_anchoredPosition",0,0);
+ }
  void *panel_transform=call(l.panel,"get_transform");
  set_vector(panel_transform,"set_anchorMin",ax,ay);set_vector(panel_transform,"set_anchorMax",ax,ay);
  set_vector(panel_transform,"set_pivot",0.5f,owned?0.f:1.f);set_vector(panel_transform,"set_sizeDelta",width,height);
@@ -192,15 +278,26 @@ void place(void *cp_text,const Line &l,bool owned){
  float one[3]={1,1,1};void *scale_args[]={one};call(panel_transform,"set_localScale",1,scale_args);
 }
 
-bool show(bool owned,void *cp_text,int32_t level_half,int atk,int def,int sta){
+bool show(bool owned,void *cp_text,int32_t level_half,int atk,int def,int sta,const PgrPvpBest *pvp){
  if(faulted||busy||!cp_text)return false;
  struct Guard{Guard(){busy=true;}~Guard(){busy=false;}}guard;
  try{
   init();
   Line l=find_line(cp_text);
   if(!l.panel)l=create_line(cp_text);
-  void *args[]={managed_string(line(level_half,atk,def,sta,format(owned)))};call(l.text,"set_text",1,args);
-  place(cp_text,l,owned);
+  const int fmt=format(owned);
+  bool shown[3]={false,false,false};
+  for(int i=0;i<3;i++){
+   shown[i]=fmt==4&&pvp&&pvp->rank[i]>0;
+   if(!shown[i]){set_active(l.rank[i],false);set_active(l.icon[i],false);continue;}
+   add_pvp_pieces(l,i);
+   std::string rank="#"+std::to_string(pvp->rank[i]);
+   if(pvp->species[i][0])rank+=std::string(" ")+pvp->species[i];
+   void *rank_args[]={managed_string("<color="+std::string(kLeagueColor[i])+">"+rank+"</color>")};call(l.rank[i],"set_text",1,rank_args);
+   set_active(l.rank[i],true);set_active(l.icon[i],true);
+  }
+  void *args[]={managed_string(line(level_half,atk,def,sta,fmt))};call(l.text,"set_text",1,args);
+  place(cp_text,l,owned,shown);
   bool on=true;void *active[]={&on};call(l.panel,"SetActive",1,active);
   if(!announced){announced=true;status("ready",std::string("IV panel shown (")+class_name(cp_text)+")");}
   return true;
@@ -227,3 +324,13 @@ bool available(){
 const PgrIvPanelHooks kHooks={&available,&show,&hide};
 __attribute__((constructor)) void register_panel(){pgr_iv_display_set_panel_hooks(&kHooks);}
 }  // namespace
+
+// The Great (0), Ultra (1) or Master (2) League crest sprite for other displays (the storage list), or
+// null when it cannot be made. Unity owner only.
+extern "C" void *pgr_pvp_crest(int crest){
+ if(faulted)return nullptr;
+ try{init();return sprite(crest);}
+ catch(const Failure &f){status("error",std::string("PvP crest unavailable: ")+f.where);}
+ catch(...){status("error","PvP crest unavailable: native failure");}
+ return nullptr;
+}

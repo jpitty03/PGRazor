@@ -51,6 +51,7 @@
 #include "catch_chance.h"
 #include "incense_guard.h"
 #include "vgp_incense.h"
+#include "pvp_keep.h"
 #include "buddy_emotion.h"
 
 namespace {
@@ -358,7 +359,7 @@ static void notify_transfer_result(const char *summary) {
 
 static void notify_transfer_outcome(const char *outcome){const char *strings[]={outcome};transport_emit_op(22,nullptr,0,strings,1);}
 static void notify_transfer_error(const char *reason){char text[256];snprintf(text,sizeof(text),"Transfer Error: %s",reason);notify_transfer_result(text);notify_transfer_outcome("transfer-error");}
-static const char *transfer_reason(int code){static const char *reasons[]={"","keep-all","invalid-keep-list","unknown-species","custom-keep-list","unknown-iv","unknown-category","unknown-size","favorite-or-egg","iv-at-least-90","protected-rare","protected-shiny","protected-event","protected-background","protected-xxs","protected-xxl","invalid-input"};return code>0&&code<17?reasons[code]:"invalid-input";}
+static const char *transfer_reason(int code){static const char *reasons[]={"","keep-all","invalid-keep-list","unknown-species","custom-keep-list","unknown-iv","unknown-category","unknown-size","favorite-or-egg","iv-at-least-90","protected-rare","protected-shiny","protected-event","protected-background","protected-xxs","protected-xxl","invalid-input","invalid-input","pvp-rank"};return code>0&&code<19?reasons[code]:"invalid-input";}
 
 static void notify_map_poi_snapshot(const char *json_array) {
   if (!json_array) return;
@@ -746,6 +747,19 @@ static void handle_vgp_transfer_ready(const PgrVgpControllerOut &out, uint64_t t
   tp_in.keep_ids = g_keep_species_count ? g_keep_species : nullptr;
 
   int reason_code = g_tp->decide(&tp_in);
+  // PvP keep runs only when every other rule would transfer.
+  if (reason_code == 0 && pgr_pvp_keep) {
+    char pvp[96];
+    const int kept = pgr_pvp_keep(pk_obj, tf_out.attack, tf_out.defense, tf_out.stamina, tf_out.species, tid, pvp, sizeof(pvp));
+    if (kept > 0) {
+      emit_eventf("transfer-kept", "{\"id\":\"%llu\",\"species\":%d,\"reasonCode\":18,\"pvp\":\"%s\"}",
+                  static_cast<unsigned long long>(out.caught_id), tf_out.species, pvp);
+      char text[128];snprintf(text,sizeof(text),"Kept: %s",pvp);notify_transfer_result(text);
+      if (g_vgc && out.transfer_token != 0) g_vgc->transfer_feedback(out.transfer_token, PGR_VGC_FB_KEPT, tid);
+      clear_active_vgp_transfer();
+      return;
+    }
+  }
   if (reason_code < 0) {
     if (g_vgc && out.transfer_token != 0) {
       g_vgc->transfer_feedback(out.transfer_token, PGR_VGC_FB_FAILED, tid);

@@ -504,21 +504,22 @@ public final class Control {
     public static void setIvOwnedReady(boolean ready){ivOwnedReady=ready;}
     public static String ivDisplayStatus(){return (quickBallConfigured&&ivOwnedEnabled&&!ivOwnedReady)?"Details overlay unsupported on this app version":"";}
     public static int storageIvMode(){return storageIvMode;}
-    public static void setStorageIvMode(int mode){storageIvMode=mode>=0&&mode<=3?mode:0;if(storageIvMode>0)storageIvFormat=storageIvMode;saveSettings();event("storage-iv-mode",""+storageIvMode);}
+    public static void setStorageIvMode(int mode){storageIvMode=mode>=0&&mode<=4?mode:0;if(storageIvMode>0)storageIvFormat=storageIvMode;saveSettings();event("storage-iv-mode",""+storageIvMode);}
     public static boolean storageIvEnabled(){return storageIvMode!=0;}
     public static int storageIvFormat(){return storageIvFormat;}
     public static void setStorageIvEnabled(boolean enabled){setStorageIvMode(enabled?storageIvFormat:0);}
     public static void setStorageIvFormat(int format){
-        storageIvFormat=format>=1&&format<=3?format:3;
+        storageIvFormat=format>=1&&format<=4?format:3;
         if(storageIvMode!=0)setStorageIvMode(storageIvFormat);else saveSettings();
     }
     // One tap-to-cycle mode per screen: 0 off, else the format above.
     public static int ivCatchMode(){return ivCatchEnabled?ivCatchFormat:0;}
     public static int ivOwnedMode(){return ivOwnedEnabled?ivOwnedFormat:0;}
-    public static void setIvCatchMode(int mode){if(mode>=1&&mode<=3)ivCatchFormat=mode;setIvCatchEnabled(mode>=1&&mode<=3);}
-    public static void setIvOwnedMode(int mode){if(mode>=1&&mode<=3)ivOwnedFormat=mode;setIvOwnedEnabled(mode>=1&&mode<=3);}
-    /** Off, then all three, level and percent, level and attack/defense/stamina, back to off. */
-    public static int nextIvMode(int mode){return (mode+3)%4;}
+    // Format 4 is all three plus the best PvP rank (on the storage list, on a second row).
+    public static void setIvCatchMode(int mode){if(mode>=1&&mode<=4)ivCatchFormat=mode;setIvCatchEnabled(mode>=1&&mode<=4);}
+    public static void setIvOwnedMode(int mode){if(mode>=1&&mode<=4)ivOwnedFormat=mode;setIvOwnedEnabled(mode>=1&&mode<=4);}
+    /** Off, then all three with PvP, all three, level and percent, level and attack/defense/stamina, back to off. */
+    public static int nextIvMode(int mode){return (mode+4)%5;}
     // "S2|<storage mode>|<encounter format>|<details format>"; whether the encounter and details
     // panels show at all travels separately as ivCatchEnabled/ivOwnedEnabled.
     public static String storageIvConfig(){return "S2|"+(overlaysHidden?0:storageIvMode)+"|"+ivCatchFormat+"|"+ivOwnedFormat;}
@@ -540,6 +541,21 @@ public final class Control {
      * here. While the overlay is hidden the chance line is off; auto ball keeps running.
      */
     public static String catchChanceConfig(){return "C1|"+(catchChanceShown&&!overlaysHidden?1:0)+"|"+(autoBall?1:0)+"|"+autoBallTarget+"|"+autoBerry();}
+    // PvP keep for auto-transfer, per league (0 Great, 1 Ultra, 2 Master): a catch is kept when its
+    // stat-product rank is at or below that league's rank for a species in PvPoke's top PVP_META.
+    // pvpKeepLeagues has a bit per league that is on; each league keeps its rank while off.
+    static final String[] PVP_LEAGUES={"Great League","Ultra League","Master League"};
+    static final String[] PVP_RANK_KEYS={"pvpGreatRank","pvpUltraRank","pvpMasterRank"};
+    static final int[] PVP_RANKS={10,25,50,100}, PVP_DEFAULT_RANKS={50,10,10};
+    static final int PVP_META=150;
+    private static volatile int pvpKeepLeagues=3;
+    private static final int[] pvpRanks=PVP_DEFAULT_RANKS.clone();
+    public static boolean pvpKeep(int league){return league>=0&&league<3&&(pvpKeepLeagues&(1<<league))!=0;}
+    public static void setPvpKeep(int league,boolean on){if(league<0||league>=3)return;pvpKeepLeagues=on?pvpKeepLeagues|(1<<league):pvpKeepLeagues&~(1<<league);saveSettings();event("pvp-keep",PVP_LEAGUES[league]+(on?" ON":" OFF"));}
+    public static int pvpRank(int league){return league>=0&&league<3?pvpRanks[league]:0;}
+    public static void setPvpRank(int league,int rank){if(league<0||league>=3)return;pvpRanks[league]=rank>=1&&rank<=4096?rank:PVP_DEFAULT_RANKS[league];saveSettings();}
+    /** "P2|great|ultra|master|meta" for the native transfer check (transport slot 16); 0 = league off. */
+    public static String pvpKeepConfig(){return "P2|"+(pvpKeep(0)?pvpRanks[0]:0)+"|"+(pvpKeep(1)?pvpRanks[1]:0)+"|"+(pvpKeep(2)?pvpRanks[2]:0)+"|"+PVP_META;}
     public static void configureQuickBall(boolean configured) {
         synchronized(quickBallLock) {
             quickBallConfigured=configured; quickBallReady=false; ivOwnedReady=false; setThrowReady(false);setMapTapReady(false);
@@ -1051,12 +1067,14 @@ public final class Control {
                 if(keepDamaged[0])autoTransferEnabled=false;
                 ivCatchEnabled=Boolean.parseBoolean(p.getProperty("ivCatch","true"));
                 ivOwnedEnabled=Boolean.parseBoolean(p.getProperty("ivOwned","false"));
-                int catchFormat=boundedSetting(p,"ivCatchFormat",3),ownedFormat=boundedSetting(p,"ivOwnedFormat",3);
+                int catchFormat=boundedSetting(p,"ivCatchFormat",4),ownedFormat=boundedSetting(p,"ivOwnedFormat",4);
                 ivCatchFormat=catchFormat>0?catchFormat:2;ivOwnedFormat=ownedFormat>0?ownedFormat:2;
-                storageIvMode=boundedSetting(p,"storageIv",3);
+                storageIvMode=boundedSetting(p,"storageIv",4);
                 catchChanceShown=Boolean.parseBoolean(p.getProperty("catchChance","true"));autoBall=Boolean.parseBoolean(p.getProperty("autoBall","false"));
                 int target=boundedSetting(p,"autoBallTarget",99);autoBallTarget=target>0?target:75;
-                int format=boundedSetting(p,"storageIvFormat",3);storageIvFormat=format>0?format:storageIvMode>0?storageIvMode:3;
+                pvpKeepLeagues=p.getProperty("pvpKeepLeagues")==null?3:boundedSetting(p,"pvpKeepLeagues",7);
+                for(int i=0;i<3;i++){int rank=boundedSetting(p,PVP_RANK_KEYS[i],4096);pvpRanks[i]=rank>0?rank:PVP_DEFAULT_RANKS[i];}
+                int format=boundedSetting(p,"storageIvFormat",4);storageIvFormat=format>0?format:storageIvMode>0?storageIvMode:3;
                 // Migrate the former independent animation preference to Quick Catch.
                 quickBallEnabled=quickSummaryEnabled;
                 throwCurve=Boolean.parseBoolean(p.getProperty("curve","false"));
@@ -1136,6 +1154,8 @@ public final class Control {
         p.setProperty("transferKeepAll",String.valueOf(transferKeepAll)); p.setProperty("transferOverlay",String.valueOf(transferOverlayEnabled)); p.setProperty("transferKeepSpecies",transferKeepSpecies);
         p.setProperty("ivCatch",String.valueOf(ivCatchEnabled)); p.setProperty("ivOwned",String.valueOf(ivOwnedEnabled)); p.setProperty("ivCatchFormat",String.valueOf(ivCatchFormat)); p.setProperty("ivOwnedFormat",String.valueOf(ivOwnedFormat)); p.setProperty("storageIv",String.valueOf(storageIvMode)); p.setProperty("storageIvFormat",String.valueOf(storageIvFormat));
         p.setProperty("catchChance",String.valueOf(catchChanceShown)); p.setProperty("autoBall",String.valueOf(autoBall)); p.setProperty("autoBallTarget",String.valueOf(autoBallTarget));
+        p.setProperty("pvpKeepLeagues",String.valueOf(pvpKeepLeagues));
+        for(int i=0;i<3;i++)p.setProperty(PVP_RANK_KEYS[i],String.valueOf(pvpRanks[i]));
         p.setProperty("autoDismiss",String.valueOf(quickSummaryEnabled)); p.setProperty("fastBall",String.valueOf(quickBallEnabled));
         p.setProperty("throwAr",String.valueOf(throwAr)); p.setProperty("curve",String.valueOf(throwCurve)); p.setProperty("grade",String.valueOf(throwGrade));
         p.setProperty("throwAlwaysHit",String.valueOf(throwAlwaysHit));

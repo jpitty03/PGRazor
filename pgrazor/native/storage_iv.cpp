@@ -5,6 +5,7 @@
 #include "runtime_metadata.h"
 #include "runtime_transport.h"
 #include "shared_metadata.h"
+#include "pvp_keep.h"
 #include <atomic>
 #include <cmath>
 #include <cstdio>
@@ -55,11 +56,12 @@ void event(const std::string &json){auto tr=transport();if(!tr)return;PgrRuntime
 void status(const char *phase,const std::string &message){event(std::string("{\"phase\":\"")+phase+"\",\"message\":\""+message+"\"}");}
 
 // The storage mode of "S2|<storage>|<encounter>|<details>" from the current snapshot (0 off,
-// 1 level and attack/defense/stamina, 2 level and percent, 3 all three); anything else means off.
+// 1 level and attack/defense/stamina, 2 level and percent, 3 all three, 4 all three and a second row
+// with the PvP crest and rank); anything else means off.
 int configured_mode(){
  auto tr=transport();char s[16];uint32_t n=0;PgrRuntimeTransportSample a{};
  if(!tr||tr->sample(&a)||!a.snapshot_fresh||a.fault)return 0;
- if(tr->get_string(14,s,sizeof(s),&n)||n!=8||std::memcmp(s,"S2|",3)!=0||s[3]<'0'||s[3]>'3')return 0;
+ if(tr->get_string(14,s,sizeof(s),&n)||n!=8||std::memcmp(s,"S2|",3)!=0||s[3]<'0'||s[3]>'4')return 0;
  return s[3]-'0';
 }
 
@@ -189,8 +191,12 @@ void *class_type(const char *ns,const char *name){
 }
 void set_vector(void *o,const char *setter,float x,float y){float v[2]={x,y};void *a[]={v};call(o,setter,1,a);}
 // A cell's IV label: the PGRazorIv panel (a soft off-white backing, in the CP header's layout) and
-// the copy of the CP label inside it that shows the text.
-struct Label {void *panel=nullptr,*text=nullptr;};
+// the copy of the CP label inside it that shows the text. In mode 4 the panel also holds a second
+// row: the league crest (an Image) and the rank (another text copy).
+struct Label {void *panel=nullptr,*text=nullptr,*rank[3]={},*icon[3]={};};
+const char *const kRankNames[]={"PGRazorPvpRank0","PGRazorPvpRank1","PGRazorPvpRank2"};
+const char *const kIconNames[]={"PGRazorPvpIcon0","PGRazorPvpIcon1","PGRazorPvpIcon2"};
+const char *const kLeagueColor[]={"#2a63c4","#a87405","#6a3fb5"};
 // A new UI GameObject with a RectTransform, an Image and a LayoutElement, under parent.
 void *new_panel(void *parent){
  void *types=fn<void*(*)(void*,uintptr_t)>(boot.runtime.array_new)(class_of("System","Type"),3);require(types,"IV panel types");
@@ -209,6 +215,11 @@ Label iv_label(void *cp_text,bool create){
  if(void *found=invoke(find_child,parent,find_args)){
   require(unbox<int>(call(found,"get_childCount"))>=1,"IV label text");int first=0;void *index[]={&first};
   void *component_args[]={type_object(cp_text)};out.text=invoke(get_component,call(found,"GetChild",1,index),component_args);require(out.text,"IV label component");
+  for(int i=0;i<3;i++){
+   void *rank_args[]={managed_string(kRankNames[i])},*icon_args[]={managed_string(kIconNames[i])};
+   if(void *rank=invoke(find_child,found,rank_args))out.rank[i]=invoke(get_component,rank,component_args);
+   if(void *icon=invoke(find_child,found,icon_args)){void *image_type[]={class_type("UnityEngine.UI","Image")};out.icon[i]=invoke(get_component,icon,image_type);}
+  }
   out.panel=call(found,"get_gameObject");return out;}
  if(!create)return out;
  out.panel=new_panel(parent);void *panel_transform=call(out.panel,"get_transform");
@@ -239,12 +250,41 @@ Label iv_label(void *cp_text,bool create){
 // A smaller font than the CP label (smallest for the longest format), shrunk further when the line
 // would be wider than the cell. The panel hugs the text: one line tall, so the Pokemon image stays
 // close below, and a little wider.
-void size_label(void *cell,void *cp_text,const Label &l,int m){
- const float scale=m==3?0.42f:0.55f;void *size=call(cp_text,"get_fontSize");const std::string size_type=class_name(size);
+void put(void *component,float x,float y,float w,float h){
+ void *t=call(component,"get_transform");
+ set_vector(t,"set_anchorMin",0.5f,0.5f);set_vector(t,"set_anchorMax",0.5f,0.5f);set_vector(t,"set_pivot",0.5f,0.5f);
+ set_vector(t,"set_sizeDelta",w,h);set_vector(t,"set_anchoredPosition",x,y);
+ float one[3]={1,1,1};void *scale_args[]={one};call(t,"set_localScale",1,scale_args);
+}
+void set_active(void *component,bool on){if(component){void *a[]={&on};call(call(component,"get_gameObject"),"SetActive",1,a);}}
+// Adds one league's second-row pieces to a panel that lacks them; false without a crest sprite.
+bool add_pvp_pieces(Label &l,int league){
+ void *panel_transform=call(l.panel,"get_transform");bool hit=false;void *hit_args[]={&hit};
+ if(!l.rank[league]){
+  void *copy_args[]={l.text,panel_transform};void *rank=invoke(instantiate,nullptr,copy_args);require(rank&&klass(rank)==klass(l.text),"PvP rank copy");
+  void *name[]={managed_string(kRankNames[league])};call(call(rank,"get_gameObject"),"set_name",1,name);call(rank,"set_raycastTarget",1,hit_args);l.rank[league]=rank;
+ }
+ if(!l.icon[league]){
+  void *crest=pgr_pvp_crest?pgr_pvp_crest(league):nullptr;if(!crest)return false;
+  void *types=fn<void*(*)(void*,uintptr_t)>(boot.runtime.array_new)(class_of("System","Type"),2);require(types,"PvP icon types");
+  void *components[]={class_type("UnityEngine","RectTransform"),class_type("UnityEngine.UI","Image")};
+  for(int i=0;i<2;i++){void **slot=reinterpret_cast<void**>(static_cast<char*>(types)+32+i*8);fn<void(*)(void*,void**,void*)>(exp("gc_wbarrier_set_field"))(types,slot,components[i]);}
+  void *icon=fn<void*(*)(void*)>(boot.runtime.object_new)(class_of("UnityEngine","GameObject"));require(icon,"PvP icon");
+  void *ctor_args[]={managed_string(kIconNames[league]),types};invoke(new_game_object,icon,ctor_args);
+  bool keep_world=false;void *parent_args[]={panel_transform,&keep_world};invoke(set_parent,call(icon,"get_transform"),parent_args);
+  void *image_type[]={class_type("UnityEngine.UI","Image")};l.icon[league]=invoke(get_component,call(icon,"get_transform"),image_type);require(l.icon[league],"PvP icon image");
+  call(l.icon[league],"set_raycastTarget",1,hit_args);bool keep=true;void *aspect[]={&keep};call(l.icon[league],"set_preserveAspect",1,aspect);
+  void *sprite_args[]={crest};call(l.icon[league],"set_sprite",1,sprite_args);
+ }
+ return true;
+}
+void size_label(void *cell,void *cp_text,const Label &l,int m,const bool shown[3]){
+ const bool pvp=shown[0]||shown[1]||shown[2];
+ const float scale=m>=3?0.42f:0.55f;void *size=call(cp_text,"get_fontSize");const std::string size_type=class_name(size);
  float font=0;
  auto set_font=[&](float f){
-  if(size_type=="Int32"){int v=int(f);if(v<8)v=8;font=float(v);void *a[]={&v};call(l.text,"set_fontSize",1,a);}
-  else if(size_type=="Single"){float v=f<8?8:f;font=v;void *a[]={&v};call(l.text,"set_fontSize",1,a);}};
+  if(size_type=="Int32"){int v=int(f);if(v<8)v=8;font=float(v);void *a[]={&v};call(l.text,"set_fontSize",1,a);for(int i=0;i<3;i++)if(shown[i])call(l.rank[i],"set_fontSize",1,a);}
+  else if(size_type=="Single"){float v=f<8?8:f;font=v;void *a[]={&v};call(l.text,"set_fontSize",1,a);for(int i=0;i<3;i++)if(shown[i])call(l.rank[i],"set_fontSize",1,a);}};
  if(size_type=="Int32")set_font(unbox<int>(size)*scale);else if(size_type=="Single")set_font(unbox<float>(size)*scale);
  if(font<=0)return;
  struct Rect{float x,y,w,h;};
@@ -252,7 +292,27 @@ void size_label(void *cell,void *cp_text,const Label &l,int m){
  float text_width=unbox<float>(call(l.text,"get_preferredWidth"));
  if(cell_width>0&&text_width+font*0.8f>cell_width*0.96f&&font>8){
   set_font(font*(cell_width*0.96f)/(text_width+font*0.8f));text_width=unbox<float>(call(l.text,"get_preferredWidth"));}
- float line=font*1.25f,width=text_width+font*0.8f;
+ float line=font*1.25f,width=text_width+font*0.8f,height=line;
+ void *text_transform=call(l.text,"get_transform");
+ if(pvp){
+  // Second row: [crest] [rank] per league, centered under the IVs.
+  const float icon=font*1.2f,gap=font*0.2f,spacing=font*0.5f;
+  float rank_w[3]={0,0,0},row_w=0;int count=0;
+  for(int i=0;i<3;i++)if(shown[i]){rank_w[i]=unbox<float>(call(l.rank[i],"get_preferredWidth"));row_w+=(count?spacing:0.f)+icon+gap+rank_w[i];++count;}
+  if(row_w+font*0.8f>width)width=row_w+font*0.8f;
+  height=line*2;
+  put(l.text,0,line*0.5f,text_width+2,line);
+  float at=-row_w*0.5f;count=0;
+  for(int i=0;i<3;i++)if(shown[i]){
+   if(count++)at+=spacing;
+   put(l.icon[i],at+icon*0.5f,-line*0.5f,icon,icon);at+=icon+gap;
+   put(l.rank[i],at+rank_w[i]*0.5f,-line*0.5f,rank_w[i]+2,line);at+=rank_w[i];
+  }
+ }else{
+  set_vector(text_transform,"set_anchorMin",0,0);set_vector(text_transform,"set_anchorMax",1,1);
+  set_vector(text_transform,"set_pivot",0.5f,0.5f);set_vector(text_transform,"set_sizeDelta",0,0);set_vector(text_transform,"set_anchoredPosition",0,0);
+ }
+ line=height;
  set_vector(call(l.panel,"get_transform"),"set_sizeDelta",width,line);
  void *layout_type[]={layout_element_type()};void *layout=invoke(get_component,call(l.panel,"get_transform"),layout_type);require(layout,"IV label layout");
  void *line_args[]={&line},*width_args[]={&width};
@@ -276,7 +336,7 @@ void draw_over_icon(void *cell,void *cp_text){
 void render(void *cell,void *pokemon){
  const int m=mode.load(std::memory_order_acquire);
  void *cp_text=reference_field(cell,"cpText");require(cp_text,"CP label");
- const Label l=iv_label(cp_text,m!=0&&pokemon);
+ Label l=iv_label(cp_text,m!=0&&pokemon);
  if(!l.panel)return;
  bool show=m!=0&&pokemon;void *active[]={&show};call(l.panel,"SetActive",1,active);
  if(!show)return;
@@ -287,7 +347,16 @@ void render(void *cell,void *pokemon){
  const float multiplier=field<float>(pokemon,PGR_GAME_QUICKBALL_METADATA_H_CPMULTIPLIER__NAME,"System.Single")+
                         field<float>(pokemon,PGR_GAME_QUICKBALL_METADATA_H_ADDITIONALCPMULTIPLIER__NAME,"System.Single");
  void *args[]={managed_string(label(atk,def,sta,m,level_half(multiplier)))};call(l.text,"set_text",1,args);
- size_label(cell,cp_text,l,m);
+ PgrPvpBest best{};
+ const bool pvp=m==4&&pgr_pvp_best&&pgr_pvp_best(pokemon,PGR_PVP_STORAGE,atk,def,sta,owner,&best);
+ // Second row: each league's crest and rank (no species names; the cells are narrow).
+ bool shown[3]={false,false,false};
+ for(int i=0;i<3;i++){
+  shown[i]=pvp&&best.rank[i]>0&&add_pvp_pieces(l,i);
+  if(shown[i]){void *rank_args[]={managed_string("<color="+std::string(kLeagueColor[i])+">#"+std::to_string(best.rank[i])+"</color>")};call(l.rank[i],"set_text",1,rank_args);}
+  set_active(l.rank[i],shown[i]);set_active(l.icon[i],shown[i]);
+ }
+ size_label(cell,cp_text,l,m,shown);
  draw_over_icon(cell,cp_text);
 }
 void hook_initialize(void *self,void *initializer,const void *info){

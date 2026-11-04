@@ -19,6 +19,7 @@ def main():
     run(sys.executable, '-B', ROOT / 'tools/game_update.py', 'audit')
     run(sys.executable, '-B', ROOT / 'tools/native_routes_schema.py', '--check')
     run(sys.executable, '-B', ROOT / 'tools/native_gift_schema.py', '--check')
+    run(sys.executable, '-B', ROOT / 'tools/pvp_data.py', 'check')
     run(sys.executable, '-B', PROJECT / 'build.py', '--test-only')
     run(sys.executable, '-B', '-m', 'unittest', 'discover', '-s', PROJECT / 'test', '-p', 'test_*.py')
     for path in sorted((PROJECT / 'test').glob('*-test.cjs')):

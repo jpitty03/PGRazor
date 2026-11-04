@@ -1,0 +1,25 @@
+{
+  "repository": "https://github.com/PokeMiners/pogo_assets",
+  "commit": "db10df75d6f6f92018d9786af0aecc238fecc4ef",
+  "license_note": "Pokemon GO artwork; not covered by PGRazor MIT license.",
+  "files": [
+    {
+      "name": "pogo_great_league.png",
+      "source": "Images/Combat/pogo_great_league.png",
+      "sha256": "c4fcfd975eea2d7a3656e3eb08116599e0bc2b20cc3e9a7819f0fb0c517bc327",
+      "bytes": 51497
+    },
+    {
+      "name": "pogo_ultra_league.png",
+      "source": "Images/Combat/pogo_ultra_league.png",
+      "sha256": "ce7fef9916b98113f3dc5294d44e7c037a4023f2d369a12372a86bfdc0cc1a9b",
+      "bytes": 51380
+    },
+    {
+      "name": "pogo_master_league.png",
+      "source": "Images/Combat/pogo_master_league.png",
+      "sha256": "f91b0d40d239742bcb753c7ce30e538245317faf16758c608374e5534b1f4212",
+      "bytes": 51328
+    }
+  ]
+}

@@ -148,6 +148,8 @@ add_library(pgrazor_core SHARED
   iv_panel.cpp
   ar_values.cpp
   catch_chance.cpp
+  pvp_rank.cpp
+  pvp_keep.cpp
   remote_gym.cpp
   incense_guard.cpp
   batch_evolution.cpp

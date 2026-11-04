@@ -1,0 +1,11 @@
+{
+  "source": "https://github.com/pvpoke/pvpoke/tree/e02bde78d19be9b9099b5a6629c6a8d0835a53be",
+  "files": [
+    "src/data/gamemaster.json",
+    "src/data/rankings/all/overall/rankings-1500.json",
+    "src/data/rankings/all/overall/rankings-2500.json",
+    "src/data/rankings/all/overall/rankings-10000.json"
+  ],
+  "snapshot_sha256": "8f39ad92387430dc56cba6f3284289e164030d79f636b80723460f0f9f8065e9",
+  "species": 1073
+}

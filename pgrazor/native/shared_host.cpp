@@ -11,6 +11,7 @@
 #include "transfer_execution.h"
 #include "transfer_facts.h"
 #include "transfer_observers.h"
+#include "pvp_keep.h"
 #include "runtime_transport.h"
 #include "runtime_bootstrap.h"
 #include "interaction_observer.h"
@@ -93,7 +94,7 @@ bool scheduler_current(){return !pulse_generation||table<PgrUnitySchedulerApi>(p
 bool transport_current(){if(!(cfg.transport_flags&1))return true;PgrRuntimeTransportSample s{};return transport->sample(&s)==0&&s.snapshot_fresh&&!s.fault&&s.snapshot_seq==transport_sequence&&s.generation==transport_generation;}
 bool refresh_transport_current();
 bool current(uint64_t epoch){if(!owned()||!scheduler_current()||!refresh_transport_current())return false;const auto g=gate();return g.remaining&&g.epoch==epoch;}
-const char *keep_reason(int code){static const char *reasons[]={"none","keep-all","invalid-keep-list","unknown-species","custom-keep-list","unknown-iv","unknown-category","unknown-size","favorite-or-egg","iv-at-least-90","protected-rare","protected-shiny","protected-event","protected-background","protected-xxs","protected-xxl","invalid-native-input"};return code>=0&&code<17?reasons[code]:"native-transfer-blocked";}
+const char *keep_reason(int code){static const char *reasons[]={"none","keep-all","invalid-keep-list","unknown-species","custom-keep-list","unknown-iv","unknown-category","unknown-size","favorite-or-egg","iv-at-least-90","protected-rare","protected-shiny","protected-event","protected-background","protected-xxs","protected-xxl","invalid-native-input","native-transfer-blocked","pvp-rank"};return code>=0&&code<19?reasons[code]:"native-transfer-blocked";}
 bool publish(uint32_t opcode,const char *text=nullptr,int boolean=-1){PgrRuntimeTransportString s{text,text?uint32_t(std::strlen(text)):0};const int64_t value=boolean;const int rc=transport->emit(opcode,boolean<0?nullptr:&value,boolean<0?0:1,text?&s:nullptr,text?1:0);if(rc!=0&&rc!=PGR_TRANSPORT_STOPPED){failed=true;stopping=true;return false;}return true;}
 void transport_event(uint32_t kind,uint64_t slot,int status,uint32_t flags,int before,int after,int reason){
  const char *name="native-shared-event",*why="";
@@ -348,6 +349,9 @@ bool transfer(Record &r,bool direct=false){auto g=gate();if(!(capabilities&PGR_S
  PgrTransferExecRequest request{1,sizeof(request),r.id,r.epoch,tid(),bag.get(),pokemon.get(),{}};
  request.input={1,sizeof(PgrTransferInput),facts.attack,facts.defense,facts.stamina,facts.species,g.protect,facts.known,facts.flags,uint32_t((g.flags&PGR_SHH_KEEP_ALL)!=0),g.count,0,g.ids.data()};
  const int policy=transfer_policy->decide(&request.input);if(policy){emit(7,r.slot,policy);return false;}
+ // PvP keep runs only when every other rule would transfer.
+ if(pgr_pvp_keep){char pvp[96];if(pgr_pvp_keep(pokemon.get(),facts.attack,facts.defense,facts.stamina,facts.species,tid(),pvp,sizeof(pvp))>0){
+  emit(7,r.slot,18);char message[128];std::snprintf(message,sizeof(message),"Kept: %s",pvp);publish(56,message);return false;}}
  if(r.slot)sh->transfer_bind(r.slot,r.key,tid());
  // No tick/event drain can reenter this owner while submit calls managed code.
  // The compiled observer can synchronously enqueue COMPLETE; correlate before draining.

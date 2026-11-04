@@ -60,6 +60,8 @@ final class SettingsPanel {
         buddyStatus, giftStatus, itemStatus, rocketStatus, battleStatus, quickBallStatus, ivStatus, cameraStatus, interactionStatus;
     // Multi-option groups keep checkboxes / radios.
     private final CheckBox[] transferProtection=new CheckBox[6];
+    private final Switch[] pvpKeep=new Switch[3];
+    private final Button[] pvpRank=new Button[3];
     private final CheckBox[] giftChoices=new CheckBox[3];
     private final CheckBox[] quickMenuChoices=new CheckBox[QuickMenu.CUSTOMIZABLE.length];
     private final CheckBox[] rocketChoices=new CheckBox[3];
@@ -248,6 +250,20 @@ final class SettingsPanel {
         String[] protections={"Keep legendary / mythical / Ultra Beasts","Keep shiny Pokemon","Keep event / costume Pokemon","Keep background Pokemon","Keep XXS","Keep XXL"};
         for(int i=0;i<6;i++){final int bit=1<<i;CheckBox box=new CheckBox(activity);box.setText(protections[i]);box.setChecked((Control.transferProtect()&bit)!=0);transferProtection[i]=box;txC.addView(box);
             box.setOnClickListener(v->Control.setTransferProtect(box.isChecked()?Control.transferProtect()|bit:Control.transferProtect()&~bit));}
+        // One row per league: its switch, then the rank it keeps (tap to cycle).
+        for(int i=0;i<3;i++){final int league=i;
+            LinearLayout row=new LinearLayout(activity);row.setOrientation(LinearLayout.HORIZONTAL);row.setGravity(Gravity.CENTER_VERTICAL);row.setMinimumHeight(dp(44));
+            TextView label=new TextView(activity);label.setText("Keep "+Control.PVP_LEAGUES[i]+" PvP IVs");label.setTextSize(14);row.addView(label,new LinearLayout.LayoutParams(0,-2,1f));
+            Button rank=button("Top "+Control.pvpRank(i));pvpRank[i]=rank;row.addView(rank,new LinearLayout.LayoutParams(-2,-2));
+            Switch sw=new Switch(activity);sw.setContentDescription("Keep "+Control.PVP_LEAGUES[i]+" PvP IVs");sw.setChecked(Control.pvpKeep(i));pvpKeep[i]=sw;
+            LinearLayout.LayoutParams swParams=new LinearLayout.LayoutParams(-2,-2);swParams.leftMargin=dp(8);row.addView(sw,swParams);
+            sw.setOnCheckedChangeListener((v,checked)->{if(checked==Control.pvpKeep(league))return;Control.setPvpKeep(league,checked);host.refresh();});
+            rank.setOnClickListener(v->{
+                int[] ranks=Control.PVP_RANKS;int next=ranks[0];
+                for(int j=0;j<ranks.length;j++)if(ranks[j]==Control.pvpRank(league)){next=ranks[(j+1)%ranks.length];break;}
+                Control.setPvpRank(league,next);host.refresh();});
+            txC.addView(row);}
+        caption(txC, "PvP keeps a catch whose IVs rank within the chosen top in a league that is on, for it or anything it evolves into. That species must be in PvPoke's top "+Control.PVP_META+" for the league, and it must still fit under the league's CP cap. Ranks allow levels up to 50.");
         transferKeepList = button("Custom keep list"); txC.addView(transferKeepList);
         transferKeepList.setOnClickListener(v -> TransferKeepDialog.show(activity, host::refresh));
         transferOverlaySwitch = switchRow(txC, "Keep-all overlay button"); transferOverlaySwitch.setChecked(Control.transferOverlayEnabled());
@@ -551,6 +567,7 @@ final class SettingsPanel {
         quickSummaryStatus.setText(Control.quickSummaryStatus());
         autoTransferSwitch.setChecked(Control.autoTransferEnabled());
         for(int i=0;i<6;i++)transferProtection[i].setChecked((Control.transferProtect()&(1<<i))!=0);
+        for(int i=0;i<3;i++){pvpKeep[i].setChecked(Control.pvpKeep(i));pvpRank[i].setText("Top "+Control.pvpRank(i));pvpRank[i].setEnabled(Control.pvpKeep(i));}
         if(transferKeepList!=null){String kept=Control.transferKeepSpecies();int n=kept.isEmpty()?0:kept.split(",").length;transferKeepList.setText(n>0?"Custom keep list ("+n+")":"Custom keep list");}
         if(transferOverlaySwitch!=null){transferOverlaySwitch.setChecked(Control.transferOverlayEnabled());transferOverlaySwitch.setEnabled(Control.autoTransferEnabled());transferOverlaySwitch.setAlpha(1f);}
         transferStatus.setText(Control.transferStatus());
@@ -608,7 +625,7 @@ final class SettingsPanel {
     }
 
     // Indexed by IV mode: 0 off, 1 level and attack/defense/stamina, 2 level and percent, 3 all three.
-    private static final String[] IV_MODES={"Off","Lv · 15/14/12","Lv · IV","Lv · IV · 15/14/12"};
+    private static final String[] IV_MODES={"Off","Lv · 15/14/12","Lv · IV","Lv · IV · 15/14/12","Lv · IV · 15/14/12 · PvP"};
 
     private void refreshThrows() {
         throwGrade.setText("Throw rating: "+new String[]{"OFF","Nice","Great","Excellent"}[Control.throwGrade()]);

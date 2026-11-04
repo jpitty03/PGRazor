@@ -341,7 +341,8 @@ const void *pgrazor_iv_display_api(uint32_t version);
 // built) falls back to the label rewrite for that record. Unregistered (fixtures) = rewrite.
 struct PgrIvPanelHooks {
   bool (*available)();  // runtime ready and not faulted; false keeps the rewrite + Outline path
-  bool (*show)(bool owned, void *text_obj, int32_t level_half, int atk, int def, int sta);
+  // pvp: Great, Ultra and Master League ranks to show (pvp_keep.h PgrPvpBest; a 0 rank shows nothing).
+  bool (*show)(bool owned, void *text_obj, int32_t level_half, int atk, int def, int sta, const struct PgrPvpBest *pvp);
   void (*hide)(void *text_obj);
 };
 void pgr_iv_display_set_panel_hooks(const PgrIvPanelHooks *hooks);

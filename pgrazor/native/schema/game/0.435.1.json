@@ -9285,6 +9285,58 @@
         "purpose": "Managed field layout for h_vgp_f_bag_gm"
       }
     },
+    "pvp_keep_cpp": {
+      "pokemonid__offset": {
+        "kind": "offset",
+        "value": "0x28",
+        "purpose": "Field PokemonProto.pokemonId_"
+      },
+      "pokemonid__name": {
+        "kind": "name",
+        "value": "pokemonId_",
+        "purpose": "Field name for pokemonId_"
+      },
+      "pokemondisplay__offset": {
+        "kind": "offset",
+        "value": "0xd8",
+        "purpose": "Field PokemonProto.pokemonDisplay_"
+      },
+      "pokemondisplay__name": {
+        "kind": "name",
+        "value": "pokemonDisplay_",
+        "purpose": "Field name for pokemonDisplay_"
+      },
+      "cpmultiplier__offset": {
+        "kind": "offset",
+        "value": "0x7c",
+        "purpose": "Field PokemonProto.cpMultiplier_"
+      },
+      "cpmultiplier__name": {
+        "kind": "name",
+        "value": "cpMultiplier_",
+        "purpose": "Field name for cpMultiplier_"
+      },
+      "additionalcpmultiplier__offset": {
+        "kind": "offset",
+        "value": "0xac",
+        "purpose": "Field PokemonProto.additionalCpMultiplier_"
+      },
+      "additionalcpmultiplier__name": {
+        "kind": "name",
+        "value": "additionalCpMultiplier_",
+        "purpose": "Field name for additionalCpMultiplier_"
+      },
+      "form_offset": {
+        "kind": "offset",
+        "value": "0x1c",
+        "purpose": "Field PokemonDisplayProto.Form"
+      },
+      "alignment_offset": {
+        "kind": "offset",
+        "value": "0x24",
+        "purpose": "Field PokemonDisplayProto.Alignment"
+      }
+    },
     "smart_catch_binding_cpp": {
       "emsg_offset": {
         "kind": "offset",

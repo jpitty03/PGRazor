@@ -1,6 +1,7 @@
 #include "iv_display.h"
 #include "hook_engine.h"
 #include "runtime_bootstrap.h"
+#include "pvp_keep.h"
 #include <dlfcn.h>
 
 #include <atomic>
@@ -113,6 +114,7 @@ struct Record {
   bool panel;  // applied as the light-panel line (restore hides it; the label is untouched)
   int32_t level_half;
   int atk, def, sta;
+  PgrPvpBest pvp;  // ranks to show; all 0 = none
   bool outline_created;
   bool outline_enabled;  // snapshotted enabled state (restore target)
   int32_t font_size, rich, fit, overflow, alignment;
@@ -796,7 +798,7 @@ void render(Record &r, bool enabled, Ctx &c) {
     if (ph != nullptr && ph->available()) {
       void *obj = refresh_durable(r.text, c, PGR_IV_REASON_RENDER);
       if (obj == nullptr || !check_apply_gate(c)) return;
-      if (ph->show(r.owned, obj, r.level_half, r.atk, r.def, r.sta)) {
+      if (ph->show(r.owned, obj, r.level_half, r.atk, r.def, r.sta, &r.pvp)) {
         r.applied = true;
         r.panel = true;
         return;
@@ -919,7 +921,7 @@ void evict_oldest_owned() {
 // Snapshot the authentic UI state, build the overlay and apply/restore per the gate. On
 // any error the partial record's roots are freed and the channel faults.
 void capture_overlay(bool is_catch, void *text_obj, int32_t cp, int32_t level_half, int atk,
-                     int def, int sta, uint64_t tid) {
+                     int def, int sta, uint64_t tid, const PgrPvpBest &pvp) {
   // Use the generation pinned at hook entry, including an explicitly disabled zero value.
   // Only callers without a pinned generation take a fresh snapshot. A zero result
   // means the channel was disabled/expired: the record is still captured, just left un-applied
@@ -970,6 +972,7 @@ void capture_overlay(bool is_catch, void *text_obj, int32_t cp, int32_t level_ha
   r.atk = atk;
   r.def = def;
   r.sta = sta;
+  r.pvp = pvp;
   char full[kLabelCap];
   build_labels(!is_catch, original, cp, level_half, atk, def, sta, full, r.label);
 
@@ -1192,7 +1195,10 @@ void capture_catch(void *plate, void *map, uint64_t tid) {
     publish_catch_unavailable(c.reason, tid);
     return;
   }
-  capture_overlay(true, text_obj, cp, level_half, atk, def, sta, tid);
+  // The PvP rank is worked out only when this screen's format shows it.
+  PgrPvpBest pvp{};
+  if (pgr_pvp_best) pgr_pvp_best(pokemon, PGR_PVP_ENCOUNTER, atk, def, sta, tid, &pvp);
+  capture_overlay(true, text_obj, cp, level_half, atk, def, sta, tid, pvp);
 }
 
 void capture_owned(void *panel, void *proto, uint64_t tid) {
@@ -1234,7 +1240,9 @@ void capture_owned(void *panel, void *proto, uint64_t tid) {
     publish_owned_unavailable(c.reason, tid);
     return;
   }
-  capture_overlay(false, text_obj, cp, level_half, atk, def, sta, tid);
+  PgrPvpBest pvp{};
+  if (pgr_pvp_best) pgr_pvp_best(proto, PGR_PVP_DETAILS, atk, def, sta, tid, &pvp);
+  capture_overlay(false, text_obj, cp, level_half, atk, def, sta, tid, pvp);
 }
 
 // --- hooks -------------------------------------------------------------------------

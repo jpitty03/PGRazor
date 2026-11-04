@@ -6,6 +6,8 @@
 - **Auto ball:** Optionally picks the cheapest Poké, Great or Ultra Ball that reaches your target chance when a manual encounter opens and after each escape. A ball you pick by hand is kept until the next escape, and it never uses a Master Ball. Turn it on under Settings > Throws.
 - **IV display:** Encounter and Pokémon stats screen IVs show on a light panel like the storage list. Under Settings > Location & overlays > IV Display, each screen (Encounter, Pokémon stats screen, Pokémon storage list) has one button that cycles Off, Lv · IV · 15/14/12, Lv · IV and Lv · 15/14/12, and the storage list can now show the level too.
 - **VGP+ auto ball:** VGP+ can also pick the cheapest Poké, Great or Ultra Ball that reaches your target chance for each throw, using the server's catch rate with your VGP+ berry, throw rating and curveball. It replaces the standard ball; the shiny, IV and CP/level Ultra Ball rules still apply, and it never uses a Master Ball. Turn it on under Virtual Go Plus > VGP+.
+- **PvP keep:** Auto-transfer can keep catches with good PvP IVs, with a separate rank for Great League (default top 50), Ultra League (default top 10) and Master League (off by default), counting the Pokémon and anything it evolves into when that species is in PvPoke's top 150 for the league. Set it under Transfer on catch.
+- **PvP IV display:** A new PvP format for the encounter, Pokémon stats screen and storage list IVs adds a second row with each league's crest and IV rank.
 - **VGP incense catches:** Virtual GO Plus and VGP+ now catch Pokémon attracted by your incense, not only wild spawns, with the same VGP+ rules, auto ball and transfer settings.
 
 ## v0.2.0
