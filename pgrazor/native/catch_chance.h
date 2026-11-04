@@ -8,3 +8,6 @@ void pgr_catch_chance_tick(uint64_t tid,const PgrSharedMetadataOutput *metadata)
 void pgr_catch_chance_enter(void *state);
 void pgr_catch_chance_exit(void *state);
 void pgr_catch_chance_stop();
+// VGP+ auto ball: base[1..3] = the server's Poke/Great/Ultra capture probability in an
+// EncounterOutProto (0 when not offered). Owner thread, after the first tick; false when unreadable.
+bool pgr_catch_chance_base(void *encounter_out,double base[4]);

@@ -6,7 +6,7 @@ public final class SmartCatchPreferencesTest {
     static void reject(Runnable action){checks++;try{action.run();}catch(IllegalArgumentException expected){return;}throw new AssertionError("Accepted invalid input");}
     public static void main(String[] args){
         SmartCatchPreferences p=new SmartCatchPreferences();
-        String defaults="1;0;1;0;1;1500;30;3;1;";
+        String defaults="2;0;1;0;1;1500;30;3;1;0;75;";
         eq(defaults,p.config());
         eq(false,p.spinGyms());
         eq(true,SmartCatchPreferences.matchesSpecies(25,"Pikachu","PIKA"));
@@ -15,9 +15,11 @@ public final class SmartCatchPreferencesTest {
         eq(false,SmartCatchPreferences.matchesSpecies(25,"Pikachu","Eevee"));
         String[][] values={{"Enabled","true"},{"Ball","3"},{"Berry","708"},{"Premium","false"},{"HighCp","10000"},{"HighLevel","50"},{"Grade","0"},{"Curve","false"},{"CandySpecies"," 25,1,25,2000 "}};
         for(String[] v:values)p.set(v[0],v[1]);
-        eq("1;1;3;708;0;10000;50;0;0;1,25,2000",p.config());
-        p.set("SpinGyms","true");eq(true,p.spinGyms());eq("1;1;3;708;0;10000;50;0;0;1,25,2000",p.config());
-        Properties saved=new Properties();p.write(saved);eq(10,saved.size());
+        eq("2;1;3;708;0;10000;50;0;0;0;75;1,25,2000",p.config());
+        p.set("SpinGyms","true");eq(true,p.spinGyms());eq("2;1;3;708;0;10000;50;0;0;0;75;1,25,2000",p.config());
+        p.set("AutoBall","true");p.set("AutoBallTarget","85");eq(true,p.autoBall());eq(85,p.autoBallTarget());
+        eq("2;1;3;708;0;10000;50;0;0;1;85;1,25,2000",p.config());
+        Properties saved=new Properties();p.write(saved);eq(12,saved.size());
         SmartCatchPreferences restored=new SmartCatchPreferences();restored.read(saved);eq(p.config(),restored.config());eq(true,restored.spinGyms());
         Properties legacy=new Properties();legacy.setProperty("gymAutomationSpin","true");
         restored.read(legacy);eq(true,restored.spinGyms());
@@ -25,7 +27,7 @@ public final class SmartCatchPreferencesTest {
         legacy.setProperty("smartCatchSpinGyms","false");legacy.setProperty("gymAutomationSpin","true");
         restored.read(legacy);eq(false,restored.spinGyms()); // New key wins over legacy.
         restored.read(new Properties());eq(defaults,restored.config());eq(false,restored.spinGyms());
-        String[][] invalid={{"Enabled","yes"},{"Ball","4"},{"Berry","707"},{"Premium","TRUE"},{"HighCp","-1"},{"HighLevel","51"},{"Grade","4"},{"Curve","1"},{"SpinGyms","1"},{"CandySpecies","0"}};
+        String[][] invalid={{"Enabled","yes"},{"Ball","4"},{"Berry","707"},{"Premium","TRUE"},{"HighCp","-1"},{"HighLevel","51"},{"Grade","4"},{"Curve","1"},{"SpinGyms","1"},{"AutoBall","1"},{"AutoBallTarget","0"},{"CandySpecies","0"}};
         Properties bad=new Properties();for(String[] v:invalid)bad.setProperty("smartCatch"+v[0],v[1]);
         p.read(bad);eq(defaults,p.config());
         for(String[] v:invalid){String before=p.config();reject(()->p.set(v[0],v[1]));eq(before,p.config());}
@@ -39,6 +41,8 @@ public final class SmartCatchPreferencesTest {
         eq(ids.toString(),SmartCatchPreferences.normalizeSpecies(ids.toString()));
         reject(()->SmartCatchPreferences.normalizeSpecies(ids+",201"));
         for(int berry:new int[]{0,701,703,705,706,708}){p.set("Berry",String.valueOf(berry));eq(berry,p.berry());}
+        for(int t:new int[]{1,50,99}){p.set("AutoBallTarget",String.valueOf(t));eq(t,p.autoBallTarget());}
+        reject(()->p.set("AutoBallTarget","100"));
         p.set("HighCp","0");p.set("HighLevel","0");p.set("Grade","3");p.set("Ball","1");
         eq(0,p.highCp());eq(0,p.highLevel());eq(3,p.grade());eq(1,p.ball());
         System.out.println("SmartCatchPreferences: "+checks+" checks passed");

@@ -5,8 +5,8 @@ import java.util.TreeSet;
 
 /** Pure Java account configuration and native wire serialization. */
 public final class SmartCatchPreferences {
-    private boolean enabled, premium=true, curve=true, spinGyms;
-    private int ball=1, berry, highCp=1500, highLevel=30, grade=3;
+    private boolean enabled, premium=true, curve=true, spinGyms, autoBall;
+    private int ball=1, berry, highCp=1500, highLevel=30, grade=3, autoBallTarget=75;
     private String candySpecies="";
     private static final int[] BERRIES={0,701,703,705,706,708};
 
@@ -39,6 +39,7 @@ public final class SmartCatchPreferences {
         berry=number(p,"Berry",0,0,708);if(!validBerry(berry))berry=0;
         premium=flag(p,"Premium",true);highCp=number(p,"HighCp",1500,0,10000);
         highLevel=number(p,"HighLevel",30,0,50);grade=number(p,"Grade",3,0,3);curve=flag(p,"Curve",true);
+        autoBall=flag(p,"AutoBall",false);autoBallTarget=number(p,"AutoBallTarget",75,1,99);
         String spin=p.getProperty("smartCatchSpinGyms");
         if(spin==null)spin=p.getProperty("gymAutomationSpin");
         spinGyms="true".equals(spin);
@@ -49,11 +50,13 @@ public final class SmartCatchPreferences {
         p.setProperty("smartCatchBerry",String.valueOf(berry));p.setProperty("smartCatchPremium",String.valueOf(premium));
         p.setProperty("smartCatchHighCp",String.valueOf(highCp));p.setProperty("smartCatchHighLevel",String.valueOf(highLevel));
         p.setProperty("smartCatchGrade",String.valueOf(grade));p.setProperty("smartCatchCurve",String.valueOf(curve));
+        p.setProperty("smartCatchAutoBall",String.valueOf(autoBall));p.setProperty("smartCatchAutoBallTarget",String.valueOf(autoBallTarget));
         p.setProperty("smartCatchSpinGyms",String.valueOf(spinGyms));p.remove("gymAutomationSpin");
         p.setProperty("smartCatchCandySpecies",candySpecies);
     }
     public synchronized String config(){
-        return "1;"+(enabled?1:0)+";"+ball+";"+berry+";"+(premium?1:0)+";"+highCp+";"+highLevel+";"+grade+";"+(curve?1:0)+";"+candySpecies;
+        // Version 2 adds auto ball and its target before the species list.
+        return "2;"+(enabled?1:0)+";"+ball+";"+berry+";"+(premium?1:0)+";"+highCp+";"+highLevel+";"+grade+";"+(curve?1:0)+";"+(autoBall?1:0)+";"+autoBallTarget+";"+candySpecies;
     }
     public static boolean matchesSpecies(int id,String name,String query){
         String q=query==null?"":query.trim().toLowerCase(java.util.Locale.US);
@@ -64,6 +67,8 @@ public final class SmartCatchPreferences {
     public synchronized boolean premium(){return premium;}
     public synchronized boolean curve(){return curve;}
     public synchronized boolean spinGyms(){return spinGyms;}
+    public synchronized boolean autoBall(){return autoBall;}
+    public synchronized int autoBallTarget(){return autoBallTarget;}
     public synchronized int ball(){return ball;}
     public synchronized int berry(){return berry;}
     public synchronized int highCp(){return highCp;}

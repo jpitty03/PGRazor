@@ -61,6 +61,10 @@ public class SettingsBackupRulesTest {
         v=valid();v.getJSONObject("settings").put("smartCatchSpinGyms","true");SettingsBackupRules.validate(v);
         v=valid();v.getJSONObject("settings").put("smartCatchSpinGyms","false");SettingsBackupRules.validate(v);
         v=valid();v.getJSONObject("settings").put("smartCatchSpinGyms","1");rejects(v);
+        v=valid();v.getJSONObject("settings").put("smartCatchAutoBall","true").put("smartCatchAutoBallTarget","90");SettingsBackupRules.validate(v);
+        v=valid();v.getJSONObject("settings").put("smartCatchAutoBall","1");rejects(v);
+        v=valid();v.getJSONObject("settings").put("smartCatchAutoBallTarget","0");rejects(v);
+        v=valid();v.getJSONObject("settings").put("smartCatchAutoBallTarget","100");rejects(v);
         v=valid();v.getJSONObject("preferences").put("pgrazor-overlays",new JSONObject().put("gym-feed.fx",0.4).put("gym-feed.fy",0.6));SettingsBackupRules.validate(v);
         v=valid();v.getJSONObject("preferences").put("pgrazor-overlays",new JSONObject().put("gym-feed.fx",1.1));rejects(v);
         // Transfer keep list and Keep All / overlay settings.

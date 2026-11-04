@@ -5,6 +5,18 @@
 // Scoped owner-thread admission check, rechecked after managed reflection.
 void pgr_smart_set_admission_guard(bool (*guard)(void *), void *context);
 
+// Auto ball. The binding registers a source that fills base[1..3] (Poke, Great, Ultra; 0 when not
+// offered) with the server's per-ball capture probability from the target's encounter response, on the
+// owner thread. With no source, or when it returns false, plan() keeps the rule-chosen ball.
+void pgr_smart_set_capture_source(bool (*source)(void *target, uint64_t owner, double base[4]));
+// Pure. The chance of one throw: 1 - (1 - base) ^ (berry * throw * curve), with the throw multiplier
+// taken from the reticle size VGP+ requests for the rating (2 - radius) and 1.7 for a curveball.
+double pgr_smart_chance(double base, int berry, int grade, bool curve);
+// Pure. The cheapest in-stock ball from min_ball up whose chance reaches target percent; otherwise the
+// in-stock one from min_ball up with the best chance; 0 when none has data and stock.
+int pgr_smart_auto_ball(const double base[4], const int stock[4], int min_ball, int berry, int grade,
+                        bool curve, int target);
+
 // Smart Background Catcher native helper (FEATURE_PROPOSALS module2). This is an INTERNAL C++ helper
 // surface (NOT an exported pgrazor_native_api feature table): the VGP controller (feature 25/26) and the
 // existing VGP actions/aux modules link these functions directly and drive them from the ALREADY-PROVEN
@@ -92,7 +104,8 @@ enum PgrSmartStatus {
 
 // Parsed Smart Catcher settings (transport index 7). Format, exactly as emitted by
 // SmartCatchSettings.config():
-//   "1;enabled;ball;berry;premium;highCp;highLevel;grade;curve;<comma-separated species ids>"
+//   "2;enabled;ball;berry;premium;highCp;highLevel;grade;curve;autoBall;autoTarget;<species ids>"
+// The version-1 form (without autoBall/autoTarget) is still accepted, with auto ball off.
 // Field 0 is the schema tag "1". A malformed string, a wrong tag, an out-of-range field or an over-long
 // buffer yields a SAFE DISABLED result (enabled == false): smart is never run on an unparseable config.
 struct PgrSmartSettings {
@@ -106,6 +119,8 @@ struct PgrSmartSettings {
   int32_t  curve;          // 0/1
   uint32_t species_count;  // number of valid candy species ids parsed (<= PGR_SMART_MAX_SPECIES)
   int32_t  species[PGR_SMART_MAX_SPECIES];  // ascending, de-duplicated National Dex ids (1..2000)
+  int32_t  auto_ball;      // 0/1: pick the cheapest ball that reaches auto_target (version 2)
+  int32_t  auto_target;    // 1..99 percent (default 75)
 };
 
 // The decision handed back to the controller after a confirmed encounter. ball is always a regular ball
@@ -208,7 +223,8 @@ struct PgrSmartBinding {
 // (the string need not be NUL-terminated); a len above PGR_SMART_CONFIG_MAX yields a disabled result.
 int pgr_smart_parse_settings(const char *text, size_t len, PgrSmartSettings *out);
 
-// Pure decision precedence over the extracted encounter stats. iv_sum is attack+defense+stamina (0..45),
+// Pure decision precedence over the extracted encounter stats. With auto_ball the standard ball is
+// replaced by a Poke Ball, which plan() then raises to the target; the Ultra Ball rules still apply. iv_sum is attack+defense+stamina (0..45),
 // iv_valid says the three IVs were populated (each 0..15). level_half is the half-level (level*2), or a
 // negative value when the level is unknown (never fabricated). species_id is the National Dex id. Fills
 // the DESIRED ball/berry/grade/curve (stock is applied later by plan()). enabled follows settings.enabled.

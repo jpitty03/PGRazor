@@ -43,7 +43,14 @@ public final class SmartCatchSettings {
         CheckBox mode=new CheckBox(ui);mode.setText("VGP+");mode.setChecked(preferences.enabled());body.addView(mode);
         LinearLayout options=new LinearLayout(ui);options.setOrientation(LinearLayout.VERTICAL);body.addView(options);
         TextView description=new TextView(ui);description.setText("Use the VGP overlay to start or stop. VGP+ adds ball, berry and throw choices. High CP/level targets use Ultra Balls; set a threshold to 0 to disable it.");options.addView(description);
-        row(activity,options,"Standard ball",new String[]{"Poké Ball","Great Ball","Ultra Ball"},preferences.ball()-1,index->{set("Ball",index+1);});
+        TextView standard=row(activity,options,"Standard ball",new String[]{"Poké Ball","Great Ball","Ultra Ball"},preferences.ball()-1,index->{set("Ball",index+1);});
+        CheckBox auto=new CheckBox(ui);auto.setText("Auto ball");auto.setChecked(preferences.autoBall());options.addView(auto);
+        TextView autoTarget=button(options,"Auto ball target: "+preferences.autoBallTarget()+"%");
+        TextView autoHelp=new TextView(ui);autoHelp.setText("Replaces the standard ball: throws the cheapest ball whose catch chance reaches the target, from the server's catch rate with your berry, throw rating and curveball. The Ultra Ball rules below still apply, and a Master Ball is never used.");options.addView(autoHelp);
+        autoTarget.setOnClickListener(v->{
+            int[] targets=Control.AUTO_BALL_TARGETS;int next=targets[0];
+            for(int i=0;i<targets.length;i++)if(targets[i]==preferences.autoBallTarget()){next=targets[(i+1)%targets.length];break;}
+            set("AutoBallTarget",next);autoTarget.setText("Auto ball target: "+next+"%");});
         int berryIndex=0;for(int i=0;i<BERRIES.length;i++)if(BERRIES[i]==preferences.berry())berryIndex=i;
         row(activity,options,"Standard berry",BERRY_NAMES,berryIndex,index->{set("Berry",BERRIES[index]);});
         CheckBox special=new CheckBox(ui);special.setText("Shiny or IV ≥90%: Ultra Ball + Golden Razz");special.setChecked(preferences.premium());options.addView(special);
@@ -58,7 +65,8 @@ public final class SmartCatchSettings {
         gymSpin.setOnCheckedChangeListener((v,on)->{if(on!=preferences.spinGyms())set("SpinGyms",on);});
         TextView candy=button(options,"Candy species (Pinap): "+(preferences.candySpecies().isEmpty()?"None":preferences.candySpecies().split(",").length+" selected"));
         candy.setOnClickListener(v->SmartCatchSpeciesDialog.show(activity,()->candy.setText("Candy species (Pinap): "+(preferences.candySpecies().isEmpty()?"None":preferences.candySpecies().split(",").length+" selected"))));
-        Runnable refresh=()->{mode.setChecked(preferences.enabled());gymSpin.setChecked(preferences.spinGyms());SettingsUi.enabled(mode,Control.vgpOverlay());SettingsUi.enabled(options,Control.vgpOverlay()&&preferences.enabled());};
+        Runnable refresh=()->{mode.setChecked(preferences.enabled());gymSpin.setChecked(preferences.spinGyms());auto.setChecked(preferences.autoBall());SettingsUi.enabled(mode,Control.vgpOverlay());SettingsUi.enabled(options,Control.vgpOverlay()&&preferences.enabled());if(Control.vgpOverlay()&&preferences.enabled()){SettingsUi.enabled(autoTarget,preferences.autoBall());SettingsUi.enabled(standard,!preferences.autoBall());}};
+        auto.setOnCheckedChangeListener((v,on)->{if(on!=preferences.autoBall())set("AutoBall",on);refresh.run();});
         mode.setOnCheckedChangeListener((v,on)->{if(on!=preferences.enabled())set("Enabled",on);refresh.run();});
         refresh.run();return refresh;
     }
@@ -79,12 +87,13 @@ public final class SmartCatchSettings {
     private static TextView button(LinearLayout body,String text){
         android.widget.Button b=new android.widget.Button(body.getContext());b.setText(text);b.setAllCaps(false);body.addView(b);return b;
     }
-    private static void row(Activity a,LinearLayout body,String title,String[] names,int selected,Choice save){
+    private static TextView row(Activity a,LinearLayout body,String title,String[] names,int selected,Choice save){
         TextView button=button(body,title+": "+names[selected]);final int[] current={selected};
         button.setOnClickListener(v->{
             AlertDialog d=new AlertDialog.Builder(MapTheme.wrap(a)).setTitle(title).setSingleChoiceItems(names,current[0],(dialog,index)->{save.set(index);current[0]=index;button.setText(title+": "+names[index]);dialog.dismiss();}).setNegativeButton("Cancel",null).create();
             DialogLifecycle.bind(a,d,null);d.setOnShowListener(x->MapTheme.styleButtons(d));d.show();
         });
+        return button;
     }
     private static void input(Activity a,LinearLayout body,String title,String initial,Value save,boolean numeric){
         TextView button=button(body,title+": "+(initial.isEmpty()?"None":initial));final String[] current={initial};

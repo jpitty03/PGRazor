@@ -109,13 +109,14 @@ pgr_research::Config config(){
  if(tr->sample(&z)||!z.snapshot_fresh||z.fault||a.snapshot_seq!=z.snapshot_seq)return c;
  pgr_research::Config parsed;if(n&&pgr_research::parse(s,n,parsed))c=parsed;return c;
 }
-// VGP+ ball, throw rating and curveball (transport slot 7: 1;enabled;ball;berry;premium;cp;level;grade;curve;...).
+// VGP+ ball, throw rating and curveball (transport slot 7: <1|2>;enabled;ball;berry;premium;cp;level;grade;curve;...).
+// The first nine fields are the same in versions 1 and 2; VGP+ auto ball is not applied here.
 struct Throw {int ball=1,grade=3;bool curve=true;};
 Throw throw_settings(){
  Throw t;auto tr=transport();char s[512];uint32_t n=0;if(!tr||tr->get_string(7,s,sizeof(s),&n)||n>=sizeof(s))return t;
  std::vector<int> v;std::string part;
  for(uint32_t i=0;i<=n&&v.size()<9;i++){if(i==n||s[i]==';'){v.push_back(part.empty()||part.size()>6?-1:std::atoi(part.c_str()));part.clear();}else part+=s[i];}
- if(v.size()==9&&v[0]==1){if(v[2]>=1&&v[2]<=3)t.ball=v[2];if(v[7]>=0&&v[7]<=3)t.grade=v[7];if(v[8]==0||v[8]==1)t.curve=v[8]==1;}
+ if(v.size()==9&&(v[0]==1||v[0]==2)){if(v[2]>=1&&v[2]<=3)t.ball=v[2];if(v[7]>=0&&v[7]<=3)t.grade=v[7];if(v[8]==0||v[8]==1)t.curve=v[8]==1;}
  return t;
 }
 bool keep_all(){auto tr=transport();int v=0;return tr&&tr->get_bool(35,&v)==0&&v==1;}

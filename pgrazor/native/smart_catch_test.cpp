@@ -2,6 +2,7 @@
 #include "smart_catch.h"
 #include "runtime_transport.h"
 #include <cassert>
+#include <cmath>
 #include <cstring>
 #include <iostream>
 #include <string>
@@ -96,7 +97,33 @@ void pure_tests(){
  pgr_smart_decide(&s,false,0,true,0,60,99,&d);assert(d.ball==3);
  s.high_cp=0;s.high_level=0;s.premium=0;pgr_smart_decide(&s,true,45,true,10000,100,25,&d);assert(d.ball==2&&d.berry==705);
  s.enabled=0;pgr_smart_decide(&s,true,45,true,10000,100,25,&d);assert(!d.enabled&&d.ball==0);
+ // Version 2: auto ball and its target sit before the species list; version 1 means auto ball off.
+ s=parse("2;1;2;701;1;1500;30;3;1;1;85;25");assert(s.enabled&&s.auto_ball==1&&s.auto_target==85&&s.species_count==1&&s.species[0]==25&&s.berry==701);
+ s=parse("1;1;2;0;1;1500;30;3;1;");assert(s.enabled&&!s.auto_ball&&s.auto_target==75);
+ for(const std::string &bad:{"2;1;1;0;1;1500;30;3;1;2;75;","2;1;1;0;1;1500;30;3;1;1;0;","2;1;1;0;1;1500;30;3;1;1;100;","1;1;1;0;1;1500;30;3;1;1;75;","2;1;1;0;1;1500;30;3;1;1;75;;","3;1;1;0;1;1500;30;3;1;1;75;"})assert(!parse(bad).enabled);
+ s=parse("2;1;2;0;1;1500;30;3;1;1;75;");
+ pgr_smart_decide(&s,false,20,true,100,10,99,&d);assert(d.ball==1);       // auto ball starts from a Poke Ball
+ pgr_smart_decide(&s,true,20,true,100,10,99,&d);assert(d.ball==3&&d.berry==706); // premium still Ultra
+ pgr_smart_decide(&s,false,20,true,1500,10,99,&d);assert(d.ball==3);      // High CP rule still Ultra
+ // Chance: 1-(1-p)^(berry*throw*curve); Excellent is 2-0.1, a curveball 1.7, Golden Razz 2.5.
+ auto near=[](double a,double b){return a>b-1e-9&&a<b+1e-9;};
+ assert(near(pgr_smart_chance(0.5,0,0,false),0.5));
+ assert(near(pgr_smart_chance(0.5,706,3,true),1-std::pow(0.5,2.5*1.9*1.7)));
+ assert(near(pgr_smart_chance(0.5,705,1,false),1-std::pow(0.5,1.2)));      // Pinap does not help the catch
+ assert(pgr_smart_chance(0,701,3,true)==0&&pgr_smart_chance(1,0,0,false)==1);
+ const double base[4]={0,0.41,0.55,0.66};int stock_all[4]={0,10,10,10};
+ assert(pgr_smart_auto_ball(base,stock_all,1,0,3,true,75)==1);  // Poke 81.8%
+ assert(pgr_smart_auto_ball(base,stock_all,1,0,3,true,90)==2);  // Great 92.4%
+ assert(pgr_smart_auto_ball(base,stock_all,1,0,3,true,95)==3);  // Ultra 96.9%
+ assert(pgr_smart_auto_ball(base,stock_all,1,0,3,true,99)==3);  // none reaches: best chance
+ assert(pgr_smart_auto_ball(base,stock_all,3,0,3,true,50)==3);  // a rule's Ultra is the floor
+ int no_ultra[4]={0,10,10,0};assert(pgr_smart_auto_ball(base,no_ultra,1,0,3,true,99)==2);
+ int none[4]={0,0,0,0};assert(pgr_smart_auto_ball(base,none,1,0,3,true,75)==0);
+ const double blank[4]={0,0,0,0};assert(pgr_smart_auto_ball(blank,stock_all,1,0,3,true,75)==0);
+ assert(pgr_smart_auto_ball(base,stock_all,1,0,0,false,75)==3); // straight Default throw: Ultra 66% is best
 }
+double source_base[4]={0,0.41,0.55,0.66};bool source_ok=true;int source_calls=0;
+bool capture_source(void *target,uint64_t,double out[4]){assert(target==&wild);++source_calls;if(!source_ok)return false;for(int i=0;i<4;i++)out[i]=source_base[i];return true;}
 }
 extern "C" const void *pgrazor_runtime_transport_api(uint32_t version){return version==1?&transport:nullptr;}
 int main(){
@@ -116,6 +143,18 @@ int main(){
  visible=false;assert(pgr_smart_berry(&wild,&bag,705,tid,2500,&ph,&rh)==1&&sends==2);gc_free(ph);gc_free(rh);assert(roots.empty());visible=true;
  assert(pgr_smart_berry(&wild,&bag,4,tid,2500,&ph,&rh)==PGR_SMART_ERR_SHAPE&&sends==2);assert(roots.empty());
  throw_send=true;assert(pgr_smart_berry(&wild,&bag,705,tid,2500,&ph,&rh)==PGR_SMART_ERR_MANAGED&&sends==3&&ph==0&&rh==0);assert(roots.empty());
+ // Auto ball through plan(): the source's rates, the stock, the rules and the no-rates fallback.
+ pgr_smart_set_capture_source(capture_source);stock[1]=10;stock[2]=10;stock[3]=10;stock[705]=0;
+ config="1;1;3;0;1;1500;30;3;1;";assert(pgr_smart_plan(&wild,&bag,tid,&d)==0&&d.ball==3&&source_calls==0); // version 1: off
+ config="2;1;3;0;1;1500;30;3;1;0;75;";assert(pgr_smart_plan(&wild,&bag,tid,&d)==0&&d.ball==3&&source_calls==0);
+ config="2;1;3;0;1;1500;30;3;1;1;75;";assert(pgr_smart_plan(&wild,&bag,tid,&d)==0&&d.ball==1&&source_calls==1);
+ config="2;1;3;0;1;1500;30;3;1;1;90;";assert(pgr_smart_plan(&wild,&bag,tid,&d)==0&&d.ball==2);
+ stock[2]=0;assert(pgr_smart_plan(&wild,&bag,tid,&d)==0&&d.ball==3);stock[2]=10;
+ stock[3]=0;config="2;1;3;0;1;1500;30;3;1;1;99;";assert(pgr_smart_plan(&wild,&bag,tid,&d)==0&&d.ball==2);stock[3]=10;
+ source_ok=false;config="2;1;2;0;1;1500;30;3;1;1;75;";assert(pgr_smart_plan(&wild,&bag,tid,&d)==0&&d.ball==2); // no rates: standard ball
+ source_ok=true;cp=2000;assert(pgr_smart_plan(&wild,&bag,tid,&d)==0&&d.ball==3);cp=100;          // High CP rule
+ stock[1]=0;stock[2]=0;stock[3]=0;assert(pgr_smart_plan(&wild,&bag,tid,&d)==PGR_SMART_NO_BALLS);stock[1]=10;stock[2]=10;stock[3]=10;
+ assert(roots.empty());pgr_smart_set_capture_source(nullptr);
  response.value=1;assert(pgr_smart_berry_success(&response,tid)==1);response.value=0;assert(pgr_smart_berry_success(&response,tid)==PGR_SMART_NOT_SUCCESS);assert(pgr_smart_berry_success(&spawn,tid)==PGR_SMART_ERR_IDENTITY);
- std::cout<<"smart_catch parser, policy, stock, RPC identity, revocation and GC fixture passed\n";
+ std::cout<<"smart_catch parser, policy, auto ball, stock, RPC identity, revocation and GC fixture passed\n";
 }

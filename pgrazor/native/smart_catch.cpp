@@ -17,6 +17,7 @@ std::atomic<bool> bound{false},busy{false};
 std::atomic<uint64_t> owner_tid{0};
 thread_local bool (*admission_guard)(void *)=nullptr;
 thread_local void *admission_context=nullptr;
+bool (*capture_source)(void *,uint64_t,double[4])=nullptr;
 using Invoke=void*(*)(void*,void*,void**,void**);
 uint64_t now(){timespec t{};return clock_gettime(CLOCK_BOOTTIME,&t)==0?uint64_t(t.tv_sec)*1000+t.tv_nsec/1000000:0;}
 void *klass(void *o){return o?reinterpret_cast<void*(*)(void*)>(b.object_get_class)(o):nullptr;}
@@ -76,22 +77,44 @@ unsigned params(void *m){return reinterpret_cast<unsigned(*)(void*)>(b.method_ge
 }
 
 void pgr_smart_set_admission_guard(bool (*guard)(void *),void *context){admission_guard=guard;admission_context=context;}
+void pgr_smart_set_capture_source(bool (*source)(void *,uint64_t,double[4])){capture_source=source;}
+double pgr_smart_chance(double base,int berry,int grade,bool curve){
+ if(!(base>0))return 0;if(base>=1)return 1;
+ // Reticle radius per rating as sent by pgr_vgp_capture_selected (0.1/0.4/0.8/1.0).
+ const double throw_mult=grade==3?1.9:grade==2?1.6:grade==1?1.2:1.0;
+ const double berry_mult=berry==701?1.5:berry==706?2.5:berry==708?1.8:1.0;
+ return 1-std::pow(1-base,berry_mult*throw_mult*(curve?1.7:1.0));
+}
+int pgr_smart_auto_ball(const double base[4],const int stock[4],int min_ball,int berry,int grade,bool curve,int target){
+ if(!base||!stock)return 0;if(min_ball<1||min_ball>3)min_ball=1;
+ int best=0;double best_chance=-1;
+ for(int item=min_ball;item<=3;++item){
+  if(stock[item]<1||!(base[item]>0&&base[item]<=1))continue;
+  const double chance=pgr_smart_chance(base[item],berry,grade,curve);
+  if(chance*100>=target)return item;
+  if(chance>best_chance){best_chance=chance;best=item;}
+ }
+ return best;
+}
 extern "C" int pgr_smart_parse_settings(const char *text,size_t len,PgrSmartSettings *out){
  if(!out)return PGR_SMART_ERR_NULL_ARG;
- *out={};out->ball=1;out->premium=1;out->high_cp=1500;out->high_level=30;out->grade=3;out->curve=1;
+ *out={};out->ball=1;out->premium=1;out->high_cp=1500;out->high_level=30;out->grade=3;out->curve=1;out->auto_target=75;
  if(!text||len>PGR_SMART_CONFIG_MAX)return 0;
  std::vector<std::string> parts;size_t start=0;
- for(size_t i=0;i<=len;++i)if(i==len||text[i]==';'){parts.emplace_back(text+start,i-start);start=i+1;if(parts.size()>10)return 0;}
- if(parts.size()!=10||parts[0]!="1")return 0;
- PgrSmartSettings s{};
+ for(size_t i=0;i<=len;++i)if(i==len||text[i]==';'){parts.emplace_back(text+start,i-start);start=i+1;if(parts.size()>12)return 0;}
+ const bool v2=parts.size()==12&&parts[0]=="2";
+ if(!v2&&(parts.size()!=10||parts[0]!="1"))return 0;
+ PgrSmartSettings s{};s.auto_target=75;
+ if(v2&&(!number(parts[9],0,1,s.auto_ball)||!number(parts[10],1,99,s.auto_target)))return 0;
+ const std::string &species=parts[v2?11:9];
  if(!number(parts[1],0,1,s.enabled)||!number(parts[2],1,3,s.ball)||!number(parts[3],0,708,s.berry)||
     (s.berry&&!berry_valid(s.berry))||!number(parts[4],0,1,s.premium)||!number(parts[5],0,10000,s.high_cp)||
     !number(parts[6],0,50,s.high_level)||!number(parts[7],0,3,s.grade)||!number(parts[8],0,1,s.curve))return 0;
- if(!parts[9].empty()){
-  size_t pos=0;while(pos<=parts[9].size()){
-   size_t end=parts[9].find(',',pos);if(end==std::string::npos)end=parts[9].size();int id=0;
-   if(s.species_count==PGR_SMART_MAX_SPECIES||!number(parts[9].substr(pos,end-pos),1,2000,id))return 0;
-   s.species[s.species_count++]=id;if(end==parts[9].size())break;pos=end+1;
+ if(!species.empty()){
+  size_t pos=0;while(pos<=species.size()){
+   size_t end=species.find(',',pos);if(end==std::string::npos)end=species.size();int id=0;
+   if(s.species_count==PGR_SMART_MAX_SPECIES||!number(species.substr(pos,end-pos),1,2000,id))return 0;
+   s.species[s.species_count++]=id;if(end==species.size())break;pos=end+1;
   }
   std::sort(s.species,s.species+s.species_count);
   s.species_count=std::unique(s.species,s.species+s.species_count)-s.species;
@@ -100,7 +123,8 @@ extern "C" int pgr_smart_parse_settings(const char *text,size_t len,PgrSmartSett
 }
 extern "C" void pgr_smart_decide(const PgrSmartSettings *s,bool shiny,int iv_sum,bool iv_valid,int cp,int level_half,int species,PgrSmartDecision *out){
  if(!out)return;*out={};if(!s||!s->enabled)return;
- out->enabled=true;out->ball=s->ball;out->berry=s->berry;out->grade=s->grade;out->curve=s->curve!=0;
+ out->enabled=true;out->ball=s->auto_ball?1:s->ball;  // auto ball replaces the standard ball
+ out->berry=s->berry;out->grade=s->grade;out->curve=s->curve!=0;
  if(s->premium&&(shiny||(iv_valid&&iv_sum>=41&&iv_sum<=45))){out->ball=3;out->berry=706;return;}
  if((s->high_cp>0&&cp>=s->high_cp)||(s->high_level>0&&level_half>=2*s->high_level))out->ball=3;
  if(std::binary_search(s->species,s->species+s->species_count,species))out->berry=705;
@@ -145,10 +169,20 @@ extern "C" int pgr_smart_plan(void *target,void *itemBag,uint64_t owner,PgrSmart
   }
  }
  pgr_smart_decide(&settings,shiny,atk+def+sta,atk>=0&&atk<=15&&def>=0&&def<=15&&sta>=0&&sta<=15,cp,level_half,species,out);
+ // Auto ball needs the server's per-ball rates; without them the standard ball is used as before.
+ double base[4]={};
+ const bool autoball=settings.auto_ball&&capture_source&&capture_source(map.get(),owner,base);
+ if(settings.auto_ball&&!autoball&&out->ball<settings.ball)out->ball=settings.ball;
  int stocks[4]={};for(int item=1;item<=3;++item){int rc=quantity(bag,item,stocks[item]);if(rc)return rc;}
  if(stocks[out->ball]<1){out->ball=0;for(int item=1;item<=3;++item)if(stocks[item]>0){out->ball=item;break;}}
  if(!out->ball)return PGR_SMART_NO_BALLS;
  if(out->berry){int count=0;int rc=quantity(bag,out->berry,count);if(rc)return rc;if(!count)out->berry=0;}
+ // Auto ball: start from the cheapest ball (or the Ultra Ball a rule asked for) and move up only
+ // while the chance is below the target.
+ if(autoball){
+  const int pick=pgr_smart_auto_ball(base,stocks,out->ball,out->berry,out->grade,out->curve,settings.auto_target);
+  if(pick)out->ball=pick;
+ }
  return 0;
 }
 

@@ -188,6 +188,22 @@ void pgr_catch_chance_exit(void *state){
  if(current&&fn<void*(*)(uintptr_t)>(boot.runtime.gchandle_get_target)(current)==state&&live.compare_exchange_strong(current,0))
   fn<void(*)(uintptr_t)>(boot.runtime.gchandle_free)(current);
 }
+bool pgr_catch_chance_base(void *encounter_out,double base[4]){
+ if(!base)return false;for(int i=0;i<4;i++)base[i]=0;
+ // Needs only the runtime snapshot; a failed manual SelectPokeball install does not matter here.
+ if(!ready||busy||!encounter_out||!owner||owner!=uint64_t(gettid()))return false;
+ try{
+  void *probability=ref_field(encounter_out,"CaptureProbability");if(!probability)return false;
+  void *types=ref_field(probability,"PokeballType"),*values=ref_field(probability,"CaptureProbability");if(!types||!values)return false;
+  const int n=unbox<int>(call(types,"get_Count"));if(n<0||n>16||unbox<int>(call(values,"get_Count"))!=n)return false;
+  bool any=false;
+  for(int i=0;i<n;i++){
+   int index=i;void *ia[]={&index};const int type=boxed_item(call(types,"get_Item",1,ia));if(type<1||type>3)continue;
+   const float value=unbox<float>(call(values,"get_Item",1,ia));if(value>0&&value<=1){base[type]=value;any=true;}
+  }
+  return any;
+ }catch(...){for(int i=0;i<4;i++)base[i]=0;return false;}
+}
 void pgr_catch_chance_stop(){
  if(owner&&owner!=uint64_t(gettid()))return;
  if(uintptr_t h=live.exchange(0))fn<void(*)(uintptr_t)>(boot.runtime.gchandle_free)(h);

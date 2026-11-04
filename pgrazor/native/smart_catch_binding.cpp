@@ -5,6 +5,7 @@
 #include "runtime_metadata.h"
 #include "smart_catch.h"
 #include "smart_encounter_validation.h"
+#include "catch_chance.h"
 
 #include <dlfcn.h>
 #include <mutex>
@@ -156,6 +157,18 @@ bool read_enum_literal(const PgrMetaExports &ex, const PgrBootRuntimeExports &rt
   static_get(f, &v);
   *out = v;
   return true;
+}
+
+// Auto ball's probability source: the target's own encounter response (the validated map field the
+// encounter check reads), parsed by catch_chance.
+bool capture_base(void *target,uint64_t owner,double base[4]){
+  if(!g_bound||!target||owner!=g_fresh.owner||owner!=uint64_t(gettid()))return false;
+  auto klass=reinterpret_cast<void*(*)(void*)>(g_fresh.object_get_class);
+  auto read=reinterpret_cast<void(*)(void*,void*,void*)>(g_fresh.field_get_value);
+  if(klass(target)!=g_fresh.class_wildmap)return false;
+  void *response=nullptr;read(target,map_encounter,&response);
+  if(!response||klass(response)!=encounter_class)return false;
+  return pgr_catch_chance_base(response,base);
 }
 
 int64_t now_ms() {
@@ -342,6 +355,7 @@ int pgr_smart_ensure_bound(uint64_t owner) {
   g_fresh.object_get_class = rt.object_get_class;
   g_fresh.field_get_value = rt.field_get_value;
   g_bound = true;
+  pgr_smart_set_capture_source(capture_base);
   __android_log_print(ANDROID_LOG_INFO,"PGRazorSmartCatch","Native catch binding ready (level rules and berry RPC validated)");
   return PGR_SMARTBIND_OK;
 }
