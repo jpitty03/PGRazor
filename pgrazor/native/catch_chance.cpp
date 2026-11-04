@@ -19,7 +19,8 @@
 // (CaptureProbabilityProto, the numbers the game colors the ring with), the active berry, the
 // selected ball and the ball counts, and applies the berry, throw and curve multipliers:
 //   chance = 1 - (1 - p_ball) ^ (berry * throw * curve)
-// Type medals are not included. With auto ball on it selects, through the game's own
+// p_ball already carries the type medal bonus (verified 2026-11-04: Normal/Flying with both medals
+// Gold gave exactly 1-(1-BCR/(2*CPM))^1.3), so no medal term is added. With auto ball on it selects, through the game's own
 // SelectPokeball, the cheapest of Poke/Great/Ultra that reaches the target (else the best one
 // owned): once when the encounter opens and again after each escape, so a ball the player picks
 // by hand is kept until the next escape. It never selects a Master Ball.
@@ -127,12 +128,15 @@ void step(){
  const int n=unbox<int>(call(types,"get_Count"));require(n>=0&&n<=16&&unbox<int>(call(values,"get_Count"))==n,"capture probability count");
  // A berry already in the game wins; otherwise the one PGRazor's picker will feed on release.
  int berry=0;{void *b=call(state,"get_ActiveBerry");if(b&&fn<bool(*)(void*)>(exp("class_is_enum"))(klass(b)))berry=boxed_item(b);}
+ // A fed berry is already in the server's rates (feeding a Razz moved Growlithe's Poke rate from
+ // .2763 to exactly 1-(1-.2763)^1.5), so only a berry still to be fed adds its multiplier.
+ const bool fed=berry>0;
  if(berry<=0)berry=c.berry;
  // The ball object is replaced between throws; keep the last ball seen while there is none.
  int current=0;if(void *ball=call(state,"get_Pokeball"))current=boxed_item(call(ball,"get_BallType"));
  if(current>0)seen.current=current;else current=seen.current;
  const bool in_play=unbox<bool>(call(state,"get_PokeballInPlay"));
- const double mult=berry_multiplier(berry)*throw_multiplier(c.grade)*(c.curve?1.7:1.0);
+ const double mult=(fed?1.0:berry_multiplier(berry))*throw_multiplier(c.grade)*(c.curve?1.7:1.0);
  // Poke, Great and Ultra the server priced for this encounter, cheapest first.
  std::string balls;int pick=0,best=0;double best_chance=-1;
  for(int item=1;item<=3;item++){

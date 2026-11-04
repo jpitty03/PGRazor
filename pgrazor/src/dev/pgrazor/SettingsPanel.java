@@ -389,7 +389,7 @@ final class SettingsPanel {
             int[] targets=Control.AUTO_BALL_TARGETS;int next=targets[0];
             for(int i=0;i<targets.length;i++)if(targets[i]==Control.autoBallTarget()){next=targets[(i+1)%targets.length];break;}
             Control.setAutoBallTarget(next); host.refresh(); });
-        caption(throwC, "Manual encounters. The chance uses the server's catch rate for each ball with your berry, throw rating and curveball; type medals are not included. Auto ball picks the cheapest Poké, Great or Ultra Ball that reaches the target, when the encounter opens and after each escape; a ball you pick by hand is kept until the next escape. It never uses a Master Ball.");
+        caption(throwC, "Manual encounters. The chance uses the server's catch rate for each ball with your berry, throw rating and curveball; the server's rate already includes your type medal bonus. Auto ball picks the cheapest Poké, Great or Ultra Ball that reaches the target, when the encounter opens and after each escape; a ball you pick by hand is kept until the next escape. It never uses a Master Ball.");
         quickBallStatus = caption(throwC, "");
     }
 

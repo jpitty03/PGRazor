@@ -6,7 +6,7 @@ import org.json.JSONObject;
 /**
  * The open encounter's catch chance as the native module reports it ("catch-chance" events), and
  * the overlay text for it. Chances come from the server's per-ball capture probability with the
- * active berry, PGRazor's throw rating and curveball applied; type medals are not included.
+ * active berry, PGRazor's throw rating and curveball applied; the server's probability already includes the type medal bonus.
  */
 public final class CatchChance {
     private CatchChance() {}
