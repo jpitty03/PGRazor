@@ -1,4 +1,5 @@
 #include "vgp_discovery.h"
+#include "vgp_incense.h"
 
 #include <atomic>
 #include <cstring>
@@ -295,7 +296,10 @@ int enumerate(uint32_t kind, uint64_t owner, uint64_t lease_ms, PgrVgpDiscoveryE
   if (!bg.held) return PGR_VD_ERR_BUSY;
 
   int err = 0;
-  void *klass = (kind != PGR_VD_KIND_SPIN) ? cfg.class_wild : cfg.class_stop;
+  // With incense support bound, query MapPokemon so wild and incense spawns arrive together; the
+  // candidate check keeps only those two exact classes.
+  const PgrVgpIncense *incense = pgr_vgp_incense();
+  void *klass = (kind == PGR_VD_KIND_SPIN) ? cfg.class_stop : incense ? incense->base : cfg.class_wild;
 
   Root elementType;
   if (!typeObject(klass, elementType, err)) return err;

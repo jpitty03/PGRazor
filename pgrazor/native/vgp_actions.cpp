@@ -1,4 +1,5 @@
 #include "vgp_actions.h"
+#include "vgp_incense.h"
 
 #include <atomic>
 #include <cmath>
@@ -173,10 +174,13 @@ int do_action(ActionKind kind, const PgrVgpActionsTarget *t, const PgrVgpActions
   uintptr_t target_root = hold(target_obj);
   uintptr_t fort_root = 0, rpc_root = 0, request_root = 0, id_root = 0;
   void *receiver = nullptr, *request_obj = nullptr;
+  const PgrVgpIncense *incense = nullptr;
   int rc = PGR_VA_OK;
 
   if (target_root == 0) { rc = PGR_VA_ERR_GCHANDLE; goto done; }
-  if (!is_exact(gc_get()(target_root), kind == ACT_SPIN ? g_cfg.class_stop : g_cfg.class_wild)) { rc = PGR_VA_ERR_IDENTITY; goto done; }
+  // Incense spawns share TryCapture with wild ones but send their own encounter request.
+  if (kind != ACT_SPIN && pgr_vgp_incense() && is_exact(gc_get()(target_root), pgr_vgp_incense()->klass)) incense = pgr_vgp_incense();
+  if (!incense && !is_exact(gc_get()(target_root), kind == ACT_SPIN ? g_cfg.class_stop : g_cfg.class_wild)) { rc = PGR_VA_ERR_IDENTITY; goto done; }
 
   if (kind == ACT_SPIN) {
     if (sp->closed_method == nullptr) { rc = PGR_VA_ERR_IDENTITY; goto done; }
@@ -223,7 +227,7 @@ int do_action(ActionKind kind, const PgrVgpActionsTarget *t, const PgrVgpActions
 
   // Resolve the final managed arguments before the revocation check; GC helpers may re-enter.
   receiver = gc_get()(kind == ACT_SPIN ? rpc_root : target_root);
-  if (!is_exact(receiver, kind == ACT_SPIN ? g_cfg.class_rpc : g_cfg.class_wild)) { rc = PGR_VA_ERR_IDENTITY; goto done; }
+  if (!is_exact(receiver, kind == ACT_SPIN ? g_cfg.class_rpc : incense ? incense->klass : g_cfg.class_wild)) { rc = PGR_VA_ERR_IDENTITY; goto done; }
   if (kind == ACT_SPIN) {
     request_obj = gc_get()(request_root);
     if (!is_exact(request_obj, g_cfg.class_request)) { rc = PGR_VA_ERR_IDENTITY; goto done; }
@@ -245,7 +249,7 @@ int do_action(ActionKind kind, const PgrVgpActionsTarget *t, const PgrVgpActions
     void *exc = nullptr;
     void *promise = nullptr;
     if (kind == ACT_ENCOUNTER) {
-      promise = managed_invoke(g_cfg.m_encounter, receiver, nullptr, &exc);
+      promise = managed_invoke(incense ? incense->m_encounter : g_cfg.m_encounter, receiver, nullptr, &exc);
     } else if (kind == ACT_CAPTURE) {
       // Fixed 12-byte PokeballThrow: red ball id 1, grade 1.0f, remaining 0. AR metadata = null.
       alignas(8) uint8_t ball[12];

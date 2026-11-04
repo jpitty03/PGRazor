@@ -2,6 +2,7 @@
 
 #include "vgp_policy.h"
 #include "vgp_actions.h"
+#include "vgp_incense.h"
 #include "vgp_candidates.h"
 #include "vgp_results.h"
 #include "vgp_discovery.h"
@@ -492,6 +493,12 @@ void tickPending(const PgrVgpControllerTick *in, PgrVgpControllerOut *o, uint64_
   if(berryPhase){
     int result=pgr_smart_berry_success(rootGet(value),owner);
     rootFree(value);
+    // Berries work on incense encounters; if one is ever refused there, throw without it instead of pausing.
+    const bool incense=pgr_vgp_incense()&&exactClass(rootGet(pend.target),pgr_vgp_incense()->klass);
+    if(result==PGR_SMART_NOT_SUCCESS&&incense){
+      rootFree(pend.promise);rootFree(pend.reflection);pend.berry_done=true;pend.phase=PGR_VGC_PH_SMART_WAIT;
+      setStatus(o,PGR_VGC_ST_SMART_WAIT);return;
+    }
     if(result!=PGR_SMART_ISSUED){pauseError(o,result<0?result:-41);return;}
     o->flags|=PGR_VGC_EV_SMART_BERRY;
     rootFree(pend.promise);rootFree(pend.reflection);pend.berry_done=true;pend.phase=PGR_VGC_PH_SMART_WAIT;
@@ -991,7 +998,8 @@ int observe(void *gui, void *target, uint64_t owner) {
   if (ownerTid.load() != owner) return PGR_VGC_ERR_OFF_OWNER;
   if (stopped.load()) return PGR_VGC_OK;
   if (!exactClass(gui, cfg.class_nameplate)) return PGR_VGC_OK;  // not the nameplate: ignore
-  const bool wild = target && exactClass(target, cfg.class_wild);
+  const bool wild = target && (exactClass(target, cfg.class_wild) ||
+                               (pgr_vgp_incense() && exactClass(target, pgr_vgp_incense()->klass)));
   uint64_t fresh = wild ? rootNew(target) : 0;
   // Preserve the previous rooted exclusion on allocation failure. The adapter disables VGP.
   if (wild && !fresh) return PGR_VGC_ERR_MISSING_PTR;

@@ -50,6 +50,7 @@
 #include "ar_values.h"
 #include "catch_chance.h"
 #include "incense_guard.h"
+#include "vgp_incense.h"
 #include "buddy_emotion.h"
 
 namespace {
@@ -1013,6 +1014,13 @@ static void tick_vgp_controller(uint64_t tid, uint64_t now_ms, uint64_t lease_ms
   if (!g_vgc || !(g_active_caps & PGR_EH_CAP_VGP)) return;
 
   pump_transfer_events(tid, 0);
+
+  // Incense spawns join VGP once their metadata validates; retried every 5 s until then.
+  static uint64_t incense_retry_at = 0;
+  if (g_opts.vgp_allowed && g_opts.vgp_enabled && now_ms >= incense_retry_at) {
+    if (pgr_vgp_incense_bind(tid) == 1) incense_retry_at = now_ms + 5000;
+    else incense_retry_at = UINT64_MAX;
+  }
 
   PgrVgpControllerTick in = {};
   in.version = PGR_VGC_TICK_VERSION;

@@ -9286,6 +9286,26 @@
       }
     },
     "smart_catch_binding_cpp": {
+      "emsg_offset": {
+        "kind": "offset",
+        "value": "0x268",
+        "purpose": "Field emsg (IncenseMapPokemon IncenseEncounterOutProto)"
+      },
+      "emsg_name": {
+        "kind": "name",
+        "value": "emsg",
+        "purpose": "Field name for emsg"
+      },
+      "incense_result_offset": {
+        "kind": "offset",
+        "value": "0x10",
+        "purpose": "Field IncenseEncounterOutProto.Result"
+      },
+      "incense_pokemon_offset": {
+        "kind": "offset",
+        "value": "0x18",
+        "purpose": "Field IncenseEncounterOutProto.Pokemon"
+      },
       "embt_offset": {
         "kind": "offset",
         "value": "0x280",

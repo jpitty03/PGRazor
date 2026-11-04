@@ -1,4 +1,5 @@
 #include "vgp_marker.h"
+#include "vgp_incense.h"
 #include <atomic>
 #include <cmath>
 #include <cstring>
@@ -65,7 +66,8 @@ int project(void *target,uint64_t lease,uint64_t owner,PgrVgpMarkerResult *out){
  struct BusyExit{~BusyExit(){busy.store(false);}} exit;
  Root object,camera,transform,position,screen,width,height;
  if(!object.set(target))return -4;
- if(!(is(object,cfg.wild_class)||is(object,cfg.stop_class))||!live(object))return 0;
+ const bool incense=pgr_vgp_incense()&&is(object,pgr_vgp_incense()->klass);
+ if(!(incense||is(object,cfg.wild_class)||is(object,cfg.stop_class))||!live(object))return 0;
  if(!call(cfg.camera,nullptr,nullptr,camera)||!is(camera,cfg.camera_class)||!live(camera))return 0;
  if(!call(cfg.transform,&object,nullptr,transform)||!is(transform,cfg.transform_class)||!live(transform))return 0;
  Vector point{},projected{};

@@ -1,4 +1,5 @@
 #include "vgp_candidates.h"
+#include "vgp_incense.h"
 
 #include <atomic>
 #include <cmath>
@@ -188,7 +189,9 @@ int inspect(const PgrVgpCandidateRequest *req, PgrVgpCandidateResult *out) {
   Root target, manual;
   if (!target.set(req->target)) return PGR_VC_ERR_GCHANDLE;
   if (isCatch && req->manual && !manual.set(req->manual)) return PGR_VC_ERR_GCHANDLE;
-  if (!exact(target, isCatch ? cfg.class_wild : cfg.class_stop)) { out->reason = PGR_VC_REASON_INVALID; return PGR_VC_NOT; }
+  const PgrVgpIncense *incense = nullptr;
+  if (isCatch && pgr_vgp_incense() && exact(target, pgr_vgp_incense()->klass)) incense = pgr_vgp_incense();
+  if (!incense && !exact(target, isCatch ? cfg.class_wild : cfg.class_stop)) { out->reason = PGR_VC_REASON_INVALID; return PGR_VC_NOT; }
 
   // Liveness: static alive(obj) -> Boolean.
   {
@@ -207,10 +210,12 @@ int inspect(const PgrVgpCandidateRequest *req, PgrVgpCandidateResult *out) {
     if (req->manual) {
       if (manual.get() == target.get()) { out->reason = PGR_VC_REASON_MANUAL; return PGR_VC_NOT; }
     }
-    // VisibleOnMap (virtual).
-    int visible = virtualBool(cfg.m_visible, target, err);
-    if (visible < 0) return err;
-    if (!visible) { out->reason = PGR_VC_REASON_HIDDEN; return PGR_VC_NOT; }
+    // VisibleOnMap (virtual). Incense spawns have no such flag; they show only to their owner.
+    if (!incense) {
+      int visible = virtualBool(cfg.m_visible, target, err);
+      if (visible < 0) return err;
+      if (!visible) { out->reason = PGR_VC_REASON_HIDDEN; return PGR_VC_NOT; }
+    }
     // Location (non-virtual) -> Niantic.LatLng (lat, lon); 40 m range.
     {
       Root loc;
@@ -229,7 +234,7 @@ int inspect(const PgrVgpCandidateRequest *req, PgrVgpCandidateResult *out) {
     uint64_t id;
     {
       Root idBox;
-      if (!call(cfg.m_id, &target, nullptr, idBox, err)) return err;
+      if (!call(incense ? incense->m_id : cfg.m_id, &target, nullptr, idBox, err)) return err;
       if (!exact(idBox, cfg.class_uint64)) return PGR_VC_ERR_METADATA;
       void *p = unbox(idBox);
       if (!p) return PGR_VC_ERR_METADATA;
