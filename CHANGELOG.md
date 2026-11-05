@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### New features
+
+- **Skip cutscenes:** Skips the evolve, Mega Evolution, egg hatch, purify, fusion, form change and new Pokémon cutscenes, plus Team GO Rocket dialogue and the reward screens after a won Rocket battle, so the shadow Pokémon encounter starts right away. Off by default; turn it on under Settings > General Settings.
+
+### Improvements & fixes
+
+- Team GO Rocket battles: while any Rocket automation option is on, the next Pokémon is picked automatically when one faints.
+- Location & overlays is renamed General Settings.
+
 ## v0.2.1
 
 [Full release notes](docs/releases/v0.2.1.md)

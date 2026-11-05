@@ -37,8 +37,8 @@ Features listed here include unreleased changes on `main`; check your release no
 | Eggs | Unlimited incubator only; shortest- or longest-distance priority |
 | Research | Auto-claim completed field research; auto-delete field research tasks you select from a searchable list grouped into collapsible Item, Encounter and Event categories, each with an All toggle (task, reward and event tag); optionally catch waiting field research encounters without the encounter screen using your VGP+ ball and throw settings, then apply transfer rules including Keep All. Special, timed, story and gym bonus research are never deleted |
 | LivePokeMap | Remote Pokémon, stops, gyms, raids, and stations; requires a LivePokeMap subscription |
-| Battles | Rocket quick/charged attacks, charged minigame and shields; raid/gym/Dynamax attacks, Max attacks and dodging |
-| Other automation | Selectable buddy berry, gift opening/sending with optional stickers, quick spin, local spawn booster |
+| Battles | Rocket quick/charged attacks, charged minigame, shields and automatic next Pokémon after a faint; raid/gym/Dynamax attacks, Max attacks and dodging |
+| Other automation | Selectable buddy berry, gift opening/sending with optional stickers, quick spin, local spawn booster, optional skip cutscenes (evolve, Mega, egg hatch/incubate, purify, fusion, form change, new Pokémon, Team GO Rocket dialogue and post-battle rewards, Rocket Radar assembled pop-up; unreleased) |
 | Interface | Quick menu, full-screen settings, separate joystick, cooldown history, light/dark themes, settings export/import, scrollable Quick Menu and window-safe overlays |
 | Interface | Quick menu, hide-all overlay toggle (three-finger tap restores), full-screen settings, separate joystick, cooldown history, light/dark themes, settings export/import |
 | Accounts (experimental) | Quick Menu switching, remembered Google/PTC sessions, deletion of saved accounts, and separate settings, location, cooldown history, favorites and saved GPX routes |
@@ -138,7 +138,7 @@ Original PGRazor source is available under the [MIT License](LICENSE). Third-par
 
 ### Idle walking
 
-Enable **Settings > Location & overlays > Idle walking** to walk a small closed loop after 3 seconds without movement. The 10 m-radius loop stays within 20 m of its starting point and uses your chosen speed up to 5 km/h. Speed 0 pauses it. Joystick, destination walking, autowalk and in-game Routes take priority; when they finish, a new loop starts at the current position. Backgrounding or unavailable location support stops it. The setting defaults off and is saved per account. Small loops may not earn walking distance consistently; the game decides what movement counts.
+Enable **Settings > General Settings > Idle walking** to walk a small closed loop after 3 seconds without movement. The 10 m-radius loop stays within 20 m of its starting point and uses your chosen speed up to 5 km/h. Speed 0 pauses it. Joystick, destination walking, autowalk and in-game Routes take priority; when they finish, a new loop starts at the current position. Backgrounding or unavailable location support stops it. The setting defaults off and is saved per account. Small loops may not earn walking distance consistently; the game decides what movement counts.
 
 ### Responsive overlays (unreleased)
 

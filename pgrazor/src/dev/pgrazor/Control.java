@@ -556,6 +556,15 @@ public final class Control {
     public static void setPvpRank(int league,int rank){if(league<0||league>=3)return;pvpRanks[league]=rank>=1&&rank<=4096?rank:PVP_DEFAULT_RANKS[league];saveSettings();}
     /** "P2|great|ultra|master|meta" for the native transfer check (transport slot 16); 0 = league off. */
     public static String pvpKeepConfig(){return "P2|"+(pvpKeep(0)?pvpRanks[0]:0)+"|"+(pvpKeep(1)?pvpRanks[1]:0)+"|"+(pvpKeep(2)?pvpRanks[2]:0)+"|"+PVP_META;}
+    // Skip cutscenes (off by default): the native module bypasses the Pokemon cutscenes and the Team GO
+    // Rocket dialogue so they are never drawn. cutsceneSkipStatus is the module's last error, if any.
+    private static volatile boolean skipCutscenes;
+    private static volatile String cutsceneSkipStatus="";
+    public static boolean skipCutscenes(){return skipCutscenes;}
+    public static void setSkipCutscenes(boolean on){skipCutscenes=on;saveSettings();event("skip-cutscenes",on?"ON":"OFF");}
+    public static String cutsceneSkipStatus(){return skipCutscenes?cutsceneSkipStatus:"";}
+    /** "K1|on" for the native cutscene bypass (transport slot 17). */
+    public static String cutsceneSkipConfig(){return "K1|"+(skipCutscenes?1:0);}
     public static void configureQuickBall(boolean configured) {
         synchronized(quickBallLock) {
             quickBallConfigured=configured; quickBallReady=false; ivOwnedReady=false; setThrowReady(false);setMapTapReady(false);
@@ -1073,6 +1082,7 @@ public final class Control {
                 catchChanceShown=Boolean.parseBoolean(p.getProperty("catchChance","true"));autoBall=Boolean.parseBoolean(p.getProperty("autoBall","false"));
                 int target=boundedSetting(p,"autoBallTarget",99);autoBallTarget=target>0?target:75;
                 pvpKeepLeagues=p.getProperty("pvpKeepLeagues")==null?3:boundedSetting(p,"pvpKeepLeagues",7);
+                skipCutscenes=Boolean.parseBoolean(p.getProperty("skipCutscenes","false"));
                 for(int i=0;i<3;i++){int rank=boundedSetting(p,PVP_RANK_KEYS[i],4096);pvpRanks[i]=rank>0?rank:PVP_DEFAULT_RANKS[i];}
                 int format=boundedSetting(p,"storageIvFormat",4);storageIvFormat=format>0?format:storageIvMode>0?storageIvMode:3;
                 // Migrate the former independent animation preference to Quick Catch.
@@ -1154,7 +1164,7 @@ public final class Control {
         p.setProperty("transferKeepAll",String.valueOf(transferKeepAll)); p.setProperty("transferOverlay",String.valueOf(transferOverlayEnabled)); p.setProperty("transferKeepSpecies",transferKeepSpecies);
         p.setProperty("ivCatch",String.valueOf(ivCatchEnabled)); p.setProperty("ivOwned",String.valueOf(ivOwnedEnabled)); p.setProperty("ivCatchFormat",String.valueOf(ivCatchFormat)); p.setProperty("ivOwnedFormat",String.valueOf(ivOwnedFormat)); p.setProperty("storageIv",String.valueOf(storageIvMode)); p.setProperty("storageIvFormat",String.valueOf(storageIvFormat));
         p.setProperty("catchChance",String.valueOf(catchChanceShown)); p.setProperty("autoBall",String.valueOf(autoBall)); p.setProperty("autoBallTarget",String.valueOf(autoBallTarget));
-        p.setProperty("pvpKeepLeagues",String.valueOf(pvpKeepLeagues));
+        p.setProperty("pvpKeepLeagues",String.valueOf(pvpKeepLeagues)); p.setProperty("skipCutscenes",String.valueOf(skipCutscenes));
         for(int i=0;i<3;i++)p.setProperty(PVP_RANK_KEYS[i],String.valueOf(pvpRanks[i]));
         p.setProperty("autoDismiss",String.valueOf(quickSummaryEnabled)); p.setProperty("fastBall",String.valueOf(quickBallEnabled));
         p.setProperty("throwAr",String.valueOf(throwAr)); p.setProperty("curve",String.valueOf(throwCurve)); p.setProperty("grade",String.valueOf(throwGrade));
@@ -1186,6 +1196,10 @@ public final class Control {
         if("gift-batch".equals(kind))GiftBatchSettings.publish(detail);
         if("research".equals(kind))ResearchSettings.publish(detail);
         if("catch-chance".equals(kind))CatchChance.publish(detail);
+        if("cutscene-skip".equals(kind)){
+            try{org.json.JSONObject o=new org.json.JSONObject(detail);String phase=o.optString("phase");if("error".equals(phase))cutsceneSkipStatus=o.optString("message","");else if("ready".equals(phase))cutsceneSkipStatus="";}
+            catch(Exception ignored){}
+        }
         if("storage-iv".equals(kind)){
             try{org.json.JSONObject o=new org.json.JSONObject(detail);storageIvStatus="error".equals(o.optString("phase"))?o.optString("message",""):"";}
             catch(Exception ignored){}

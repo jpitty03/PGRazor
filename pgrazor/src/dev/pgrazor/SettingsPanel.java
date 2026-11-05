@@ -50,9 +50,9 @@ final class SettingsPanel {
     private Button mapTap, throwGrade, storageIv, ivCatchMode, ivOwnedMode, itemSettings, cameraSample, interactionCapture, transferKeepList;
     // Boolean settings use proper switches.
     private Switch idleWalkSwitch, locationSwitch, vgpSwitch, joystickSwitch, cooldownSwitch, spawnSwitch, autoTransferSwitch,
-        quickSpinSwitch, berrySwitch, quickSummarySwitch, curveSwitch, alwaysHitSwitch, arSwitch, transferOverlaySwitch, catchChanceSwitch, autoBallSwitch;
+        quickSpinSwitch, berrySwitch, quickSummarySwitch, curveSwitch, alwaysHitSwitch, arSwitch, transferOverlaySwitch, catchChanceSwitch, autoBallSwitch, skipCutscenesSwitch;
     private Button autoBallTarget;
-    private TextView quickSummaryLabel, vgpStatus;
+    private TextView quickSummaryLabel, vgpStatus, cutsceneStatus;
     private final CheckBox[] vgpChoices=new CheckBox[3];
     private CheckBox vgpCooldownStop;
     // Status / caption lines (muted, readiness driven).
@@ -185,8 +185,8 @@ final class SettingsPanel {
     }
 
     private void buildLocationSection() {
-        // ----- Location & overlays -----
-        LinearLayout loc = section(body, "Location & overlays", true);
+        // ----- General Settings -----
+        LinearLayout loc = section(body, "General Settings", true);
         LinearLayout menu = section(loc,"Customize Quick Menu",false);
         caption(menu,"Choose which entries appear. This does not turn features on or off. Settings stays visible.");
         for(int i=0;i<QuickMenu.CUSTOMIZABLE.length;i++){
@@ -219,6 +219,9 @@ final class SettingsPanel {
         caption(loc, "When idle, start walking in a circle. Speed 0 pauses it.");
         joystickSwitch = switchRow(loc, "Show joystick"); joystickSwitch.setChecked(Control.joystickVisible());
         joystickSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.joystickVisible())return; host.setJoystickVisible(checked); });
+        skipCutscenesSwitch = switchRow(loc, "Skip cutscenes"); skipCutscenesSwitch.setChecked(Control.skipCutscenes());
+        skipCutscenesSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.skipCutscenes())return; Control.setSkipCutscenes(checked); });
+        cutsceneStatus = caption(loc, "");  // shown only when the native module reports an error
 
     }
 
@@ -350,6 +353,7 @@ final class SettingsPanel {
         for(int i=0;i<3;i++){final int bit=1<<i;CheckBox box=new CheckBox(activity);box.setText(rocketLabels[i]);box.setChecked((Control.rocketOptions()&bit)!=0);rocketChoices[i]=box;rocketC.addView(box);
             box.setOnClickListener(v->Control.setRocketOptions(box.isChecked()?Control.rocketOptions()|bit:Control.rocketOptions()&~bit));}
 
+        caption(rocketC, "While any of these is on, the next Pokémon is picked automatically when one faints.");
         rocketStatus = caption(rocketC, "");
     }
 
@@ -519,6 +523,8 @@ final class SettingsPanel {
         refreshQuickCatch();
         refreshLocationOptions();
         refreshThrows();
+        skipCutscenesSwitch.setChecked(Control.skipCutscenes());cutsceneStatus.setText(Control.cutsceneSkipStatus());
+        cutsceneStatus.setVisibility(Control.cutsceneSkipStatus().isEmpty()?View.GONE:View.VISIBLE);
         refreshDependencies();
     }
 

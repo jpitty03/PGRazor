@@ -42,14 +42,14 @@ export const settingGroups = [
   {
     id: 'explore',
     label: 'Explore',
-    intro: 'Found under Location & overlays, with the map and hotspots in the Quick Menu.',
+    intro: 'Found under General Settings, with the map and hotspots in the Quick Menu.',
     items: [
       { name: 'Joystick & taps', detail: 'A camera-relative joystick with tap-to-walk, teleport, or double-tap teleport.' },
       { name: 'Speed presets', detail: 'Switch between 0, 9.3, 16, and 30 km/h.' },
       { name: 'Saved places & Autowalk', detail: 'Keep favorite locations and build looping Autowalk routes; the default is 50 nearby stops and gyms, and you can raise it toward all currently loaded or leave it blank for All.' },
       { name: 'Place search & hotspots', detail: 'Includes place search, a live blue location dot, and 14 curated hotspots, each with a cooldown estimate before teleport.' },
       { name: 'Nearby layers', detail: 'See stops, gyms, and raids the game has loaded around you, with team rings and raid categories; choose Walk or Teleport from a pin.' },
-      { name: 'Spawn booster (80 m)', detail: 'An optional, experimental Location & overlays toggle that widens the nearby spawn range; it does not prove a server-side bonus. It can cause lag in busy areas with many nearby Pokémon, so turn it off if the game stutters.' },
+      { name: 'Spawn booster (80 m)', detail: 'An optional, experimental General Settings toggle that widens the nearby spawn range; it does not prove a server-side bonus. It can cause lag in busy areas with many nearby Pokémon, so turn it off if the game stutters.' },
       { name: 'Cooldown estimate', detail: 'A local timer with history — an estimate, not a guarantee.' },
       { name: 'LivePokeMap feeds', detail: 'Remote sightings, signed in with your own separate LivePokeMap subscription.' },
     ],
@@ -76,7 +76,7 @@ export const settingGroups = [
   {
     id: 'personalize',
     label: 'Personalize',
-    intro: 'Found across the interface and Location & overlays.',
+    intro: 'Found across the interface and General Settings.',
     items: [
       { name: 'Light / dark themes', detail: 'The whole interface follows your chosen PGRazor theme.' },
       { name: 'Overlay scaling', detail: 'Size the launcher, quick menu, joystick, timer, and overlays at 100 / 75 / 50 / 25%.' },

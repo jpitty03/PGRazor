@@ -47,6 +47,8 @@
 #include "gift_batch.h"
 #include "research.h"
 #include "storage_iv.h"
+#include "cutscene_skip.h"
+#include "rocket_swap.h"
 #include "ar_values.h"
 #include "catch_chance.h"
 #include "incense_guard.h"
@@ -2428,6 +2430,8 @@ static int api_tick(uint64_t proven_tid) {
   pgr_gift_batch_tick(os_tid, &g_md);
   pgr_research_tick(os_tid, &g_md);
   pgr_storage_iv_tick(os_tid, &g_md);
+  pgr_cutscene_skip_tick(os_tid, &g_md);
+  pgr_rocket_swap_tick(os_tid);
   pgr_ar_values_tick(os_tid, &g_md);
   pgr_catch_chance_tick(os_tid, &g_md);
   pgr_remote_gym_tick(os_tid, &g_md);
@@ -2460,6 +2464,8 @@ static int api_stop(uint64_t proven_tid) {
       pgr_gift_batch_stop();
       pgr_research_stop();
       pgr_storage_iv_stop();
+      pgr_cutscene_skip_stop(tid);
+      pgr_rocket_swap_stop();
       pgr_catch_chance_stop();
       pgr_remote_gym_stop(tid);
       pgr_incense_guard_stop(tid);

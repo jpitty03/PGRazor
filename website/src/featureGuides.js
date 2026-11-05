@@ -6,10 +6,10 @@ export const featureGuides = [
     category: 'Movement',
     summary:
       'Spoof your location, steer with a camera-relative joystick, and choose what a tap on the game map does.',
-    where: 'Settings > Location & overlays, plus the on-screen joystick.',
+    where: 'Settings > General Settings, plus the on-screen joystick.',
     steps: [
-      'Open Settings and expand Location & overlays.',
-      'Open Customize Quick Menu — the first control in Location & overlays — to show or hide any of the 11 Quick Menu entries. It changes visibility only, never a feature’s on/off state, and Settings always stays available. Choices are saved per account and included in settings backups.',
+      'Open Settings and expand General Settings.',
+      'Open Customize Quick Menu — the first control in General Settings — to show or hide any of the 11 Quick Menu entries. It changes visibility only, never a feature’s on/off state, and Settings always stays available. Choices are saved per account and included in settings backups.',
       'Turn on Location spoofing. It can run with Android’s system Location switch off or the app’s location permission denied.',
       'Use Coordinates & speed to set a start point and pick a speed preset: 0, 9.3, 16, or 30 km/h.',
       'Drag the joystick to walk; it steers relative to the game camera, not the screen.',
@@ -20,7 +20,7 @@ export const featureGuides = [
       'Show joystick toggles the handle; the panel behind it is intentionally transparent.',
       'Disabling spoofing returns the device to its normal location and stops simulated movement.',
       'Adventure Sync prompts are dismissed automatically only while spoofing is on and the app has no Android location permission.',
-      'Spawn booster (80 m) is an optional, experimental Location & overlays toggle that widens the nearby spawn range; it appears only when the game supports it and does not prove a server-side bonus. It can cause lag in busy areas with many nearby Pokémon, so turn it off if the game stutters.',
+      'Spawn booster (80 m) is an optional, experimental General Settings toggle that widens the nearby spawn range; it appears only when the game supports it and does not prove a server-side bonus. It can cause lag in busy areas with many nearby Pokémon, so turn it off if the game stutters.',
     ],
   },
   {
@@ -110,9 +110,9 @@ export const featureGuides = [
     category: 'Reference',
     summary:
       'A local, draggable timer that estimates the soft-ban wait between location-sensitive actions.',
-    where: 'Settings > Location & overlays (Cooldown overlay); tap the timer for history.',
+    where: 'Settings > General Settings (Cooldown overlay); tap the timer for history.',
     steps: [
-      'Turn on the Cooldown overlay in Location & overlays.',
+      'Turn on the Cooldown overlay in General Settings.',
       'After a trigger action — a catch, throw, berry, spin, or gym action in range — read the estimated wait.',
       'Measure distance from your last location-sensitive action to the next; round up to the next listed distance on the chart.',
       'Tap the timer to open cooldown history; drag it to reposition it.',
@@ -453,10 +453,10 @@ export const featureGuides = [
     category: 'Interface',
     summary:
       'Light/dark themes, overlay scaling, a parent-off gating behavior for dependent controls, and JSON export/import.',
-    where: 'Settings header (theme), Location & overlays (UI scale), and Export / import settings.',
+    where: 'Settings header (theme), General Settings (UI scale), and Export / import settings.',
     steps: [
       'Tap the theme icon in the Settings header to switch the whole interface between light and dark.',
-      'In Location & overlays, set UI scale to 100%, 75%, 50%, or 25% to resize the launcher, quick menu, joystick, timer, and overlays.',
+      'In General Settings, set UI scale to 100%, 75%, 50%, or 25% to resize the launcher, quick menu, joystick, timer, and overlays.',
       'Drag the cooldown timer, VGP icon, and Keep All toggle to reposition them.',
       'Use Export / import settings to save a JSON file and restore it on another phone or after reinstalling.',
     ],
