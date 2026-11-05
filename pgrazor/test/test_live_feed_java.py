@@ -33,11 +33,12 @@ class LiveFeedJavaTests(unittest.TestCase):
                 target = work / original.name
                 target.write_text(text, encoding='utf-8')
                 sources.append(target)
-            sources += [ROOT / 'src/dev/pgrazor/LiveFeedData.java', ROOT / 'src/dev/pgrazor/LiveFeedFilters.java', ROOT / 'src/dev/pgrazor/MapTapSequence.java', ROOT / 'src/dev/pgrazor/BerryPriority.java', ROOT / 'src/dev/pgrazor/SettingsBackupRules.java', ROOT / 'src/dev/pgrazor/BuddyEmotionPreferences.java', ROOT / 'test/LiveFeedDataTest.java', ROOT / 'test/SettingsBackupRulesTest.java']
+            sources += [ROOT / 'src/dev/pgrazor/LiveFeedData.java', ROOT / 'src/dev/pgrazor/LiveFeedFilters.java', ROOT / 'src/dev/pgrazor/MapTapSequence.java', ROOT / 'src/dev/pgrazor/BerryPriority.java', ROOT / 'src/dev/pgrazor/SettingsBackupRules.java', ROOT / 'src/dev/pgrazor/BuddyEmotionPreferences.java', ROOT / 'test/LiveFeedDataTest.java', ROOT / 'test/SettingsBackupRulesTest.java',
+                        ROOT / 'src/dev/pgrazor/PogoFeedData.java', ROOT / 'src/dev/pgrazor/PogoFeedFilters.java', ROOT / 'test/PogoFeedDataTest.java', ROOT / 'test/PogoFeedFiltersTest.java']
             if (ROOT / 'test/LiveFeedFiltersTest.java').exists(): sources.append(ROOT / 'test/LiveFeedFiltersTest.java')
             result = subprocess.run([str(compiler), '-encoding', 'UTF-8', '-d', str(work), *map(str, sources)], capture_output=True, text=True, timeout=30)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            for main in ['LiveFeedDataTest','SettingsBackupRulesTest'] + (['LiveFeedFiltersTest'] if (ROOT / 'test/LiveFeedFiltersTest.java').exists() else []):
+            for main in ['LiveFeedDataTest','SettingsBackupRulesTest','PogoFeedDataTest','PogoFeedFiltersTest'] + (['LiveFeedFiltersTest'] if (ROOT / 'test/LiveFeedFiltersTest.java').exists() else []):
                 result = subprocess.run([str(runtime), '-cp', str(work), main], capture_output=True, text=True, timeout=30)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 

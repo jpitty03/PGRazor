@@ -49,8 +49,8 @@ public final class LiveFeedDialog {
     private LiveFeedDialog() {}
 
     private static final String[] CATEGORIES = {"All", "Pokémon", "Stops", "Gyms", "Raids", "Power Spots"};
-    private static final double[] RADII = {1, 3, 5};
-    private static final String[] RADIUS_LABELS = {"1 km", "3 km", "5 km"};
+    private static final double[] RADII = {1, 3, 5, LiveFeedClient.GLOBAL};
+    private static final String[] RADIUS_LABELS = {"1 km", "3 km", "5 km", "Global"};
     private static final int DEFAULT_REFRESH_SECONDS = 15;
     /** A 429 always backs off at least this long regardless of a shorter server Retry-After. */
     private static final long MIN_BACKOFF_MS = 30_000L;
@@ -106,9 +106,8 @@ public final class LiveFeedDialog {
         private int refreshSeconds = DEFAULT_REFRESH_SECONDS;
         private String note = "", lastError;
         private int categoryIndex, radiusIndex = 1;
-        private boolean myShinies;            // false = Nearby viewport, true = My Shinies feed
         private LiveFeedFilters filters;      // immutable; replaced wholesale on Apply
-        private Button[] catButtons, radiusButtons, tabButtons;
+        private Button[] catButtons, radiusButtons;
         private TextView feedStatus;
 
         Controller(Activity activity, Context ui, AlertDialog dialog, LinearLayout root) {
@@ -116,7 +115,6 @@ public final class LiveFeedDialog {
             prefs = AccountProfiles.preferences(activity,"pgrazor-livefeed");
             categoryIndex = clamp(prefs.getInt("category", 0), 0, CATEGORIES.length - 1);
             radiusIndex = clamp(prefs.getInt("radius", 1), 0, RADII.length - 1);
-            myShinies = prefs.getBoolean("myShinies", false);
             filters = loadFilters();
             // The session constructor must not touch the keystore on the main thread; token use is
             // confined to login()/fetch() which run on the network worker.
@@ -158,7 +156,7 @@ public final class LiveFeedDialog {
 
         private void render() {
             root.removeAllViews();
-            feedStatus = null; catButtons = radiusButtons = tabButtons = null;
+            feedStatus = null; catButtons = radiusButtons = null;
             if (showingLogin) buildLogin(); else buildFeed();
             MapTheme.style(root);
             if (!showingLogin) highlightAll();
@@ -290,25 +288,7 @@ public final class LiveFeedDialog {
             refresh.setOnClickListener(v -> requestFetch());
             filterBtn.setOnClickListener(v -> openFilters());
 
-            // Feed source tabs: Nearby viewport vs the account's My Shinies list.
-            LinearLayout tabRow = new LinearLayout(ui);
-            tabRow.setOrientation(LinearLayout.HORIZONTAL);
-            final String[] tabs = {"Nearby", "My Shinies"};
-            tabButtons = new Button[2];
-            for (int i = 0; i < 2; i++) {
-                final boolean shinies = i == 1;
-                Button b = segButton(tabs[i]);
-                b.setOnClickListener(v -> selectTab(shinies));
-                tabRow.addView(b, new LinearLayout.LayoutParams(0, dp(40), 1));
-                tabButtons[i] = b;
-            }
-            root.addView(tabRow);
-
-            if (myShinies) {
-                TextView caption = label("My Shinies uses the friend code set up on the LivePokeMap website.", 12);
-                caption.setPadding(0, dp(6), 0, dp(4));
-                root.addView(caption);
-            } else {
+            {
                 TextView around = label("Around current location", 13);
                 around.setPadding(0, dp(6), 0, dp(2));
                 root.addView(around);
@@ -354,7 +334,7 @@ public final class LiveFeedDialog {
             list.setOnItemClickListener((parent, view, pos, id) -> {
                 if (pos >= 0 && pos < visible.size()) openDetails(visible.get(pos));
             });
-            TextView empty = label(myShinies ? "No shinies to show." : "No live results in range.", 14);
+            TextView empty = label("No live results in range.", 14);
             empty.setGravity(Gravity.CENTER);
             empty.setPadding(0, dp(24), 0, 0);
             listHolder.addView(list, new FrameLayout.LayoutParams(-1, -1));
@@ -386,25 +366,13 @@ public final class LiveFeedDialog {
             requestFetch();
         }
 
-        /** Switch feed source. Bumps the generation so any in-flight fetch is dropped and no two
-         *  polling scopes overlap, clears the old scope's rows, and re-renders for the new layout. */
-        private void selectTab(boolean shinies) {
-            if (shinies == myShinies) return;
-            myShinies = shinies; prefs.edit().putBoolean("myShinies", shinies).apply();
-            generation++;
-            entries.clear(); visible.clear(); distCache = new HashMap<>();
-            note = ""; lastError = null; lastUpdated = 0;
-            refreshSeconds = DEFAULT_REFRESH_SECONDS;
-            render(); // buildFeed() kicks off the first fetch for the new scope
-        }
-
         private void openFilters() {
             if (closed || showingLogin) return;
             org.json.JSONObject working;
             try {
-                working = filters.toViewportJson(); // a fresh, mutable copy the modal edits in place
+                working = filters.toStoredJson(); // a fresh, mutable copy the modal edits in place
             } catch (org.json.JSONException e) { toast("Couldn't open the filters."); return; }
-            LiveFeedFilterDialog.show(activity, ui, myShinies, working, speciesNames, prefs,
+            LiveFeedFilterDialog.show(activity, ui, working, speciesNames, prefs,
                 this::trackOwn, this::applyFilters);
         }
 
@@ -429,7 +397,7 @@ public final class LiveFeedDialog {
                 String stored = prefs.getString("filters_v1", null);
                 if (stored != null) return LiveFeedFilters.fromJson(new org.json.JSONObject(stored));
                 int legacy = clamp(prefs.getInt("minIv", 0), 0, 3);
-                org.json.JSONObject initial = new LiveFeedFilters().toViewportJson();
+                org.json.JSONObject initial = new LiveFeedFilters().toStoredJson();
                 initial.put("min_iv", new int[]{0,80,90,100}[legacy]);
                 return LiveFeedFilters.fromJson(initial);
             } catch (Exception ignored) { } // fall back to defaults on any corrupt/legacy value
@@ -438,12 +406,11 @@ public final class LiveFeedDialog {
 
         private void saveFilters() {
             try {
-                prefs.edit().putString("filters_v1", filters.toViewportJson().toString()).apply();
+                prefs.edit().putString("filters_v1", filters.toStoredJson().toString()).apply();
             } catch (org.json.JSONException ignored) { }
         }
 
         private void highlightAll() {
-            highlight(tabButtons, myShinies ? 1 : 0);
             highlight(catButtons, categoryIndex);
             highlight(radiusButtons, radiusIndex);
         }
@@ -479,16 +446,15 @@ public final class LiveFeedDialog {
             fetchInFlight = true;
             lastFetchStartedElapsed = nowE;
             final int g = generation;
-            final boolean shinies = myShinies;
             final double lat = Control.engine.latitude, lon = Control.engine.longitude;
             final double radiusKm = RADII[radiusIndex];
             final LiveFeedFilters f = filters; // immutable snapshot; safe to hand to the worker
             updateStatus();
             net.execute(() -> {
                 try {
-                    LiveFeedData.Snapshot snap = shinies
-                        ? client.fetchMyShinies(lat, lon, f)
-                        : client.fetch(lat, lon, radiusKm, f);
+                    LiveFeedData.Snapshot snap = client.fetch(lat, lon, radiusKm, f);
+                    if (Double.isInfinite(radiusKm))
+                        Control.event("feed-global", snap.entries.size() + " results");
                     main.post(() -> onSnapshot(g, snap));
                 } catch (LiveFeedClient.FeedException fe) {
                     final int status = fe.status; final long retry = fe.retryAfterMs;
@@ -578,12 +544,15 @@ public final class LiveFeedDialog {
             List<LiveFeedData.Entry> list = new ArrayList<>();
             for (LiveFeedData.Entry e : entries) {
                 if (e == null || e.expired(now)) continue;               // hide expired every pass
-                // My Shinies has no category or radius scope; the server's filters are authoritative
-                // for both paths, so no client-side IV gate (it would fight the always-show exceptions).
-                if (!myShinies && !categoryMatches(e)) continue;
+                if (!categoryMatches(e)) continue;
+                // The server only partly applies the display filters (not the level range), so
+                // re-check Pokémon the way the LivePokeMap website does.
+                if (e.kind == LiveFeedData.Kind.POKEMON && !filters.matches(e.dexId, e.hasStats ? e.iv : -1,
+                        e.level, e.attrs.size, e.attrs.pvpGreatRank, e.attrs.pvpUltraRank, e.attrs.pvpLittleRank))
+                    continue;
                 if (!Double.isFinite(e.lat) || !Double.isFinite(e.lon)) continue;
                 double meters = distanceMeters(elat, elon, e.lat, e.lon);
-                if (!myShinies && meters > RADII[radiusIndex] * 1000) continue;
+                if (meters > RADII[radiusIndex] * 1000) continue;
                 dist.put(e, meters);
                 list.add(e);
             }

@@ -16,15 +16,13 @@ import org.json.JSONObject;
 /**
  * Minimal HTTPS client for LivePokeMap built on {@link HttpURLConnection} (no third-party deps).
  *
- * <p>It talks to three endpoints only: {@code POST /api/auth/login}, {@code POST /api/map/viewport}
- * and {@code POST /api/game/my_shinies}. It never activates a remote game session, never sends an
- * {@code X-Credential-ID}, and never logs or echoes credentials or raw server bodies. The viewport
- * request uses a bounded box around the given centre so it cannot ask for a world-sized area; the My
- * Shinies request sends only the centre (its results legitimately extend past the viewport radius, so
- * that radius is never used to clamp or box it). The native bearer is reused on the My Shinies path,
- * which is untested against the service: a 401 clears the stored token, a 403 is reported as a lack of
- * access and leaves the session intact. All methods are synchronous and must be called off the main
- * thread; a single instance is owned by the UI and {@link #cancel()} aborts the in-flight call.
+ * <p>It talks to two endpoints only: {@code POST /api/auth/login} and {@code POST /api/map/viewport}.
+ * It never activates a remote game session, never sends an {@code X-Credential-ID}, and never logs or
+ * echoes credentials or raw server bodies. The viewport request uses a bounded 1..5 km box around the
+ * given centre, or the whole map for {@link #GLOBAL} (the service then only sends 100% IV Pokémon).
+ * A 401 clears the stored token, a 403 is reported as a
+ * lack of access and leaves the session intact. All methods are synchronous and must be called off the
+ * main thread; a single instance is owned by the UI and {@link #cancel()} aborts the in-flight call.
  */
 public final class LiveFeedClient {
     private static final String BASE = "https://play.livepokemap.com";
@@ -35,6 +33,8 @@ public final class LiveFeedClient {
     private static final String USER_AGENT = "PGRazor/0.1 (+https://github.com/jpitty03/PGRazor)";
     private static final double KM_PER_DEGREE_LAT = 111.0;
     private static final double MAX_LON_DELTA_DEGREES = 45.0; // guards against a huge box near the poles
+    /** Radius value meaning "the whole map": the viewport becomes a world box instead of a 1..5 km box. */
+    public static final double GLOBAL = Double.POSITIVE_INFINITY;
     private static final long DEFAULT_RETRY_AFTER_MS = 10000;
 
     /** Raised for every network/auth failure with a user-safe message and no raw server content. */
@@ -116,27 +116,9 @@ public final class LiveFeedClient {
         long requestEpoch; synchronized(requestLock) { requestEpoch = epoch; }
         String token = requireToken();
         requireLocation(lat, lon);
-        JSONObject body = viewportBody(lat, lon, radiusKm, (filters == null ? new LiveFeedFilters() : filters).toViewportJson());
+        JSONObject body = viewportBody(lat, lon, radiusKm, (filters == null ? new LiveFeedFilters() : filters).toRequestJson());
         JSONObject response = send("/api/map/viewport", body, token, requestEpoch);
         return LiveFeedData.parse(response, System.currentTimeMillis());
-    }
-
-    /**
-     * Fetches the signed-in account's own shinies around the given centre. No radius is applied: the
-     * service returns results well beyond the viewport radius, so clamping or boxing here would silently
-     * truncate them. Sends only the 8-key My Shinies filter subset. A 401 clears the stored token; a 403
-     * is surfaced as a lack of access without clearing the session. Call off the UI thread.
-     */
-    public LiveFeedData.Snapshot fetchMyShinies(double lat, double lon, LiveFeedFilters filters) throws Exception {
-        long requestEpoch; synchronized(requestLock) { requestEpoch = epoch; }
-        String token = requireToken();
-        requireLocation(lat, lon);
-        JSONObject body = new JSONObject();
-        body.put("center_lat", lat);
-        body.put("center_lon", lon);
-        body.put("display_filters", (filters == null ? new LiveFeedFilters() : filters).toShiniesJson());
-        JSONObject response = send("/api/game/my_shinies", body, token, requestEpoch);
-        return LiveFeedData.parseShinies(response, System.currentTimeMillis());
     }
 
     private String requireToken() throws FeedException {
@@ -161,17 +143,25 @@ public final class LiveFeedClient {
         }
     }
 
-    // A bounded box around the centre (radius clamped 1..5 km) plus the given display filters.
+    // A bounded box around the centre (radius clamped 1..5 km), or the whole map for GLOBAL, plus the
+    // given display filters.
     private static JSONObject viewportBody(double lat, double lon, double radiusKm, JSONObject displayFilters) throws JSONException {
-        double radius = clamp(radiusKm, 1, 5);
-        double dLat = radius / KM_PER_DEGREE_LAT;
-        double cosLat = Math.max(Math.cos(Math.toRadians(lat)), 1e-6); // avoid divide-by-zero at the poles
-        double dLon = Math.min(radius / (KM_PER_DEGREE_LAT * cosLat), MAX_LON_DELTA_DEGREES);
         JSONObject body = new JSONObject();
-        body.put("min_lat", clamp(lat - dLat, -90, 90));
-        body.put("max_lat", clamp(lat + dLat, -90, 90));
-        body.put("min_lon", clamp(lon - dLon, -180, 180));
-        body.put("max_lon", clamp(lon + dLon, -180, 180));
+        if (radiusKm == GLOBAL) {
+            body.put("min_lat", -85.0);
+            body.put("max_lat", 85.0);
+            body.put("min_lon", -180.0);
+            body.put("max_lon", 180.0);
+        } else {
+            double radius = clamp(radiusKm, 1, 5);
+            double dLat = radius / KM_PER_DEGREE_LAT;
+            double cosLat = Math.max(Math.cos(Math.toRadians(lat)), 1e-6); // avoid divide-by-zero at the poles
+            double dLon = Math.min(radius / (KM_PER_DEGREE_LAT * cosLat), MAX_LON_DELTA_DEGREES);
+            body.put("min_lat", clamp(lat - dLat, -90, 90));
+            body.put("max_lat", clamp(lat + dLat, -90, 90));
+            body.put("min_lon", clamp(lon - dLon, -180, 180));
+            body.put("max_lon", clamp(lon + dLon, -180, 180));
+        }
         body.put("zoom", MAP_ZOOM);
         body.put("display_filters", displayFilters);
         return body;

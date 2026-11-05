@@ -167,7 +167,7 @@ public final class Pad {
             public double onCycleWalkSpeed(){double s=Control.cycleWalkSpeed();refresh();return s;}
             public void onAutoWalk(){stick.release(true);AutoWalkDialog.show(activity);}
             public void onGameRoutes(){stick.release(true);GameRoutesDialog.show(activity);}
-            public void onFeeds(){stick.release(true);LiveFeedDialog.show(activity);}
+            public void onFeeds(){stick.release(true);FeedChooser.show(activity);}
             public void onFavorites(){QuickLocationDialogs.showFavorites(activity,Pad.this::quickTeleport);}
             public void onTeleport(){QuickLocationDialogs.showTeleport(activity,Pad.this::quickTeleport);}
             public void onHotspots(){stick.release(true);HotspotsDialog.showQuick(activity,Pad.this::quickTeleport,Pad.this::quickWalk);}

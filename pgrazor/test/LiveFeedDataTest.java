@@ -49,45 +49,15 @@ public final class LiveFeedDataTest {
         check(stops==2,"CHECKPOINT and POKESTOP both render as stops");
         check(gyms==1&&raids==2,"Expired raid falls back to gym, live raid remains raid");
         check(spawns==2,"Keep valid known and unknown-stat spawns");
+        JSONArray ranked=new JSONArray().put(new JSONObject().put("encounter_id","9").put("dex_id",126)
+            .put("lat",37.5).put("lon",-122.4).put("despawn_ms",now+60000).put("has_full_stats",true)
+            .put("iv_percent",60).put("cp",900).put("level",20).put("pvp_great_rank",8).put("pvp_ultra_rank",400));
+        String rankedRow=LiveFeedData.parse(new JSONObject().put("pokemon",ranked),now).entries.get(0).details;
+        check(rankedRow.contains("GL #8")&&!rankedRow.contains("UL #"),"Row shows top-100 league ranks only: "+rankedRow);
+        check(LiveFeedData.parse(new JSONObject().put("data",new JSONObject().put("span_tier","perfect")),now).note
+            .contains("100% IV"),"Wide-span tier explains the 100%-only results");
+        check(LiveFeedData.parse(new JSONObject().put("data",new JSONObject().put("span_tier","size")),now).note
+            .isEmpty(),"Nearby tier adds no note");
         System.out.println("PASS: live feed fort types, expiry, unknown stats, coordinates and 64-bit IDs");
-
-        // --- My Shinies: epoch-seconds expiry, personal flag, 64-bit ids, individual IVs, bounded refresh ---
-        long nowSec=now/1000;
-        JSONArray shinies=new JSONArray();
-        shinies.put(new JSONObject().put("encounter_id","18446744073709551614").put("name","").put("dex_id",399)
-            .put("form",1667).put("costume",0).put("gender",1).put("level",8).put("cp",137)
-            .put("iv",53.333332).put("atk_iv",7).put("def_iv",2).put("sta_iv",15).put("size",3)
-            .put("pvp_rank1",JSONObject.NULL).put("lat",37.5).put("lon",-122.4)
-            .put("distance_km",2.33).put("cooldown_sec",140).put("despawn_ts",nowSec+300).put("despawn_verified",true));
-        shinies.put(new JSONObject().put("encounter_id","shiny-expired").put("dex_id",179)
-            .put("lat",37.5).put("lon",-122.4).put("iv",44.4).put("despawn_ts",nowSec-10));
-        shinies.put(new JSONObject().put("encounter_id","18446744073709551614").put("dex_id",399)
-            .put("lat",37.5).put("lon",-122.4).put("iv",53.3).put("despawn_ts",nowSec+300)); // duplicate id
-        JSONObject shinyData=new JSONObject().put("refresh_sec",30).put("shinies",shinies);
-        LiveFeedData.Snapshot ss=LiveFeedData.parseShinies(new JSONObject().put("success",true).put("data",shinyData),now);
-        check(ss.refreshSeconds==30,"My Shinies honours bounded refresh_sec");
-        check(ss.entries.size()==1,"Drop expired and de-duplicate shinies");
-        LiveFeedData.Entry shiny=ss.entries.get(0);
-        check(shiny.kind==LiveFeedData.Kind.POKEMON,"Shiny keeps POKEMON kind so the sprite resolves");
-        check(shiny.personalShiny,"Shiny row is flagged personal");
-        check(shiny.id.contains("18446744073709551614"),"Preserve 64-bit shiny encounter id as a string");
-        check(!shiny.expired(now)&&shiny.expired(now+300001),"despawn_ts seconds converted to millis");
-        check(Math.abs(shiny.iv-53.333332)<0.001&&shiny.cp==137&&shiny.hasStats,"Shiny IV percentage and CP preserved");
-        check(shiny.attrs.atkIv==7&&shiny.attrs.defIv==2&&shiny.attrs.staIv==15,"Individual shiny IVs parsed");
-        check(shiny.attrs.size==3&&shiny.attrs.form==1667&&shiny.attrs.costume==0,"Observed shiny attrs parsed");
-        check(shiny.attrs.pvpUltraRank==-1&&shiny.attrs.pvpGreatRank==-1,"Null/ambiguous PvP rank stays unknown");
-
-        // A despawn_ts already in milliseconds must not be double-scaled into the far future.
-        JSONArray msShiny=new JSONArray();
-        msShiny.put(new JSONObject().put("encounter_id","ms-ts").put("dex_id",1).put("lat",37.5).put("lon",-122.4)
-            .put("iv",10).put("despawn_ts",now+60000));
-        LiveFeedData.Snapshot ms=LiveFeedData.parseShinies(new JSONObject().put("shinies",msShiny),now);
-        check(ms.entries.size()==1&&!ms.entries.get(0).expired(now)&&ms.entries.get(0).expired(now+60001),
-            "Millisecond despawn_ts passed through without double-scaling");
-        JSONArray badTime=new JSONArray().put(new JSONObject().put("encounter_id","overflow").put("lat",1).put("lon",1).put("despawn_ts",Long.MAX_VALUE));
-        check(LiveFeedData.parseShinies(new JSONObject().put("shinies",badTime),now).entries.isEmpty(),"Overflowing expiry is rejected");
-        LiveFeedData.Snapshot gated=LiveFeedData.parseShinies(new JSONObject().put("shinies",new JSONArray()).put("shiny_access",false),now);
-        check(gated.refreshSeconds==30&&!gated.note.isEmpty(),"Default shiny interval and access status");
-        System.out.println("PASS: my shinies seconds-expiry, personal flag, 64-bit ids, individual IVs");
     }
 }

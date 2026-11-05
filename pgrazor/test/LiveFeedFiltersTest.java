@@ -19,7 +19,7 @@ public final class LiveFeedFiltersTest {
     }
 
     public static void main(String[] args) throws Exception {
-        // --- defaults: 21-key viewport, 8-key shinies, every default broad/off ---
+        // --- defaults: 21-key viewport, every default broad/off ---
         JSONObject def = new LiveFeedFilters().toViewportJson();
         check(def.length() == 21, "viewport carries all 21 keys");
         check(!def.getBoolean("show_all"), "default show_all false");
@@ -36,13 +36,6 @@ public final class LiveFeedFiltersTest {
         check(!def.getBoolean("show_my_shinies") && !def.getBoolean("shiny_only")
                 && !def.getBoolean("show_my_backgrounds") && !def.getBoolean("background_only"), "feature toggles off");
 
-        JSONObject defShiny = new LiveFeedFilters().toShiniesJson();
-        check(defShiny.length() == 8, "my shinies carries exactly the 8-key subset");
-        check(defShiny.has("species_filter_mode") && defShiny.has("species_filter_list")
-                && defShiny.has("min_iv") && defShiny.has("max_iv") && defShiny.has("min_level")
-                && defShiny.has("max_level") && defShiny.has("filter_xxs") && defShiny.has("filter_xxl"),
-                "my shinies subset keys are exactly the captured eight");
-
         // --- captured-shape round trip, species de-duplication, order preservation ---
         JSONObject captured = new JSONObject("{\"show_all\":false,\"min_iv\":41,\"max_iv\":100,"
                 + "\"min_level\":0,\"max_level\":50,\"always_show_perfect\":true,\"always_show_zero\":false,"
@@ -58,11 +51,8 @@ public final class LiveFeedFiltersTest {
         JSONArray list = vp.getJSONArray("species_filter_list");
         check(list.length() == 4 && list.getInt(0) == 415 && list.getInt(3) == 774,
                 "species list de-duplicated with order preserved");
-        check(vp.getBoolean("show_my_shinies") && vp.getBoolean("show_my_backgrounds"),
-                "shiny/background toggles survive");
-        JSONObject shy = f.toShiniesJson();
-        check(shy.length() == 8 && shy.getInt("min_iv") == 41 && "allowlist".equals(shy.getString("species_filter_mode")),
-                "shinies subset reflects the same filters");
+        check(!vp.getBoolean("show_my_shinies") && vp.getBoolean("show_my_backgrounds"),
+                "a saved show_my_shinies is dropped (My Shinies was removed); backgrounds survive");
 
         // --- rejection of malformed input and out-of-range values ---
         expectReject(new JSONObject().put("show_all", "yes"), "boolean given a string");
@@ -85,6 +75,35 @@ public final class LiveFeedFiltersTest {
         LiveFeedFilters tolerant = LiveFeedFilters.fromJson(new JSONObject().put("totally_unknown", 5).put("min_iv", 50));
         check(tolerant.toViewportJson().getInt("min_iv") == 50, "unknown keys ignored, known key applied");
         check(LiveFeedFilters.fromJson(null).toViewportJson().length() == 21, "null argument yields defaults");
+
+        // --- client-side match mirrors the website (level range is not applied by the server) ---
+        LiveFeedFilters lvl = LiveFeedFilters.fromJson(new JSONObject().put("min_iv", 100).put("max_iv", 100)
+            .put("min_level", 0).put("max_level", 5));
+        check(lvl.matches(1, 100, 4, -1, -1, -1, -1), "hundo inside the level range is kept");
+        check(!lvl.matches(1, 100, 23, -1, -1, -1, -1), "hundo above the max level is dropped");
+        check(!lvl.matches(1, 91, 4, -1, -1, -1, -1), "IV below the minimum is dropped");
+        check(lvl.matches(1, 100, -1, -1, -1, -1, -1), "unknown level skips the level check");
+        check(!lvl.matches(1, -1, 4, -1, -1, -1, -1), "no stats are dropped unless showing everything");
+        LiveFeedFilters perfect = LiveFeedFilters.fromJson(new JSONObject().put("min_iv", 90).put("max_level", 5)
+            .put("always_show_perfect", true));
+        check(perfect.matches(1, 100, 30, -1, -1, -1, -1), "always-show perfect bypasses the level range");
+        check(new LiveFeedFilters().matches(1, 50, 30, -1, -1, -1, -1), "defaults keep everything with stats");
+
+        // --- PvP only: just the ranked ones, IV/level ignored, never sent to the service ---
+        LiveFeedFilters pvp = LiveFeedFilters.fromJson(new JSONObject().put("min_iv", 0).put("max_iv", 19)
+            .put("show_pvp_great", true).put("pvp_max_rank", 50).put("pvp_only", true));
+        check(pvp.pvpOnlyActive(), "PvP only is active with a league ticked");
+        check(pvp.matches(1, 60, 30, -1, 12, -1, -1), "Great League #12 is listed whatever its IV");
+        check(!pvp.matches(1, 17.8, 16, -1, 1285, -1, -1), "in-range IV alone no longer lists it");
+        check(!pvp.matches(1, 60, 30, -1, -1, 3, -1), "an unticked league's rank doesn't count");
+        check(!pvp.matches(1, 60, 30, -1, 51, -1, -1), "rank past the max is dropped");
+        check(pvp.toViewportJson().length() == 21 && !pvp.toRequestJson().has("pvp_only"), "pvp_only is never sent");
+        check(pvp.toRequestJson().getInt("max_iv") == 100, "request opens the IV range for PvP only");
+        check(pvp.toStoredJson().getBoolean("pvp_only") && pvp.toStoredJson().getInt("max_iv") == 19,
+            "stored copy keeps pvp_only and the user's IV range");
+        check(LiveFeedFilters.fromJson(pvp.toStoredJson()).pvpOnlyActive(), "stored copy round-trips");
+        check(!LiveFeedFilters.fromJson(new JSONObject().put("pvp_only", true)).pvpOnlyActive(),
+            "PvP only needs a ticked league");
 
         System.out.println("PASS: live feed filters defaults, validation, de-duplication and 21/8-key serialisation");
     }

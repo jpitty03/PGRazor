@@ -9,15 +9,14 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
- * Immutable snapshot of the LivePokeMap display-filter set shared by the viewport and My Shinies
- * requests. Exactly the 21 filter keys observed on the wire are modelled; every default is broad/off
+ * Immutable snapshot of the LivePokeMap viewport display-filter set. Exactly the 21 filter keys observed on the wire are modelled; every default is broad/off
  * so a freshly constructed instance hides nothing it has not been told to hide.
  *
  * <p>{@link #fromJson(JSONObject)} is the only mutable-input entry point: it validates types and
  * ranges, rejecting malformed payloads with a {@link JSONException}, silently ignoring unknown keys,
- * and normalising the species allowlist (deduplicated, bounded to the current Pokédex range). The two
- * serialisers emit the exact shapes captured from the service: {@link #toViewportJson()} carries all
- * 21 keys and {@link #toShiniesJson()} carries only the 8-key subset the My Shinies endpoint accepts.
+ * and normalising the species allowlist (deduplicated, bounded to the current Pokédex range).
+ * {@link #toViewportJson()} emits the exact 21-key shape captured from the service. LivePokeMap no
+ * longer has My Shinies, so "show_my_shinies" is always sent as false, whatever was saved.
  *
  * <p>No value here is a service guarantee. Ranges such as the PvP rank cap are validated purely as an
  * app-side guard against nonsensical input; the server decides what it actually returns.
@@ -44,6 +43,8 @@ public final class LiveFeedFilters {
     private final boolean showPvpGreat, showPvpUltra, showPvpLittle;
     private final int pvpMaxRank;
     private final boolean showMyShinies, shinyOnly, showMyBackgrounds, backgroundOnly;
+    /** PGRazor-only (never sent): list just Pokémon ranked within pvpMaxRank in a ticked league. */
+    private boolean pvpOnly;
 
     /** Broad/off defaults: nothing filtered out, every "always show" and feature toggle disabled. */
     public LiveFeedFilters() {
@@ -110,15 +111,70 @@ public final class LiveFeedFilters {
         boolean showPvpUltra = boolField(o, "show_pvp_ultra", false);
         boolean showPvpLittle = boolField(o, "show_pvp_little", false);
         int pvpMaxRank = intField(o, "pvp_max_rank", DEFAULT_PVP_MAX_RANK, MIN_PVP_RANK, MAX_PVP_RANK);
-        boolean showMyShinies = boolField(o, "show_my_shinies", false);
+        boolField(o, "show_my_shinies", false); // still validated in saved filters, but ignored
+        boolean showMyShinies = false;
         boolean shinyOnly = boolField(o, "shiny_only", false);
         boolean showMyBackgrounds = boolField(o, "show_my_backgrounds", false);
         boolean backgroundOnly = boolField(o, "background_only", false);
 
-        return new LiveFeedFilters(showAll, minIv, maxIv, minLevel, maxLevel, alwaysShowPerfect,
+        LiveFeedFilters f = new LiveFeedFilters(showAll, minIv, maxIv, minLevel, maxLevel, alwaysShowPerfect,
                 alwaysShowZero, alwaysShowRare, alwaysShowSize, filterXxs, filterXxl, speciesMode,
                 speciesList, showPvpGreat, showPvpUltra, showPvpLittle, pvpMaxRank, showMyShinies,
                 shinyOnly, showMyBackgrounds, backgroundOnly);
+        f.pvpOnly = boolField(o, "pvp_only", false);
+        return f;
+    }
+
+    /**
+     * Client-side check for one Pokémon, mirroring the LivePokeMap website: the server only
+     * partly applies the display filters (it ignores the level range, for one), and the site re-filters
+     * every viewport result in the browser with these same rules. Unknown values are {@code -1}.
+     * "Rare species" can't be judged here (the site uses its own rarity table), so with that exception
+     * on, the server's choice is kept as-is.
+     */
+    public boolean matches(int dexId, double ivPercent, double level, int size,
+                           int pvpGreatRank, int pvpUltraRank, int pvpLittleRank) {
+        boolean pvpMatch = showPvpGreat && pvpGreatRank >= 1 && pvpGreatRank <= pvpMaxRank
+                || showPvpUltra && pvpUltraRank >= 1 && pvpUltraRank <= pvpMaxRank
+                || showPvpLittle && pvpLittleRank >= 1 && pvpLittleRank <= pvpMaxRank;
+        if (pvpOnlyActive())
+            return pvpMatch && !(MODE_ALLOWLIST.equals(speciesMode) && !speciesList.contains(dexId));
+        if (showAll && minIv == IV_MIN && maxIv == IV_MAX && minLevel == LEVEL_MIN && maxLevel == LEVEL_MAX
+                && !filterXxs && !filterXxl && MODE_OFF.equals(speciesMode)
+                && !showPvpGreat && !showPvpUltra && !showPvpLittle) return true;
+        if (alwaysShowRare) return true;
+        if (ivPercent < 0) return showAll && minIv == IV_MIN && maxIv == IV_MAX;
+        boolean xxs = size == 1, xxl = size == 5;
+        if (ivPercent >= 100 && alwaysShowPerfect || ivPercent == 0 && alwaysShowZero
+                || alwaysShowSize && (xxs || xxl)) return true;
+        if (MODE_ALLOWLIST.equals(speciesMode) && !speciesList.contains(dexId)) return false;
+        if (pvpMatch) return true;
+        if (ivPercent < minIv || ivPercent > maxIv) return false;
+        if (level > 0 && (minLevel > LEVEL_MIN && level < minLevel || maxLevel < LEVEL_MAX && level > maxLevel))
+            return false;
+        if (filterXxs || filterXxl) return filterXxs && xxs || filterXxl && xxl;
+        return true;
+    }
+
+    /** True when "PvP only" is on and at least one league is ticked. */
+    public boolean pvpOnlyActive() { return pvpOnly && (showPvpGreat || showPvpUltra || showPvpLittle); }
+
+    /** The settings as saved and edited: the 21 service keys plus PGRazor's own "pvp_only". */
+    public JSONObject toStoredJson() throws JSONException {
+        return toViewportJson().put("pvp_only", pvpOnly);
+    }
+
+    /**
+     * The 21-key request body. With "PvP only" on, the IV and level range are opened up so the service
+     * doesn't drop ranked Pokémon before PGRazor filters on rank.
+     */
+    public JSONObject toRequestJson() throws JSONException {
+        JSONObject f = toViewportJson();
+        if (pvpOnlyActive()) {
+            f.put("min_iv", IV_MIN); f.put("max_iv", IV_MAX);
+            f.put("min_level", LEVEL_MIN); f.put("max_level", LEVEL_MAX);
+        }
+        return f;
     }
 
     /** Full 21-key display-filter object for {@code POST /api/map/viewport}. */
@@ -145,20 +201,6 @@ public final class LiveFeedFilters {
         f.put("shiny_only", shinyOnly);
         f.put("show_my_backgrounds", showMyBackgrounds);
         f.put("background_only", backgroundOnly);
-        return f;
-    }
-
-    /** The 8-key subset accepted by {@code POST /api/game/my_shinies}, in captured order. */
-    public JSONObject toShiniesJson() throws JSONException {
-        JSONObject f = new JSONObject();
-        f.put("species_filter_mode", speciesMode);
-        f.put("species_filter_list", speciesJson());
-        f.put("min_iv", minIv);
-        f.put("max_iv", maxIv);
-        f.put("min_level", minLevel);
-        f.put("max_level", maxLevel);
-        f.put("filter_xxs", filterXxs);
-        f.put("filter_xxl", filterXxl);
         return f;
     }
 

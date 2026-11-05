@@ -33,10 +33,8 @@ import org.json.JSONObject;
  * filters and hands it back on Apply so the owner can validate it through
  * {@code LiveFeedFilters.fromJson(...)}, persist it and refetch.
  *
- * <p>Two modes are supported. In the full "Nearby" mode every one of the 21 viewport display-filter
- * keys is editable, plus local named presets. In "My Shinies" mode only the 8 keys the shinies
- * endpoint honours (species mode/list, IV min/max, level min/max, size XXS/XXL) are shown; the other
- * 13 keys are left untouched in the working copy so the user's Nearby settings are preserved.
+ * <p>The viewport display-filter keys are editable, plus local named presets. LivePokeMap no longer
+ * has My Shinies, so "show_my_shinies" stays in the request at its default and has no control.
  */
 public final class LiveFeedFilterDialog {
     private LiveFeedFilterDialog() {}
@@ -54,18 +52,17 @@ public final class LiveFeedFilterDialog {
      * @param working a fresh {@code toViewportJson()} copy of the current filters (all 21 keys). It is
      *                mutated in place; the owner must only read it back through {@code onApply}.
      */
-    public static void show(Activity activity, Context ui, boolean myShiniesMode, JSONObject working,
+    public static void show(Activity activity, Context ui, JSONObject working,
                             JSONObject speciesNames, SharedPreferences prefs,
                             DialogSink sink, ApplyHandler onApply) {
         if (activity == null || activity.isFinishing() || activity.isDestroyed() || working == null) return;
-        new Editor(activity, ui, myShiniesMode, working, speciesNames, prefs, sink, onApply).open();
+        new Editor(activity, ui, working, speciesNames, prefs, sink, onApply).open();
     }
 
     /** Holds the working JSON, the live control references and the preset/species sub-dialogs. */
     private static final class Editor {
         private final Activity activity;
         private final Context ui;
-        private final boolean myShinies;
         private final JSONObject working;
         private final JSONObject speciesNames;
         private final SharedPreferences prefs;
@@ -79,9 +76,9 @@ public final class LiveFeedFilterDialog {
         private Button speciesButton;   // "Choose species (N)"; label refreshed on change
         private Button[] speciesModeButtons;
 
-        Editor(Activity activity, Context ui, boolean myShinies, JSONObject working,
+        Editor(Activity activity, Context ui, JSONObject working,
                JSONObject speciesNames, SharedPreferences prefs, DialogSink sink, ApplyHandler onApply) {
-            this.activity = activity; this.ui = ui; this.myShinies = myShinies; this.working = working;
+            this.activity = activity; this.ui = ui; this.working = working;
             this.speciesNames = speciesNames; this.prefs = prefs; this.sink = sink; this.onApply = onApply;
         }
 
@@ -96,7 +93,7 @@ public final class LiveFeedFilterDialog {
             populate();
 
             dialog = new AlertDialog.Builder(ui)
-                .setTitle(myShinies ? "My Shinies filters" : "Filters")
+                .setTitle("Filters")
                 .setView(scroll)
                 .setPositiveButton("Apply", null)   // overridden so invalid input does not dismiss
                 .setNeutralButton("Reset", null)     // overridden so Reset does not dismiss
@@ -123,21 +120,14 @@ public final class LiveFeedFilterDialog {
             status.setPadding(0, 0, 0, dp(6));
             content.addView(status);
 
-            if (myShinies) {
-                content.addView(caption("Applies to My Shinies only. Your other Nearby settings are kept."));
-                speciesSection();
-                ivLevelSection();
-                sizeSection();
-            } else {
-                presetsSection();
-                generalSection();
-                ivLevelSection();
-                alwaysShowSection();
-                sizeSection();
-                speciesSection();
-                pvpSection();
-                shiniesSection();
-            }
+            presetsSection();
+            generalSection();
+            ivLevelSection();
+            alwaysShowSection();
+            sizeSection();
+            speciesSection();
+            pvpSection();
+            shiniesSection();
             MapTheme.style(content);
             refreshSpeciesMode();
         }
@@ -175,11 +165,12 @@ public final class LiveFeedFilterDialog {
             content.addView(checkbox("Ultra League", "show_pvp_ultra"));
             content.addView(checkbox("Little Cup", "show_pvp_little"));
             content.addView(numberRow("Max PvP rank", "pvp_max_rank", 1, LiveFeedFilters.MAX_PVP_RANK));
+            content.addView(checkbox("PvP only (ignore IV, level and size)", "pvp_only"));
+            content.addView(caption("Lists only Pokémon ranked within the max rank in a ticked league."));
         }
 
         private void shiniesSection() {
             header("Shinies & backgrounds");
-            content.addView(checkbox("Show my shinies", "show_my_shinies"));
             content.addView(checkbox("Shiny only", "shiny_only"));
             content.addView(checkbox("Show my backgrounds", "show_my_backgrounds"));
             content.addView(checkbox("Background only", "background_only"));
@@ -245,14 +236,9 @@ public final class LiveFeedFilterDialog {
         private void onResetClicked() {
             JSONObject defaults;
             try {
-                defaults = new LiveFeedFilters().toViewportJson();
+                defaults = new LiveFeedFilters().toStoredJson();
             } catch (JSONException e) { toast("Couldn't reset the filters."); return; }
-            if (myShinies) {
-                // Only reset the keys the shinies endpoint honours; leave Nearby-only keys in place.
-                copyKeys(defaults, working, SHINIES_KEYS);
-            } else {
-                copyAll(defaults, working); // same 21-key set; overwrite in place
-            }
+            copyAll(defaults, working); // same 21-key set; overwrite in place
             populate();
             status.setText("Filters reset to defaults. Apply to use them.");
         }
@@ -422,6 +408,7 @@ public final class LiveFeedFilterDialog {
                     apply.setOnClickListener(v -> {
                         JSONObject p = presets.optJSONObject(n);
                         if (p != null) {
+                            try { working.put("pvp_only", false); } catch (JSONException ignored) { } // older presets
                             copyAll(p, working); populate();
                             status.setText("Preset \"" + n + "\" loaded. Apply to use it.");
                         }
@@ -440,7 +427,7 @@ public final class LiveFeedFilterDialog {
                 if (!presets.has(n) && presets.length() >= 25) { toast("You can save up to 25 presets."); return; }
                 collectNumbers();
                 try {
-                    JSONObject validated = LiveFeedFilters.fromJson(working).toViewportJson();
+                    JSONObject validated = LiveFeedFilters.fromJson(working).toStoredJson();
                     JSONObject next = new JSONObject(presets.toString()); next.put(n, validated);
                     if (next.toString().length() > 150000) { toast("Saved presets are too large."); return; }
                     presets.put(n, validated);
@@ -535,23 +522,11 @@ public final class LiveFeedFilterDialog {
         NumField(String key, EditText view, int min, int max) { this.key = key; this.view = view; this.min = min; this.max = max; }
     }
 
-    /** The keys the My Shinies endpoint honours; Reset in shinies mode only touches these. */
-    private static final String[] SHINIES_KEYS = {
-        "species_filter_mode", "species_filter_list", "min_iv", "max_iv", "min_level", "max_level",
-        "filter_xxs", "filter_xxl"
-    };
-
     private static int clamp(int v, int lo, int hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
     private static void copyAll(JSONObject from, JSONObject to) {
         for (java.util.Iterator<String> it = from.keys(); it.hasNext(); ) {
             String k = it.next();
-            try { to.put(k, from.get(k)); } catch (JSONException ignored) { }
-        }
-    }
-
-    private static void copyKeys(JSONObject from, JSONObject to, String[] keys) {
-        for (String k : keys) if (from.has(k)) {
             try { to.put(k, from.get(k)); } catch (JSONException ignored) { }
         }
     }

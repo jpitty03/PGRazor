@@ -13,7 +13,9 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 
 /**
- * App-private persistence for the LivePokeMap bearer token only. The token is encrypted with an
+ * App-private persistence for one feed service's token (LivePokeMap by default; PoGoCoordinates through
+ * {@link #pogoCoordinates}, in its own preferences file and keystore key, so neither token is ever sent
+ * to the other service). The token is encrypted with an
  * AES/GCM key held in the AndroidKeyStore and stored in a {@code MODE_PRIVATE} SharedPreferences
  * file; the password is never persisted and the token never appears in logs or exceptions.
  *
@@ -23,7 +25,7 @@ import javax.crypto.spec.GCMParameterSpec;
  */
 public final class LiveFeedSession {
     private static final String PREFS = "pgrazor-livefeed-v1";
-    private static final String KEY_ALIAS = "pgrazor_livefeed_token_v1";
+    private static final String KEY_ALIAS_DEFAULT = "pgrazor_livefeed_token_v1";
     private static final String KEY_CIPHERTEXT = "token_ct";
     private static final String KEY_IV = "token_iv";
     private static final String KEYSTORE = "AndroidKeyStore";
@@ -31,10 +33,20 @@ public final class LiveFeedSession {
     private static final int GCM_TAG_BITS = 128;
 
     private final SharedPreferences preferences;
+    private final String keyAlias;
     private volatile String cachedToken; // decrypted token held only in memory once resolved
 
-    public LiveFeedSession(Context context) {
-        preferences = context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+    /** The LivePokeMap token. */
+    public LiveFeedSession(Context context) { this(context, PREFS, KEY_ALIAS_DEFAULT); }
+
+    /** The PoGoCoordinates site token (its JWT), stored apart from the LivePokeMap token. */
+    public static LiveFeedSession pogoCoordinates(Context context) {
+        return new LiveFeedSession(context, "pgrazor-pogofeed-v1", "pgrazor_pogofeed_token_v1");
+    }
+
+    private LiveFeedSession(Context context, String prefs, String keyAlias) {
+        preferences = context.getApplicationContext().getSharedPreferences(prefs, Context.MODE_PRIVATE);
+        this.keyAlias = keyAlias;
     }
 
     /** Cheap presence check; does not touch the keystore so it is safe to call on the main thread. */
@@ -91,7 +103,7 @@ public final class LiveFeedSession {
     private SecretKey loadKey() throws Exception {
         KeyStore keyStore = KeyStore.getInstance(KEYSTORE);
         keyStore.load(null);
-        KeyStore.Entry entry = keyStore.getEntry(KEY_ALIAS, null);
+        KeyStore.Entry entry = keyStore.getEntry(keyAlias, null);
         if (entry instanceof KeyStore.SecretKeyEntry) return ((KeyStore.SecretKeyEntry) entry).getSecretKey();
         throw new IllegalStateException("Missing session key.");
     }
@@ -99,12 +111,12 @@ public final class LiveFeedSession {
     private SecretKey loadOrCreateKey() throws Exception {
         KeyStore keyStore = KeyStore.getInstance(KEYSTORE);
         keyStore.load(null);
-        if (keyStore.containsAlias(KEY_ALIAS)) {
-            KeyStore.Entry entry = keyStore.getEntry(KEY_ALIAS, null);
+        if (keyStore.containsAlias(keyAlias)) {
+            KeyStore.Entry entry = keyStore.getEntry(keyAlias, null);
             if (entry instanceof KeyStore.SecretKeyEntry) return ((KeyStore.SecretKeyEntry) entry).getSecretKey();
         }
         KeyGenerator generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE);
-        generator.init(new KeyGenParameterSpec.Builder(KEY_ALIAS,
+        generator.init(new KeyGenParameterSpec.Builder(keyAlias,
                 KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
                 .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
