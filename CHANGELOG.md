@@ -4,16 +4,14 @@
 
 - **Catch chance:** Manual encounters show each ball's chance to catch, from the server's catch rate for that encounter with your berry, throw rating and curveball applied. The server's rate already includes your type medal bonus. Turn it off under Settings > Throws.
 - **Auto ball:** Optionally picks the cheapest Poké, Great or Ultra Ball that reaches your target chance when a manual encounter opens and after each escape. A ball you pick by hand is kept until the next escape, and it never uses a Master Ball. Turn it on under Settings > Throws.
-- **IV display:** Encounter and Pokémon stats screen IVs show on a light panel like the storage list. On the Pokémon stats screen the panel sits just above the name, in front of the Pokémon. Under Settings > Location & overlays > IV Display, each screen (Encounter, Pokémon stats screen, Pokémon storage list) has one button that cycles Off, Lv · IV · 15/14/12, Lv · IV and Lv · 15/14/12, and the storage list can now show the level too.
 - **VGP+ auto ball:** VGP+ can also pick the cheapest Poké, Great or Ultra Ball that reaches your target chance for each throw, using the server's catch rate with your VGP+ berry, throw rating and curveball. It replaces the standard ball; the shiny, IV and CP/level Ultra Ball rules still apply, and it never uses a Master Ball. Turn it on under Virtual Go Plus > VGP+.
+- **IV display:** Encounter and Pokémon stats screen IVs show on a light panel like the storage list. On the Pokémon stats screen the panel sits just above the name, in front of the Pokémon. Under Settings > Location & overlays > IV Display, each screen (Encounter, Pokémon stats screen, Pokémon storage list) has one button that cycles Off, Lv · IV · 15/14/12, Lv · IV and Lv · 15/14/12, and the storage list can now show the level too.
 - **PvP keep:** Auto-transfer can keep catches with good PvP IVs, with a separate rank for Great League (default top 50), Ultra League (default top 10) and Master League (off by default), counting the Pokémon and anything it evolves into when that species is in PvPoke's top 150 for the league. Set it under Transfer on catch.
 - **PvP IV display:** A new PvP format for the encounter, Pokémon stats screen and storage list IVs adds a second row with each league's crest and rank: the IV rank in Great and Ultra League, and the species' PvPoke rank in Master League.
 - **PoGoCoordinates feed:** Feeds now asks which service to open: LivePokeMap or PoGoCoordinates. PoGoCoordinates searches Pokémon, raids, quests, weather, Rocket and power spots by IV, level, PvP rank and more, with Discord sign-in for higher result limits or guest use. Each service keeps its own sign-in.
 - **VGP incense catches:** Virtual GO Plus and VGP+ now catch Pokémon attracted by your incense, not only wild spawns, with the same VGP+ rules, auto ball and transfer settings.
 - **LivePokeMap PvP search:** A new PvP only filter lists just Pokémon ranked within your max rank in the leagues you tick, for example Great League top 50, ignoring the IV, level and size filters. Feed rows show any top-100 Great, Ultra or Little Cup rank.
 - LivePokeMap's My Shinies tab and its filter are removed, since LivePokeMap no longer offers My Shinies.
-- LivePokeMap has a Global radius. At that range LivePokeMap only sends 100% IV Pokémon, and the feed says so.
-- LivePokeMap filters now apply the way they do on the LivePokeMap website, so the level range works.
 
 ## v0.2.0
 
