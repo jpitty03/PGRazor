@@ -12,11 +12,11 @@ extern "C" int pgr_pvp_keep(void *pokemon, int attack, int defense, int stamina,
 
 // Ranks for the IV displays' PvP format (Unity owner only). Returns false at once unless that screen's
 // format is PvP (transport slot 14). Results are cached, so a scrolling storage list stays cheap.
-// For Great, Ultra and Master League: the best rank over every species the Pokemon is or can evolve
-// into that is in PvPoke's top 150 for that league; species is the evolution that earned it ("" when
-// it is the Pokemon itself).
+// Great and Ultra League: the best IV rank over every species the Pokemon is or can evolve into that
+// is in PvPoke's top 150 for that league. Master League: that family's best PvPoke species rank (a
+// hundo is always IV #1 there). species is the evolution it is for ("" when it is the Pokemon itself).
 struct PgrPvpBest {
-  int rank[3];          // 0 Great, 1 Ultra, 2 Master; 0 = nothing to show for that league
+  int rank[3];          // 0 Great (IV), 1 Ultra (IV), 2 Master (species); 0 = nothing to show
   char species[3][32];
 };
 enum PgrPvpScreen { PGR_PVP_STORAGE = 0, PGR_PVP_ENCOUNTER = 1, PGR_PVP_DETAILS = 2 };

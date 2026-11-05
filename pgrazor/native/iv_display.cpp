@@ -115,6 +115,7 @@ struct Record {
   int32_t level_half;
   int atk, def, sta;
   PgrPvpBest pvp;  // ranks to show; all 0 = none
+  uint64_t panel_until, panel_next;  // re-place the panel until then (the screen is still laying out)
   bool outline_created;
   bool outline_enabled;  // snapshotted enabled state (restore target)
   int32_t font_size, rich, fit, overflow, alignment;
@@ -801,6 +802,8 @@ void render(Record &r, bool enabled, Ctx &c) {
       if (ph->show(r.owned, obj, r.level_half, r.atk, r.def, r.sta, &r.pvp)) {
         r.applied = true;
         r.panel = true;
+        uint64_t t = 0;
+        if (read_boottime_ms(&t)) { r.panel_until = t + 2000; r.panel_next = t + 150; }
         return;
       }
     }
@@ -1573,6 +1576,17 @@ int api_disable(void) {
 }
 
 // --- tick --------------------------------------------------------------------------
+// The game lays a screen out over its first frames, so a panel placed when the screen opened can be
+// measured against labels that are not final yet. For two seconds after it appears the panel is placed
+// again every 150 ms (the same show call: it finds the existing panel and only moves it).
+void relayout(Record &r, uint64_t now) {
+  if (!r.panel || !r.applied || !now || now >= r.panel_until || now < r.panel_next) return;
+  r.panel_next = now + 150;
+  const PgrIvPanelHooks *ph = g_panel_hooks.load(std::memory_order_acquire);
+  void *obj = r.text ? gc_get()(r.text) : nullptr;
+  if (ph != nullptr && obj != nullptr) ph->show(r.owned, obj, r.level_half, r.atk, r.def, r.sta, &r.pvp);
+}
+
 int api_tick(uint64_t proven_tid, int stopping) {
   if (!g_installed.load(std::memory_order_acquire)) return PGR_IV_ERR_NOT_INSTALLED;
   const uint64_t tid = current_tid();
@@ -1600,6 +1614,7 @@ int api_tick(uint64_t proven_tid, int stopping) {
       g_apply_scope = ApplyScope{true, true, apply_gen, apply_gen == 0};
       bool en = check_apply_gate(rc);
       if (rc.ok) render(g_catch_rec, en, rc);
+      if (rc.ok && en) relayout(g_catch_rec, now);
       g_apply_scope = ApplyScope{};
       if (!rc.ok) {
         publish_catch_unavailable(rc.reason ? rc.reason : PGR_IV_REASON_RENDER, tid);
@@ -1626,6 +1641,7 @@ int api_tick(uint64_t proven_tid, int stopping) {
     g_apply_scope = ApplyScope{true, false, apply_gen, apply_gen == 0};
     bool en = check_apply_gate(rc);
     if (rc.ok) render(g_owned_recs[i], en, rc);
+    if (rc.ok && en) relayout(g_owned_recs[i], now);
     g_apply_scope = ApplyScope{};
     if (!rc.ok) {
       publish_owned_unavailable(rc.reason ? rc.reason : PGR_IV_REASON_RENDER, tid);

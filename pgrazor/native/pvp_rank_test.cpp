@@ -69,6 +69,10 @@ int main() {
   // A species outside the meta list never keeps.
   assert(pgr_pvp_data::species[find("azumarill")].meta[0] > 1);  // Melmetal leads the Great League list
   assert(!pgr_pvp::keep(marill, false, 0, 15, 15, 0, settings(50, 0, 0, 1), &why));
+  // Master League species rank: the family's best PvPoke position (shadow uses the shadow list).
+  const pgr_pvp::Keep ml = pgr_pvp::species_rank(find("dratini"), false, 2);
+  assert(ml.league == 2 && ml.species == find("dragonite") && ml.rank == pgr_pvp_data::species[find("dragonite")].meta[2]);
+  assert(pgr_pvp::species_rank(find("magikarp"), true, 2).rank == pgr_pvp_data::species[find("gyarados")].shadow[2]);
   // best() fills every league independently.
   pgr_pvp::Keep all[pgr_pvp::kLeagues];
   pgr_pvp::best(find("registeel"), false, 0, 14, 15, 0, 2000, all);

@@ -41,6 +41,10 @@ int rank(int index, int league, int attack, int defense, int stamina, int *level
 void best(int index, bool shadow, int attack, int defense, int stamina, double multiplier, int meta_limit,
           Keep out[kLeagues], unsigned leagues = 7);
 
+// PvPoke species rank (position in that league's overall ranking, shadow-aware) of the best-placed
+// species the Pokemon is or can evolve into; league -1 when none is ranked. rank holds the position.
+Keep species_rank(int index, bool shadow, int league);
+
 // Whether to keep for PvP: some league's best rank is within that league's limit. Returns the
 // qualifying league with the lowest rank.
 bool keep(int index, bool shadow, int attack, int defense, int stamina, double multiplier, const Settings &settings, Keep *out);

@@ -36,6 +36,21 @@ double stat_product(const Species &e, int a, int d, int s, int level) {
   if (hp < 10) hp = 10;
   return (e.attack + a) * m * (e.defense + d) * m * hp;
 }
+// The species/form at index and everything it can evolve into (forward edges only).
+int family_of(int index, int family[32]) {
+  int count = 1;
+  family[0] = index;
+  for (int at = 0; at < count; ++at) {
+    const Species &e = species[family[at]];
+    for (int n = 0; n < e.evolutions; ++n) {
+      const int next = edges[e.evolution + n];
+      bool seen = false;
+      for (int j = 0; j < count; ++j) seen = seen || family[j] == next;
+      if (!seen && count < 32) family[count++] = next;
+    }
+  }
+  return count;
+}
 }  // namespace
 
 int species_count() { return kSpecies; }
@@ -75,17 +90,8 @@ void best(int index, bool shadow, int a, int d, int s, double multiplier, int me
   for (int league = 0; league < kLeagues; ++league) out[league] = Keep{};
   if (meta_limit < 1 || index < 0 || index >= kSpecies || !valid_iv(a) || !valid_iv(d) || !valid_iv(s)) return;
   // The Pokemon's own species and everything it can evolve into (forward edges only).
-  int family[32], count = 1;
-  family[0] = index;
-  for (int at = 0; at < count; ++at) {
-    const Species &e = species[family[at]];
-    for (int n = 0; n < e.evolutions; ++n) {
-      const int next = edges[e.evolution + n];
-      bool seen = false;
-      for (int j = 0; j < count; ++j) seen = seen || family[j] == next;
-      if (!seen && count < 32) family[count++] = next;
-    }
-  }
+  int family[32];
+  const int count = family_of(index, family);
   const bool known = std::isfinite(multiplier) && multiplier > 0;
   for (int league = 0; league < kLeagues; ++league) {
     if (!(leagues & (1u << league))) continue;
@@ -100,6 +106,19 @@ void best(int index, bool shadow, int a, int d, int s, double multiplier, int me
       if (r && (out[league].league < 0 || r < out[league].rank)) out[league] = Keep{league, r, family[j], level, at_cp};
     }
   }
+}
+
+Keep species_rank(int index, bool shadow, int league) {
+  Keep best{};
+  if (index < 0 || index >= kSpecies || league < 0 || league >= kLeagues) return best;
+  int family[32];
+  const int count = family_of(index, family);
+  for (int j = 0; j < count; ++j) {
+    const Species &e = species[family[j]];
+    const int position = shadow && e.shadow[league] ? e.shadow[league] : e.meta[league];
+    if (position && (best.league < 0 || position < best.rank)) best = Keep{league, position, family[j], 0, 0};
+  }
+  return best;
 }
 
 bool keep(int index, bool shadow, int a, int d, int s, double multiplier, const Settings &settings, Keep *out) {

@@ -240,8 +240,12 @@ extern "C" bool pgr_pvp_best(void *pokemon, int screen, int attack, int defense,
   auto hit = g_best.find(key);
   if (hit == g_best.end()) {
     // Every league and any rank, so the display can show where the IVs stand.
+    // Great and Ultra League: IV rank. Master League: every IV combination is at level 50, so a hundo
+    // is always #1 there; the species' own PvPoke Master League rank says more.
     pgr_pvp::Keep leagues[pgr_pvp::kLeagues];
-    pgr_pvp::best(facts.entry, facts.shadow, attack, defense, stamina, facts.multiplier, 150, leagues);
+    pgr_pvp::best(facts.entry, facts.shadow, attack, defense, stamina, facts.multiplier, 150, leagues, 3);
+    leagues[2] = pgr_pvp::species_rank(facts.entry, facts.shadow, 2);
+    if (leagues[2].league >= 0 && leagues[2].rank > 150) leagues[2] = pgr_pvp::Keep{};
     Cached c{};
     for (int i = 0; i < 3; ++i) {
       c.rank[i] = leagues[i].league >= 0 ? leagues[i].rank : 0;

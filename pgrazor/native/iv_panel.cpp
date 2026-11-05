@@ -6,6 +6,7 @@
 #include "pvp_keep.h"
 #include <cstdio>
 #include <cstring>
+#include <initializer_list>
 #include <dlfcn.h>
 #include <string>
 // Encounter and Pokemon-details IVs in the storage list's style. iv_display.cpp decides when an
@@ -22,7 +23,7 @@ struct Failure {const char *where;};
 void require(bool ok,const char *where){if(!ok)throw Failure{where};}
 template<class F>F fn(void *p){require(p,"missing runtime export");return reinterpret_cast<F>(p);}
 PgrBootBinding boot{};
-bool ready=false,faulted=false,busy=false,announced=false;
+bool ready=false,faulted=false,busy=false,announced=false,announced_owned=false;
 void *instantiate=nullptr,*get_component=nullptr,*get_components=nullptr,*find_child=nullptr,*new_game_object=nullptr,*set_parent=nullptr;
 const char *kName="PGRazorIvLine";
 
@@ -128,9 +129,32 @@ const char *const kIconNames[]={"PGRazorPvpIcon0","PGRazorPvpIcon1","PGRazorPvpI
 const char *const kLeagueColor[]={"#2a63c4","#a87405","#6a3fb5"};
 struct Line {void *panel=nullptr,*text=nullptr,*rank[3]={},*icon[3]={};};
 void *child_named(void *transform,const char *name){void *args[]={managed_string(name)};return invoke(find_child,transform,args);}
-// The panel under this CP label, or null. Its first child is the text copy.
-Line find_line(void *cp_text){
- Line out;void *found=child_named(call(cp_text,"get_transform"),kName);if(!found)return out;
+// On the Pokemon details screen the panel sits just above the Pokemon's name (PokemonInfoPanel.nameText),
+// below the model and clear of the status bar; null when that label cannot be found, and the panel then
+// stays above the CP label.
+void *name_label(void *cp_text){
+ static void *in_parent=nullptr,*info_class=nullptr,*name_field=nullptr;static bool tried=false;
+ try{
+ if(!tried){
+  tried=true;
+  in_parent=overload("UnityEngine","Component","GetComponentInParent","System.Type");
+  info_class=class_of("Niantic.Holoholo.UI.Pokemon","PokemonInfoPanel");
+  void *f=fn<void*(*)(void*,const char*)>(boot.meta.class_get_field_from_name)(info_class,"nameText");
+  if(f&&!(fn<int(*)(void*)>(boot.meta.field_get_flags)(f)&0x10)&&typename_of(fn<void*(*)(void*)>(boot.meta.field_get_type)(f))=="UnityEngine.UI.Text")name_field=f;
+ }
+ if(!name_field)return nullptr;
+ void *type_args[]={fn<void*(*)(void*)>(exp("type_get_object"))(fn<void*(*)(void*)>(boot.meta.class_get_type)(info_class))};
+ void *info=invoke(in_parent,cp_text,type_args);if(!info||klass(info)!=info_class)return nullptr;
+ void *name=nullptr;fn<void(*)(void*,void*,void*)>(boot.runtime.field_get_value)(info,name_field,&name);
+ return name&&klass(name)==klass(cp_text)?name:nullptr;
+ }catch(...){name_field=nullptr;return nullptr;}
+}
+// What the panel is attached to: the name label on the details screen when found, else the CP label.
+void *anchor_of(bool owned,void *cp_text){void *name=owned?name_label(cp_text):nullptr;return name?name:cp_text;}
+// The panel under this label (the CP label, or the name label it is attached to), or null. Its first
+// child is the text copy.
+Line find_line(void *anchor,void *cp_text){
+ Line out;void *found=child_named(call(anchor,"get_transform"),kName);if(!found)return out;
  require(unbox<int>(call(found,"get_childCount"))>=1,"IV line text");int first=0;void *index[]={&first};
  void *component_args[]={type_object(cp_text)};
  out.text=invoke(get_component,call(found,"GetChild",1,index),component_args);require(out.text,"IV line component");
@@ -192,7 +216,7 @@ void *new_panel(){
  void *ctor_args[]={managed_string(kName),types};invoke(new_game_object,panel,ctor_args);
  return panel;
 }
-Line create_line(void *cp_text){
+Line create_line(void *cp_text,void *anchor){
  Line out;out.panel=new_panel();void *panel_transform=call(out.panel,"get_transform");
  void *image_type[]={class_type("UnityEngine.UI","Image")};void *image=invoke(get_component,panel_transform,image_type);require(image,"IV panel image");
  // The storage cells' off-white, a little see-through.
@@ -221,7 +245,7 @@ Line create_line(void *cp_text){
  if(void *m=optional_method(text,"set_horizontalOverflow",1)){int overflow=1;void *a[]={&overflow};invoke(m,text,a);}
  if(void *m=optional_method(text,"set_verticalOverflow",1)){int overflow=1;void *a[]={&overflow};invoke(m,text,a);}
  if(class_name(text)=="Text"||optional_method(text,"set_alignment",1)){int middle_center=4;void *a[]={&middle_center};call(text,"set_alignment",1,a);}
- bool keep_world=false;void *parent_args[]={call(cp_text,"get_transform"),&keep_world};invoke(set_parent,panel_transform,parent_args);
+ bool keep_world=false;void *parent_args[]={call(anchor,"get_transform"),&keep_world};invoke(set_parent,panel_transform,parent_args);
  return out;
 }
 // Half the label's font, a one-line panel hugging the text, just below the label's glyphs in an
@@ -236,14 +260,24 @@ void put(void *component,float x,float y,float w,float h){
  float one[3]={1,1,1};void *scale_args[]={one};call(t,"set_localScale",1,scale_args);
 }
 // shown[league]: that league's crest and rank go on the second row.
-void place(void *cp_text,const Line &l,bool owned,const bool shown[3]){
+// The font follows the CP label; the position follows the anchor's glyphs.
+void place(void *cp_text,void *anchor,const Line &l,bool owned,const bool shown[3]){
  const int label_font=unbox<int>(call(cp_text,"get_fontSize"));
  int font=int(label_font*(owned?0.45f:0.5f));if(font<10)font=10;if(font>40)font=40;
  {void *a[]={&font};call(l.text,"set_fontSize",1,a);}
  const bool pvp=shown[0]||shown[1]||shown[2];
  for(int i=0;i<3;i++)if(shown[i]){void *a[]={&font};call(l.rank[i],"set_fontSize",1,a);}
- const float glyph_w=unbox<float>(call(cp_text,"get_preferredWidth")),glyph_h=unbox<float>(call(cp_text,"get_preferredHeight"));
- int alignment=4;if(void *m=optional_method(cp_text,"get_alignment",0))alignment=unbox<int>(invoke(m,cp_text));
+ const float glyph_w=unbox<float>(call(anchor,"get_preferredWidth"));float glyph_h=unbox<float>(call(anchor,"get_preferredHeight"));
+ if(anchor!=cp_text){
+  // The name label shrinks long names to fit (best fit); its preferred height is for the nominal size,
+  // which would leave the panel far above the visible name and in front of tall models' area.
+  const int nominal=unbox<int>(call(anchor,"get_fontSize"));int used=nominal;bool fit=false;
+  if(void *m=optional_method(anchor,"get_resizeTextForBestFit",0))fit=unbox<bool>(invoke(m,anchor));
+  if(fit)if(void *m=optional_method(anchor,"get_cachedTextGenerator",0))if(void *generator=invoke(m,anchor))
+   if(void *u=optional_method(generator,"get_fontSizeUsedForBestFit",0))used=unbox<int>(invoke(u,generator));
+  if(fit&&used>0&&nominal>0&&used<nominal)glyph_h*=float(used)/float(nominal);
+ }
+ int alignment=4;if(void *m=optional_method(anchor,"get_alignment",0))alignment=unbox<int>(invoke(m,anchor));
  if(alignment<0||alignment>8)alignment=4;
  const int column=alignment%3,row=alignment/3;  // TextAnchor: Upper/Middle/Lower x Left/Center/Right
  const float ax=column*0.5f,ay=row==0?1.f:row==1?0.5f:0.f;
@@ -278,13 +312,53 @@ void place(void *cp_text,const Line &l,bool owned,const bool shown[3]){
  float one[3]={1,1,1};void *scale_args[]={one};call(panel_transform,"set_localScale",1,scale_args);
 }
 
+// The details screen shows the 3D Pokemon as a RawImage (a render texture) later in the same canvas
+// as the card, so it covers anything on the card above the name. A nested canvas with override
+// sorting one above the screen's canvas draws the panel after it. Added once per panel.
+void draw_in_front(const Line &l,void *anchor){
+ void *canvas_type[]={class_type("UnityEngine","Canvas")};
+ void *panel_transform=call(l.panel,"get_transform");
+ // A canvas is drawn by the cameras whose culling mask has its GameObject's layer; the panel is a new
+ // object on the Default layer, which the UI camera does not draw. Use the name label's layer.
+ const int layer=unbox<int>(call(call(anchor,"get_gameObject"),"get_layer"));
+ void *panel_object=call(panel_transform,"get_gameObject");
+ if(unbox<int>(call(panel_object,"get_layer"))!=layer){
+  void *layer_args[]={const_cast<int*>(&layer)};call(panel_object,"set_layer",1,layer_args);
+  const int children=unbox<int>(call(panel_transform,"get_childCount"));
+  for(int i=0;i<children&&i<16;i++){void *index[]={&i};void *child=call(call(panel_transform,"GetChild",1,index),"get_gameObject");call(child,"set_layer",1,layer_args);}
+ }
+ if(!invoke(get_component,panel_transform,canvas_type)){
+  static void *in_parent=nullptr,*add=nullptr;
+  if(!in_parent)in_parent=overload("UnityEngine","Component","GetComponentInParent","System.Type");
+  if(!add)add=overload("UnityEngine","GameObject","AddComponent","System.Type");
+  void *screen=invoke(in_parent,anchor,canvas_type);if(!screen)return;
+  const int order=unbox<int>(call(screen,"get_sortingOrder"));
+  void *canvas=invoke(add,l.panel,canvas_type);require(canvas,"IV panel canvas");
+  bool on=true;void *override_args[]={&on};call(canvas,"set_overrideSorting",1,override_args);
+  int above=order+1;void *order_args[]={&above};call(canvas,"set_sortingOrder",1,order_args);
+ }
+ // The scroll view's RectMask2D cannot clip into a nested canvas and culls it instead, so the panel's
+ // graphics opt out of masking (they stay on the card, above the name).
+ void *graphic_type[]={class_type("UnityEngine.UI","MaskableGraphic")};
+ static void *in_children=nullptr;
+ if(!in_children)in_children=overload("UnityEngine","Component","GetComponentsInChildren","System.Type","System.Boolean");
+ bool inactive=true;void *children_args[]={graphic_type[0],&inactive};
+ if(void *list=invoke(in_children,panel_transform,children_args)){
+  const uintptr_t n=*reinterpret_cast<uintptr_t*>(static_cast<char*>(list)+24);require(n<=32,"IV panel graphics");
+  for(uintptr_t i=0;i<n;i++)if(void *g=*reinterpret_cast<void**>(static_cast<char*>(list)+32+i*8))set_bool(g,"set_maskable",false);
+ }
+}
+
 bool show(bool owned,void *cp_text,int32_t level_half,int atk,int def,int sta,const PgrPvpBest *pvp){
  if(faulted||busy||!cp_text)return false;
  struct Guard{Guard(){busy=true;}~Guard(){busy=false;}}guard;
  try{
   init();
-  Line l=find_line(cp_text);
-  if(!l.panel)l=create_line(cp_text);
+  void *anchor=anchor_of(owned,cp_text);
+  // A panel left on the CP label (an earlier placement) is hidden once the name label holds it.
+  if(anchor!=cp_text){const Line old=find_line(cp_text,cp_text);if(old.panel){bool off=false;void *a[]={&off};call(old.panel,"SetActive",1,a);}}
+  Line l=find_line(anchor,cp_text);
+  if(!l.panel)l=create_line(cp_text,anchor);
   const int fmt=format(owned);
   bool shown[3]={false,false,false};
   for(int i=0;i<3;i++){
@@ -297,9 +371,11 @@ bool show(bool owned,void *cp_text,int32_t level_half,int atk,int def,int sta,co
    set_active(l.rank[i],true);set_active(l.icon[i],true);
   }
   void *args[]={managed_string(line(level_half,atk,def,sta,fmt))};call(l.text,"set_text",1,args);
-  place(cp_text,l,owned,shown);
+  place(cp_text,anchor,l,owned,shown);
+  if(owned&&anchor!=cp_text)draw_in_front(l,anchor);
   bool on=true;void *active[]={&on};call(l.panel,"SetActive",1,active);
-  if(!announced){announced=true;status("ready",std::string("IV panel shown (")+class_name(cp_text)+")");}
+  if(!announced||(owned&&!announced_owned)){announced=true;if(owned)announced_owned=true;
+   status("ready",std::string("IV panel shown (")+class_name(cp_text)+(owned?anchor!=cp_text?", above name":", above CP":"")+")");}
   return true;
  }catch(const Failure &f){faulted=true;status("error",std::string("IV panel stopped: ")+f.where);}
  catch(...){faulted=true;status("error","IV panel stopped: native failure");}
@@ -309,8 +385,11 @@ void hide(void *cp_text){
  if(!ready||busy||!cp_text)return;
  struct Guard{Guard(){busy=true;}~Guard(){busy=false;}}guard;
  try{
-  const Line l=find_line(cp_text);
-  if(l.panel){bool off=false;void *active[]={&off};call(l.panel,"SetActive",1,active);}
+  for(void *anchor:{cp_text,name_label(cp_text)}){
+   if(!anchor)continue;
+   const Line l=find_line(anchor,cp_text);
+   if(l.panel){bool off=false;void *active[]={&off};call(l.panel,"SetActive",1,active);}
+  }
  }catch(const Failure &f){faulted=true;status("error",std::string("IV panel stopped: ")+f.where);}
  catch(...){faulted=true;status("error","IV panel stopped: native failure");}
 }
