@@ -39,6 +39,7 @@ Features listed here include unreleased changes on `main`; check your release no
 | LivePokeMap | Remote Pokémon, stops, gyms, raids, and stations; requires a LivePokeMap subscription |
 | Battles | Rocket quick/charged attacks, charged minigame and shields; raid/gym/Dynamax attacks, Max attacks and dodging |
 | Other automation | Selectable buddy berry, gift opening/sending with optional stickers, quick spin, local spawn booster |
+| Interface | Quick menu, full-screen settings, separate joystick, cooldown history, light/dark themes, settings export/import, scrollable Quick Menu and window-safe overlays |
 | Interface | Quick menu, hide-all overlay toggle (three-finger tap restores), full-screen settings, separate joystick, cooldown history, light/dark themes, settings export/import |
 | Accounts (experimental) | Quick Menu switching, remembered Google/PTC sessions, deletion of saved accounts, and separate settings, location, cooldown history, favorites and saved GPX routes |
 
@@ -135,4 +136,17 @@ Original PGRazor source is available under the [MIT License](LICENSE). Third-par
 
 ### Idle walking
 
-Enable **Settings > Location & overlays > Idle walking** to walk a small closed loop after 3 seconds without movement. The 10 m-radius loop stays within 20 m of its starting point and uses your chosen speed up to 5 km/h. Speed 0 pauses it. Joystick, destination walking, autowalk and in-game Routes take priority.
+Enable **Settings > Location & overlays > Idle walking** to walk a small closed loop after 3 seconds without movement. The 10 m-radius loop stays within 20 m of its starting point and uses your chosen speed up to 5 km/h. Speed 0 pauses it. Joystick, destination walking, autowalk and in-game Routes take priority; when they finish, a new loop starts at the current position. Backgrounding or unavailable location support stops it. The setting defaults off and is saved per account. Small loops may not earn walking distance consistently; the game decides what movement counts.
+
+### Responsive overlays (unreleased)
+
+The Quick Menu scrolls vertically when its actions do not fit in the available window.
+Its viewport and draggable overlays respect system bars, display cutouts and the keyboard,
+including hosts whose content already fits inside those insets. Saved drag positions are
+restored relative to the safe area. Overlay sizes are capped to fit the current window;
+rotation and resizing re-evaluate the saved UI scale.
+
+Host geometry tests cover 3,360 combinations of window size, density, font-size estimates
+and UI scale. These tests verify bounds calculations, not Android rendering or touch
+accessibility. Small-window, rotation, keyboard, cutout and large-font device tests remain
+necessary before release.

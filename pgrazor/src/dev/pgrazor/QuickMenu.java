@@ -47,6 +47,7 @@ public final class QuickMenu {
     private final View anchor;
     private final FrameLayout root;
     private final LinearLayout card;
+    private final ScrollView viewport;
     private TextView walkLabel;
     private final List<TextView> rowLabels = new ArrayList<>();
     private final List<Icon> rowIcons = new ArrayList<>();
@@ -76,7 +77,11 @@ public final class QuickMenu {
         card.addView(row(EVENTS, "Research", true, () -> ResearchSettings.show(activity), 2048));
         card.addView(row(HIDE, "Hide overlay", true, listener::onHideOverlays, 4096));
         card.addView(row(SETTINGS, "Settings", true, listener::onSettings, 0));
-        root.addView(card, new FrameLayout.LayoutParams(dp(196), -2));
+        viewport=new ScrollView(activity);viewport.setFillViewport(false);
+        viewport.addView(card,new ScrollView.LayoutParams(-1,-2));
+        root.addView(viewport,new FrameLayout.LayoutParams(dp(196),-2));
+        root.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{if(isShowing()&&(r-l!=or-ol||b-t!=ob-ot))position();});
+        root.setOnApplyWindowInsetsListener((v,insets)->{if(isShowing())viewport.post(this::position);return insets;});
 
         parent.addView(root, new FrameLayout.LayoutParams(-1, -1));
         root.setVisibility(View.GONE);
@@ -118,7 +123,7 @@ public final class QuickMenu {
         if(isShowing())card.post(this::position);
     }
     public void onRefresh() { if (isShowing()) {updateVisibility();updateWalk();} }
-    public void applyScale(float scale){card.setPivotX(0);card.setPivotY(0);card.setScaleX(scale);card.setScaleY(scale);if(isShowing())card.post(this::position);}
+    public void applyScale(float scale){viewport.setPivotX(0);viewport.setPivotY(0);viewport.setScaleX(scale);viewport.setScaleY(scale);if(isShowing())card.post(this::position);}
     public boolean isShowing() { return root.getVisibility() == View.VISIBLE; }
     public void toggle() { if (isShowing()) hide(); else show(); }
     public void hide() { root.setVisibility(View.GONE); }
@@ -129,12 +134,20 @@ public final class QuickMenu {
         card.post(this::position);
     }
     private void position() {
-        int cw = OverlayDrag.visualWidth(card), ch = OverlayDrag.visualHeight(card), pw = root.getWidth(), ph = root.getHeight();
-        if (pw <= 0 || ph <= 0) return;
-        float x = anchor.getX(), y = anchor.getY() + OverlayDrag.visualHeight(anchor) + dp(8);
-        if (x + cw > pw - dp(8)) x = pw - cw - dp(8);
-        if (y + ch > ph - dp(8)) y = anchor.getY() - ch - dp(8);
-        card.setX(Math.max(dp(8), x)); card.setY(Math.max(dp(8), y));
+        if(root.getWidth()<=0||root.getHeight()<=0)return;
+        android.graphics.Rect safe=UiViewport.bounds(root);
+        int margin=dp(8);safe.inset(Math.min(margin,safe.width()/4),Math.min(margin,safe.height()/4));
+        float scale=Math.max(.01f,viewport.getScaleX());
+        int width=UiViewportPolicy.menuExtent(dp(196),safe.width(),scale);
+        card.measure(View.MeasureSpec.makeMeasureSpec(width,View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(0,View.MeasureSpec.UNSPECIFIED));
+        int height=UiViewportPolicy.menuExtent(card.getMeasuredHeight(),safe.height(),scale);
+        ViewGroup.LayoutParams lp=viewport.getLayoutParams();
+        if(lp.width!=width||lp.height!=height){lp.width=width;lp.height=height;viewport.setLayoutParams(lp);}
+        int cw=Math.round(width*scale),ch=Math.round(height*scale),gap=dp(8);
+        float x=anchor.getX(),y=anchor.getY()+OverlayDrag.visualHeight(anchor)+gap;
+        if(y+ch>safe.bottom)y=anchor.getY()-ch-gap;
+        viewport.setX(UiViewportPolicy.clamp(x,safe.left,safe.right,cw));
+        viewport.setY(UiViewportPolicy.clamp(y,safe.top,safe.bottom,ch));
     }
     public void destroy() {
         hide();

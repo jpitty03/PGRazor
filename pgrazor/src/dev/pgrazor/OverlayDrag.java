@@ -79,15 +79,17 @@ public final class OverlayDrag implements View.OnTouchListener {
         if (dragging || !prefs.contains(key + ".fx")) return;
         int w = visualWidth(view), h = visualHeight(view);
         if (w == 0 || h == 0 || parent.getWidth() == 0 || parent.getHeight() == 0) return;
-        view.setX(clampX(Math.max(0, parent.getWidth() - w) * clampUnit(prefs.getFloat(key + ".fx", 0f))));
-        view.setY(clampY(Math.max(0, parent.getHeight() - h) * clampUnit(prefs.getFloat(key + ".fy", 0f))));
+        android.graphics.Rect safe=UiViewport.bounds(parent);
+        view.setX(clampX(safe.left+Math.max(0,safe.width()-w)*clampUnit(prefs.getFloat(key+".fx",0f))));
+        view.setY(clampY(safe.top+Math.max(0,safe.height()-h)*clampUnit(prefs.getFloat(key+".fy",0f))));
         positionFollower();
     }
 
     private void save() {
-        int trackW = parent.getWidth() - visualWidth(view), trackH = parent.getHeight() - visualHeight(view);
-        float fx = trackW > 0 ? clampUnit(view.getX() / trackW) : 0f;
-        float fy = trackH > 0 ? clampUnit(view.getY() / trackH) : 0f;
+        android.graphics.Rect safe=UiViewport.bounds(parent);
+        int trackW=safe.width()-visualWidth(view),trackH=safe.height()-visualHeight(view);
+        float fx=trackW>0?clampUnit((view.getX()-safe.left)/trackW):0f;
+        float fy=trackH>0?clampUnit((view.getY()-safe.top)/trackH):0f;
         prefs.edit().putFloat(key + ".fx", fx).putFloat(key + ".fy", fy).apply();
     }
 
@@ -97,17 +99,19 @@ public final class OverlayDrag implements View.OnTouchListener {
         int fw = visualWidth(follower), fh = visualHeight(follower);
         if (fw == 0 || fh == 0) return; // hidden or not yet measured; its own layout listener will catch up
         float x = view.getX(), y = view.getY() + visualHeight(view) + gap * view.getScaleY();
-        if (y + fh > parent.getHeight()) y = view.getY() - gap - fh;
-        follower.setX(Math.max(0, Math.min(Math.max(0, parent.getWidth() - fw), x)));
-        follower.setY(Math.max(0, Math.min(Math.max(0, parent.getHeight() - fh), y)));
+        android.graphics.Rect safe=UiViewport.bounds(parent);
+        if(y+fh>safe.bottom)y=view.getY()-gap-fh;
+        follower.setX(UiViewportPolicy.clamp(x,safe.left,safe.right,fw));
+        follower.setY(UiViewportPolicy.clamp(y,safe.top,safe.bottom,fh));
     }
 
-    private float clampX(float x) { return Math.max(0, Math.min(Math.max(0, parent.getWidth() - visualWidth(view)), x)); }
-    private float clampY(float y) {
-        android.view.WindowInsets insets = parent.getRootWindowInsets();
-        int top = insets == null ? 0 : insets.getSystemWindowInsetTop();
-        int bottom = insets == null ? 0 : insets.getSystemWindowInsetBottom();
-        return Math.max(top, Math.min(Math.max(top, parent.getHeight() - visualHeight(view) - bottom), y));
+    private float clampX(float x){
+        android.graphics.Rect safe=UiViewport.bounds(parent);
+        return UiViewportPolicy.clamp(x,safe.left,safe.right,visualWidth(view));
+    }
+    private float clampY(float y){
+        android.graphics.Rect safe=UiViewport.bounds(parent);
+        return UiViewportPolicy.clamp(y,safe.top,safe.bottom,visualHeight(view));
     }
     static int visualWidth(View view){return Math.round(view.getWidth()*view.getScaleX());}
     static int visualHeight(View view){return Math.round(view.getHeight()*view.getScaleY());}
