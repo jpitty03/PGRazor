@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## v0.2.1
+
+[Full release notes](docs/releases/v0.2.1.md)
 
 - **Catch chance:** Manual encounters show each ball's chance to catch, from the server's catch rate for that encounter with your berry, throw rating and curveball applied. The server's rate already includes your type medal bonus. Turn it off under Settings > Throws.
 - **Auto ball:** Optionally picks the cheapest Poké, Great or Ultra Ball that reaches your target chance when a manual encounter opens and after each escape. A ball you pick by hand is kept until the next escape, and it never uses a Master Ball. Turn it on under Settings > Throws.
@@ -12,6 +14,7 @@
 - **VGP incense catches:** Virtual GO Plus and VGP+ now catch Pokémon attracted by your incense, not only wild spawns, with the same VGP+ rules, auto ball and transfer settings.
 - **LivePokeMap PvP search:** A new PvP only filter lists just Pokémon ranked within your max rank in the leagues you tick, for example Great League top 50, ignoring the IV, level and size filters. Feed rows show any top-100 Great, Ultra or Little Cup rank.
 - LivePokeMap's My Shinies tab and its filter are removed, since LivePokeMap no longer offers My Shinies.
+- The quick menu and draggable overlays stay inside the screen, clear of the notch and navigation bar.
 
 ## v0.2.0
 
