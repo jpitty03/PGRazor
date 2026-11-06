@@ -6,7 +6,7 @@
 
 - **Skip cutscenes:** Off by default; turn it on under Settings > General Settings.
 - **Smart healing:** Heals damaged Pokémon after battles, periodically, or both, choosing the mix of potions (and optionally revives) that wastes the least, so a Pokémon missing 5 HP gets a Potion, not a Max Potion. Choose the HP threshold (below 25%, 50% or 75%, or any HP missing) under Settings > Team Rocket, Gyms, Raids & Dynamax.
-- **Shundo Sniper:** Teleports to 100% IV Pokémon from LivePokeMap and PoGoCoordinates, checks each one in the background for shiny and catches only shinies, with your best Ultra, Great or Poké Ball and a Golden Razz Berry. A shiny found during a cooldown is held until the cooldown ends, then caught. An on-map card shows what it is doing with a Start/Stop button, and taps on map Pokémon, PokéStops and gyms are blocked while it runs. VGP+ pauses meanwhile. Open it from the quick menu.
+- **Shundo Sniper:** Teleports to 100% IV Pokémon from the PGRazor 100% IV feed (no sign-in needed), LivePokeMap and PoGoCoordinates, checks each one in the background for shiny and catches only shinies, with your best Ultra, Great or Poké Ball and a Golden Razz Berry. A shiny found during a cooldown is held until the cooldown ends, then caught. An on-map card shows what it is doing with a Start/Stop button, and taps on map Pokémon, PokéStops and gyms are blocked while it runs. VGP+ pauses meanwhile. Each spawn is checked once, also across game restarts. Open it from the quick menu.
 
 ### Improvements & fixes
 

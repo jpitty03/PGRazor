@@ -31,6 +31,8 @@ Thumbs.db
 .vscode/
 .idea/
 /pgrazor/build-retention.json
+# Local Discord branding artwork and animation exports.
+/pgrazor/branding/discord/
 /dist/
 **/node_modules/
 /website/dist/

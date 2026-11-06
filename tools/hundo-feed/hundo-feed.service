@@ -1,0 +1,20 @@
+[Unit]
+Description=PGRazor hundo feed (LivePokeMap 100% IV list -> static JSON)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/hundo-feed.env
+ExecStart=/usr/bin/python3 /opt/hundo-feed/hundo_feed.py
+Restart=always
+RestartSec=10
+# Runs as an unprivileged user that can write only its state folder and the output folder.
+User=hundofeed
+StateDirectory=hundo-feed
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

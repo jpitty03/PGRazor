@@ -37,7 +37,12 @@ public final class ShundoSniper {
     private ShundoSniper() {}
     static final long MIN_LEFT_MS = 150_000, RESULT_TIMEOUT_MS = 180_000, LIVE_MIN_MS = 15_000, POGO_MS = 30_000,
         SETTLE_MS = 2_000, RETRY_MS = 60_000;
-    static final int MAX_CANDIDATES = 500, RECENT = 8;
+    static final int MAX_CANDIDATES = 6000, RECENT = 8;
+    // The PGRazor feed: one server polls LivePokeMap's whole-map 100% IV list and publishes it as a compact
+    // file, {"v":1,"fetched_ms":..,"interval_s":..,"hundos":[[encounter_id,dex,form,lat,lon,despawn_ms,cp,level],..]},
+    // so no sign-in is needed. Read once a minute (about 145 KB gzipped).
+    static final String FEED_URL = "https://feed.faustusfoundry.com/pgrazor/hundos.json";
+    static final long FEED_MS = 60_000;
 
     /** One 100% IV spawn from a feed; coordinates are NaN until PoGoCoordinates reveals them. */
     static final class Target {
@@ -51,9 +56,10 @@ public final class ShundoSniper {
 
     private static final Object LOCK = new Object();
     private static volatile boolean enabled;
-    private static boolean useLive = true, usePogo = true;
+    private static boolean useFeed = true, useLive = true, usePogo = true;
+    private static volatile String feedNote = "";
     // The spawn being checked: the request number and encounter id native reads, and when it was sent.
-    private static long request, targetSince, nextPick, nextLive, nextPogo;
+    private static long request, targetSince, nextPick, nextLive, nextPogo, nextFeed;
     private static Target target;
     private static boolean teleporting;
     // A shiny found and held in its encounter; go once a catch here needs no cooldown.
@@ -63,7 +69,13 @@ public final class ShundoSniper {
     private static Set<String> lastMissingSeen = new HashSet<>();
     private static double lastMissingLat = Double.NaN, lastMissingLon = Double.NaN;
     private static final Map<String, Target> candidates = new LinkedHashMap<>();
-    private static final Set<String> attempted = new HashSet<>();
+    // Spawns already picked (encounter id -> its despawn time, ms), so each is checked once. An id is only
+    // kept until shortly after its spawn despawns (it cannot appear again) and is saved per account, so a
+    // game restart does not check live spawns twice.
+    private static final Map<String, Long> attempted = new LinkedHashMap<>();
+    static final long TRIED_GRACE_MS = 5 * 60_000, TRIED_UNKNOWN_MS = 60 * 60_000;
+    static final String TRIED_FILE = "shundo-tried.txt";
+    private static boolean triedLoaded;
     private static final ArrayDeque<String> recent = new ArrayDeque<>();
     private static int checked, shinies, caught, teleports, missed;
     private static double targetKm;
@@ -81,12 +93,14 @@ public final class ShundoSniper {
 
     public static void read(Properties p) {
         synchronized (LOCK) {
+            useFeed = !"false".equals(p.getProperty("shundoFeed"));
             useLive = !"false".equals(p.getProperty("shundoLive"));
             usePogo = !"false".equals(p.getProperty("shundoPogo"));
         }
     }
     public static void write(Properties p) {
         synchronized (LOCK) {
+            p.setProperty("shundoFeed", String.valueOf(useFeed));
             p.setProperty("shundoLive", String.valueOf(useLive));
             p.setProperty("shundoPogo", String.valueOf(usePogo));
         }
@@ -105,11 +119,12 @@ public final class ShundoSniper {
         synchronized (LOCK) {
             if (on == enabled) return;
             enabled = on;
-            target = null; teleporting = false; candidates.clear(); nextPick = nextLive = nextPogo = 0;
+            target = null; teleporting = false; candidates.clear(); nextPick = nextLive = nextPogo = nextFeed = 0;
             status = on ? "Looking for 100% IV Pokémon" : "";
             if (on) overlayShown = true;
             if (on) {
                 app = context.getApplicationContext();
+                if (!triedLoaded) { triedLoaded = true; loadTried(System.currentTimeMillis()); }
                 live = new LiveFeedClient(new LiveFeedSession(context.getApplicationContext()));
                 pogo = new PogoFeedClient(LiveFeedSession.pogoCoordinates(context.getApplicationContext()));
                 worker = Executors.newSingleThreadScheduledExecutor();
@@ -218,8 +233,13 @@ public final class ShundoSniper {
 
     // Network on the worker thread, outside LOCK. Each feed keeps its own pace and backoff.
     private static void fetch(long now, double lat, double lon) {
-        LiveFeedClient liveClient; PogoFeedClient pogoClient; boolean wantLive, wantPogo;
-        synchronized (LOCK) { liveClient = live; pogoClient = pogo; wantLive = useLive; wantPogo = usePogo; }
+        LiveFeedClient liveClient; PogoFeedClient pogoClient; boolean wantLive, wantPogo, wantFeed;
+        synchronized (LOCK) { liveClient = live; pogoClient = pogo; wantLive = useLive; wantPogo = usePogo; wantFeed = useFeed; }
+        if (wantFeed && now >= nextFeed) {
+            nextFeed = now + FEED_MS;
+            try { feedNote = "PGRazor feed: " + readFeed(now) + " seen"; }
+            catch (Exception e) { feedNote = "PGRazor feed: unavailable"; }
+        }
         if (wantLive && liveClient != null && now >= nextLive) {
             try {
                 if (!liveClient.signedIn()) { liveNote = "LivePokeMap: sign in under Feeds"; nextLive = now + RETRY_MS; }
@@ -266,6 +286,64 @@ public final class ShundoSniper {
         String name = names == null || dex <= 0 ? "" : names.optString(Integer.toString(dex), "");
         return name.isEmpty() ? fallback : name;
     }
+    /** Reads the PGRazor feed and adds its rows; returns how many were taken. Worker thread only. */
+    private static int readFeed(long now) throws Exception {
+        java.net.HttpURLConnection http = (java.net.HttpURLConnection) new java.net.URL(FEED_URL).openConnection();
+        http.setConnectTimeout(15_000); http.setReadTimeout(20_000);
+        http.setRequestProperty("Accept", "application/json");
+        http.setRequestProperty("User-Agent", "PGRazor-ShundoSniper");
+        try {
+            if (http.getResponseCode() != 200) throw new java.io.IOException("HTTP " + http.getResponseCode());
+            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+            try (java.io.InputStream in = http.getInputStream()) {
+                byte[] buffer = new byte[16384]; int n;
+                while ((n = in.read(buffer)) != -1) { if (bytes.size() + n > 8 * 1024 * 1024) throw new java.io.IOException("feed too large"); bytes.write(buffer, 0, n); }
+            }
+            JSONObject root = new JSONObject(bytes.toString("UTF-8"));
+            if (root.optInt("v") != 1) throw new java.io.IOException("unknown feed version");
+            JSONArray rows = root.optJSONArray("hundos");
+            int added = 0;
+            for (int i = 0; rows != null && i < rows.length(); i++) {
+                JSONArray r = rows.optJSONArray(i);
+                if (r == null || r.length() < 6) continue;
+                long despawn = r.optLong(5, 0);
+                if (despawn > 0 && despawn <= now) continue;
+                int dex = r.optInt(1, 0);
+                added += add("pokemon:" + r.optString(0, ""), speciesName(dex, dex > 0 ? "#" + dex : "Pokémon"), "PGRazor feed",
+                    r.optDouble(3, Double.NaN), r.optDouble(4, Double.NaN), despawn, null);
+            }
+            return added;
+        } finally { http.disconnect(); }
+    }
+    // Under LOCK: forgets spawns whose despawn (plus a grace period) has passed.
+    private static void pruneTried(long now) {
+        attempted.values().removeIf(expires -> expires + TRIED_GRACE_MS < now);
+    }
+    // Under LOCK: "<encounter id> <despawn ms>" per line, written to a temp file and renamed into place.
+    private static void saveTried() {
+        if (app == null) return;
+        java.io.File file = AccountProfiles.file(app, TRIED_FILE), temp = new java.io.File(file.getPath() + ".tmp");
+        StringBuilder out = new StringBuilder();
+        for (Map.Entry<String, Long> e : attempted.entrySet()) out.append(e.getKey()).append(' ').append(e.getValue()).append('\n');
+        try (java.io.FileOutputStream stream = new java.io.FileOutputStream(temp)) {
+            stream.write(out.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        } catch (java.io.IOException e) { return; }
+        if (!temp.renameTo(file)) temp.delete();
+    }
+    // Under LOCK: reads the saved list, keeping only well-formed, unexpired entries.
+    private static void loadTried(long now) {
+        java.io.File file = AccountProfiles.file(app, TRIED_FILE);
+        if (!file.isFile() || file.length() > 1_000_000) return;
+        try {
+            String text = new String(java.nio.file.Files.readAllBytes(file.toPath()), java.nio.charset.StandardCharsets.UTF_8);
+            for (String line : text.split("\n")) {
+                String[] part = line.trim().split(" ");
+                if (part.length != 2 || encounterId("x:" + part[0]) == null) continue;
+                try { attempted.put(part[0], Long.parseLong(part[1])); } catch (NumberFormatException ignored) { }
+            }
+        } catch (java.io.IOException ignored) { }
+        pruneTried(now);
+    }
     /** The encounter id behind a feed row id ("pokemon:123", "shiny:123"), or null when it is not one. */
     static String encounterId(String id) {
         if (id == null) return null;
@@ -277,6 +355,7 @@ public final class ShundoSniper {
         String encounter = encounterId(id);
         if (encounter == null) return 0;
         synchronized (LOCK) {
+            if (attempted.containsKey(encounter)) return 0;  // already checked; a feed refresh lists it again
             Target known = candidates.get(encounter);
             if (known != null) { if (!known.located() && CooldownState.valid(lat, lon)) { known.lat = lat; known.lon = lon; } return 1; }
             if (candidates.size() >= MAX_CANDIDATES) return 0;
@@ -292,7 +371,7 @@ public final class ShundoSniper {
         synchronized (LOCK) {
             for (Iterator<Target> it = candidates.values().iterator(); it.hasNext(); ) {
                 Target t = it.next();
-                if (attempted.contains(t.encounter) || (t.expiresAt > 0 && t.expiresAt - now < MIN_LEFT_MS)) { it.remove(); continue; }
+                if (attempted.containsKey(t.encounter) || (t.expiresAt > 0 && t.expiresAt - now < MIN_LEFT_MS)) { it.remove(); continue; }
                 if (!t.located()) { if (locked == null && t.revealCode != null) locked = t; continue; }
                 double km = CooldownState.distance(lat, lon, t.lat, t.lon);
                 if (km < bestKm) { bestKm = km; best = t; }
@@ -304,7 +383,11 @@ public final class ShundoSniper {
         }
         if (best == null) { reveal(locked); return; }
         Target chosen = best; double km = bestKm;
-        synchronized (LOCK) { attempted.add(chosen.encounter); candidates.remove(chosen.encounter); teleporting = true; }
+        synchronized (LOCK) {
+            attempted.put(chosen.encounter, chosen.expiresAt > 0 ? chosen.expiresAt : now + TRIED_UNKNOWN_MS);
+            pruneTried(now); saveTried();
+            candidates.remove(chosen.encounter); teleporting = true;
+        }
         main.post(() -> {
             if (!enabled) { synchronized (LOCK) { teleporting = false; } return; }
             Control.teleport(chosen.lat, chosen.lon);  // outside LOCK: Control may call back for config()
@@ -333,7 +416,7 @@ public final class ShundoSniper {
 
     /** Start or stop from the on-map card; starting needs at least one feed ticked. */
     static void toggle(Activity activity) {
-        boolean useAny; synchronized (LOCK) { useAny = useLive || usePogo; }
+        boolean useAny; synchronized (LOCK) { useAny = useFeed || useLive || usePogo; }
         if (!enabled && !useAny) { show(activity); return; }
         setEnabled(activity, !enabled);
     }
@@ -363,6 +446,7 @@ public final class ShundoSniper {
             StringBuilder b = new StringBuilder();
             if (!status.isEmpty()) b.append(status);
             if (enabled && useLive && !liveNote.isEmpty()) b.append('\n').append(liveNote);
+            if (enabled && useFeed && !feedNote.isEmpty()) b.append('\n').append(feedNote);
             if (enabled && usePogo && !pogoNote.isEmpty()) b.append('\n').append(pogoNote);
             b.append(b.length() > 0 ? "\n" : "").append("This session: checked ").append(checked).append(" · shiny ").append(shinies).append(" · caught ").append(caught);
             for (String line : recent) b.append("\n• ").append(line);
@@ -379,16 +463,18 @@ public final class ShundoSniper {
         TextView help = new TextView(ui);
         help.setText("Teleports to 100% IV Pokémon from the feeds, checks each one in the background for shiny, and catches only shinies, with your best Ultra, Great or Poké Ball (never a Master Ball) and a Golden Razz Berry when you have one. Checking a Pokémon needs no cooldown, so it teleports freely. When it finds a shiny it stays there with the encounter open until your cooldown is over, then catches it. VGP+ pauses while this is on. It turns off when the game restarts.");
         body.addView(help);
+        CheckBox feedBox = new CheckBox(ui); feedBox.setText("Use the PGRazor 100% IV feed (no sign-in)");
         CheckBox liveBox = new CheckBox(ui); liveBox.setText("Use LivePokeMap (sign-in needed)");
         CheckBox pogoBox = new CheckBox(ui); pogoBox.setText("Use PoGoCoordinates (reveals about one location a minute)");
-        synchronized (LOCK) { liveBox.setChecked(useLive); pogoBox.setChecked(usePogo); }
-        body.addView(liveBox); body.addView(pogoBox);
+        synchronized (LOCK) { feedBox.setChecked(useFeed); liveBox.setChecked(useLive); pogoBox.setChecked(usePogo); }
+        body.addView(feedBox); body.addView(liveBox); body.addView(pogoBox);
         TextView state = new TextView(ui); state.setText(statusText()); state.setPadding(0, pad / 2, 0, 0); body.addView(state);
         on.setOnCheckedChangeListener((v, checked) -> {
-            if (checked && !useLive && !usePogo) { on.setChecked(false); return; }
+            if (checked && !useFeed && !useLive && !usePogo) { on.setChecked(false); return; }
             setEnabled(activity, checked); state.setText(statusText());
         });
         liveBox.setOnCheckedChangeListener((v, checked) -> { synchronized (LOCK) { useLive = checked; nextLive = 0; } Control.saveSettings(); });
+        feedBox.setOnCheckedChangeListener((v, checked) -> { synchronized (LOCK) { useFeed = checked; nextFeed = 0; } Control.saveSettings(); });
         pogoBox.setOnCheckedChangeListener((v, checked) -> { synchronized (LOCK) { usePogo = checked; nextPogo = 0; } Control.saveSettings(); });
 
         ScrollView scroll = new ScrollView(ui); scroll.addView(body);
