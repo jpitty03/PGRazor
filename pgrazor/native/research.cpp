@@ -129,13 +129,23 @@ struct State {
  std::set<std::string> enc_handled;  // waiting encounters already attempted; never attempted twice
  int challenge=-1,active=-1;
  Root promise;pgr_research::Action pending=pgr_research::NONE;std::string pending_templ;uint64_t since=0;
- std::set<std::string> handled;      // quest instances already requested; never requested twice
+ std::set<std::string> handled;      // quest instances requested (or given up on); not requested again
+ std::string pending_id;std::map<std::string,int> failed;std::map<std::string,uint64_t> not_before;  // removal retries
  std::map<std::string,std::string> labels;  // template -> "task text|reward", localized once
- std::string catalog;uint64_t next_scan=0,next_action=0,retry=0,window=0;unsigned actions=0;
+ std::string catalog;uint64_t next_scan=0,next_action=0,retry=0,window=0,recheck=0;unsigned actions=0;
 };
 State st;
+constexpr uint64_t kRecheckMs=60000;
 bool services(){
- if(st.quests&&st.rpc&&st.player)return true;
+ if(st.quests&&st.rpc&&st.player){
+  // The game can rebuild its services in a running session; a stale quest service lists stale quests.
+  const uint64_t now=clock_ms();if(st.enc!=E_IDLE||st.promise||now<st.recheck)return true;st.recheck=now+kRecheckMs;
+  Root current=resolve("Niantic.Holoholo.Quests","IQuestService");
+  if(!current||current.get()==st.quests.get())return true;
+  // Services are looked up again; the quests already requested stay recorded (ids are per account).
+  st.quests.reset();st.rpc.reset();st.player.reset();st.i18n.reset();st.pokemon_bag.reset();st.send_reflection.reset();
+  st.send_method=nullptr;st.retry=0;st.next_scan=0;status("ready","Quest service changed; services looked up again");return false;
+ }
  const uint64_t now=clock_ms();if(now<st.retry)return false;st.retry=now+kRetryMs;
  st.quests=resolve("Niantic.Holoholo.Quests","IQuestService");st.rpc=resolve("Niantic.Holoholo.Quests","IQuestRpcService");
  st.player=resolve("Niantic.Holoholo","IPlayerService");st.i18n=resolve("Niantic.Holoholo.Internationalization","II18n");
@@ -215,7 +225,7 @@ std::vector<pgr_research::Quest> field_research(){
 }
 void submit(const pgr_research::Quest &q,pgr_research::Action action){
  Root id=managed_string(q.id);st.handled.insert(q.id);
- st.pending=action;st.pending_templ=q.templ;st.since=clock_ms();++st.actions;
+ st.pending=action;st.pending_templ=q.templ;st.pending_id=q.id;st.since=clock_ms();++st.actions;
  if(action==pgr_research::CLAIM){
   // The game's own claim path: no sub quest, no branch choice, a full stamp card is not bypassed.
   Root sub=managed_string("");bool exclusive=false,bypass=false;struct {uint8_t has;int32_t value;} choice{0,0};uint64_t pokemon=0;
@@ -225,9 +235,16 @@ void submit(const pgr_research::Quest &q,pgr_research::Action action){
  require(bool(st.promise),"Request outcome unknown; not retried");
 }
 void finish(bool ok,const std::string &message){
- const bool claim=st.pending==pgr_research::CLAIM;
- status(ok?(claim?"claimed":"removed"):"error",message,st.pending_templ);
- st.promise.reset();st.pending=pgr_research::NONE;st.pending_templ.clear();
+ const bool claim=st.pending==pgr_research::CLAIM;std::string msg=message;
+ if(!ok&&st.pending==pgr_research::REMOVE&&!st.pending_id.empty()){
+  if(const uint64_t delay=pgr_research::remove_retry_ms(++st.failed[st.pending_id])){
+   st.handled.erase(st.pending_id);st.not_before[st.pending_id]=clock_ms()+delay;
+   const auto cut=msg.find("; not retried");if(cut!=std::string::npos)msg.erase(cut);
+   msg+="; retrying in "+std::to_string(delay/1000)+" s";
+  }
+ }
+ status(ok?(claim?"claimed":"removed"):"error",msg,st.pending_templ);
+ st.promise.reset();st.pending=pgr_research::NONE;st.pending_templ.clear();st.pending_id.clear();
  st.next_action=clock_ms()+kGapMs;st.next_scan=0;
 }
 void poll(uint64_t tid){
@@ -354,7 +371,7 @@ void step(uint64_t tid){
  // Claims first; one request at a time, each quest instance at most once.
  for(auto wanted:{pgr_research::CLAIM,pgr_research::REMOVE})
   for(const auto &q:quests)
-   if(!st.handled.count(q.id)&&pgr_research::decide(q,c,st.challenge,st.active)==wanted){
+   if(!st.handled.count(q.id)&&!(st.not_before.count(q.id)&&now<st.not_before[q.id])&&pgr_research::decide(q,c,st.challenge,st.active)==wanted){
     if(wanted==pgr_research::CLAIM&&unbox<bool>(call(st.quests.get(),"get_ExclusiveQuestCompletionInProgress")))return;
     submit(q,wanted);return;
    }

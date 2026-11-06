@@ -1,5 +1,6 @@
 #pragma once
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <set>
 #include <string>
@@ -37,4 +38,8 @@ inline Action decide(const Quest &q,const Config &c,int challenge,int active){
  if(c.remove&&!q.bonus&&c.templates.count(q.templ))return REMOVE;
  return NONE;
 }
+// A failed removal (refused, no answer, or interrupted) is retried while the task is still listed,
+// later each time: 30 s after the first failure, 2 min after the second, then never. Repeating a
+// removal is harmless; claims are never repeated.
+inline uint64_t remove_retry_ms(int failed_attempts){return failed_attempts==1?30000:failed_attempts==2?120000:0;}
 }  // namespace pgr_research

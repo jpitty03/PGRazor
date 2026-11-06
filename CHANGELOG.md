@@ -13,6 +13,7 @@
 - Location & overlays is renamed General Settings.
 - Team Rocket settings now sit with gyms, raids and Dynamax under Team Rocket, Gyms, Raids & Dynamax.
 - World map: PokéStops invaded by Team GO Rocket show darkened with a red R, and tapping one shows whether it is a grunt, leader or Giovanni and when the invasion ends.
+- Research: a selected task whose deletion fails is tried again after 30 seconds and then after 2 minutes, instead of staying in your task list until the game restarts.
 
 ## v0.2.1
 

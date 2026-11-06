@@ -36,6 +36,7 @@ int main(){
  assert(parses("R2|1|0|0|CHALLENGE_CATCH_EASY",c));
  assert(decide(quest(5,5),c,challenge,active)==NONE&&decide(quest(2,5),c,challenge,active)==REMOVE);
  assert(decide(quest(5,5,"CHALLENGE_CATCH_EASY",true),Config{},challenge,active)==NONE);  // invalid config
- std::puts("PASS research policy: wire config bounds, claim-before-remove, selected templates only, bonus/special/claimed tasks protected");
+ assert(remove_retry_ms(1)==30000&&remove_retry_ms(2)==120000&&remove_retry_ms(3)==0&&remove_retry_ms(0)==0);
+ std::puts("PASS research policy: wire config bounds, claim-before-remove, selected templates only, bonus/special/claimed tasks protected, bounded removal retries");
  return 0;
 }
