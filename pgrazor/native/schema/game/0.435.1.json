@@ -10617,6 +10617,156 @@
           "0xa9"
         ],
         "purpose": "IncidentCombatResolveGuiController.Initialize prologue"
+      },
+      "gem_modal_rva": {
+        "kind": "rva",
+        "value": "157532176",
+        "purpose": "ItemFragmentAssemblyService.cbfr (Purified Gem created modal) method address"
+      },
+      "gem_modal_fingerprint": {
+        "kind": "bytes",
+        "value": [
+          "0xff",
+          "0x43",
+          "0x02",
+          "0xd1",
+          "0xfe",
+          "0x6f",
+          "0x04",
+          "0xa9",
+          "0xfa",
+          "0x67",
+          "0x05",
+          "0xa9",
+          "0xf8",
+          "0x5f",
+          "0x06",
+          "0xa9",
+          "0xf6",
+          "0x57",
+          "0x07",
+          "0xa9",
+          "0xf4",
+          "0x4f",
+          "0x08",
+          "0xa9"
+        ],
+        "purpose": "ItemFragmentAssemblyService.cbfr prologue"
+      },
+      "gem_modal_name": {
+        "kind": "name",
+        "value": "cbfr",
+        "purpose": "Obfuscated name of the ItemFragmentAssemblyService method that shows the Purified Gem created modal"
+      },
+      "gui_open_rva": {
+        "kind": "rva",
+        "value": "171125160",
+        "purpose": "Niantic.Holoholo.NUI.GuiController.Open method address (screen-open trace)"
+      },
+      "gui_open_fingerprint": {
+        "kind": "bytes",
+        "value": [
+          "0xff",
+          "0xc3",
+          "0x01",
+          "0xd1",
+          "0xfd",
+          "0x7b",
+          "0x01",
+          "0xa9",
+          "0xfc",
+          "0x6f",
+          "0x02",
+          "0xa9",
+          "0xfa",
+          "0x67",
+          "0x03",
+          "0xa9",
+          "0xf8",
+          "0x5f",
+          "0x04",
+          "0xa9",
+          "0xf6",
+          "0x57",
+          "0x05",
+          "0xa9"
+        ],
+        "purpose": "Niantic.Holoholo.NUI.GuiController.Open prologue"
+      },
+      "raid_results_rva": {
+        "kind": "rva",
+        "value": "165530024",
+        "purpose": "Niantic.Holoholo.Raid.RaidResolveUIController.Initialize method address"
+      },
+      "raid_results_fingerprint": {
+        "kind": "bytes",
+        "value": [
+          "0xff",
+          "0x03",
+          "0x02",
+          "0xd1",
+          "0xfd",
+          "0x7b",
+          "0x02",
+          "0xa9",
+          "0xfc",
+          "0x6f",
+          "0x03",
+          "0xa9",
+          "0xfa",
+          "0x67",
+          "0x04",
+          "0xa9",
+          "0xf8",
+          "0x5f",
+          "0x05",
+          "0xa9",
+          "0xf6",
+          "0x57",
+          "0x06",
+          "0xa9"
+        ],
+        "purpose": "Niantic.Holoholo.Raid.RaidResolveUIController.Initialize prologue"
+      },
+      "power_up_rva": {
+        "kind": "rva",
+        "value": "162516728",
+        "purpose": "PokemonInfoPanel.cift (power-up result: starts the power-up animation) method address"
+      },
+      "power_up_fingerprint": {
+        "kind": "bytes",
+        "value": [
+          "0xe8",
+          "0x0f",
+          "0x1a",
+          "0xfc",
+          "0xfe",
+          "0x6f",
+          "0x01",
+          "0xa9",
+          "0xfa",
+          "0x67",
+          "0x02",
+          "0xa9",
+          "0xf8",
+          "0x5f",
+          "0x03",
+          "0xa9",
+          "0xf6",
+          "0x57",
+          "0x04",
+          "0xa9",
+          "0xf4",
+          "0x4f",
+          "0x05",
+          "0xa9"
+        ],
+        "purpose": "PokemonInfoPanel.cift prologue"
+      },
+      "power_up_name": {
+        "kind": "name",
+        "value": "cift",
+        "purpose": "Obfuscated name of the PokemonInfoPanel method that handles UpgradePokemonOutProto and starts the power-up animation"
       }
     },
     "rocket_swap_cpp": {

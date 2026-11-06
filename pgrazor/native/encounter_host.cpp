@@ -1265,6 +1265,11 @@ static void tick_map_poi(uint64_t tid, uint64_t now_ms, uint64_t lease_ms) {
         pos += static_cast<size_t>(snprintf(
             s_poi_json + pos, sizeof(s_poi_json) - pos, ",\"boss\":%d", pt.boss));
       }
+    } else if (pt.flags & PGR_MP_FLAG_INCIDENT) {
+      // Raw Holoholo.Rpc.IncidentDisplayType (1 grunt, 2 leader, 3 Giovanni, 4 grunt B, 5+ other incidents).
+      pos += static_cast<size_t>(snprintf(
+          s_poi_json + pos, sizeof(s_poi_json) - pos, ",\"incident\":%u,\"incidentEnd\":%.0f",
+          pt.incident, pt.raid_end));
     }
     s_poi_json[pos++] = '}';
   }
@@ -1524,6 +1529,7 @@ static int install_berries_leaf() {
   return PGR_EH_OK;
 }
 
+static void map_poi_incident_fields(PgrMapPoiConfig *cfg);
 static int install_map_poi_leaf(bool *out_has_extra) {
   if (out_has_extra) *out_has_extra = false;
   if (g_md.optional[OPT_MAP_POI] != PGR_SHARED_OPT_AVAILABLE ||
@@ -1604,6 +1610,7 @@ static int install_map_poi_leaf(bool *out_has_extra) {
       has_extra = true;
     }
   }
+  map_poi_incident_fields(&mcfg);
 
   int rc = api->install(&mcfg);
   if (rc != 0) return PGR_EH_ERR_LEAF;
@@ -1615,6 +1622,50 @@ static int install_map_poi_leaf(bool *out_has_extra) {
   g_map_poi = api;
   if (out_has_extra) *out_has_extra = has_extra;
   return PGR_EH_OK;
+}
+
+// Optional stop incident group for the map scan (Team GO Rocket invasions etc.), resolved by name with
+// exact type checks. Any miss leaves the whole group null, which only turns the incident field off.
+static void map_poi_incident_fields(PgrMapPoiConfig *cfg) {
+  const auto &m = g_exp.meta;
+  if (!m.class_get_field_from_name || !m.field_get_type || !m.class_from_type || !m.type_get_name ||
+      !m.mem_free || !m.field_get_flags) return;
+  auto field = reinterpret_cast<void *(*)(void *, const char *)>(m.class_get_field_from_name);
+  auto ftype = reinterpret_cast<void *(*)(void *)>(m.field_get_type);
+  auto from_type = reinterpret_cast<void *(*)(void *)>(m.class_from_type);
+  auto flags = reinterpret_cast<int (*)(void *)>(m.field_get_flags);
+  auto type_name = [&](void *f) {
+    std::string s;
+    if (char *p = reinterpret_cast<char *(*)(void *)>(m.type_get_name)(ftype(f))) {
+      s = p; reinterpret_cast<void (*)(void *)>(m.mem_free)(p);
+    }
+    return s;
+  };
+  // An instance field of k named `name` whose type name starts with `type`.
+  auto get = [&](void *k, const char *name, const char *type) -> void * {
+    if (!k) return nullptr;
+    void *f = field(k, name);
+    if (!f || (flags(f) & 0x10) || type_name(f).rfind(type, 0) != 0) return nullptr;
+    return f;
+  };
+  void *fort = md_k(OC_VGP_FORT);
+  void *displays = get(fort, "PokestopDisplays", "Niantic.Protobuf.Collections.RepeatedField");
+  void *single = get(fort, "PokestopDisplay", "Holoholo.Rpc.PokestopIncidentDisplayProto");
+  if (!displays || !single || type_name(displays).find("PokestopIncidentDisplayProto") == std::string::npos) return;
+  void *list_class = from_type(ftype(displays));
+  void *display_class = from_type(ftype(single));
+  void *array = get(list_class, "array", "Holoholo.Rpc.PokestopIncidentDisplayProto[]");
+  void *count = get(list_class, "count", "System.Int32");
+  void *type = get(display_class, "IncidentDisplayType", "Holoholo.Rpc.IncidentDisplayType");
+  void *end = get(display_class, "IncidentExpirationMs", "System.Int64");
+  void *hide = get(display_class, "HideIncident", "System.Boolean");
+  void *done = get(display_class, "IncidentCompleted", "System.Boolean");
+  void *stop = md_k(OC_VGP_STOP);
+  void *active = stop ? reinterpret_cast<void *(*)(void *, const char *, int)>(m.class_get_method_from_name)(stop, "get_IsIncidentActive", 0) : nullptr;
+  if (!m.class_get_method_from_name || !active || !list_class || !display_class || !array || !count || !type || !end || !hide || !done) return;
+  cfg->f_displays = displays; cfg->f_rfArray = array; cfg->f_rfCount = count; cfg->f_display = single;
+  cfg->class_display = display_class; cfg->f_incType = type; cfg->f_incEnd = end;
+  cfg->f_incHide = hide; cfg->f_incDone = done; cfg->m_incActive = active;
 }
 
 static int install_transfer_leaves() {

@@ -35,8 +35,8 @@ struct Failure {const char *where;};
 void require(bool ok,const char *where){if(!ok)throw Failure{where};}
 template<class F>F fn(const void *p){require(p,"missing runtime export");return reinterpret_cast<F>(const_cast<void*>(p));}
 
-enum Kind {K_EVOLVE,K_MEGA,K_HATCH,K_PURIFY,K_FUSION,K_UNFUSION,K_FORM,K_SPECIES,K_INCUBATE,K_DIALOG,K_EGG_INTRO,K_HATCH_RESULT,K_RADAR,K_ROCKET_REWARDS,K_COUNT};
-const char *const kNames[K_COUNT]={"evolve","mega-evolve","egg-hatch","purify","fusion","unfusion","form-change","new-species","egg-incubate","rocket-dialogue","egg-hatch-intro","hatched-pokemon","rocket-radar-assembled","rocket-rewards"};
+enum Kind {K_EVOLVE,K_MEGA,K_HATCH,K_PURIFY,K_FUSION,K_UNFUSION,K_FORM,K_SPECIES,K_INCUBATE,K_DIALOG,K_EGG_INTRO,K_HATCH_RESULT,K_RADAR,K_ROCKET_REWARDS,K_GEM,K_RAID_RESULTS,K_POWER_UP,K_COUNT};
+const char *const kNames[K_COUNT]={"evolve","mega-evolve","egg-hatch","purify","fusion","unfusion","form-change","new-species","egg-incubate","rocket-dialogue","egg-hatch-intro","hatched-pokemon","rocket-radar-assembled","rocket-rewards","purified-gem","raid-results","power-up"};
 
 PgrBootBinding boot{};
 bool ready=false,busy=false,tried=false;
@@ -46,6 +46,7 @@ std::atomic<void*> original[K_COUNT]{};
 void *promise_class=nullptr,*promise_ctor=nullptr,*promise_complete=nullptr;
 void *dialog_class=nullptr,*dialog_api=nullptr,*dialog_config=nullptr,*convo_completed=nullptr,*wbarrier=nullptr;
 size_t api_offset=0,config_offset=0;
+void *class_is_subclass=nullptr;
 // Config.DialogMode: the grunt's spoken lines before a battle (RUN_DIALOG_PROTO_*, steal text, decoy)
 // and after it (RUN_TEAM_ROCKET_VICTORY / _DEFEAT) are bypassed. Their OnComplete opens the next step,
 // so the incident's own screen with the BATTLE button still appears and nothing starts a battle.
@@ -91,6 +92,31 @@ uintptr_t fast_rewards=0;uint64_t fast_since=0,fast_next=0;int fast_taps=0;
 constexpr uint64_t kFastSettleMs=300,kFastGiveUpMs=15000;
 uintptr_t pending_rewards=0;uint64_t pending_rewards_since=0;
 constexpr uint64_t kRewardsOpenWaitMs=3000;
+// The results screen after a raid (RaidResolveUIController): victory, rewards and bonus Premier Balls,
+// the leaderboard. After a win its own Close() ends it and goes on to the raid boss encounter, as the
+// last tap does; the rewards are already granted by the server. With the setting on, a won raid's
+// screen is hidden (root CanvasGroup alpha 0) and, once it has finished opening (state 2, Open) and
+// settled briefly, Close() runs. A bypassed post-raid dialogue completes first. Defeat, timeout or quit
+// keep the screen. After 15 s it is shown again for normal taps.
+void *raid_close=nullptr,*raid_status=nullptr;int32_t raid_victory=-1;
+uintptr_t pending_raid=0;uint64_t raid_since=0,raid_next=0,raid_closed=0;int32_t raid_last_state=-1;
+// After Close() the hidden screen also stops taking touches (CanvasGroup.blocksRaycasts) until it has
+// fully dismissed (state 0): while it is still dismissing, an invisible screen would swallow the swipes
+// of the encounter underneath. Followed for at most 60 s.
+void *canvas_raycasts=nullptr;
+constexpr uint64_t kRaidDismissWatchMs=60000;
+// The power-up animation on a Pokemon's page. PokemonInfoPanel.cift (obfuscated) handles the server's
+// UpgradePokemonOutProto and starts the panel's own power-up coroutine, which paces each step (model
+// spin, CP and HP count-up, sound) with the panel's serialized timings. With the setting on, those
+// timings are near zero on that panel just before cift runs, so every step still runs and applies the
+// new values, only without waiting. The confirmation dialogs are untouched. Turned off, the panel's
+// original timings are put back the next time it powers up.
+enum {PT_START,PT_CP_DELAY,PT_CP_TWEEN,PT_HP_DELAY,PT_HP_TWEEN,PT_SPIN,PT_AFTER,PT_COUNT};
+const char *const kPowerTimingNames[PT_COUNT]={"upgradeStartDelayTime","upgradeCpDelayTime","upgradeCpTweenTime",
+ "upgradeStaminaDelayTime","upgradeStaminaTweenTime","upgradeModelSpinTime","afterUpgradeDelayTime"};
+// Delays become 0; tweens and the spin keep a short nonzero duration (a zero-length tween divides by it).
+const float kPowerFast[PT_COUNT]={0.f,0.f,0.05f,0.f,0.05f,0.05f,0.f};
+size_t power_offset[PT_COUNT]={};float power_original[PT_COUNT]={};bool power_saved=false,power_ready=false;
 constexpr uint64_t kTickAliveMs=2000;
 
 uint64_t clock_ms(){timespec t{};clock_gettime(CLOCK_BOOTTIME,&t);return uint64_t(t.tv_sec)*1000+t.tv_nsec/1000000;}
@@ -155,9 +181,15 @@ void *hook_form(void *s,void *a,void *b,const void *m){if(void *p=skip(K_FORM))r
 void *hook_species(void *s,void *a,bool b,uint64_t form,bool c,const void *m){if(void *p=skip(K_SPECIES))return p;return orig<Species>(K_SPECIES)(s,a,b,form,c,m);}
 void *hook_incubate(void *s,void *a,const void *m){if(void *p=skip(K_INCUBATE))return p;return orig<One>(K_INCUBATE)(s,a,m);}
 
+// The dialogue state itself or a subclass of it: raids enter IncidentInvasionDialogStateShim (Giovanni's
+// lines after a shadow raid), which adds nothing to it.
+bool dialog_instance(void *self){
+ void *k=klass(self);
+ return k==dialog_class||(class_is_subclass&&fn<bool(*)(void*,void*,bool)>(class_is_subclass)(k,dialog_class,false));
+}
 int32_t dialog_mode(void *config){int32_t v=-1;fn<void(*)(void*,void*,void*)>(boot.runtime.field_get_value)(config,mode_field,&v);return v;}
 void hook_dialog(void *self,void *api,void *config,const void *m){
- if(active()&&self&&api&&config&&!pending_dialog&&dialog_class&&klass(self)==dialog_class){
+ if(active()&&self&&api&&config&&!pending_dialog&&dialog_class&&dialog_instance(self)){
   try{
    const int32_t mode=dialog_mode(config);
    const bool bypass=mode>=0&&mode<16&&mode_skip[mode];
@@ -220,6 +252,18 @@ void *hook_radar_modal(void *self,int32_t item,bool flag,const void *m){
  }
  return orig<RadarModal>(K_RADAR)(self,item,flag,m);
 }
+// "You've created a Purified Gem!" (item 1505): the same service's cbfr (obfuscated) builds that modal
+// and has nothing to equip; it is skipped like the radar one and the queue continues the same way.
+void *hook_gem_modal(void *self,int32_t item,bool flag,const void *m){
+ if(active()&&self&&radar_try_show&&!pending_radar&&item==1505){
+  try{
+   pending_radar=fn<uintptr_t(*)(void*,int)>(boot.runtime.gchandle_new)(self,0);require(pending_radar,"GC root");
+   skipped(K_GEM);return nullptr;
+  }catch(const Failure &f){fault(f.where);}
+  catch(...){fault("native failure");}
+ }
+ return orig<RadarModal>(K_GEM)(self,item,flag,m);
+}
 void finish_radar(){
  const uintptr_t h=pending_radar;pending_radar=0;
  void *service=fn<void*(*)(uintptr_t)>(boot.runtime.gchandle_get_target)(h);
@@ -228,7 +272,7 @@ void finish_radar(){
  try{
   bool off=false;fn<void(*)(void*,void*,void*)>(boot.runtime.field_set_value)(service,radar_showing,&off);  // value type: copied from &off
   invoke(radar_try_show,service);
- }catch(...){status("error","Rocket Radar queue could not be continued");}
+ }catch(...){status("error","Assembled-item queue could not be continued");}
 }
 
 int32_t int_field(void *o,void *f){int32_t v=-1;fn<void(*)(void*,void*,void*)>(boot.runtime.field_get_value)(o,f,&v);return v;}
@@ -312,6 +356,94 @@ void advance_rewards(){
  try{if(gui&&close_rewards(gui))done=true;}catch(...){done=true;status("warning","Rocket results screen could not be closed");}
  if(!done)return;  // still waiting for it to open; afterwards it is left for taps, as without the setting
  fn<void(*)(uintptr_t)>(boot.runtime.gchandle_free)(pending_rewards);pending_rewards=0;
+}
+
+// Diagnostic: names each NUI screen as it opens (GuiController.Open, which their Initialize calls)
+// while the setting is on, so screens that still show can be identified from the log. It never
+// changes what opens.
+std::atomic<void*> gui_open_original{nullptr};
+void *class_name_fn=nullptr,*class_namespace_fn=nullptr;
+using GuiOpen=void(*)(void*,const void*);
+void hook_gui_open(void *self,const void *m){
+ if(active()&&self&&class_name_fn&&class_namespace_fn){
+  try{
+   void *k=klass(self);
+   const char *ns=fn<const char*(*)(void*)>(class_namespace_fn)(k),*name=fn<const char*(*)(void*)>(class_name_fn)(k);
+   event(std::string("{\"phase\":\"gui-open\",\"class\":\"")+(ns&&*ns?std::string(ns)+".":std::string())+(name?name:"?")+"\"}");
+  }catch(...){}
+ }
+ reinterpret_cast<GuiOpen>(gui_open_original.load(std::memory_order_acquire))(self,m);
+}
+
+using RaidInit=void(*)(void*,void*,const void*);
+void hook_raid_results(void *self,void *info,const void *m){
+ orig<RaidInit>(K_RAID_RESULTS)(self,info,m);
+ if(!active()||!self||!raid_close||pending_raid)return;
+ try{
+  pending_raid=fn<uintptr_t(*)(void*,int)>(boot.runtime.gchandle_new)(self,0);require(pending_raid,"GC root");
+  raid_since=clock_ms();raid_next=0;raid_closed=0;raid_last_state=-1;
+ }catch(...){status("warning","Raid results screen could not be skipped");}
+}
+void hide_raid(void *gui){
+ set_alpha(gui,0.f);  // every tick: transitions may restore the alpha
+ if(!raid_closed||!canvas_raycasts)return;
+ void *group=invoke(root_canvas,gui);if(!group)return;
+ bool off=false;void *args[]={&off};invoke(canvas_raycasts,group,args);
+}
+// One step for a raid results screen; ends once it has fully dismissed, or is left for taps.
+void advance_raid(){
+ void *gui=fn<void*(*)(uintptr_t)>(boot.runtime.gchandle_get_target)(pending_raid);
+ const uint64_t now=clock_ms();bool done=!gui;
+ try{
+  if(gui){
+   const int32_t state=int_field(gui,gui_state),result=int_field(gui,raid_status);
+   if(raid_closed&&state!=raid_last_state)
+    event("{\"phase\":\"raid-results-state\",\"state\":"+std::to_string(state)+",\"ms\":"+std::to_string(now-raid_closed)+"}");
+   raid_last_state=state;
+   if(raid_closed){
+    if(state==0){done=true;event("{\"phase\":\"skipped\",\"kind\":\"raid-results\",\"ms\":"+std::to_string(raid_closed-raid_since)+",\"dismissMs\":"+std::to_string(now-raid_closed)+"}");}
+    else if(now-raid_closed>kRaidDismissWatchMs){done=true;status("warning","Raid results screen still dismissing (state "+std::to_string(state)+")");}
+    else hide_raid(gui);
+   }else if(result!=raid_victory){
+    // Not a win (or not known yet while it opens): left as it is once it has opened.
+    if(state==2||now-raid_since>=kRewardsOpenWaitMs)done=true;
+   }else if(raid_next&&state!=1&&state!=2){
+    raid_closed=now;hide_raid(gui);
+    event("{\"phase\":\"raid-results-state\",\"state\":"+std::to_string(state)+",\"ms\":0}");
+   }else if(now-raid_since>kFastGiveUpMs){
+    done=true;set_alpha(gui,1.f);status("warning","Raid results screen left for taps");
+   }else if(state==1||state==2){
+    hide_raid(gui);
+    if(pending_dialog)return;  // a bypassed post-raid dialogue completes first
+    if(state==2){
+     if(!raid_next)raid_next=now+kFastSettleMs;
+     else if(now>=raid_next)invoke(raid_close,gui);  // repeated calls return at once (its own closed flag)
+    }
+   }
+  }else if(raid_closed)event("{\"phase\":\"skipped\",\"kind\":\"raid-results\",\"ms\":"+std::to_string(raid_closed-raid_since)+",\"dismissMs\":-1}");
+ }catch(...){
+  done=true;
+  // After Close() a failing call means its Unity objects are already destroyed: it is gone, not shown.
+  if(raid_closed)event("{\"phase\":\"skipped\",\"kind\":\"raid-results\",\"ms\":"+std::to_string(raid_closed-raid_since)+",\"dismissMs\":-1}");
+  else{if(gui){try{set_alpha(gui,1.f);}catch(...){}}status("warning","Raid results screen left for taps");}
+ }
+ if(!done)return;
+ fn<void(*)(uintptr_t)>(boot.runtime.gchandle_free)(pending_raid);pending_raid=0;
+}
+
+using PowerUp=void(*)(void*,void*,const void*);
+void hook_power_up(void *self,void *result,const void *m){
+ if(self&&power_ready){
+  float *t[PT_COUNT];
+  for(int i=0;i<PT_COUNT;++i)t[i]=reinterpret_cast<float*>(static_cast<char*>(self)+power_offset[i]);
+  bool fast=true;for(int i=0;i<PT_COUNT;++i)fast=fast&&*t[i]==kPowerFast[i];
+  if(active()){
+   if(!fast&&!power_saved){for(int i=0;i<PT_COUNT;++i)power_original[i]=*t[i];power_saved=true;}
+   for(int i=0;i<PT_COUNT;++i)*t[i]=kPowerFast[i];
+   skipped(K_POWER_UP);
+  }else if(fast&&power_saved)for(int i=0;i<PT_COUNT;++i)*t[i]=power_original[i];
+ }
+ orig<PowerUp>(K_POWER_UP)(self,result,m);
 }
 
 // Closes the bypassed page the way its own dismissal does, after bnai has returned.
@@ -408,7 +540,7 @@ void install(){
   dialog_class=class_of(api,"Niantic.Holoholo.Incident","IncidentInvasionDialogState");
   dialog_api=field_of_type(dialog_class,"Niantic.Platform.GameStates.StateLogic.IStateApi");
   dialog_config=field_of_type(dialog_class,"Niantic.Holoholo.Incident.IncidentInvasionDialogStateConfig");
-  convo_completed=method(dialog_class,"ConvoCompleted",0);
+  convo_completed=method(dialog_class,"ConvoCompleted",0);class_is_subclass=exp("class_is_subclass_of");
   auto offset=fn<size_t(*)(void*)>(exp("field_get_offset"));wbarrier=exp("gc_wbarrier_set_field");
   api_offset=offset(dialog_api);config_offset=offset(dialog_config);
   require(api_offset>=0x10&&api_offset<0x400&&config_offset>=0x10&&config_offset<0x400&&api_offset!=config_offset,"dialogue field offsets");
@@ -470,6 +602,10 @@ void install(){
   require(fn<size_t(*)(void*)>(exp("field_get_offset"))(radar_showing)==0x48,"Rocket Radar showing flag");
   const Target t{K_RADAR,service,PGR_GAME_CUTSCENE_SKIP_CPP_RADAR_MODAL_NAME,2,PGR_GAME_CUTSCENE_SKIP_CPP_RADAR_MODAL_RVA,p_radar,reinterpret_cast<void*>(hook_radar_modal),false,"Niantic.Holoholo.UI.UserResponsePromise"};
   if(hook(api,t,missing))++count;else radar_update=nullptr;
+  static const uint8_t p_gem[]=PGR_GAME_CUTSCENE_SKIP_CPP_GEM_MODAL_FINGERPRINT;
+  static_assert(sizeof(p_gem)==24,"24-byte prologue");
+  const Target g{K_GEM,service,PGR_GAME_CUTSCENE_SKIP_CPP_GEM_MODAL_NAME,2,PGR_GAME_CUTSCENE_SKIP_CPP_GEM_MODAL_RVA,p_gem,reinterpret_cast<void*>(hook_gem_modal),false,"Niantic.Holoholo.UI.UserResponsePromise"};
+  if(hook(api,g,missing))++count;
  }catch(const Failure &f){radar_update=nullptr;missing+=std::string(missing.empty()?"":", ")+"rocket-radar-assembled ("+f.where+")";}
 
  // The won Rocket battle's results screen: its Close, its finish-state field and GuiController.currentState.
@@ -487,6 +623,54 @@ void install(){
   if(hook(api,t,missing))++count;else rewards_close=nullptr;
  }catch(const Failure &f){rewards_close=nullptr;missing+=std::string(missing.empty()?"":", ")+"rocket-rewards ("+f.where+")";}
 
+ // The raid results screen: its Close, its BattleStatus field and the Victory literal by name. Uses the
+ // GuiController state and CanvasGroup methods resolved for the Rocket results screen above.
+ try{
+  require(gui_state&&root_canvas&&canvas_alpha,"GuiController state");
+  void *gui=class_of(api,"Niantic.Holoholo.Raid","RaidResolveUIController");
+  raid_close=method(gui,"Close",0);
+  canvas_raycasts=method(class_of(api,"UnityEngine","CanvasGroup"),"set_blocksRaycasts",1);
+  raid_status=field_of_type(gui,"Niantic.Holoholo.Battle.BattleStatus");
+  void *status_class=fn<void*(*)(void*)>(boot.meta.class_from_type)(fn<void*(*)(void*)>(boot.meta.field_get_type)(raid_status));
+  void *victory=fn<void*(*)(void*,const char*)>(boot.meta.class_get_field_from_name)(status_class,"Victory");require(victory,"BattleStatus.Victory");
+  fn<void(*)(void*,void*)>(boot.runtime.field_static_get_value)(victory,&raid_victory);require(raid_victory>0,"BattleStatus.Victory value");
+  static const uint8_t p_raid[]=PGR_GAME_CUTSCENE_SKIP_CPP_RAID_RESULTS_FINGERPRINT;
+  static_assert(sizeof(p_raid)==24,"24-byte prologue");
+  const Target t{K_RAID_RESULTS,gui,"Initialize",1,PGR_GAME_CUTSCENE_SKIP_CPP_RAID_RESULTS_RVA,p_raid,reinterpret_cast<void*>(hook_raid_results),false};
+  if(hook(api,t,missing))++count;else raid_close=nullptr;
+ }catch(const Failure &f){raid_close=nullptr;missing+=std::string(missing.empty()?"":", ")+"raid-results ("+f.where+")";}
+
+ // The power-up animation: the panel's seven Single timing fields by name, then cift.
+ try{
+  void *panel=class_of(api,"Niantic.Holoholo.UI.Pokemon","PokemonInfoPanel");
+  auto offset=fn<size_t(*)(void*)>(exp("field_get_offset"));
+  for(int i=0;i<PT_COUNT;++i){
+   void *f=fn<void*(*)(void*,const char*)>(boot.meta.class_get_field_from_name)(panel,kPowerTimingNames[i]);require(f,kPowerTimingNames[i]);
+   require(typename_of(fn<void*(*)(void*)>(boot.meta.field_get_type)(f))=="System.Single",kPowerTimingNames[i]);
+   power_offset[i]=offset(f);require(power_offset[i]>=0x10&&power_offset[i]<0x2000,kPowerTimingNames[i]);
+  }
+  static const uint8_t p_power[]=PGR_GAME_CUTSCENE_SKIP_CPP_POWER_UP_FINGERPRINT;
+  static_assert(sizeof(p_power)==24,"24-byte prologue");
+  const Target t{K_POWER_UP,panel,PGR_GAME_CUTSCENE_SKIP_CPP_POWER_UP_NAME,1,PGR_GAME_CUTSCENE_SKIP_CPP_POWER_UP_RVA,p_power,reinterpret_cast<void*>(hook_power_up),false};
+  power_ready=true;  // read by the hook only once it is attached
+  if(hook(api,t,missing))++count;else power_ready=false;
+ }catch(const Failure &f){power_ready=false;missing+=std::string(missing.empty()?"":", ")+"power-up ("+f.where+")";}
+
+ // The screen-open trace; not a cutscene type, so it is not counted.
+ try{
+  class_name_fn=exp("class_get_name");class_namespace_fn=exp("class_get_namespace");
+  static const uint8_t p_gui[]=PGR_GAME_CUTSCENE_SKIP_CPP_GUI_OPEN_FINGERPRINT;
+  static_assert(sizeof(p_gui)==24,"24-byte prologue");
+  PgrMetaMethodQuery q{};q.version=1;q.size=sizeof(q);q.owner=class_of(api,"Niantic.Holoholo.NUI","GuiController");q.name="Open";
+  q.return_type="System.Void";q.return_match=PGR_MD_MATCH_EXACT;q.param_count=0;
+  q.expected_code=static_cast<const char*>(boot.module_base)+PGR_GAME_CUTSCENE_SKIP_CPP_GUI_OPEN_RVA;q.prologue=p_gui;q.prologue_len=24;
+  PgrMetaMethodResult r{};const int rc=api->validate_method(&q,&r);
+  void *o=nullptr;
+  if(rc!=0||!r.code)status("warning","Screen trace unavailable (code "+std::to_string(rc)+")");
+  else if(pgrazor_hook(const_cast<void*>(r.code),reinterpret_cast<void*>(hook_gui_open),&o)!=0||!o)status("warning","Screen trace unavailable (hook)");
+  else gui_open_original.store(o,std::memory_order_release);
+ }catch(...){status("warning","Screen trace unavailable");}
+
  require(count>0,"no cutscene could be hooked");
  status("ready",std::to_string(count)+" of "+std::to_string(int(K_COUNT))+" cutscene types"+(missing.empty()?std::string():"; not skipped: "+missing));
 }
@@ -503,6 +687,7 @@ void pgr_cutscene_skip_tick(uint64_t tid,const PgrSharedMetadataOutput *){
  if(pending_radar)finish_radar();
  if(pending_rewards)advance_rewards();
  if(fast_rewards)advance_fast();
+ if(pending_raid)advance_raid();
  const bool on=configured();enabled.store(on,std::memory_order_release);
  if(!on||tried||faulted.load(std::memory_order_acquire))return;
  tried=true;
@@ -519,5 +704,10 @@ void pgr_cutscene_skip_stop(uint64_t tid){
   if(pending_dialog)finish_dialog();
   if(pending_dismiss)finish_dismiss();
   if(pending_radar)finish_radar();
+  if(pending_raid){  // shown again rather than left hidden without ticks
+   void *gui=fn<void*(*)(uintptr_t)>(boot.runtime.gchandle_get_target)(pending_raid);
+   if(gui){try{set_alpha(gui,1.f);}catch(...){}}
+   fn<void(*)(uintptr_t)>(boot.runtime.gchandle_free)(pending_raid);pending_raid=0;
+  }
  }
 }

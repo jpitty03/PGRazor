@@ -19,7 +19,8 @@
 // managed exceptions surface through runtime_invoke's exc out-param, never a C++ throw. No mutex is held
 // across a managed call.
 
-static_assert(sizeof(PgrMapPoiConfig) == 328, "config 328");
+static_assert(sizeof(PgrMapPoiConfig) == 408, "config 408");
+static_assert(offsetof(PgrMapPoiConfig, f_incDone) == 392, "config incident end");     // 8 + 48*8
 static_assert(sizeof(PgrMapPoiRequest) == 32, "request 32");
 static_assert(sizeof(PgrMapPoiPoint) == 576, "point 576");
 static_assert(sizeof(PgrMapPoiOutput) == 294928, "output 294928");
@@ -44,7 +45,7 @@ namespace {
 
 constexpr uint64_t kMaxLeaseMs = PGR_MP_MAX_LEASE_MS;
 constexpr int kMandatoryPtrCount = 31;        // slots 0..30, all non-null
-constexpr int kTotalPtrCount = 40;            // slots 0..39
+constexpr int kTotalPtrCount = 50;            // slots 0..49
 constexpr double kMaxSafeInteger = 9007199254740991.0;  // 2^53 - 1 (JS Number.MAX_SAFE_INTEGER)
 
 using New        = uintptr_t (*)(void *, int);
@@ -72,6 +73,7 @@ bool g_has_team = false;
 bool g_has_slots = false;
 bool g_has_level = false;
 bool g_has_boss = false;
+bool g_has_incident = false;
 
 // Permanent Unity owner, latched once from a genuine on-thread call.
 std::atomic<uint64_t> g_owner_tid{0};
@@ -209,6 +211,55 @@ bool already_seen(const PgrMapPoiOutput *out, uint32_t count, const Id &id) {
     if (std::memcmp(p.id, id.chars, static_cast<size_t>(id.length) * sizeof(uint16_t)) == 0) return true;
   }
   return false;
+}
+
+// Optional stop incident (Team GO Rocket invasion etc.). The first displayed, unfinished, unexpired
+// incident from PokestopDisplays (else the legacy PokestopDisplay) sets FLAG_INCIDENT, its raw
+// IncidentDisplayType in `incident` and its end in raid_end. Each read is isolated: anything unexpected
+// only omits the incident. Pure field reads (no managed call).
+bool read_display(void *display, uint64_t wall, PgrMapPoiPoint *pt) {
+  if (!is_exact(display, g_cfg.class_display)) return false;
+  auto get = reinterpret_cast<FieldGet>(g_cfg.field_get_value);
+  int32_t type = 0; int64_t end = 0; uint8_t hide = 0, done = 0;
+  get(display, g_cfg.f_incType, &type); get(display, g_cfg.f_incEnd, &end);
+  get(display, g_cfg.f_incHide, &hide); get(display, g_cfg.f_incDone, &done);
+  if (type <= 0 || hide || done || end <= 0 || static_cast<uint64_t>(end) <= wall || !is_safe_ms(static_cast<uint64_t>(end))) return false;
+  pt->flags |= PGR_MP_FLAG_INCIDENT;
+  pt->incident = static_cast<uint32_t>(type);
+  pt->raid_end = static_cast<double>(end);
+  return true;
+}
+void read_optional_incident_data(const Root &fort, PgrMapPoiPoint *pt, uint64_t wall) {
+  void *list = nullptr;
+  if (field_ptr(fort, g_cfg.f_displays, &list) && list) {
+    void *array = nullptr; int32_t count = 0;
+    reinterpret_cast<FieldGet>(g_cfg.field_get_value)(list, g_cfg.f_rfArray, &array);
+    reinterpret_cast<FieldGet>(g_cfg.field_get_value)(list, g_cfg.f_rfCount, &count);
+    if (array && count > 0) {
+      const uintptr_t length = reinterpret_cast<ArrayLen>(g_cfg.array_length)(array);
+      if (static_cast<uintptr_t>(count) > length) count = static_cast<int32_t>(length);
+      if (count > 16) count = 16;
+      void *const *items = reinterpret_cast<void *const *>(static_cast<const char *>(array) + 0x20);  // Il2CppArray vector
+      for (int32_t i = 0; i < count; ++i) if (items[i] && read_display(items[i], wall, pt)) return;
+    }
+  }
+  void *single = nullptr;
+  if (field_ptr(fort, g_cfg.f_display, &single) && single) read_display(single, wall, pt);
+}
+// The stop's own IsIncidentActive() then drops an incident the player already beat (the fort data
+// keeps it until the server refreshes; the stop marks it complete locally, as the game map shows).
+int read_optional_incident(const Root &obj, const Root &fort, PgrMapPoiPoint *pt, uint64_t wall, uint64_t deadline) {
+  if (!g_has_incident) return PGR_MP_OK;
+  read_optional_incident_data(fort, pt, wall);
+  if (!(pt->flags & PGR_MP_FLAG_INCIDENT)) return PGR_MP_OK;
+  int err = PGR_MP_OK;
+  if (!within_window(deadline, &err)) return err;
+  Root box; bool active = false;
+  if (call(g_cfg.m_incActive, &obj, nullptr, box, /*allowNull=*/true) == CALL_OK && is_exact(box.get(), g_cfg.class_bool)) {
+    uint8_t v = 0; active = unbox_copy(box, &v, 1) && v != 0;
+  }
+  if (!active) { pt->flags &= ~uint32_t(PGR_MP_FLAG_INCIDENT); pt->incident = 0; pt->raid_end = 0; }
+  return PGR_MP_OK;
 }
 
 // Optional gym fields. Each read is isolated: a throw / bad class / out-of-range value only omits the field.
@@ -407,6 +458,9 @@ int scan_class(void *klass, uint32_t kind, const PgrMapPoiRequest *request, uint
     if (kind == PGR_MP_KIND_GYM) {
       err = read_optional_gym(obj, fort, pt, request->wall_ms, deadline);
       if (err != PGR_MP_OK) return err;
+    } else {
+      err = read_optional_incident(obj, fort, pt, request->wall_ms, deadline);
+      if (err != PGR_MP_OK) return err;
     }
 
     ++(*count);
@@ -451,7 +505,8 @@ bool group_ok(void *const *ptrs, const int *slots, int n, bool *enabled) {
   return true;
 }
 
-bool validate_config(const PgrMapPoiConfig *c, int *rc, bool *team, bool *slots, bool *level, bool *boss) {
+bool validate_config(const PgrMapPoiConfig *c, int *rc, bool *team, bool *slots, bool *level, bool *boss,
+                     bool *incident) {
   if (c == nullptr) { *rc = PGR_MP_ERR_NULL_ARG; return false; }
   if (c->version != PGR_MP_CONFIG_VERSION) { *rc = PGR_MP_ERR_BAD_VERSION; return false; }
   if (c->size != sizeof(PgrMapPoiConfig)) { *rc = PGR_MP_ERR_BAD_SIZE; return false; }
@@ -465,8 +520,9 @@ bool validate_config(const PgrMapPoiConfig *c, int *rc, bool *team, bool *slots,
   const int team_slots[] = {31, 32};
   const int slot_slots[] = {33, 34, 35};
   const int boss_slots[] = {37, 38, 39};
+  const int incident_slots[] = {40, 41, 42, 43, 44, 45, 46, 47, 48, 49};
   if (!group_ok(ptrs, team_slots, 2, team) || !group_ok(ptrs, slot_slots, 3, slots) ||
-      !group_ok(ptrs, boss_slots, 3, boss)) {
+      !group_ok(ptrs, boss_slots, 3, boss) || !group_ok(ptrs, incident_slots, 10, incident)) {
     *rc = PGR_MP_ERR_BAD_CONFIG;
     return false;
   }
@@ -477,8 +533,8 @@ bool validate_config(const PgrMapPoiConfig *c, int *rc, bool *team, bool *slots,
 
 int api_install(const PgrMapPoiConfig *config) {
   int rc = PGR_MP_OK;
-  bool team = false, slots = false, level = false, boss = false;
-  if (!validate_config(config, &rc, &team, &slots, &level, &boss)) return rc;
+  bool team = false, slots = false, level = false, boss = false, incident = false;
+  if (!validate_config(config, &rc, &team, &slots, &level, &boss, &incident)) return rc;
   uint64_t probe = 0;
   if (!read_boottime_ms(&probe)) return PGR_MP_ERR_CLOCK;
 
@@ -494,6 +550,7 @@ int api_install(const PgrMapPoiConfig *config) {
     g_has_slots = slots;
     g_has_level = level;
     g_has_boss = boss;
+    g_has_incident = incident;
     g_busy = false;
   }
   g_installed.store(true, std::memory_order_release);

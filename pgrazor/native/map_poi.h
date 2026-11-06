@@ -84,7 +84,8 @@ enum PgrMapPoiFlags {
   PGR_MP_FLAG_SLOTS = 2,   // slots valid (0..6)
   PGR_MP_FLAG_LEVEL = 4,   // level valid (raw signed enum)
   PGR_MP_FLAG_BOSS  = 8,   // boss valid (1..99999)
-  PGR_MP_FLAG_EGG   = 16   // active raid is an unhatched egg (battle_ms > wall)
+  PGR_MP_FLAG_EGG   = 16,  // active raid is an unhatched egg (battle_ms > wall)
+  PGR_MP_FLAG_INCIDENT = 32 // stop: active incident (incident valid; its end ms in raid_end)
 };
 
 // Fixed LP64 config (328 bytes): 8-byte header + 40 pointers in the EXACT slot order below. Slots 0..30 are
@@ -149,9 +150,22 @@ struct PgrMapPoiConfig {
   void *f_boss;           // 37 raid -> boss pokemon object (reference)
   void *class_boss;       // 38 boss pokemon class (exact)
   void *f_bossId;         // 39 boss pokemon -> int32 species id
+
+  // OPTIONAL stop incident group (slots 40-49, all-or-none): Team GO Rocket and other stop incidents.
+  void *f_displays;       // 40 fort -> RepeatedField<PokestopIncidentDisplayProto> PokestopDisplays
+  void *f_rfArray;        // 41 that RepeatedField -> T[] array
+  void *f_rfCount;        // 42 that RepeatedField -> int32 count
+  void *f_display;        // 43 fort -> PokestopIncidentDisplayProto PokestopDisplay (legacy single)
+  void *class_display;    // 44 PokestopIncidentDisplayProto class (exact)
+  void *f_incType;        // 45 display -> int32 IncidentDisplayType
+  void *f_incEnd;         // 46 display -> int64 IncidentExpirationMs
+  void *f_incHide;        // 47 display -> bool HideIncident
+  void *f_incDone;        // 48 display -> bool IncidentCompleted
+  void *m_incActive;      // 49 instance boxed-bool IsIncidentActive() on the stop candidate (MapPokestop):
+                          //    false once the player beat it (the game's own local completion), like the map
 };
 
-static_assert(sizeof(PgrMapPoiConfig) == 328, "PgrMapPoiConfig must remain 328 bytes on LP64");
+static_assert(sizeof(PgrMapPoiConfig) == 408, "PgrMapPoiConfig must remain 408 bytes on LP64");
 
 // Fixed LP64 request (32 bytes). tid is the proven owner tid (nonzero and == the current OS tid). remaining_ms
 // is the residual lease (clamped to PGR_MP_MAX_LEASE_MS; 0 refuses). wall_ms is the host wall clock in ms
@@ -172,10 +186,10 @@ struct PgrMapPoiPoint {
   uint32_t kind;       // off 0  PgrMapPoiKind
   uint32_t flags;      // off 4  PgrMapPoiFlags bitset
   uint32_t id_length;  // off 8  UTF16 units in id (1..256)
-  uint32_t reserved0;  // off 12 0 in v1
+  uint32_t incident;   // off 12 stop: raw IncidentDisplayType of its active incident (FLAG_INCIDENT), else 0
   double lat;          // off 16 latitude (|lat| <= 90)
   double lon;          // off 24 longitude (|lon| <= 180)
-  double raid_end;     // off 32 active-raid end ms (0 when no active raid)
+  double raid_end;     // off 32 active-raid end ms (0 when no active raid); stop: incident end ms
   double raid_start;   // off 40 active-raid battle ms (0 when no active raid)
   int32_t team_id;     // off 48 raw team enum (FLAG_TEAM)
   int32_t slots;       // off 52 occupied gym slots 0..6 (FLAG_SLOTS)

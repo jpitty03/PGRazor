@@ -268,10 +268,11 @@ int main(int argc, char **argv) {
   std::printf("ABI sizes: config=%zu request=%zu point=%zu output=%zu table=%zu\n",
               sizeof(PgrMapPoiConfig), sizeof(PgrMapPoiRequest), sizeof(PgrMapPoiPoint),
               sizeof(PgrMapPoiOutput), sizeof(PgrMapPoiApi));
-  assert(sizeof(PgrMapPoiConfig) == 328 && sizeof(PgrMapPoiRequest) == 32 &&
+  assert(sizeof(PgrMapPoiConfig) == 408 && sizeof(PgrMapPoiRequest) == 32 &&
          sizeof(PgrMapPoiPoint) == 576 && sizeof(PgrMapPoiOutput) == 294928 &&
          sizeof(PgrMapPoiApi) == 24);
-  assert(offsetof(PgrMapPoiConfig, f_bossId) == 320);
+  assert(offsetof(PgrMapPoiConfig, f_bossId) == 320 && offsetof(PgrMapPoiConfig, f_incDone) == 392);
+  assert(offsetof(PgrMapPoiPoint, incident) == 12);
   assert(offsetof(PgrMapPoiRequest, wall_ms) == 24);
   assert(offsetof(PgrMapPoiPoint, id) == 64 && offsetof(PgrMapPoiPoint, raid_end) == 32);
   assert(offsetof(PgrMapPoiOutput, points) == 16 && offsetof(PgrMapPoiOutput, count) == 12);
@@ -290,6 +291,7 @@ int main(int argc, char **argv) {
   { PgrMapPoiConfig b = full; b.m_team = nullptr; assert(api->install(&b) == PGR_MP_ERR_BAD_CONFIG); }      // team partial
   { PgrMapPoiConfig b = full; b.f_slots = nullptr; assert(api->install(&b) == PGR_MP_ERR_BAD_CONFIG); }     // slots partial
   { PgrMapPoiConfig b = full; b.class_boss = nullptr; assert(api->install(&b) == PGR_MP_ERR_BAD_CONFIG); }  // boss partial
+  { PgrMapPoiConfig b = full; b.f_incEnd = &f_end; assert(api->install(&b) == PGR_MP_ERR_BAD_CONFIG); }     // incident partial
   // not-installed: scan refuses with an initialised empty output.
   {
     PgrMapPoiRequest r = make_request(tid, 2000, WALL);

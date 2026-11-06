@@ -6,6 +6,8 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.ColorMatrix;
+import android.graphics.ColorMatrixColorFilter;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.os.Handler;
@@ -50,6 +52,13 @@ final class MapPoiLayer {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     // Compact gym defender count has its own paints so the shared marker style is never disturbed.
     private final Paint labelFill = new Paint(Paint.ANTI_ALIAS_FLAG);
+    // A Team GO Rocket stop: the stop art darkened to the in-game near-black, keeping a hint of its shape.
+    private final Paint rocketStopPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+    {
+        ColorMatrix dark = new ColorMatrix(); dark.setSaturation(0);
+        dark.postConcat(new ColorMatrix(new float[]{.32f,0,0,0,8, 0,.30f,0,0,6, 0,0,.34f,0,10, 0,0,0,1,0}));
+        rocketStopPaint.setColorFilter(new ColorMatrixColorFilter(dark));
+    }
     private final Paint labelOutline = new Paint(Paint.ANTI_ALIAS_FLAG);
     // Bundled POI art is decoded once and reused every frame; a null entry marks a tried-but-missing
     // asset so the vector fallback renders without re-hitting the AssetManager each draw.
@@ -128,11 +137,19 @@ final class MapPoiLayer {
             if (point.optBoolean("egg")) { paint.setColor(Color.rgb(65, 45, 85)); canvas.drawCircle(x + radius * .8f, y + radius * .8f, radius * .45f, paint); paint.setColor(Color.WHITE); paint.setTextAlign(Paint.Align.CENTER); paint.setTextSize(radius * .65f); canvas.drawText("E", x + radius * .8f, y + radius * 1.02f, paint); }
         } else if (stop) {
             Bitmap stopIcon = loadIcon("stop.png");
+            boolean rocket = rocketName(point, now) != null;
             if (stopIcon != null && stopIcon.getWidth() > 0 && stopIcon.getHeight() > 0) {
                 // PokeMiners pokestop_near art, aspect-fit within the marker diameter and centred; no white backing or halo.
                 float scale = Math.min(2 * radius / stopIcon.getWidth(), 2 * radius / stopIcon.getHeight());
                 float halfW = stopIcon.getWidth() * scale / 2f, halfH = stopIcon.getHeight() * scale / 2f;
-                canvas.drawBitmap(stopIcon, null, new RectF(x - halfW, y - halfH, x + halfW, y + halfH), paint);
+                canvas.drawBitmap(stopIcon, null, new RectF(x - halfW, y - halfH, x + halfW, y + halfH), rocket ? rocketStopPaint : paint);
+                if (rocket) { // small red "R" badge, like the Team GO Rocket mark over an invaded stop
+                    float r = radius * .48f, bx = x + radius * .72f, by = y - radius * .72f;
+                    paint.setColor(Color.WHITE); canvas.drawCircle(bx, by, r + dp(1), paint);
+                    paint.setColor(Color.rgb(208, 32, 38)); canvas.drawCircle(bx, by, r, paint);
+                    paint.setColor(Color.WHITE); paint.setTextAlign(Paint.Align.CENTER); paint.setFakeBoldText(true); paint.setTextSize(r * 1.4f);
+                    canvas.drawText("R", bx, by + r * .5f, paint); paint.setFakeBoldText(false);
+                }
             } else {
                 // Fallback only if the asset can't be decoded: vector cyan disc with a thin white halo and white "S".
                 paint.setColor(Color.WHITE); canvas.drawCircle(x, y, radius + 2, paint);
@@ -225,7 +242,7 @@ final class MapPoiLayer {
     private String poiShortLabel(JSONObject point) {
         long now = System.currentTimeMillis();
         if (point.optLong("raidEnd") > now) { String tier = point.optString("tier", ""); return "Raid" + (tier.isEmpty() ? "" : " " + tier) + (point.optBoolean("egg") ? " (egg)" : ""); }
-        if ("stop".equals(point.optString("kind"))) return "PokéStop";
+        if ("stop".equals(point.optString("kind"))) { String rocket = rocketName(point, now); return rocket == null ? "PokéStop" : "PokéStop · Team GO Rocket " + rocket; }
         String team = point.optString("team", ""); return "Gym" + (team.isEmpty() ? "" : " (" + team + ")");
     }
     private void registerPoiDialog(AlertDialog dialog) {
@@ -284,7 +301,11 @@ final class MapPoiLayer {
         if (Double.isFinite(lat) && Double.isFinite(lon)) sb.append(String.format(Locale.US, "%.6f, %.6f\n\n", lat, lon));
         long now = System.currentTimeMillis();
         boolean stop = "stop".equals(p.optString("kind"));
-        if (stop) sb.append("PokéStop loaded nearby by the game.\n");
+        if (stop) {
+            sb.append("PokéStop loaded nearby by the game.\n");
+            String rocket = rocketName(p, now);
+            if (rocket != null) sb.append("\nTeam GO Rocket ").append(rocket).append(" — ends in ").append(countdown(p.optLong("incidentEnd") - now)).append('\n');
+        }
         else {
             String team = p.optString("team", "");
             sb.append("Team: ").append(team.isEmpty() ? "Unknown" : team).append('\n');
@@ -312,7 +333,17 @@ final class MapPoiLayer {
         if (gone) sb.insert(0, "Last known data - no fresh nearby snapshot.\n\n");
         return sb.toString().trim();
     }
-    private static String countdown(long millis) { long total = Math.max(0, millis) / 1000; return String.format(Locale.US, "%d:%02d", total / 60, total % 60); }
+    /** "Grunt", "Leader" or "Giovanni" for a stop with an unexpired Team GO Rocket invasion, else null.
+     *  incident is the game's raw IncidentDisplayType: 1 grunt, 2 leader, 3 Giovanni, 4 grunt (variant). */
+    private static String rocketName(JSONObject p, long now) {
+        if (p.optLong("incidentEnd") <= now) return null;
+        switch (p.optInt("incident", 0)) { case 1: case 4: return "Grunt"; case 2: return "Leader"; case 3: return "Giovanni"; default: return null; }
+    }
+    private static String countdown(long millis) {
+        long total = Math.max(0, millis) / 1000;
+        if (total >= 3600) return String.format(Locale.US, "%d:%02d:%02d", total / 3600, total / 60 % 60, total % 60);
+        return String.format(Locale.US, "%d:%02d", total / 60, total % 60);
+    }
 
     /** English name for a base-species id, or null to fall back to #id; the table is read once. */
     private String bossName(int id) {
