@@ -36,10 +36,11 @@ public final class Pad {
     private OverlayDrag catchChanceDrag;
     private OverlayDrag buddyEmotionDrag;
     private GymFeedOverlay gymFeedOverlay;
+    private ShundoOverlay shundoOverlay;
     private TextView gymAutomationStatus;
     private TextView automationStatus;
     private OverlayDrag automationDrag;
-    private OverlayDrag gymFeedDrag;
+    private OverlayDrag gymFeedDrag, shundoDrag;
     private VgpMarker vgpMarker;
     // Draggable, position-persisting handles for the cooldown and VGP overlays.
     private OverlayDrag cooldownDrag, vgpDrag;
@@ -153,6 +154,9 @@ public final class Pad {
         vgpDrag=OverlayDrag.attach(overlays,vgpToggle,vgpActivity,"vgp");
         vgpMarker=new VgpMarker(host);overlays.addView(vgpMarker,new FrameLayout.LayoutParams(dp(38),dp(46)));vgpMarker.setVisibility(View.GONE);
         // Compact Keep All / transfer-rules overlay; tap toggles Keep All, drag repositions (persists transfer.fx/fy).
+        // Shundo Sniper card: status, counts and Start/Stop; drag to move it.
+        shundoOverlay=new ShundoOverlay(activity);FrameLayout.LayoutParams shundoLayout=new FrameLayout.LayoutParams(dp(260),-2,Gravity.TOP|Gravity.CENTER_HORIZONTAL);shundoLayout.topMargin=dp(96);
+        overlays.addView(shundoOverlay,shundoLayout);shundoOverlay.setVisibility(View.GONE);shundoDrag=OverlayDrag.attach(overlays,shundoOverlay,"shundo");
         transferToggle=new TransferToggle(host);FrameLayout.LayoutParams transferLayout=new FrameLayout.LayoutParams(dp(54),dp(54),Gravity.TOP|Gravity.LEFT);transferLayout.leftMargin=dp(12);transferLayout.topMargin=dp(300);overlays.addView(transferToggle,transferLayout);transferToggle.setOnClickListener(v->{Control.setTransferKeepAll(!Control.transferKeepAll());refresh();});
         transferDrag=OverlayDrag.attach(overlays,transferToggle,"transfer");transferToggle.setVisibility(View.GONE);
         gameRoutesOverlay=new GameRoutesOverlay(activity);
@@ -251,7 +255,7 @@ public final class Pad {
         Rect previousSafe=appliedWindowBounds.isEmpty()?safe:new Rect(appliedWindowBounds);
         appliedWindowBounds.set(safe);appliedWindowWidth=parent.getWidth();appliedWindowHeight=parent.getHeight();
         appliedUiScale=percent;float scale=percent/100f;
-        for(View view:new View[]{launcher,joystickOverlay,cooldownTimer,vgpToggle,vgpActivity,vgpMarker,transferToggle,gameRoutesOverlay,gymFeedOverlay,gymAutomationStatus}){
+        for(View view:new View[]{launcher,joystickOverlay,cooldownTimer,vgpToggle,vgpActivity,vgpMarker,transferToggle,gameRoutesOverlay,gymFeedOverlay,gymAutomationStatus,shundoOverlay}){
             if(view==null)continue;
             float x=view.getX(),y=view.getY();
             int oldWidth=OverlayDrag.visualWidth(view),oldHeight=OverlayDrag.visualHeight(view);
@@ -270,6 +274,7 @@ public final class Pad {
     private void refresh() {
         applyMapScale();
         if(gymFeedOverlay!=null)gymFeedOverlay.refresh(!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing()));
+        if(shundoOverlay!=null){shundoOverlay.refresh(!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing()));if(shundoDrag!=null)shundoDrag.refreshBounds();}
         if(gymAutomationStatus!=null){gymAutomationStatus.setVisibility(gymFeedOverlay.getVisibility());setTextIfChanged(gymAutomationStatus,GymAutomationSettings.overlayStatus());gymAutomationStatus.setTextColor(ink());gymFeedDrag.refreshBounds();}
         if(vgpToggle!=null){vgpToggle.setVisibility(Control.vgpOverlayVisible()&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);vgpToggle.setContentDescription("Virtual Go Plus "+(Control.vgpEnabled()?"on; tap to turn off":"off; tap to turn on")+". "+Control.vgpStatus());vgpToggle.invalidate();}
 
@@ -491,6 +496,7 @@ public final class Pad {
         if(automationStatus!=null){overlays.removeView(automationStatus);automationStatus=null;}
         if(catchChanceDrag!=null){catchChanceDrag.detach();catchChanceDrag=null;}if(catchChance!=null){overlays.removeView(catchChance);catchChance=null;}
         if(gymFeedDrag!=null){gymFeedDrag.detach();gymFeedDrag=null;}
+        if(shundoDrag!=null){shundoDrag.detach();shundoDrag=null;}if(shundoOverlay!=null){shundoOverlay.close();overlays.removeView(shundoOverlay);shundoOverlay=null;}
         if(gymAutomationStatus!=null){overlays.removeView(gymAutomationStatus);gymAutomationStatus=null;}
         if(gymFeedOverlay!=null){gymFeedOverlay.close();overlays.removeView(gymFeedOverlay);gymFeedOverlay=null;}
         settings.close();if(hideOverlaysDialog!=null)hideOverlaysDialog.dismiss();

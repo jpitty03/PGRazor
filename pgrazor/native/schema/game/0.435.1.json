@@ -10805,6 +10805,113 @@
         ],
         "purpose": "CombatVNextSwapPromptWidget.ShowPromptWidget prologue"
       }
+    },
+    "shundo_cpp": {
+      "pokemon_selected_rva": {
+        "kind": "rva",
+        "value": "166208592",
+        "purpose": "Niantic.Holoholo.Map.MapExploreState.PokemonSelected method address (blocked while Shundo Sniper runs)"
+      },
+      "pokemon_selected_fingerprint": {
+        "kind": "bytes",
+        "value": [
+          "0xff",
+          "0x83",
+          "0x01",
+          "0xd1",
+          "0xfe",
+          "0x13",
+          "0x00",
+          "0xf9",
+          "0xf8",
+          "0x5f",
+          "0x03",
+          "0xa9",
+          "0xf6",
+          "0x57",
+          "0x04",
+          "0xa9",
+          "0xf4",
+          "0x4f",
+          "0x05",
+          "0xa9",
+          "0xf6",
+          "0x95",
+          "0x02",
+          "0x90"
+        ],
+        "purpose": "Niantic.Holoholo.Map.MapExploreState.PokemonSelected prologue"
+      },
+      "pokestop_selected_rva": {
+        "kind": "rva",
+        "value": "166207636",
+        "purpose": "Niantic.Holoholo.Map.MapExploreState.PokestopSelected method address (blocked while Shundo Sniper runs)"
+      },
+      "pokestop_selected_fingerprint": {
+        "kind": "bytes",
+        "value": [
+          "0xff",
+          "0x83",
+          "0x01",
+          "0xd1",
+          "0xfe",
+          "0x13",
+          "0x00",
+          "0xf9",
+          "0xf8",
+          "0x5f",
+          "0x03",
+          "0xa9",
+          "0xf6",
+          "0x57",
+          "0x04",
+          "0xa9",
+          "0xf4",
+          "0x4f",
+          "0x05",
+          "0xa9",
+          "0xf7",
+          "0x95",
+          "0x02",
+          "0x90"
+        ],
+        "purpose": "Niantic.Holoholo.Map.MapExploreState.PokestopSelected prologue"
+      },
+      "gym_selected_rva": {
+        "kind": "rva",
+        "value": "166199104",
+        "purpose": "Niantic.Holoholo.Map.MapExploreState.GymSelected method address (blocked while Shundo Sniper runs)"
+      },
+      "gym_selected_fingerprint": {
+        "kind": "bytes",
+        "value": [
+          "0xff",
+          "0xc3",
+          "0x01",
+          "0xd1",
+          "0xfe",
+          "0x6f",
+          "0x02",
+          "0xa9",
+          "0xfa",
+          "0x67",
+          "0x03",
+          "0xa9",
+          "0xf8",
+          "0x5f",
+          "0x04",
+          "0xa9",
+          "0xf6",
+          "0x57",
+          "0x05",
+          "0xa9",
+          "0xf4",
+          "0x4f",
+          "0x06",
+          "0xa9"
+        ],
+        "purpose": "Niantic.Holoholo.Map.MapExploreState.GymSelected prologue"
+      }
     }
   },
   "schemas": {

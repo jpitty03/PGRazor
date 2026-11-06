@@ -61,6 +61,11 @@ public final class GameLocationDelivery {
     private volatile boolean faultLogged;
     private final List<Record> records = new ArrayList<>();
     private final Object stateLock = new Object();
+    // The manager a newer one replaced while it was still running (stateLock). The game can start a second
+    // location manager and later stop it while the first one stays in use; delivery then goes back to the
+    // first one instead of to none (which froze the map at the last synthetic fix).
+    private Object previous;
+    private boolean previousPaused;
     private long generation, scheduleRevision;
 
     /** Inert constructor: nothing is resolved or captured until {@link #create()} runs. */
@@ -125,7 +130,9 @@ public final class GameLocationDelivery {
     /** Pauses the timer, but only for the currently captured manager. */
     public void pause(Object owner) {
         synchronized (stateLock) {
+            if (owner != null && owner == previous) { previousPaused = true; return; }
             if (owner == null || !isSame(owner)) return;
+            if (!paused) lifecycle("paused");
             paused = true;
             scheduleRevision++;
             handler.removeCallbacks(runnable);
@@ -134,11 +141,21 @@ public final class GameLocationDelivery {
 
     public void stop(Object owner) {
         List<Record> retired;
+        Object fallback;
+        boolean fallbackPaused;
         synchronized (stateLock) {
+            if (owner != null && owner == previous) { previous = null; return; }
             if (owner == null || !isSame(owner)) return;
             retired = detachLocked();
+            fallback = previous; fallbackPaused = previousPaused; previous = null;
         }
+        lifecycle("stopped");
         restoreRecords(retired);
+        if (fallback != null) {
+            lifecycle("back to manager " + Integer.toHexString(System.identityHashCode(fallback)));
+            capture(fallback);
+            if (fallbackPaused) pause(fallback);
+        }
     }
 
     public void shutdown() {
@@ -146,6 +163,7 @@ public final class GameLocationDelivery {
         synchronized (stateLock) {
             if (shutdown) return;
             shutdown = true;
+            previous = null;
             retired = detachLocked();
         }
         restoreRecords(retired);
@@ -156,7 +174,9 @@ public final class GameLocationDelivery {
         long expected;
         synchronized (stateLock) {
             if (shutdown) return;
-            if (isSame(owner)) { scheduleLocked(); return; }
+            if (isSame(owner)) { if (paused) lifecycle("resumed"); scheduleLocked(); return; }
+            // The manager being left becomes the fallback (also when switching back to the previous one).
+            if (manager != null) { previous = manager; previousPaused = paused; } else if (owner == previous) previous = null;
             retired = detachLocked();
             expected = generation;
         }
@@ -165,6 +185,7 @@ public final class GameLocationDelivery {
             // A setter may have restarted or shut down delivery while restoring. Preserve it.
             if (shutdown || generation != expected || manager != null) return;
             manager = owner;
+            lifecycle("manager " + Integer.toHexString(System.identityHashCode(owner)));
             first = true;
             faultLogged = false;
             scheduleLocked();
@@ -330,6 +351,11 @@ public final class GameLocationDelivery {
             }
             return true;
         }
+    }
+
+    // Lifecycle transitions only (the game pauses and resumes its location manager with the activity).
+    private static void lifecycle(String what) {
+        try { Control.event("location-delivery-state", what); } catch (Throwable ignored) { }
     }
 
     private void logFaultBounded(String where, Throwable error) {

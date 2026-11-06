@@ -104,6 +104,11 @@ uintptr_t pending_raid=0;uint64_t raid_since=0,raid_next=0,raid_closed=0;int32_t
 // fully dismissed (state 0): while it is still dismissing, an invisible screen would swallow the swipes
 // of the encounter underneath. Followed for at most 60 s.
 void *canvas_raycasts=nullptr;
+// The "You're going too fast" warning (Niantic.Holoholo.Map.SpeedModal, opened through GuiController.Open).
+// With the setting on it is hidden as it opens and, once open (state 2), dismissed with its own
+// GuiController.Dismiss(), like tapping through it. Shown again for taps if it is not open within 10 s.
+void *speed_modal_class=nullptr,*gui_dismiss=nullptr;uintptr_t pending_speed=0;uint64_t speed_since=0;
+constexpr uint64_t kSpeedWatchMs=10000;
 constexpr uint64_t kRaidDismissWatchMs=60000;
 // The power-up animation on a Pokemon's page. PokemonInfoPanel.cift (obfuscated) handles the server's
 // UpgradePokemonOutProto and starts the panel's own power-up coroutine, which paces each step (model
@@ -373,6 +378,29 @@ void hook_gui_open(void *self,const void *m){
   }catch(...){}
  }
  reinterpret_cast<GuiOpen>(gui_open_original.load(std::memory_order_acquire))(self,m);
+ if(active()&&self&&speed_modal_class&&gui_dismiss&&!pending_speed){
+  try{
+   if(klass(self)==speed_modal_class){
+    pending_speed=fn<uintptr_t(*)(void*,int)>(boot.runtime.gchandle_new)(self,0);speed_since=clock_ms();
+    if(root_canvas&&canvas_alpha)set_alpha(self,0.f);
+   }
+  }catch(...){}
+ }
+}
+void advance_speed(){
+ void *gui=fn<void*(*)(uintptr_t)>(boot.runtime.gchandle_get_target)(pending_speed);
+ bool done=!gui;
+ try{
+  if(gui){
+   const int32_t state=int_field(gui,gui_state);
+   if(state==2){invoke(gui_dismiss,gui);done=true;event("{\"phase\":\"skipped\",\"kind\":\"speed-warning\",\"ms\":"+std::to_string(clock_ms()-speed_since)+"}");}
+   else if(state==0||state==3)done=true;
+   else if(clock_ms()-speed_since>kSpeedWatchMs){done=true;set_alpha(gui,1.f);status("warning","Speed warning left for taps");}
+   else set_alpha(gui,0.f);
+  }
+ }catch(const Failure &f){done=true;if(gui){try{set_alpha(gui,1.f);}catch(...){}}status("warning",std::string("Speed warning left for taps: ")+f.where);}
+ if(!done)return;
+ fn<void(*)(uintptr_t)>(boot.runtime.gchandle_free)(pending_speed);pending_speed=0;
 }
 
 using RaidInit=void(*)(void*,void*,const void*);
@@ -640,6 +668,13 @@ void install(){
   if(hook(api,t,missing))++count;else raid_close=nullptr;
  }catch(const Failure &f){raid_close=nullptr;missing+=std::string(missing.empty()?"":", ")+"raid-results ("+f.where+")";}
 
+ // The speed warning: dismissed through GuiController.Dismiss once open (no hook of its own).
+ try{
+  require(gui_state&&root_canvas&&canvas_alpha,"GuiController state");
+  gui_dismiss=method(class_of(api,"Niantic.Holoholo.NUI","GuiController"),"Dismiss",0);
+  speed_modal_class=class_of(api,"Niantic.Holoholo.Map","SpeedModal");
+ }catch(const Failure &f){gui_dismiss=nullptr;speed_modal_class=nullptr;missing+=std::string(missing.empty()?"":", ")+"speed-warning ("+f.where+")";}
+
  // The power-up animation: the panel's seven Single timing fields by name, then cift.
  try{
   void *panel=class_of(api,"Niantic.Holoholo.UI.Pokemon","PokemonInfoPanel");
@@ -674,6 +709,7 @@ void install(){
  require(count>0,"no cutscene could be hooked");
  status("ready",std::to_string(count)+" of "+std::to_string(int(K_COUNT))+" cutscene types"+(missing.empty()?std::string():"; not skipped: "+missing));
 }
+
 }  // namespace
 
 void pgr_cutscene_skip_tick(uint64_t tid,const PgrSharedMetadataOutput *){
@@ -688,6 +724,7 @@ void pgr_cutscene_skip_tick(uint64_t tid,const PgrSharedMetadataOutput *){
  if(pending_rewards)advance_rewards();
  if(fast_rewards)advance_fast();
  if(pending_raid)advance_raid();
+ if(pending_speed)advance_speed();
  const bool on=configured();enabled.store(on,std::memory_order_release);
  if(!on||tried||faulted.load(std::memory_order_acquire))return;
  tried=true;

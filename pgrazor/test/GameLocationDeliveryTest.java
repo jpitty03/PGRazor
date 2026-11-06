@@ -24,6 +24,7 @@ public final class GameLocationDeliveryTest {
         pauseResumeStop();
         shutdownIrreversible();
         replacementManager();
+        replacedManagerStoppedFallsBack();
         newProviders();
         listenerInstallFailure();
         retainedStaleCallback();
@@ -190,6 +191,47 @@ public final class GameLocationDeliveryTest {
         check(managerB.delivered.size() >= 1, "new manager receives synthetic fixes");
         check(managerA.delivered.size() == deliveredToA, "old manager no longer receives fixes");
         delivery.shutdown();
+    }
+
+    // The game's own sequence on MuMu: manager A runs, B starts, B is paused and stopped while A stays in
+    // use. Delivery must go back to A rather than to no manager (which froze the map).
+    static void replacedManagerStoppedFallsBack() {
+        GameLocationDelivery delivery = begin();
+        Recorder recA = new Recorder();
+        NianticLocationProvider providerA = new NianticLocationProvider("a", recA);
+        NianticLocationManager managerA = managerWith(providerA);
+        delivery.start(managerA);
+        tick();
+        Recorder recB = new Recorder();
+        NianticLocationManager managerB = managerWith(new NianticLocationProvider("b", recB));
+        delivery.start(managerB);
+        delivery.pause(managerB);
+        delivery.stop(managerB);
+        int beforeTick = managerA.delivered.size();
+        tick();
+        check(providerA.getListener() != recA, "stopping the newer manager wraps the previous one again");
+        check(managerA.delivered.size() > beforeTick, "the previous manager receives synthetic fixes again");
+        delivery.stop(managerA);
+        check(providerA.getListener() == recA, "stopping the previous manager then restores its provider");
+        int afterStop = managerA.delivered.size();
+        tick();
+        check(managerA.delivered.size() == afterStop, "nothing is delivered once both managers are stopped");
+        delivery.shutdown();
+
+        // A, then B, then the game switches back to A: B becomes the fallback, so stopping A goes to B.
+        GameLocationDelivery again = begin();
+        Recorder recC = new Recorder(), recD = new Recorder();
+        NianticLocationProvider providerC = new NianticLocationProvider("c", recC), providerD = new NianticLocationProvider("d", recD);
+        NianticLocationManager managerC = managerWith(providerC), managerD = managerWith(providerD);
+        again.start(managerC);
+        again.start(managerD);
+        again.start(managerC);
+        again.stop(managerC);
+        int beforeD = managerD.delivered.size();
+        tick();
+        check(providerD.getListener() != recD, "switching back keeps the manager it left as the fallback");
+        check(managerD.delivered.size() > beforeD, "that fallback receives fixes once the current one stops");
+        again.shutdown();
     }
 
     static void newProviders() {

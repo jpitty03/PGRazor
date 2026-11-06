@@ -6,13 +6,16 @@
 
 - **Skip cutscenes:** Off by default; turn it on under Settings > General Settings.
 - **Smart healing:** Heals damaged Pokémon after battles, periodically, or both, choosing the mix of potions (and optionally revives) that wastes the least, so a Pokémon missing 5 HP gets a Potion, not a Max Potion. Choose the HP threshold (below 25%, 50% or 75%, or any HP missing) under Settings > Team Rocket, Gyms, Raids & Dynamax.
+- **Shundo Sniper:** Teleports to 100% IV Pokémon from LivePokeMap and PoGoCoordinates, checks each one in the background for shiny and catches only shinies, with your best Ultra, Great or Poké Ball and a Golden Razz Berry. A shiny found during a cooldown is held until the cooldown ends, then caught. An on-map card shows what it is doing with a Start/Stop button, and taps on map Pokémon, PokéStops and gyms are blocked while it runs. VGP+ pauses meanwhile. Open it from the quick menu.
 
 ### Improvements & fixes
 
 - Team GO Rocket battles: while any Rocket automation option is on, the next Pokémon is picked automatically when one faints.
 - Location & overlays is renamed General Settings.
 - Team Rocket settings now sit with gyms, raids and Dynamax under Team Rocket, Gyms, Raids & Dynamax.
-- World map: PokéStops invaded by Team GO Rocket show darkened with a red R, and tapping one shows whether it is a grunt, leader or Giovanni and when the invasion ends.
+- World map: PokéStops invaded by Team GO Rocket show darkened with a red R.
+- Skip cutscenes also closes the "You're going too fast" warning.
+- Teleports and walking could stop moving you on the map until the game was restarted, after the game switched between its location services; your position now keeps updating.
 - Research: a selected task whose deletion fails is tried again after 30 seconds and then after 2 minutes, instead of staying in your task list until the game restarts.
 
 ## v0.2.1

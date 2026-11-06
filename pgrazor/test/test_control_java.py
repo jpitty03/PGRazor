@@ -162,6 +162,14 @@ public final class ResearchSettings {
  public static void read(java.util.Properties p){prefs.read(p);}
  public static void write(java.util.Properties p){prefs.write(p);}
 }''',
+    'dev/pgrazor/ShundoSniper.java': '''package dev.pgrazor;
+public final class ShundoSniper {
+ public static boolean active(){return false;}
+ public static String config(){return "S1|0|0";}
+ public static void publish(String detail){}
+ public static void read(java.util.Properties p){}
+ public static void write(java.util.Properties p){}
+}''',
     'dev/pgrazor/SmartCatchSettings.java': '''package dev.pgrazor;
 public final class SmartCatchSettings {
  private static final SmartCatchPreferences prefs=new SmartCatchPreferences();

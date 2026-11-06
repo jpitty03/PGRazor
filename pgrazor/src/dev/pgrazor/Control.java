@@ -226,7 +226,7 @@ public final class Control {
     public static float vgpTargetY(){return vgp.targetY();}
     public static boolean vgpTargetSpin(){return vgp.targetSpin();}
 
-    public static boolean vgpAllowed(){if(!locationKnown())return false;guardVgpCooldown();return vgpEnabled&&vgpReady&&itemAccessAllowed();}
+    public static boolean vgpAllowed(){if(!locationKnown())return false;guardVgpCooldown();return vgpEnabled&&vgpReady&&itemAccessAllowed()&&!ShundoSniper.active();}  // Shundo Sniper pauses VGP+
     public static void vgpResult(String action,boolean success){vgp.result(action,success);}
     private static volatile boolean autoIncubate, incubateLongest, incubatorReady;
     private static volatile String incubatorStatus="Waiting for incubation support";
@@ -249,7 +249,7 @@ public final class Control {
     public static void setBuddyStatus(String status){buddyStatus=status;}
     public static String buddyStatus(){return buddyStatus;}
     public static boolean buddyAvailable(){return buddyReady&&itemAccessAllowed();}
-    public static boolean buddySamplingRequested(){return (buddyBerry!=0||vgpEnabled||autoIncubate||healEnabled||GymAutomationSettings.enabled()||BatchEvolutionSettings.enabled()||OneShotAutomation.enabled())&&hostLive();}
+    public static boolean buddySamplingRequested(){return (buddyBerry!=0||vgpEnabled||autoIncubate||healEnabled||ShundoSniper.active()||GymAutomationSettings.enabled()||BatchEvolutionSettings.enabled()||OneShotAutomation.enabled())&&hostLive();}
     // Legacy wire slot remains for ABI compatibility; Buddy Emotion owns all feeding.
     public static boolean buddyAllowed(){return false;}
     private static volatile boolean encounterBerryActive,encounterBerryBusy;
@@ -264,6 +264,7 @@ public final class Control {
     public static String oneShotAutomationConfig(){String gift=GiftBatchSettings.config();return gift!=null?gift:OneShotAutomation.config();}
     public static String batchEvolutionConfig(){return BatchEvolutionSettings.config();}
     public static String researchConfig(){return ResearchSettings.config();}
+    public static String shundoConfig(){return ShundoSniper.config();}
     public static String buddyEmotionHistory(){return BuddyEmotionSettings.history();}
     public static boolean encounterBerryVisible(){return encounterBerryEnabled&&catchScreenVisible();}
     public static boolean encounterBerryBusy(){return encounterBerryBusy;}
@@ -1043,15 +1044,17 @@ public final class Control {
             GymAutomationSettings.read(new Properties());
             BuddyEmotionSettings.read(new Properties());
             ResearchSettings.read(new Properties());
+            ShundoSniper.read(new Properties());
             try(FileInputStream in=settingsFile.openRead()) {
                 Properties p=new Properties(); p.load(in);
                 SmartCatchSettings.read(p);
                 GymAutomationSettings.read(p);
                 BuddyEmotionSettings.read(p);
                 ResearchSettings.read(p);
+                ShundoSniper.read(p);
                 desiredEnabled=Boolean.parseBoolean(p.getProperty("locationSpoofing","true"));
                 darkTheme=Boolean.parseBoolean(p.getProperty("darkTheme","true"));
-                quickMenuHidden=boundedSetting(p,"quickMenuHidden",8191);
+                quickMenuHidden=boundedSetting(p,"quickMenuHidden",16383);
                 try{uiScalePercent=Integer.parseInt(p.getProperty("uiScalePercent","100"));}catch(NumberFormatException invalid){uiScalePercent=100;}
                 if(uiScalePercent!=25&&uiScalePercent!=50&&uiScalePercent!=75&&uiScalePercent!=100)uiScalePercent=100;
                 joystickVisible=Boolean.parseBoolean(p.getProperty("joystickVisible","true"));
@@ -1164,6 +1167,7 @@ public final class Control {
         GymAutomationSettings.write(p);
         BuddyEmotionSettings.write(p);
         ResearchSettings.write(p);
+        ShundoSniper.write(p);
         p.setProperty("locationSpoofing",String.valueOf(desiredEnabled));
         p.setProperty("darkTheme",String.valueOf(darkTheme));p.setProperty("uiScalePercent",String.valueOf(uiScalePercent));
         p.setProperty("joystickVisible",String.valueOf(joystickVisible));
@@ -1220,6 +1224,7 @@ public final class Control {
         if("batch-evolution".equals(kind))BatchEvolutionSettings.publish(detail);
         if("gift-batch".equals(kind))GiftBatchSettings.publish(detail);
         if("research".equals(kind))ResearchSettings.publish(detail);
+        if("shundo-sniper".equals(kind)&&detail.startsWith("{"))ShundoSniper.publish(detail);
         if("catch-chance".equals(kind))CatchChance.publish(detail);
         if("smart-heal".equals(kind)){
             try{org.json.JSONObject o=new org.json.JSONObject(detail);String phase=o.optString("phase");
