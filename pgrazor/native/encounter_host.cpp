@@ -43,6 +43,7 @@
 #include "vgp_results.h"
 #include "gym_automation.h"
 #include "batch_evolution.h"
+#include "heal.h"
 #include "remote_gym.h"
 #include "gift_batch.h"
 #include "research.h"
@@ -2488,6 +2489,7 @@ static int api_tick(uint64_t proven_tid) {
   pgr_remote_gym_tick(os_tid, &g_md);
   pgr_gym_tick(os_tid, &g_md);
   pgr_evolution_tick(os_tid, &g_md);
+  pgr_heal_tick(os_tid, &g_md);
   pgr_buddy_emotion_tick(os_tid, &g_md);
 
 
@@ -2522,6 +2524,7 @@ static int api_stop(uint64_t proven_tid) {
       pgr_incense_guard_stop(tid);
       pgr_gym_stop(tid);
       pgr_evolution_stop(tid);
+      pgr_heal_stop(tid);
       pgr_buddy_emotion_stop(tid);
       g_vgc->stop(tid);
       notify_vgp_target(0, 0.0, 0.0, 0);

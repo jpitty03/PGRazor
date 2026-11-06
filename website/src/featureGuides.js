@@ -216,7 +216,7 @@ export const featureGuides = [
     category: 'Automation',
     summary:
       'Deploy a tagged defender to an open friendly gym slot and feed your gym defenders from one draggable overlay.',
-    where: 'Settings > Gyms, Raids & Dynamax > Gyms > Gym Slotter & Berry Feeder.',
+    where: 'Settings > Team Rocket, Gyms, Raids & Dynamax > Gyms > Gym Slotter & Berry Feeder.',
     steps: [
       'In the game’s Pokémon storage, open the Tags tab and create a tag named Gym (the #Gym shorthand is also recognized), then assign the eligible, healthy defenders you want deployed.',
       'Open Gym Slotter & Berry Feeder. Deployment and feeding are two independent switches that both default off, and VGP need not be running.',
@@ -414,10 +414,11 @@ export const featureGuides = [
     category: 'Battles',
     summary:
       'Assist with Team Rocket, raids, gyms, and Dynamax / Max encounters.',
-    where: 'Settings > Team Rocket and Settings > Gyms, Raids & Dynamax.',
+    where: 'Settings > Team Rocket, Gyms, Raids & Dynamax.',
     steps: [
       'In Team Rocket, enable Auto quick attack, Auto charged attack, and/or Auto shield.',
-      'In Gyms, Raids & Dynamax, expand Gyms, Raids, or Dynamax and enable the options you want: Raids / Gyms / Dynamax auto quick attack, auto charged attack, Dynamax auto Max attack, and per-type auto dodge.',
+      'Expand Gyms, Raids, or Dynamax and enable the options you want: Raids / Gyms / Dynamax auto quick attack, auto charged attack, Dynamax auto Max attack, and per-type auto dodge.',
+      'Turn on Smart healing to heal damaged Pokémon with the cheapest mix of potions (and revives, if Revive fainted Pokémon is on). Choose when it heals (after battles, periodically, or both) and the HP threshold (below 25%, 50% or 75%, or any HP missing).',
       'Start the battle in the game; the enabled assists act on the game’s natural callbacks.',
     ],
     notes: [

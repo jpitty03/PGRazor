@@ -5,11 +5,13 @@
 ### New features
 
 - **Skip cutscenes:** Off by default; turn it on under Settings > General Settings.
+- **Smart healing:** Heals damaged Pokémon after battles, periodically, or both, choosing the mix of potions (and optionally revives) that wastes the least, so a Pokémon missing 5 HP gets a Potion, not a Max Potion. Choose the HP threshold (below 25%, 50% or 75%, or any HP missing) under Settings > Team Rocket, Gyms, Raids & Dynamax.
 
 ### Improvements & fixes
 
 - Team GO Rocket battles: while any Rocket automation option is on, the next Pokémon is picked automatically when one faints.
 - Location & overlays is renamed General Settings.
+- Team Rocket settings now sit with gyms, raids and Dynamax under Team Rocket, Gyms, Raids & Dynamax.
 - World map: PokéStops invaded by Team GO Rocket show darkened with a red R, and tapping one shows whether it is a grunt, leader or Giovanni and when the invasion ends.
 
 ## v0.2.1

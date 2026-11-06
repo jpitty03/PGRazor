@@ -565,6 +565,25 @@ public final class Control {
     public static String cutsceneSkipStatus(){return skipCutscenes?cutsceneSkipStatus:"";}
     /** "K1|on" for the native cutscene bypass (transport slot 17). */
     public static String cutsceneSkipConfig(){return "K1|"+(skipCutscenes?1:0);}
+    // Smart healing (off by default): the native module heals with the cheapest mix of potions and
+    // revives. healWhen: 0 after battles, 1 periodically, 2 both. healThreshold: heal below this percent
+    // of max HP, 100 = any missing HP. healStatus is the module's last problem or this session's items.
+    public static final String[] HEAL_WHEN_LABELS={"After battles","Periodically","After battles & periodically"};
+    private static volatile boolean healEnabled,healRevive=true;
+    private static volatile int healWhen,healThreshold=50;
+    private static volatile String healStatus="";
+    public static boolean healEnabled(){return healEnabled;}
+    public static void setHealEnabled(boolean on){healEnabled=on;if(!on)healStatus="";saveSettings();event("smart-heal",on?"ON":"OFF");}
+    public static int healWhen(){return healWhen;}
+    public static void setHealWhen(int when){healWhen=when>=0&&when<=2?when:0;saveSettings();}
+    public static int healThreshold(){return healThreshold;}
+    /** Next threshold in the cycle 25 -> 50 -> 75 -> 100 (Always) -> 25. */
+    public static void cycleHealThreshold(){healThreshold=healThreshold>=100?25:healThreshold+25;saveSettings();}
+    public static boolean healRevive(){return healRevive;}
+    public static void setHealRevive(boolean on){healRevive=on;saveSettings();}
+    public static String healStatus(){return healEnabled?healStatus:"";}
+    /** "H1|enabled|when|threshold|revive" for the native healer (transport slot 18). */
+    public static String healConfig(){return "H1|"+(healEnabled?1:0)+"|"+healWhen+"|"+healThreshold+"|"+(healRevive?1:0);}
     public static void configureQuickBall(boolean configured) {
         synchronized(quickBallLock) {
             quickBallConfigured=configured; quickBallReady=false; ivOwnedReady=false; setThrowReady(false);setMapTapReady(false);
@@ -1083,6 +1102,10 @@ public final class Control {
                 int target=boundedSetting(p,"autoBallTarget",99);autoBallTarget=target>0?target:75;
                 pvpKeepLeagues=p.getProperty("pvpKeepLeagues")==null?3:boundedSetting(p,"pvpKeepLeagues",7);
                 skipCutscenes=Boolean.parseBoolean(p.getProperty("skipCutscenes","false"));
+                healEnabled=Boolean.parseBoolean(p.getProperty("smartHealEnabled","false"));
+                healRevive=Boolean.parseBoolean(p.getProperty("smartHealRevive","true"));
+                healWhen=boundedSetting(p,"smartHealWhen",2);
+                int threshold=boundedSetting(p,"smartHealThreshold",100);healThreshold=threshold==25||threshold==50||threshold==75||threshold==100?threshold:50;
                 for(int i=0;i<3;i++){int rank=boundedSetting(p,PVP_RANK_KEYS[i],4096);pvpRanks[i]=rank>0?rank:PVP_DEFAULT_RANKS[i];}
                 int format=boundedSetting(p,"storageIvFormat",4);storageIvFormat=format>0?format:storageIvMode>0?storageIvMode:3;
                 // Migrate the former independent animation preference to Quick Catch.
@@ -1165,6 +1188,8 @@ public final class Control {
         p.setProperty("ivCatch",String.valueOf(ivCatchEnabled)); p.setProperty("ivOwned",String.valueOf(ivOwnedEnabled)); p.setProperty("ivCatchFormat",String.valueOf(ivCatchFormat)); p.setProperty("ivOwnedFormat",String.valueOf(ivOwnedFormat)); p.setProperty("storageIv",String.valueOf(storageIvMode)); p.setProperty("storageIvFormat",String.valueOf(storageIvFormat));
         p.setProperty("catchChance",String.valueOf(catchChanceShown)); p.setProperty("autoBall",String.valueOf(autoBall)); p.setProperty("autoBallTarget",String.valueOf(autoBallTarget));
         p.setProperty("pvpKeepLeagues",String.valueOf(pvpKeepLeagues)); p.setProperty("skipCutscenes",String.valueOf(skipCutscenes));
+        p.setProperty("smartHealEnabled",String.valueOf(healEnabled)); p.setProperty("smartHealRevive",String.valueOf(healRevive));
+        p.setProperty("smartHealWhen",String.valueOf(healWhen)); p.setProperty("smartHealThreshold",String.valueOf(healThreshold));
         for(int i=0;i<3;i++)p.setProperty(PVP_RANK_KEYS[i],String.valueOf(pvpRanks[i]));
         p.setProperty("autoDismiss",String.valueOf(quickSummaryEnabled)); p.setProperty("fastBall",String.valueOf(quickBallEnabled));
         p.setProperty("throwAr",String.valueOf(throwAr)); p.setProperty("curve",String.valueOf(throwCurve)); p.setProperty("grade",String.valueOf(throwGrade));
@@ -1196,6 +1221,18 @@ public final class Control {
         if("gift-batch".equals(kind))GiftBatchSettings.publish(detail);
         if("research".equals(kind))ResearchSettings.publish(detail);
         if("catch-chance".equals(kind))CatchChance.publish(detail);
+        if("smart-heal".equals(kind)){
+            try{org.json.JSONObject o=new org.json.JSONObject(detail);String phase=o.optString("phase");
+                if("error".equals(phase)||"warning".equals(phase))healStatus=o.optString("message","");
+                else if("ready".equals(phase))healStatus="";
+                else if("healed".equals(phase)){
+                    org.json.JSONArray used=o.optJSONArray("used");String[] names={"Potion","Super Potion","Hyper Potion","Max Potion","Revive","Max Revive"};
+                    StringBuilder sb=new StringBuilder();
+                    for(int i=0;used!=null&&i<names.length&&i<used.length();i++){int n=used.optInt(i);if(n>0)sb.append(sb.length()==0?"":", ").append(n).append(' ').append(names[i]);}
+                    healStatus=sb.length()==0?"":"Used this session: "+sb;
+                }}
+            catch(Exception ignored){}
+        }
         if("cutscene-skip".equals(kind)){
             try{org.json.JSONObject o=new org.json.JSONObject(detail);String phase=o.optString("phase");if("error".equals(phase))cutsceneSkipStatus=o.optString("message","");else if("ready".equals(phase))cutsceneSkipStatus="";}
             catch(Exception ignored){}

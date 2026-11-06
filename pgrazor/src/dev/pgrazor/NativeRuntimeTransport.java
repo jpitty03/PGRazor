@@ -32,7 +32,7 @@ public final class NativeRuntimeTransport {
     private static final int MAX_BYTES = 1048576, MAX_CALLS = 128;
 
     // Wire constants, compiled identically in runtime_transport.h.
-    private static final int MAGIC_SNAPSHOT = 0x53524750, MAGIC_EVENTS = 0x45524750, FRAME_VERSION = 14, FLAG_INERT = 1;
+    private static final int MAGIC_SNAPSHOT = 0x53524750, MAGIC_EVENTS = 0x45524750, FRAME_VERSION = 15, FLAG_INERT = 1;
     private static final int OFF_MAGIC = 0, OFF_VERSION = 4, OFF_FRAME_SIZE = 8, OFF_FLAGS = 12, OFF_SEQ = 16,
         OFF_WALL = 24, OFF_BOOLS = 32, OFF_INTS = 80, OFF_DOUBLES = 120, OFF_PULSES = 136, OFF_STRINGS = 160;
     private static final int EVENT_HEADER = 32, ACTION_COUNT = 59;
@@ -95,7 +95,7 @@ public final class NativeRuntimeTransport {
     private final Exchange exchange;
     private final Method[] boolReaders, intReaders, doubleReaders, stringReaders, pulseReaders, actions;
     private final Class<?>[][] actionParams;
-    private final Method snapshotReader, smartCatchReader, gymAutomationReader, buddyEmotionReader, buddyEmotionHistoryReader, batchEvolutionReader, automationReader, researchReader, storageIvReader, catchChanceReader, pvpKeepReader, cutsceneSkipReader, eventAction;
+    private final Method snapshotReader, smartCatchReader, gymAutomationReader, buddyEmotionReader, buddyEmotionHistoryReader, batchEvolutionReader, automationReader, researchReader, storageIvReader, catchChanceReader, pvpKeepReader, cutsceneSkipReader, healReader, eventAction;
     private final long[] pulseCounts = new long[PULSE_READERS.length];
     private ByteBuffer snapshotBuffer, eventBuffer;
     private long seq;
@@ -130,6 +130,7 @@ public final class NativeRuntimeTransport {
         catchChanceReader = reader("catchChanceConfig", String.class);
         pvpKeepReader = reader("pvpKeepConfig", String.class);
         cutsceneSkipReader = reader("cutsceneSkipConfig", String.class);
+        healReader = reader("healConfig", String.class);
         actions = new Method[ACTIONS.length];
         actionParams = new Class<?>[ACTIONS.length][];
         if (ACTIONS.length != ACTION_COUNT) throw invalid();
@@ -305,6 +306,7 @@ public final class NativeRuntimeTransport {
         putString(buffer, catchChanceReader.invoke(null)); // slot 15
         putString(buffer, pvpKeepReader.invoke(null)); // slot 16
         putString(buffer, cutsceneSkipReader.invoke(null)); // slot 17
+        putString(buffer, healReader.invoke(null)); // slot 18
         int frameSize = buffer.position();
         buffer.putInt(OFF_MAGIC, MAGIC_SNAPSHOT);
         buffer.putInt(OFF_VERSION, FRAME_VERSION);

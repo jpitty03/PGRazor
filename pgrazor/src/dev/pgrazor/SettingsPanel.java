@@ -52,7 +52,9 @@ final class SettingsPanel {
     private Switch idleWalkSwitch, locationSwitch, vgpSwitch, joystickSwitch, cooldownSwitch, spawnSwitch, autoTransferSwitch,
         quickSpinSwitch, berrySwitch, quickSummarySwitch, curveSwitch, alwaysHitSwitch, arSwitch, transferOverlaySwitch, catchChanceSwitch, autoBallSwitch, skipCutscenesSwitch;
     private Button autoBallTarget;
-    private TextView quickSummaryLabel, vgpStatus, cutsceneStatus;
+    private TextView quickSummaryLabel, vgpStatus, cutsceneStatus, healStatus;
+    private Switch healSwitch, healReviveSwitch;
+    private Button healWhen, healThreshold;
     private final CheckBox[] vgpChoices=new CheckBox[3];
     private CheckBox vgpCooldownStop;
     // Status / caption lines (muted, readiness driven).
@@ -171,7 +173,6 @@ final class SettingsPanel {
         buildBuddySection();
         buildGiftsSection();
         buildItemsSection();
-        buildRocketSection();
         buildBattlesSection();
         buildAutomationSection();
         buildThrowsSection();
@@ -346,9 +347,9 @@ final class SettingsPanel {
         evolve.setOnClickListener(v -> BatchEvolutionSettings.show(activity));
     }
 
-    private void buildRocketSection() {
+    private void buildRocketSection(LinearLayout owner) {
         // ----- Team Rocket -----
-        LinearLayout rocketC = section(body, "Team Rocket", false); rocketRoot = (View)rocketC.getParent();
+        LinearLayout rocketC = section(owner, "Team Rocket", false); rocketRoot = (View)rocketC.getParent();
         String[] rocketLabels={"Auto quick attack","Auto charged attack","Auto shield"};
         for(int i=0;i<3;i++){final int bit=1<<i;CheckBox box=new CheckBox(activity);box.setText(rocketLabels[i]);box.setChecked((Control.rocketOptions()&bit)!=0);rocketChoices[i]=box;rocketC.addView(box);
             box.setOnClickListener(v->Control.setRocketOptions(box.isChecked()?Control.rocketOptions()|bit:Control.rocketOptions()&~bit));}
@@ -358,7 +359,9 @@ final class SettingsPanel {
     }
 
     private void buildBattlesSection() {
-        LinearLayout battleC = section(body, "Gyms, Raids & Dynamax", false); battleRoot = (View)battleC.getParent();
+        LinearLayout battleC = section(body, "Team Rocket, Gyms, Raids & Dynamax", false); battleRoot = (View)battleC.getParent();
+        buildHealing(battleC);
+        buildRocketSection(battleC);
         LinearLayout gymC = section(battleC, "Gyms", false);
         Button gyms=button("Gym Slotter & Berry Feeder");gymC.addView(gyms);
         gyms.setOnClickListener(v->GymAutomationSettings.show(activity));
@@ -377,6 +380,29 @@ final class SettingsPanel {
         battleChoice(maxC,6,"Auto Max attack");
         battleChoice(maxC,9,"Auto dodge");
         battleStatus = caption(battleC, "");
+    }
+
+    private void buildHealing(LinearLayout owner) {
+        healSwitch = switchRow(owner, "Smart healing"); healSwitch.setChecked(Control.healEnabled());
+        healSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.healEnabled())return; Control.setHealEnabled(checked); refreshHealing(); });
+        healWhen = button(""); owner.addView(healWhen);
+        healWhen.setOnClickListener(v -> { Control.setHealWhen((Control.healWhen()+1)%3); refreshHealing(); });
+        healThreshold = button(""); owner.addView(healThreshold);
+        healThreshold.setOnClickListener(v -> { Control.cycleHealThreshold(); refreshHealing(); });
+        healReviveSwitch = switchRow(owner, "Revive fainted Pokémon"); healReviveSwitch.setChecked(Control.healRevive());
+        healReviveSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.healRevive())return; Control.setHealRevive(checked); });
+        healStatus = caption(owner, "");
+        refreshHealing();
+    }
+
+    private void refreshHealing() {
+        if(healSwitch==null)return;
+        healSwitch.setChecked(Control.healEnabled()); healReviveSwitch.setChecked(Control.healRevive());
+        healWhen.setText("Heal: "+Control.HEAL_WHEN_LABELS[Control.healWhen()]);
+        healThreshold.setText(Control.healThreshold()>=100?"Heal when: Any HP missing":"Heal when: Below "+Control.healThreshold()+"% HP");
+        boolean on=Control.healEnabled();
+        SettingsUi.enabled(healWhen,on); SettingsUi.enabled(healThreshold,on); SettingsUi.enabled(healReviveSwitch,on);
+        String status=Control.healStatus(); healStatus.setText(status); healStatus.setVisibility(status.isEmpty()?View.GONE:View.VISIBLE);
     }
 
     private void battleChoice(LinearLayout owner,int index,String label) {
@@ -525,6 +551,7 @@ final class SettingsPanel {
         refreshThrows();
         skipCutscenesSwitch.setChecked(Control.skipCutscenes());cutsceneStatus.setText(Control.cutsceneSkipStatus());
         cutsceneStatus.setVisibility(Control.cutsceneSkipStatus().isEmpty()?View.GONE:View.VISIBLE);
+        refreshHealing();
         refreshDependencies();
     }
 

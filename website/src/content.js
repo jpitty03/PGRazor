@@ -57,7 +57,7 @@ export const settingGroups = [
   {
     id: 'automate',
     label: 'Automate',
-    intro: 'Found under Virtual Go Plus, Eggs, Buddy Emotion Engine, Gifts, Gyms, Raids & Dynamax, inventory controls, and Events. Automation groups tasks you start manually.',
+    intro: 'Found under Virtual Go Plus, Eggs, Buddy Emotion Engine, Gifts, Team Rocket, Gyms, Raids & Dynamax, inventory controls, and Events. Automation groups tasks you start manually.',
     items: [
       { name: 'Virtual Go Plus', detail: 'Catch nearby wild Pokémon with red balls only and spin stops; starts off and stops when the app is backgrounded.' },
       { name: 'VGP+', detail: 'Includes ball, berry, throw, and premium/candy rules, reaches loaded Pokémon past the 40 m cutoff, and optionally spins nearby gym discs through the VGP controls.' },
