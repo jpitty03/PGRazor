@@ -249,7 +249,7 @@ public final class Control {
     public static void setBuddyStatus(String status){buddyStatus=status;}
     public static String buddyStatus(){return buddyStatus;}
     public static boolean buddyAvailable(){return buddyReady&&itemAccessAllowed();}
-    public static boolean buddySamplingRequested(){return (buddyBerry!=0||vgpEnabled||autoIncubate||GymAutomationSettings.enabled()||BatchEvolutionSettings.enabled()||OneShotAutomation.enabled())&&hostLive();}
+    public static boolean buddySamplingRequested(){return (buddyBerry!=0||vgpEnabled||autoIncubate||healEnabled||GymAutomationSettings.enabled()||BatchEvolutionSettings.enabled()||OneShotAutomation.enabled())&&hostLive();}
     // Legacy wire slot remains for ABI compatibility; Buddy Emotion owns all feeding.
     public static boolean buddyAllowed(){return false;}
     private static volatile boolean encounterBerryActive,encounterBerryBusy;
@@ -573,14 +573,14 @@ public final class Control {
     private static volatile int healWhen,healThreshold=50;
     private static volatile String healStatus="";
     public static boolean healEnabled(){return healEnabled;}
-    public static void setHealEnabled(boolean on){healEnabled=on;if(!on)healStatus="";saveSettings();event("smart-heal",on?"ON":"OFF");}
+    public static void setHealEnabled(boolean on){healEnabled=on;if(!on)healStatus="";saveSettings();event("smart-heal",(on?"ON ":"OFF ")+healConfig());}
     public static int healWhen(){return healWhen;}
-    public static void setHealWhen(int when){healWhen=when>=0&&when<=2?when:0;saveSettings();}
+    public static void setHealWhen(int when){healWhen=when>=0&&when<=2?when:0;saveSettings();event("smart-heal","settings "+healConfig());}
     public static int healThreshold(){return healThreshold;}
     /** Next threshold in the cycle 25 -> 50 -> 75 -> 100 (Always) -> 25. */
-    public static void cycleHealThreshold(){healThreshold=healThreshold>=100?25:healThreshold+25;saveSettings();}
+    public static void cycleHealThreshold(){healThreshold=healThreshold>=100?25:healThreshold+25;saveSettings();event("smart-heal","settings "+healConfig());}
     public static boolean healRevive(){return healRevive;}
-    public static void setHealRevive(boolean on){healRevive=on;saveSettings();}
+    public static void setHealRevive(boolean on){healRevive=on;saveSettings();event("smart-heal","settings "+healConfig());}
     public static String healStatus(){return healEnabled?healStatus:"";}
     /** "H1|enabled|when|threshold|revive" for the native healer (transport slot 18). */
     public static String healConfig(){return "H1|"+(healEnabled?1:0)+"|"+healWhen+"|"+healThreshold+"|"+(healRevive?1:0);}
@@ -1114,7 +1114,7 @@ public final class Control {
                 throwAlwaysHit=Boolean.parseBoolean(p.getProperty("throwAlwaysHit","false"));
                 throwAr=Boolean.parseBoolean(p.getProperty("throwAr","false"));
                 throwGrade=boundedSetting(p,"grade",3); mapTapMode=boundedSetting(p,"mapTap",3);
-                event("settings-restored","dismiss="+quickSummaryEnabled+" fastBall="+quickBallEnabled+" grade="+throwGrade+" curve="+throwCurve+" mapTap="+mapTapMode+" cameraRelative=true");
+                event("settings-restored","dismiss="+quickSummaryEnabled+" fastBall="+quickBallEnabled+" grade="+throwGrade+" curve="+throwCurve+" mapTap="+mapTapMode+" cameraRelative=true heal="+healConfig());
             } catch(FileNotFoundException missing) {
                 // Defaults apply only until the user first saves a choice.
             } catch(IOException | RuntimeException error) { event("settings-load-error",error.toString()); }
