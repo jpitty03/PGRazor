@@ -13,6 +13,10 @@ bool within_interaction_range(double meters);
 struct Defender {uint64_t id=0;int species=0,cp=0;bool eligible=false,tagged=false,protected_fallback=false;};
 uint64_t choose(const std::vector<Defender>&,const std::vector<int>&,bool fallback);
 int berry(int nanab,int razz,const Settings&);
+// Placing a defender comes before feeding: a gym is read first for deployment when deploying is on, the map
+// shows a free slot (GymDisplay.SlotsAvailable 1..6; anything else is unknown) and it was not tried in the
+// last ten minutes.
+bool deploy_first(const Settings&,int slots_available,bool deploy_allowed);
 // Entries are not evicted while live. Saturation refuses work instead of losing
 // deduplication guarantees. Attempts count even when the network outcome is unknown.
 struct History {

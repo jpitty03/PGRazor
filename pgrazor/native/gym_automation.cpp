@@ -23,6 +23,7 @@ uint64_t choose(const std::vector<Defender>& candidates,const std::vector<int>& 
  }return best?best->id:0;
 }
 int berry(int n,int r,const Settings &s){return n>s.nanab?703:r>s.razz?701:0;}
+bool deploy_first(const Settings &s,int slots,bool allowed){return s.deploy&&allowed&&slots>=1&&slots<=6;}
 bool History::spin_allowed(const std::string &id,uint64_t now){
  for(auto i=spins.begin();i!=spins.end();)if(i->second<=now)i=spins.erase(i);else ++i;
  return !id.empty()&&!spins.count(id)&&spins.size()<512;

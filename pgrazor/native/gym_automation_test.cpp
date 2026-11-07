@@ -10,6 +10,8 @@ int main(){
  const char *v2="2;0;0;0;50;50;1";assert(parse(v2,strlen(v2),s)&&s.spin&&!s.deploy&&!s.feed);
  for(auto bad:{"2;0;0;0;50;50;2","1;0;0;0;50;50;1","2;0;0;0;50;50;1;0"})assert(!parse(bad,strlen(bad),s)&&!s.spin);
  assert(parse(p,strlen(p),s)&&!s.spin);assert(berry(51,100,s)==703);assert(berry(50,11,s)==701);assert(!berry(50,10,s));
+ Settings d;d.deploy=true;assert(deploy_first(d,1,true)&&deploy_first(d,6,true));
+ for(int slots:{-1,0,7})assert(!deploy_first(d,slots,true));assert(!deploy_first(d,3,false));d.deploy=false;assert(!deploy_first(d,3,true));
  std::vector<Defender> c={{1,1,10,true,false,false},{2,2,20,true,true,false},{3,3,5,false,true,false},{4,4,1,true,false,true}};
  assert(choose(c,{},true)==2);assert(!choose(c,{2},false));assert(choose(c,{2},true)==1);assert(!choose(c,{1,2},true));
  assert(distance(0,0,0,0)==0&&distance(0,0,0,.001)>40&&distance(91,0,0,0)>40);
@@ -26,5 +28,5 @@ int main(){
  assert(h.feed_attempt(42,1803700));h.refuse(42,1803701);assert(!h.feed_allowed(42,1804000));
  History caps;for(int i=1;i<=10;i++)assert(caps.feed_attempt(i,100));assert(!caps.feed_attempt(11,101));
  for(int i=0;i<512;i++)assert(caps.deploy_attempt(std::to_string(i),100));assert(!caps.deploy_attempt("overflow",101));
- puts("PASS gym policy: strict config, tag/fallback exclusions, species collisions, reserves, distance, TTLs and bounded attempt budgets");
+ puts("PASS gym policy: deploy before feeding, strict config, tag/fallback exclusions, species collisions, reserves, distance, TTLs and bounded attempt budgets");
 }
