@@ -1255,7 +1255,7 @@ public final class Control {
         synchronized (logLock) {
             String line = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.US).format(new Date()) + " [" + kind + "] " + detail;
             Log.i("PGRazor", line);
-            if (log != null) {
+            if (log != null && !interactionMetadataRow(kind,detail)) {
                 try {
                     byte[] encoded=(line+"\n").getBytes(java.nio.charset.StandardCharsets.UTF_8);
                     if(logBytes+encoded.length>1048576L){
@@ -1270,6 +1270,12 @@ public final class Control {
                 }catch(IOException error){log=null;Log.e("PGRazor","File logging unavailable",error);}
             }
         }
+    }
+    // The interaction probe lists every class, field and method it inspects, about 2 MB per launch: a third
+    // of the six kept log files. Those rows stay in logcat; its summaries and results stay in the file.
+    private static boolean interactionMetadataRow(String kind,String detail) {
+        return "interaction-probe".equals(kind)&&detail!=null&&(detail.startsWith("{\"type\":\"class\"")
+            ||detail.startsWith("{\"type\":\"field\"")||detail.startsWith("{\"type\":\"method\""));
     }
     private static void pruneLogs(File directory,File active,int keep) {
         File[] files=directory.listFiles((dir,name)->name.matches("[0-9]{8}-[0-9]{6}-[0-9]{3}(-[0-9]+)?\\.txt"));

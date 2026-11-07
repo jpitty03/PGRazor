@@ -319,7 +319,7 @@ public final class Pad {
             }
             Control.checkpoint(now);
             refresh();
-            if (now-lastLog >= 1000 && Control.engine.enabled) {
+            if (now-lastLog >= 10000 && Control.engine.enabled) {
                 lastLog = now;
                 Control.event("position", String.format(Locale.US, "lat=%.7f lon=%.7f speed=%.3f walking=%s idleWalking=%s reads=%d/%d", Control.engine.latitude, Control.engine.longitude, Control.engine.metersPerSecond(), Control.engine.walking, Control.engine.idleWalkingActive(), Control.latitudeReads, Control.longitudeReads));
             }

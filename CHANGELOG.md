@@ -9,6 +9,8 @@
 ### Improvements & fixes
 
 - Added more cutscene skips
+- Shundo Sniper: stops and asks you to restart the game when the map stops loading Pokémon, instead of teleporting with no results. It also uses less data and searches the map less often while waiting.
+- Run logs keep more history, and PGRazor no longer leaves 5 MB of old files behind each time the game starts.
 
 ## v0.2.2
 

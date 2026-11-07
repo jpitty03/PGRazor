@@ -133,8 +133,7 @@ public final class BootstrapProvider extends ContentProvider {
                 sceneProbe=sceneObserve=interactionProbe=false;
                 Control.event("native-features-unavailable","ARM gameplay hooks unavailable in translated process; location and Java controls remain active");
             }
-            File directory=new File(context.getCodeCacheDir(),"pgrazor-"+android.os.Process.myPid()+"-"+System.currentTimeMillis());
-            if(!directory.mkdirs()) throw new IOException("Cannot create private runtime directory");
+            File directory=runtimeDirectory(context);
             File library=compiledHost&&translated?null:copyAsset(context,"pgrazor/"+abi+"/libfrida-gadget.so",directory,"libfrida-gadget.so");
             File bridge=compiledHost?null:copyAsset(context,"pgrazor/java-bridge.js",directory,"java-bridge.js");
             File script=copyAsset(context,"pgrazor/embedded-agent.js",directory,"embedded-agent.js");
@@ -284,8 +283,7 @@ public final class BootstrapProvider extends ContentProvider {
      */
     private static void loadCompiledGameplay(Context context,String abi,boolean translated,
             boolean cameraSteering,boolean cameraSample,boolean interactionProbe,boolean quickClose) throws Exception {
-        File directory=new File(context.getCodeCacheDir(),"pgrazor-"+android.os.Process.myPid()+"-"+System.currentTimeMillis());
-        if(!directory.mkdirs()) throw new IOException("Cannot create private runtime directory");
+        File directory=runtimeDirectory(context);
         // Compiled ART getters and DEX callers, in the same order as the compiled host.
         loadArt(context,abi,directory);
         if(!NativeJavaHooks.ready()||!NativeLocationGetters.install())
@@ -320,6 +318,27 @@ public final class BootstrapProvider extends ContentProvider {
         // Attest exclusive gameplay ownership; the compiled DEX render bridge drives onRendered().
         NativeRuntimeBootstrap.startGameplay();
         Control.event("compiled-gameplay-ready","Compiled-only gameplay armed; no Frida or PGRazor scripts packaged; abi="+abi);
+    }
+    /**
+     * A new folder for this run's native libraries, after removing the folders earlier runs left behind
+     * (5 MB each). Only this process's startup reaches here. PGRazor Root's fixed pgrazor-root folder does
+     * not match the name and is kept.
+     */
+    private static File runtimeDirectory(Context context) throws IOException {
+        File parent=context.getCodeCacheDir();
+        File[] stale=parent.listFiles((dir,name)->name.matches("pgrazor-[0-9]+-[0-9]+"));
+        if(stale!=null)for(File old:stale)deleteTree(old);
+        File directory=new File(parent,"pgrazor-"+android.os.Process.myPid()+"-"+System.currentTimeMillis());
+        if(!directory.mkdirs()) throw new IOException("Cannot create private runtime directory");
+        return directory;
+    }
+    /** Best effort: whatever can't be removed now is tried again next launch. Never follows a link. */
+    private static void deleteTree(File file) {
+        if(!java.nio.file.Files.isSymbolicLink(file.toPath())) {
+            File[] children=file.listFiles();
+            if(children!=null)for(File child:children)deleteTree(child);
+        }
+        file.delete();
     }
     /** Loads the ART hook library once; PGRazor Root has already loaded it before startup. */
     private static void loadArt(Context context,String abi,File directory) throws IOException {

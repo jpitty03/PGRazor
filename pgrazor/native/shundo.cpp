@@ -92,7 +92,10 @@ Config configured(){
  c.request=request;c.id=id;c.go=go==1;c.active=active&&ready;c.map=map!=0;return c;
 }
 
-constexpr uint64_t kFindMs=75000,kFindEveryMs=750,kResponseMs=15000,kBerryMs=10000;
+constexpr uint64_t kFindMs=75000,kResponseMs=15000,kBerryMs=10000;
+// A search walks every wild Pokemon in the scene on the Unity thread. Short hops show up within 6 s, and after
+// a jump the server holds wild Pokemon back for about 30 s, so search slowly in between.
+constexpr uint64_t kFindFastMs=750,kFindSlowMs=3000,kFindSlowFromMs=6000,kFindSlowToMs=28000;
 constexpr int kMaxThrows=10;
 enum Step {IDLE,FIND,ENCOUNTER,HOLD,BERRY,BERRY_WAIT,THROW_WAIT,DONE};
 struct State {
@@ -267,7 +270,8 @@ void step(const Config &c,uint64_t now){
   if(now-st.started>kFindMs){
    finish("missing","Not on the map here; it may have despawned",",\"scans\":"+std::to_string(st.scans)+",\"seen\":"+std::to_string(st.seen)+",\"ids\":["+st.sample+"]");return;
   }
-  if(!c.map||now<st.next)return;st.next=now+kFindEveryMs;
+  if(!c.map||now<st.next)return;
+  {const uint64_t elapsed=now-st.started;st.next=now+(elapsed>=kFindSlowFromMs&&elapsed<kFindSlowToMs?kFindSlowMs:kFindFastMs);}
   // After a jump the server leaves wild Pokemon out of map objects for about 30 s however often the game
   // asks (measured: found at 31-33 s with refreshes every 3 s or every 10 s). So one refresh 2 s after the
   // teleport (for a short hop), then one at 30 s and every 3 s after, instead of the game's 10-30 s throttle.

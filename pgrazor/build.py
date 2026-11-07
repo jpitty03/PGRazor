@@ -98,6 +98,8 @@ def main():
     run('java','-cp',BUILD/'tests','CameraSteeringTest')
     run('javac','-encoding','UTF-8','-d',BUILD/'tests',ROOT/'src/dev/pgrazor/CameraSteering.java',ROOT/'src/dev/pgrazor/CameraHeadingState.java',ROOT/'test/CameraHeadingStateTest.java')
     run('java','-cp',BUILD/'tests','CameraHeadingStateTest')
+    run('javac','-encoding','UTF-8','-d',BUILD/'tests',ROOT/'src/dev/pgrazor/ShundoPacing.java',ROOT/'test/ShundoPacingTest.java')
+    run('java','-cp',BUILD/'tests','dev.pgrazor.ShundoPacingTest')
     if args.test_only: return
     version = release_version(ROOT)
     # Fresh outputs prevent a failed compiler from silently reusing old classes.

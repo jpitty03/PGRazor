@@ -42,3 +42,4 @@ Thumbs.db
 !**/CMakeLists.txt
 *.gpx
 !/pgrazor/research/README.txt
+/user-reports
