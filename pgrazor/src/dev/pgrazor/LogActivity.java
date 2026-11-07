@@ -11,6 +11,15 @@ import java.nio.charset.StandardCharsets;
 public final class LogActivity extends Activity {
     private TextView text;
     private SettingsBackup settingsBackup;
+    /**
+     * Opens the run log. The patched APK starts this private activity; PGRazor Root has no manifest
+     * entry for it in the untouched game APK, so it shows the same content as an in-game dialog.
+     */
+    public static void open(Activity activity){
+        if(activity==null) return;
+        if(PgAssets.rooted()){ RootedLogDialog.show(activity); return; }
+        activity.startActivity(new Intent(activity,LogActivity.class));
+    }
     @Override public void onBackPressed(){
         if(settingsBackup!=null&&settingsBackup.isBusy())return;
         super.onBackPressed();

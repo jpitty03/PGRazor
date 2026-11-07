@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### New features
+
+- **PGRazor Root (development):** A separate installer loads PGRazor into the official game through a Zygisk module. It includes in-game logs, settings backups, and account-switch restart support.
+
 ### Improvements & fixes
 
 - Added more cutscene skips

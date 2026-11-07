@@ -2,6 +2,8 @@
 
 Local builds read the Settings header version from `pgrazor/VERSION`. Release builds override it with `PGRAZOR_VERSION` from the workflow release tag. This is the PGRazor version, independent of the base game version.
 
+For the separate Zygisk module and root installer APK, see [PGRazor Root](ROOTED.md). Both products share the Java controls and native gameplay core.
+
 ## Requirements
 
 The APK packaging toolchain currently supports Windows. Install Python 3.12+, Node.js 22+, JDK 17+, and the Android SDK. The Python build scripts use the standard library; native compilation also requires Git, CMake 4.4.4 and Ninja 1.13.2.

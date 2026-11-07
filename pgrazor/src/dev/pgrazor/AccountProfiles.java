@@ -170,9 +170,8 @@ final class AccountProfiles {
         Activity activity=Control.accountActivity();
         if(activity==null||activity.isFinishing()){fail("Account saved. Close and reopen the game to finish switching.");return;}
         restarting=true;
-        try {
-            activity.startActivity(new Intent(activity,AccountRestartActivity.class)
-                .putExtra("sourcePid",android.os.Process.myPid()).putExtra("switchSession",switchSession).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-        }catch(RuntimeException error){restarting=false;fail("Account saved. Close and reopen the game to finish switching.");}
+        if(!AccountRestartActivity.launch(activity,switchSession)){
+            restarting=false;fail("Account saved. Close and reopen the game to finish switching.");
+        }
     }
 }

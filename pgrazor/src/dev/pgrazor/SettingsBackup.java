@@ -22,6 +22,7 @@ final class SettingsBackup {
     private TextView status;
     private Button export,restore,back;
     private boolean busy;
+    private android.app.AlertDialog dialog;
     SettingsBackup(Activity activity){this.activity=activity;}
     void show(){
         LinearLayout root=new LinearLayout(activity);root.setOrientation(LinearLayout.VERTICAL);
@@ -31,11 +32,25 @@ final class SettingsBackup {
         export=new Button(activity);export.setText("Export settings");root.addView(export);
         restore=new Button(activity);restore.setText("Import settings");root.addView(restore);
         status=new TextView(activity);status.setPadding(0,p,0,p);root.addView(status);
-        back=new Button(activity);back.setText("Back to game");back.setOnClickListener(v->activity.finish());root.addView(back);
+        back=new Button(activity);back.setText("Back to game");back.setOnClickListener(v->{if(dialog!=null)dialog.dismiss();else activity.finish();});root.addView(back);
         export.setOnClickListener(v->pick(EXPORT));restore.setOnClickListener(v->pick(IMPORT));
-        ScrollView scroll=new ScrollView(activity);scroll.addView(root);MapTheme.style(scroll);activity.setContentView(scroll);
+        ScrollView scroll=new ScrollView(activity);scroll.addView(root);MapTheme.style(scroll);
+        if(PgAssets.rooted()){
+            detail.append("\n\nRoot uses a fixed file in the game's external files folder. Copy it elsewhere before uninstalling the game; to import, place your backup at this path:\n"+rootedFile());
+            dialog=new android.app.AlertDialog.Builder(MapTheme.wrap(activity)).setView(scroll).create();
+            dialog.setCancelable(false);dialog.show();
+        }else activity.setContentView(scroll);
     }
+    private File rootedFile(){File dir=activity.getExternalFilesDir(null);return dir==null?null:new File(dir,"PGRazor-settings.json");}
     private void pick(int code){
+        if(PgAssets.rooted()){
+            File file=rootedFile();
+            if(file==null){status.setText("External storage is unavailable.");return;}
+            new android.app.AlertDialog.Builder(MapTheme.wrap(activity))
+                .setMessage(code==EXPORT?"Replace the settings backup at "+file+"?":"Replace settings with the backup at "+file+"? VGP will stay off.")
+                .setNegativeButton("Cancel",null).setPositiveButton("Continue",(d,w)->result(code,Activity.RESULT_OK,new Intent().setData(Uri.fromFile(file)))).show();
+            return;
+        }
         Intent i=new Intent(code==EXPORT?Intent.ACTION_CREATE_DOCUMENT:Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/json");
         if(code==EXPORT)i.putExtra(Intent.EXTRA_TITLE,"PGRazor-settings.json");
         try{activity.startActivityForResult(i,code);}catch(android.content.ActivityNotFoundException e){status.setText("No file picker is available.");}

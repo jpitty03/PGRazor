@@ -187,7 +187,7 @@ public final class Pad {
     }
     /** Decode a bundled map-icon once; returns null (never throws, never hits the network) if unavailable. */
     private Bitmap decodeMapIcon(String name){
-        try(java.io.InputStream in=activity.getAssets().open("pgrazor/map-icons/"+name)){return BitmapFactory.decodeStream(in);}
+        try(java.io.InputStream in=PgAssets.open(activity, "pgrazor/map-icons/"+name)){return BitmapFactory.decodeStream(in);}
         catch(java.io.IOException|RuntimeException ignored){return null;}
     }
     private final class VgpToggle extends View {

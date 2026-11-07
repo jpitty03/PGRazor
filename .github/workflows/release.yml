@@ -103,11 +103,17 @@ jobs:
           $candidate = Get-ChildItem -LiteralPath pgrazor/build/nonroot -Directory | Sort-Object Name -Descending | Select-Object -First 1
           python -B pgrazor/release_apk.py --run $candidate.FullName --output dist/release
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build rooted installer
+        env:
+          PGRAZOR_VERSION: ${{ inputs.tag }}
+        run: python -B pgrazor/rooted.py pgrazor/input/game.apkm --skip-build --download --output dist/release
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: PGRazor-apk
           path: |
             dist/release/PGRazor.apk
+            dist/release/PGRazor-Root.apk
+            dist/release/root-build-info.json
             dist/release/SHA256SUMS.txt
             dist/release/build-info.json
           if-no-files-found: error
@@ -141,7 +147,7 @@ jobs:
           RELEASE_COMMIT: ${{ github.sha }}
         run: |
           cat "docs/releases/$RELEASE_TAG.md" docs/releases/footer.md > "$RUNNER_TEMP/release-notes.md"
-          assets=(release/PGRazor.apk release/SHA256SUMS.txt release/build-info.json)
+          assets=(release/PGRazor.apk release/PGRazor-Root.apk release/SHA256SUMS.txt release/build-info.json release/root-build-info.json)
           highlight="docs/releases/$RELEASE_TAG-quick-menu.png"
           if [ -f "$highlight" ]; then
             cp "$highlight" release/release-highlight.png

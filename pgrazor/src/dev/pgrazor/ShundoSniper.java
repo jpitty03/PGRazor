@@ -356,7 +356,7 @@ public final class ShundoSniper {
     private static String speciesName(int dex, String fallback) {
         JSONObject names = speciesNames;
         if (names == null && app != null) {
-            try (java.io.InputStream in = app.getAssets().open("pgrazor/map-icons/pokemon-names.json")) {
+            try (java.io.InputStream in = PgAssets.open(app, "pgrazor/map-icons/pokemon-names.json")) {
                 java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
                 byte[] buffer = new byte[4096]; int count;
                 while ((count = in.read(buffer)) != -1 && bytes.size() <= 2 * 1024 * 1024) bytes.write(buffer, 0, count);

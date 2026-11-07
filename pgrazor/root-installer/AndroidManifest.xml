@@ -1,0 +1,17 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="dev.pgrazor.root" android:versionCode="1" android:versionName="0.0.0">
+  <!-- versionCode/versionName are overwritten per build by rooted_installer.build_installer. -->
+  <uses-sdk android:minSdkVersion="28" android:targetSdkVersion="35" />
+  <!-- Package visibility (Android 11+): needed to read the official game's version and signature. -->
+  <queries>
+    <package android:name="com.nianticlabs.pokemongo" />
+  </queries>
+  <application android:label="PGRazor Root installer" android:theme="@android:style/Theme.Material.NoActionBar" android:allowBackup="false">
+    <activity android:name="dev.pgrazor.root.RestartActivity" android:exported="true" android:screenOrientation="portrait" android:excludeFromRecents="true" />
+    <activity android:name="dev.pgrazor.root.InstallerActivity" android:exported="true">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity>
+  </application>
+</manifest>

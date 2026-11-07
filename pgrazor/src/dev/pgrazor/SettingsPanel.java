@@ -445,7 +445,10 @@ final class SettingsPanel {
         Button accounts=button("Accounts");body.addView(accounts);
         accounts.setOnClickListener(v->AccountsDialog.show(activity));
         Button settingsBackup=button("Export / import settings");body.addView(settingsBackup);
-        settingsBackup.setOnClickListener(v->activity.startActivity(new Intent(activity,LogActivity.class).putExtra("settingsBackup",true)));
+        settingsBackup.setOnClickListener(v->{
+            if(PgAssets.rooted())new SettingsBackup(activity).show();
+            else activity.startActivity(new Intent(activity,LogActivity.class).putExtra("settingsBackup",true));
+        });
     }
 
     private void buildDiagnosticsSection() {
@@ -468,7 +471,7 @@ final class SettingsPanel {
             host.refresh();
         });
         Button logs = button("Run log / export"); diag.addView(logs);
-        logs.setOnClickListener(v -> activity.startActivity(new Intent(activity, LogActivity.class)));
+        logs.setOnClickListener(v -> LogActivity.open(activity));
     }
 
     /** The root panel view; Pad owns attachment to the window and insets wiring. */

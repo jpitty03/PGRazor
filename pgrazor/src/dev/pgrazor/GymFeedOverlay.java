@@ -44,7 +44,7 @@ public final class GymFeedOverlay extends View {
     public void close(){setOnClickListener(null);setVisibility(GONE);}
 
     private static Bitmap loadIcon(Context context,String name){
-        try(InputStream in=context.getAssets().open("pgrazor/map-icons/"+name)){
+        try(InputStream in=PgAssets.open(context, "pgrazor/map-icons/"+name)){
             BitmapFactory.Options options=new BitmapFactory.Options();
             options.inSampleSize="gym-automation.png".equals(name)?8:1;
             return BitmapFactory.decodeStream(in,null,options);

@@ -12,12 +12,56 @@
 #include <cstddef>
 #include <cstring>
 #include <dlfcn.h>
+#if defined(__ANDROID__)
+#include <link.h>
+#endif
 
 #ifndef RTLD_NOLOAD
 #define RTLD_NOLOAD 0x00004 // only a loaded library yields a handle; never force-load the game lib
 #endif
 
 namespace {
+
+// Rooted payloads have a separate class-loader namespace. Discover the existing
+// image first, then ask Android's loader in that image's namespace. NOLOAD stays
+// mandatory: this must never initialize a second IL2CPP runtime. The normal
+// lookup and test seams retain precedence. Private loader API availability is
+// checked at runtime; unsupported loaders simply remain not ready.
+void *loaded_namespace_handle(const char *soname) {
+#if defined(__ANDROID__)
+  struct Search {
+    const char *name;
+    char path[4096];
+    const void *caller;
+    unsigned matches;
+  } search{soname, {}, nullptr, 0};
+  dl_iterate_phdr([](dl_phdr_info *info, size_t, void *raw) -> int {
+    auto &s = *static_cast<Search *>(raw);
+    if (!info->dlpi_name || strnlen(info->dlpi_name, sizeof(s.path)) == sizeof(s.path)) return 0;
+    const char *base = std::strrchr(info->dlpi_name, '/');
+    base = base ? base + 1 : info->dlpi_name;
+    if (std::strcmp(s.name, base) && std::strcmp(s.name, info->dlpi_name)) return 0;
+    ++s.matches;
+    std::strcpy(s.path, info->dlpi_name);
+    for (unsigned i = 0; i < info->dlpi_phnum; ++i) {
+      const auto &ph = info->dlpi_phdr[i];
+      if (ph.p_type == PT_LOAD && (ph.p_flags & PF_X) && ph.p_memsz &&
+          ph.p_vaddr <= UINTPTR_MAX - info->dlpi_addr) {
+        s.caller = reinterpret_cast<const void *>(info->dlpi_addr + ph.p_vaddr);
+        break;
+      }
+    }
+    return 0;
+  }, &search);
+  if (search.matches != 1 || !search.caller) return nullptr;
+  using Open = void *(*)(const char *, int, const void *);
+  auto open = reinterpret_cast<Open>(::dlsym(RTLD_DEFAULT, "__loader_dlopen"));
+  return open ? open(search.path, RTLD_NOLOAD | RTLD_NOW, search.caller) : nullptr;
+#else
+  (void)soname;
+  return nullptr;
+#endif
+}
 
 // Compiled default ExecuteTasks descriptor. DATA, not a guessed pointer. The exact namespace/class/
 // method are the best-known Unity names and are OVERRIDABLE via PgrBootConfig; the coordinator must
@@ -307,6 +351,7 @@ int api_probe(const PgrBootConfig *cfg, PgrBootBinding *out) {
   if (handle == nullptr) {
     handle = cfg->dlopen_fn ? cfg->dlopen_fn(cfg->seam_ctx, soname, RTLD_NOLOAD | RTLD_NOW)
                             : ::dlopen(soname, RTLD_NOLOAD | RTLD_NOW);
+    if (!handle && !cfg->dlopen_fn) handle = loaded_namespace_handle(soname);
     if (handle == nullptr) { // library not yet loaded; RETRIABLE, nothing latched
       fill_header(out, PGR_BOOT_NOT_READY, 0);
       return PGR_BOOT_NOT_READY;

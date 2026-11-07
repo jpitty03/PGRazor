@@ -75,6 +75,8 @@ def main(argv=None):
             entry = {'source': str(source.relative_to(root)), 'source_sha256': native_build.sha256(source)}
             receipt['tests'].append(entry)
             extra_flags = []
+            if source.stem == 'runtime_bootstrap_namespace_test':
+                entry['included_source_sha256'] = native_build.sha256(root/'native/runtime_bootstrap.cpp')
             if source.stem == 'gift_batch_test':
                 extra_flags = ['-rdynamic', '-fexceptions']
                 entry['included_source_sha256'] = native_build.sha256(root/'native/gift_batch.cpp')

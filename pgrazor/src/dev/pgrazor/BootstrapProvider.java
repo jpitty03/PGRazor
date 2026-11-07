@@ -12,8 +12,21 @@ import java.nio.charset.StandardCharsets;
 /** APK-owned startup entry. Does not use adb, su, another process, or a server. */
 public final class BootstrapProvider extends ContentProvider {
     private static NativeRuntimeTransport nativeTransport;
-    public boolean onCreate() {
-        Context context=getContext();
+    private static Runnable rootedNativeStart;
+
+    /** Rooted MuMu must let Unity establish its translated namespace first. */
+    static synchronized void startRootedNativeAfterRender() {
+        if (rootedNativeStart == null) return;
+        Runnable start = rootedNativeStart;
+        rootedNativeStart = null;
+        new Thread(start, "pgrazor-loader").start();
+    }
+    public boolean onCreate() { return start(getContext()); }
+    /**
+     * Shared startup for both builds: the patched APK calls it from this provider; PGRazor Root
+     * calls it from its Application.onCreate hook (RootedRuntime) at the same point in startup.
+     */
+    static boolean start(Context context) {
         if(context==null) return false;
         Context appContext=context.getApplicationContext();
         if(!(appContext instanceof Application)) {
@@ -43,10 +56,15 @@ public final class BootstrapProvider extends ContentProvider {
         if(!sessionRecovered)Control.event("account-session-recovery","Interrupted session could not be restored; sign in again. Saved profiles preserved.");
         Control.event("bootstrap", "pid="+android.os.Process.myPid()+" uid="+android.os.Process.myUid()+" process="+Application.getProcessName());
         // Native initialization must not block ContentProvider startup or the main thread.
-        new Thread(() -> load(context),"pgrazor-loader").start();
+        if (PgAssets.rooted()) {
+            synchronized (BootstrapProvider.class) { rootedNativeStart = () -> load(context); }
+            Control.event("rooted-native-deferred", "Waiting for Unity render before loading gameplay libraries");
+        } else {
+            new Thread(() -> load(context),"pgrazor-loader").start();
+        }
         return true;
     }
-    private void load(Context context) {
+    private static void load(Context context) {
         try {
             JSONObject mode = new JSONObject(readAsset(context,"pgrazor/mode.json"));
             boolean compiledHost=mode.optBoolean("compiledJavaBridges",false)
@@ -126,8 +144,7 @@ public final class BootstrapProvider extends ContentProvider {
             if(mode.optBoolean("compiledLocationGetters",false)) {
                 if(!mode.optBoolean("nativePilot",false)||!mode.optBoolean("compiledJavaBridges",false))
                     throw new IOException("Compiled Location requires native and DEX bridges");
-                File art=copyAsset(context,"pgrazor/"+abi+"/libpgrazor-art.so",directory,"libpgrazor-art.so");
-                System.load(art.getAbsolutePath());
+                loadArt(context,abi,directory);
                 if(!NativeJavaHooks.ready()||!NativeLocationGetters.install())
                     throw new IOException("Compiled Location initialization failed");
                 parameters.put("compiledLocationGetters",true);
@@ -265,13 +282,12 @@ public final class BootstrapProvider extends ContentProvider {
      * (the compiled DEX bridge) and returns before any script/Gadget path. No background IL2CPP
      * thread_attach happens here; IL2CPP bootstrap runs on the rendered Unity thread.
      */
-    private void loadCompiledGameplay(Context context,String abi,boolean translated,
+    private static void loadCompiledGameplay(Context context,String abi,boolean translated,
             boolean cameraSteering,boolean cameraSample,boolean interactionProbe,boolean quickClose) throws Exception {
         File directory=new File(context.getCodeCacheDir(),"pgrazor-"+android.os.Process.myPid()+"-"+System.currentTimeMillis());
         if(!directory.mkdirs()) throw new IOException("Cannot create private runtime directory");
         // Compiled ART getters and DEX callers, in the same order as the compiled host.
-        File art=copyAsset(context,"pgrazor/"+abi+"/libpgrazor-art.so",directory,"libpgrazor-art.so");
-        System.load(art.getAbsolutePath());
+        loadArt(context,abi,directory);
         if(!NativeJavaHooks.ready()||!NativeLocationGetters.install())
             throw new IOException("Compiled Location initialization failed");
         Control.event("compiled-location-ready","Compiled ART getters and DEX callers initialized");
@@ -305,15 +321,22 @@ public final class BootstrapProvider extends ContentProvider {
         NativeRuntimeBootstrap.startGameplay();
         Control.event("compiled-gameplay-ready","Compiled-only gameplay armed; no Frida or PGRazor scripts packaged; abi="+abi);
     }
+    /** Loads the ART hook library once; PGRazor Root has already loaded it before startup. */
+    private static void loadArt(Context context,String abi,File directory) throws IOException {
+        if(NativeJavaHooks.loaded) return;
+        File art=copyAsset(context,"pgrazor/"+abi+"/libpgrazor-art.so",directory,"libpgrazor-art.so");
+        System.load(art.getAbsolutePath());
+        NativeJavaHooks.loaded=true;
+    }
     private static String readAsset(Context context,String name) throws IOException {
-        try(InputStream in=context.getAssets().open(name); ByteArrayOutputStream out=new ByteArrayOutputStream()) {
+        try(InputStream in=PgAssets.open(context, name); ByteArrayOutputStream out=new ByteArrayOutputStream()) {
             byte[] buffer=new byte[8192]; int count; while((count=in.read(buffer))!=-1)out.write(buffer,0,count);
             return new String(out.toByteArray(),StandardCharsets.UTF_8);
         }
     }
     private static File copyAsset(Context context,String asset,File directory,String name) throws IOException {
         File file=new File(directory,name);
-        try(InputStream in=context.getAssets().open(asset); FileOutputStream out=new FileOutputStream(file)) {
+        try(InputStream in=PgAssets.open(context, asset); FileOutputStream out=new FileOutputStream(file)) {
             byte[] buffer=new byte[65536]; int count; while((count=in.read(buffer))!=-1)out.write(buffer,0,count);
         }
         if(!file.setReadOnly()) throw new IOException("Cannot mark runtime file read-only");

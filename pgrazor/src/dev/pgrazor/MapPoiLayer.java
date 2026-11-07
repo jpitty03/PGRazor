@@ -211,7 +211,7 @@ final class MapPoiLayer {
     private Bitmap loadIcon(String name) {
         if (markerIcons.containsKey(name)) return markerIcons.get(name);
         Bitmap bitmap = null;
-        try (InputStream in = context.getAssets().open("pgrazor/map-icons/" + name)) { bitmap = BitmapFactory.decodeStream(in); }
+        try (InputStream in = PgAssets.open(context, "pgrazor/map-icons/" + name)) { bitmap = BitmapFactory.decodeStream(in); }
         catch (IOException | RuntimeException ignored) { bitmap = null; }
         markerIcons.put(name, bitmap); return bitmap;
     }
@@ -352,7 +352,7 @@ final class MapPoiLayer {
     }
     /** Parse the bundled id->name table once; any missing/oversize/malformed file leaves #id fallbacks. */
     private Map<String, String> loadBossNames() {
-        try (InputStream in = context.getAssets().open("pgrazor/map-icons/pokemon-names.json")) {
+        try (InputStream in = PgAssets.open(context, "pgrazor/map-icons/pokemon-names.json")) {
             ByteArrayOutputStream out = new ByteArrayOutputStream(); byte[] buffer = new byte[8192]; int count;
             while ((count = in.read(buffer)) != -1) { if (out.size() + count > 2 * 1024 * 1024) throw new IOException("Oversize name table"); out.write(buffer, 0, count); }
             JSONObject json = new JSONObject(new String(out.toByteArray(), "UTF-8"));

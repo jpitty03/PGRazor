@@ -25,7 +25,7 @@ final class BerryOverlay extends View {
 
     BerryOverlay(Activity activity,Runnable changed){
         super(activity);this.activity=activity;this.changed=changed;setClickable(true);setFocusable(true);
-        for(int i=1;i<IDS.length;i++)try(InputStream in=activity.getAssets().open("pgrazor/map-icons/berry-"+IDS[i]+".png")){icons[i]=BitmapFactory.decodeStream(in);}catch(Exception ignored){}
+        for(int i=1;i<IDS.length;i++)try(InputStream in=PgAssets.open(activity, "pgrazor/map-icons/berry-"+IDS[i]+".png")){icons[i]=BitmapFactory.decodeStream(in);}catch(Exception ignored){}
         setOnClickListener(v->showPicker());
     }
     private int dp(float n){return MapTheme.dp(activity,n);}
