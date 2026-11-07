@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## v0.2.2
+
+[Full release notes](docs/releases/v0.2.2.md)
 
 ### New features
 

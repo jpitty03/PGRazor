@@ -37,8 +37,8 @@ export default function GetStarted() {
       <p className="cta__release">
         <span className="cta__badge">Stable</span>
         The published{' '}
-        <a href={links.releasesCurrent}>v0.2.1 release</a> adds catch chance with auto ball,
-        PvP IV ranks and keep rules, incense catches for VGP and a PoGoCoordinates feed.
+        <a href={links.releasesCurrent}>v0.2.2 release</a> adds the experimental Shundo Sniper,
+        Skip cutscenes and Smart healing.
       </p>
 
       <div className="faq">
