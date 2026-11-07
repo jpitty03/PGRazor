@@ -16,8 +16,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 /**
- * One-shot automation hub, opened from the quick menu and mirrored in the settings panel's
- * "Automation" section. Every task here runs once when the user starts it — there are no recurring
+ * Automation hub (Shundo Sniper and one-shot tasks), opened from the quick menu and mirrored in the settings panel's
+ * "Automation" section. Shundo Sniper runs until stopped; every other task runs once when the user starts it, with no recurring
  * toggles. The Daily Incense Session and Remote Gym Feeding dialogs drive the coordinator-owned
  * {@link OneShotAutomation} runtime; Mass Evolve reuses the existing {@link BatchEvolutionSettings}.
  * Chrome follows {@link MapTheme}; polling and dialogs stay scoped through {@link DialogLifecycle}.
@@ -25,16 +25,17 @@ import android.widget.Toast;
 public final class AutomationPanel {
     private AutomationPanel() {}
 
-    /** The compact menu listing the one-shot tasks. */
+    /** The compact menu listing the automation tasks. */
     public static void show(Activity activity) {
         if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
         Context ui = MapTheme.wrap(activity);
         LinearLayout body = new LinearLayout(ui); body.setOrientation(LinearLayout.VERTICAL);
         int pad = MapTheme.dp(ui, 16); body.setPadding(pad, pad, pad, pad);
         TextView intro = new TextView(ui);
-        intro.setText("One-shot automation tasks. Each runs once when you start it — there are no recurring schedules.");
+        intro.setText("Each task runs when you start it.");
         body.addView(intro);
         final AlertDialog[] holder = new AlertDialog[1];
+        entry(ui, body, "Shundo Sniper (Experimental)", () -> { if (holder[0] != null) holder[0].dismiss(); ShundoSniper.show(activity); });
         entry(ui, body, "Daily Incense Session", () -> { if (holder[0] != null) holder[0].dismiss(); showIncense(activity); });
         entry(ui, body, "Remote Gym Feeding", () -> { if (holder[0] != null) holder[0].dismiss(); showRemoteFeed(activity); });
         entry(ui, body, "Send & Open Gifts", () -> { if (holder[0] != null) holder[0].dismiss(); GiftBatchDialog.show(activity); });

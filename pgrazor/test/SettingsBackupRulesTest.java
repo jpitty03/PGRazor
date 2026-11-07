@@ -74,6 +74,13 @@ public class SettingsBackupRulesTest {
         // Transfer keep list and Keep All / overlay settings.
         v=valid();v.getJSONObject("settings").put("transferKeepAll","true").put("transferOverlay","false").put("transferKeepSpecies","1,4,25,2000");SettingsBackupRules.validate(v);
         v=valid();v.getJSONObject("settings").put("transferKeepSpecies","");SettingsBackupRules.validate(v);
+        v=valid();v.getJSONObject("settings").put("shundoSpecies","1,129,2000");SettingsBackupRules.validate(v);
+        v=valid();v.getJSONObject("settings").put("shundoSpecies","");SettingsBackupRules.validate(v);
+        v=valid();v.getJSONObject("settings").put("shundoSpecies","129,129");rejects(v);           // duplicate dex id
+        v=valid();v.getJSONObject("settings").put("shundoGap","60");SettingsBackupRules.validate(v);
+        v=valid();v.getJSONObject("settings").put("shundoGap","45");rejects(v);                    // not an offered gap
+        {StringBuilder many=new StringBuilder();for(int i=1;i<=501;i++){if(i>1)many.append(',');many.append(i);}
+         v=valid();v.getJSONObject("settings").put("shundoSpecies",many.toString());rejects(v);}   // over 500 species
         v=valid();v.getJSONObject("settings").put("transferKeepSpecies","1,4,2001");rejects(v);   // out of range (>2000)
         v=valid();v.getJSONObject("settings").put("transferKeepSpecies","0");rejects(v);           // zero is not positive
         v=valid();v.getJSONObject("settings").put("transferKeepSpecies","1,4,abc");rejects(v);      // non-numeric token

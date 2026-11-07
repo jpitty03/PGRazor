@@ -109,7 +109,8 @@ public final class SmartCatchSettings {
     }
 }
 
-// Searchable, offline picker adapted from TransferKeepDialog; edits only candy preferences.
+// Searchable, offline species picker adapted from TransferKeepDialog: the Smart Catch candy list and the
+// Shundo Sniper species list.
 final class SmartCatchSpeciesDialog {
     private SmartCatchSpeciesDialog() {}
 
@@ -119,14 +120,24 @@ final class SmartCatchSpeciesDialog {
     private static final int NAMES_LIMIT = 2 * 1024 * 1024;
 
     public static void show(Activity activity, Runnable onSaved) {
+        show(activity, "Candy species (Pinap)", "candy species", 200, SmartCatchSettings::candySpecies, SmartCatchSettings::setCandySpecies, onSaved);
+    }
+
+    /** A picker over a canonical comma list of dex ids: load reads it, save stores it, at most max ids. */
+    static void show(Activity activity, String title, String noun, int max, java.util.function.Supplier<String> load,
+                     java.util.function.Consumer<String> save, Runnable onSaved) {
         if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
-        new Picker(activity, onSaved).open();
+        new Picker(activity, title, noun, max, load, save, onSaved).open();
     }
 
     private static final class Picker {
         private final Activity activity;
         private final Context ui;
         private final Runnable onSaved;
+        private final String title, noun;
+        private final int max;
+        private final java.util.function.Supplier<String> load;
+        private final java.util.function.Consumer<String> save;
         private final TreeSet<Integer> selected = new TreeSet<>();
         private final List<Integer> all = new ArrayList<>();
         private final List<Integer> shown = new ArrayList<>();
@@ -137,15 +148,17 @@ final class SmartCatchSpeciesDialog {
         private AlertDialog dialog;
         private boolean closed;
 
-        Picker(Activity activity, Runnable onSaved) {
+        Picker(Activity activity, String title, String noun, int max, java.util.function.Supplier<String> load,
+               java.util.function.Consumer<String> save, Runnable onSaved) {
             this.activity = activity; this.ui = MapTheme.wrap(activity); this.onSaved = onSaved;
+            this.title = title; this.noun = noun; this.max = max; this.load = load; this.save = save;
         }
 
         private int dp(float v) { return MapTheme.dp(ui, v); }
 
         void open() {
             // Seed from the saved canonical list (already validated and bounded by Control).
-            String saved = SmartCatchSettings.candySpecies();
+            String saved = load.get();
             if (!saved.isEmpty()) for (String token : saved.split(",")) {
                 try { int id = Integer.parseInt(token.trim()); if (id >= 1 && id <= 2000) selected.add(id); }
                 catch (NumberFormatException ignored) {}
@@ -168,7 +181,7 @@ final class SmartCatchSpeciesDialog {
             list.setOnItemClickListener((parent, view, position, rowId) -> {
                 int id = shown.get(position);
                 if (!selected.remove(id)) {
-                    if(selected.size()>=200){android.widget.Toast.makeText(activity,"Choose at most 200 candy species.",android.widget.Toast.LENGTH_SHORT).show();return;}
+                    if(selected.size()>=max){android.widget.Toast.makeText(activity,"Choose at most "+max+" "+noun+".",android.widget.Toast.LENGTH_SHORT).show();return;}
                     selected.add(id);
                 }
                 adapter.notifyDataSetChanged(); updateCount();
@@ -185,7 +198,7 @@ final class SmartCatchSpeciesDialog {
             });
 
             dialog = new AlertDialog.Builder(ui)
-                .setTitle("Candy species (Pinap)")
+                .setTitle(title)
                 .setView(body)
                 .setPositiveButton("Save", (d, w) -> commit())
                 .setNeutralButton("Clear all", null)   // click overridden below so it does not dismiss
@@ -211,12 +224,12 @@ final class SmartCatchSpeciesDialog {
             adapter.notifyDataSetChanged();
         }
 
-        private void updateCount() { count.setText(selected.size() + "/200 candy species selected"); }
+        private void updateCount() { count.setText(selected.size() + "/" + max + " " + noun + " selected"); }
 
         private void commit() {
             StringBuilder sb = new StringBuilder();
             for (int id : selected) { if (sb.length() > 0) sb.append(','); sb.append(id); }
-            SmartCatchSettings.setCandySpecies(sb.toString());
+            save.accept(sb.toString());
             if (onSaved != null) onSaved.run();
         }
 
@@ -239,7 +252,7 @@ final class SmartCatchSpeciesDialog {
                     names = result;
                     applyFilter(search == null ? "" : search.getText().toString()); // name search now resolves
                 });
-            }, "pgrazor-candy-names").start();
+            }, "pgrazor-species-names").start();
         }
 
         private String name(int id) {

@@ -38,7 +38,7 @@ public final class QuickMenu {
     static final int MAP = 0, WALK = 1, AUTOWALK = 2, FEEDS = 3, FAVORITES = 4, TELEPORT = 5, ACCOUNTS = 6, SETTINGS = 7, EVENTS = 8, AUTOMATION = 9, HIDE = 10;
 
     // Append-only order: persisted visibility bits must not follow icon IDs (some are shared).
-    static final String[] CUSTOMIZABLE = {"Map", "Walking speed", "Autowalk", "In-game Routes", "Feeds", "Favorites", "Hotspots", "Teleport", "Switch account", "Events", "Automation", "Research", "Hide overlay", "Shundo Sniper"};
+    static final String[] CUSTOMIZABLE = {"Map", "Walking speed", "Autowalk", "In-game Routes", "Feeds", "Favorites", "Hotspots", "Teleport", "Switch account", "Events", "Automation", "Research", "Hide overlay"};
     private final List<View> rows = new ArrayList<>();
     private final List<Integer> visibilityBits = new ArrayList<>();
     private int appliedHidden = -1;
@@ -76,7 +76,6 @@ public final class QuickMenu {
         card.addView(row(AUTOMATION, "Automation", true, () -> AutomationPanel.show(activity), 1024));
         card.addView(row(EVENTS, "Research", true, () -> ResearchSettings.show(activity), 2048));
         card.addView(row(HIDE, "Hide overlay", true, listener::onHideOverlays, 4096));
-        card.addView(row(TELEPORT, "Shundo Sniper", true, () -> ShundoSniper.show(activity), 8192));
         card.addView(row(SETTINGS, "Settings", true, listener::onSettings, 0));
         viewport=new ScrollView(activity);viewport.setFillViewport(false);
         viewport.addView(card,new ScrollView.LayoutParams(-1,-2));

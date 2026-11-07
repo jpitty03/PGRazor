@@ -37,7 +37,10 @@ public final class ShundoSniper {
     private ShundoSniper() {}
     static final long MIN_LEFT_MS = 150_000, RESULT_TIMEOUT_MS = 180_000, LIVE_MIN_MS = 15_000, POGO_MS = 30_000,
         SETTLE_MS = 2_000, RETRY_MS = 60_000;
-    static final int MAX_CANDIDATES = 6000, RECENT = 8;
+    static final int MAX_CANDIDATES = 6000, RECENT = 8, MAX_SPECIES = 500;
+    // The shortest time between two teleports, chosen by the user (seconds; 0 = right away).
+    static final int[] GAPS = {0, 30, 60, 90};
+    static final String[] GAP_LABELS = {"Right away", "30 seconds", "60 seconds", "90 seconds"};
     // The PGRazor feed: one server polls LivePokeMap's whole-map 100% IV list and publishes it as a compact
     // file, {"v":1,"fetched_ms":..,"interval_s":..,"hundos":[[encounter_id,dex,form,lat,lon,despawn_ms,cp,level],..]},
     // so no sign-in is needed. Read once a minute (about 145 KB gzipped).
@@ -46,9 +49,9 @@ public final class ShundoSniper {
 
     /** One 100% IV spawn from a feed; coordinates are NaN until PoGoCoordinates reveals them. */
     static final class Target {
-        final String key, encounter, name, source, revealCode; final long expiresAt; double lat, lon;
-        Target(String key, String encounter, String name, String source, double lat, double lon, long expiresAt, String revealCode) {
-            this.key = key; this.encounter = encounter; this.name = name; this.source = source;
+        final String key, encounter, name, source, revealCode; final int dex; final long expiresAt; double lat, lon;
+        Target(String key, String encounter, int dex, String name, String source, double lat, double lon, long expiresAt, String revealCode) {
+            this.key = key; this.encounter = encounter; this.dex = dex; this.name = name; this.source = source;
             this.lat = lat; this.lon = lon; this.expiresAt = expiresAt; this.revealCode = revealCode;
         }
         boolean located() { return CooldownState.valid(lat, lon); }
@@ -57,6 +60,10 @@ public final class ShundoSniper {
     private static final Object LOCK = new Object();
     private static volatile boolean enabled;
     private static boolean useFeed = true, useLive = true, usePogo = true;
+    // The species to search for (dex numbers); empty means every species.
+    private static final java.util.TreeSet<Integer> species = new java.util.TreeSet<>();
+    private static int gapSeconds;
+    private static long lastTeleport;  // when the last teleport was made, ms
     private static volatile String feedNote = "";
     // The spawn being checked: the request number and encounter id native reads, and when it was sent.
     private static long request, targetSince, nextPick, nextLive, nextPogo, nextFeed;
@@ -96,6 +103,8 @@ public final class ShundoSniper {
             useFeed = !"false".equals(p.getProperty("shundoFeed"));
             useLive = !"false".equals(p.getProperty("shundoLive"));
             usePogo = !"false".equals(p.getProperty("shundoPogo"));
+            species.clear(); species.addAll(parseSpecies(p.getProperty("shundoSpecies", "")));
+            gapSeconds = gap(p.getProperty("shundoGap", "0"));
         }
     }
     public static void write(Properties p) {
@@ -103,7 +112,70 @@ public final class ShundoSniper {
             p.setProperty("shundoFeed", String.valueOf(useFeed));
             p.setProperty("shundoLive", String.valueOf(useLive));
             p.setProperty("shundoPogo", String.valueOf(usePogo));
+            p.setProperty("shundoSpecies", speciesList());
+            p.setProperty("shundoGap", String.valueOf(gapSeconds));
         }
+    }
+    /** A saved gap if it is one of GAPS, else 0 (right away). */
+    static int gap(String raw) {
+        for (int g : GAPS) if (String.valueOf(g).equals(raw)) return g;
+        return 0;
+    }
+    private static String gapLabel() {
+        synchronized (LOCK) {
+            for (int i = 0; i < GAPS.length; i++) if (GAPS[i] == gapSeconds) return "Time between teleports: " + GAP_LABELS[i];
+            return "Time between teleports: " + GAP_LABELS[0];
+        }
+    }
+    /** The dex numbers of a comma list, ignoring anything that isn't one (1..2000), at most MAX_SPECIES. */
+    static java.util.TreeSet<Integer> parseSpecies(String raw) {
+        java.util.TreeSet<Integer> ids = new java.util.TreeSet<>();
+        if (raw == null || raw.length() > 10_000) return ids;
+        for (String token : raw.split(",")) {
+            if (ids.size() >= MAX_SPECIES) break;
+            String t = token.trim();
+            if (!t.matches("[1-9][0-9]{0,3}")) continue;
+            int id = Integer.parseInt(t);
+            if (id <= 2000) ids.add(id);
+        }
+        return ids;
+    }
+    static String speciesList() {
+        synchronized (LOCK) {
+            StringBuilder b = new StringBuilder();
+            for (int id : species) { if (b.length() > 0) b.append(','); b.append(id); }
+            return b.toString();
+        }
+    }
+    // The species picker's save: drops queued spawns of species no longer wanted and re-reads the feeds
+    // now, so spawns of newly added species come in without waiting for the next poll.
+    static void setSpecies(String value) {
+        int count;
+        synchronized (LOCK) {
+            species.clear(); species.addAll(parseSpecies(value)); count = species.size();
+            if (count > 0) candidates.values().removeIf(t -> !species.contains(t.dex));
+            nextFeed = nextLive = nextPogo = 0;
+            if (enabled && target == null) status = looking();
+        }
+        Control.saveSettings();
+        Control.event("shundo-sniper", "species " + (count == 0 ? "all" : count + " selected"));
+    }
+    // Under LOCK: whether a spawn of this species is wanted (an unknown species is not, once a list is set).
+    private static boolean wanted(int dex) { return species.isEmpty() || species.contains(dex); }
+    // Under LOCK: the idle line, naming the species filter when one is set.
+    private static String looking() {
+        return species.isEmpty() ? "Looking for 100% IV Pokémon"
+            : species.size() == 1 ? "Looking for 100% IV " + cachedName(species.first())
+            : "Looking for 100% IV Pokémon (" + species.size() + " species)";
+    }
+    // A species name only if the table is already loaded (this runs on the main thread too).
+    private static String cachedName(int dex) {
+        JSONObject names = speciesNames;
+        String name = names == null ? "" : names.optString(Integer.toString(dex), "");
+        return name.isEmpty() ? "#" + dex : name;
+    }
+    private static String speciesLabel() {
+        synchronized (LOCK) { return "Species: " + (species.isEmpty() ? "All" : species.size() + " selected"); }
     }
     public static boolean active() { return enabled; }
 
@@ -120,7 +192,7 @@ public final class ShundoSniper {
             if (on == enabled) return;
             enabled = on;
             target = null; teleporting = false; candidates.clear(); nextPick = nextLive = nextPogo = nextFeed = 0;
-            status = on ? "Looking for 100% IV Pokémon" : "";
+            status = on ? looking() : "";
             if (on) overlayShown = true;
             if (on) {
                 app = context.getApplicationContext();
@@ -197,7 +269,7 @@ public final class ShundoSniper {
     // Under LOCK: the check is over; the next target waits a moment for the game to settle.
     private static void done(String line) {
         recent.addFirst(line); while (recent.size() > RECENT) recent.removeLast();
-        target = null; holding = go = false; status = "Looking for 100% IV Pokémon"; nextPick = System.currentTimeMillis() + SETTLE_MS;
+        target = null; holding = go = false; status = looking(); nextPick = System.currentTimeMillis() + SETTLE_MS;
     }
 
     private static void tick() {
@@ -215,7 +287,15 @@ public final class ShundoSniper {
             }
             double lat = Control.currentLatitude(), lon = Control.currentLongitude();
             fetch(now, lat, lon);
-            if (now >= nextPick) pick(now, lat, lon);
+            if (now >= nextPick) {
+                // The user's minimum time between teleports, counted from the last one.
+                long wait;
+                synchronized (LOCK) {
+                    wait = lastTeleport + gapSeconds * 1000L - now;
+                    if (wait > 0) status = "Next teleport in " + (wait + 999) / 1000 + " s";
+                }
+                if (wait <= 0) pick(now, lat, lon);
+            }
         } catch (Throwable error) {
             Control.event("shundo-sniper", "tick failed: " + error);
         }
@@ -248,7 +328,7 @@ public final class ShundoSniper {
                     LiveFeedData.Snapshot s = liveClient.fetch(lat, lon, LiveFeedClient.GLOBAL, 100);
                     int added = 0;
                     for (LiveFeedData.Entry e : s.entries)
-                        if (e.kind == LiveFeedData.Kind.POKEMON && e.iv >= 100) added += add(e.id, speciesName(e.dexId, e.name), "LivePokeMap", e.lat, e.lon, e.expiresAt, null);
+                        if (e.kind == LiveFeedData.Kind.POKEMON && e.iv >= 100) added += add(e.id, e.dexId, speciesName(e.dexId, e.name), "LivePokeMap", e.lat, e.lon, e.expiresAt, null);
                     liveNote = "LivePokeMap: " + added + " seen";
                     nextLive = now + Math.max(LIVE_MIN_MS, s.refreshSeconds * 1000L);
                 }
@@ -264,7 +344,7 @@ public final class ShundoSniper {
                 PogoFeedData.Snapshot s = pogoClient.fetch(lat, lon, 1000, 100);
                 int added = 0;
                 for (PogoFeedData.Entry e : s.entries)
-                    if (e.kind == PogoFeedData.Kind.POKEMON && e.iv >= 100) added += add(e.id, speciesName(e.dexId, e.name), "PoGoCoordinates", e.lat, e.lon, e.expiresAt, e.revealCode);
+                    if (e.kind == PogoFeedData.Kind.POKEMON && e.iv >= 100) added += add(e.id, e.dexId, speciesName(e.dexId, e.name), "PoGoCoordinates", e.lat, e.lon, e.expiresAt, e.revealCode);
                 pogoNote = "PoGoCoordinates: " + added + " seen";
             } catch (PogoFeedClient.FeedException e) {
                 pogoNote = "PoGoCoordinates: " + (e.getMessage() == null ? "unavailable" : e.getMessage());
@@ -309,7 +389,7 @@ public final class ShundoSniper {
                 long despawn = r.optLong(5, 0);
                 if (despawn > 0 && despawn <= now) continue;
                 int dex = r.optInt(1, 0);
-                added += add("pokemon:" + r.optString(0, ""), speciesName(dex, dex > 0 ? "#" + dex : "Pokémon"), "PGRazor feed",
+                added += add("pokemon:" + r.optString(0, ""), dex, speciesName(dex, dex > 0 ? "#" + dex : "Pokémon"), "PGRazor feed",
                     r.optDouble(3, Double.NaN), r.optDouble(4, Double.NaN), despawn, null);
             }
             return added;
@@ -351,15 +431,16 @@ public final class ShundoSniper {
         if (digits.isEmpty() || digits.length() > 20) return null;
         try { return Long.toUnsignedString(Long.parseUnsignedLong(digits)); } catch (NumberFormatException e) { return null; }
     }
-    private static int add(String id, String name, String source, double lat, double lon, long expiresAt, String revealCode) {
+    private static int add(String id, int dex, String name, String source, double lat, double lon, long expiresAt, String revealCode) {
         String encounter = encounterId(id);
         if (encounter == null) return 0;
         synchronized (LOCK) {
             if (attempted.containsKey(encounter)) return 0;  // already checked; a feed refresh lists it again
+            if (!wanted(dex)) return 0;
             Target known = candidates.get(encounter);
             if (known != null) { if (!known.located() && CooldownState.valid(lat, lon)) { known.lat = lat; known.lon = lon; } return 1; }
             if (candidates.size() >= MAX_CANDIDATES) return 0;
-            candidates.put(encounter, new Target(id, encounter, name == null || name.isEmpty() ? "Pokémon" : name, source, lat, lon, expiresAt, revealCode));
+            candidates.put(encounter, new Target(id, encounter, dex, name == null || name.isEmpty() ? "Pokémon" : name, source, lat, lon, expiresAt, revealCode));
             return 1;
         }
     }
@@ -371,13 +452,13 @@ public final class ShundoSniper {
         synchronized (LOCK) {
             for (Iterator<Target> it = candidates.values().iterator(); it.hasNext(); ) {
                 Target t = it.next();
-                if (attempted.containsKey(t.encounter) || (t.expiresAt > 0 && t.expiresAt - now < MIN_LEFT_MS)) { it.remove(); continue; }
+                if (attempted.containsKey(t.encounter) || !wanted(t.dex) || (t.expiresAt > 0 && t.expiresAt - now < MIN_LEFT_MS)) { it.remove(); continue; }
                 if (!t.located()) { if (locked == null && t.revealCode != null) locked = t; continue; }
                 double km = CooldownState.distance(lat, lon, t.lat, t.lon);
                 if (km < bestKm) { bestKm = km; best = t; }
             }
             if (best == null) {
-                status = "Looking for 100% IV Pokémon";
+                status = looking();
                 if (locked == null) return;
             }
         }
@@ -394,7 +475,7 @@ public final class ShundoSniper {
             synchronized (LOCK) {
                 teleporting = false;
                 if (!enabled) return;
-                target = chosen; request++; targetSince = System.currentTimeMillis(); teleports++; targetKm = km;
+                target = chosen; request++; targetSince = lastTeleport = System.currentTimeMillis(); teleports++; targetKm = km;
                 status = String.format(Locale.US, "Checking %s (%s, %.1f km)", chosen.name, chosen.source, km);
             }
             Control.event("shundo-sniper", String.format(Locale.US, "target %s %s %.6f,%.6f from %s, %.1f km, %s left", chosen.encounter, chosen.name, chosen.lat, chosen.lon, chosen.source, km, chosen.expiresAt > 0 ? (chosen.expiresAt - System.currentTimeMillis()) / 1000 + " s" : "unknown"));
@@ -431,7 +512,7 @@ public final class ShundoSniper {
                 long s = Math.max(0, (System.currentTimeMillis() - targetSince) / 1000);
                 return String.format(Locale.US, "Checking %s · %.1f km · %d s", target.name, targetKm, s);
             }
-            return status.isEmpty() ? "Looking for 100% IV Pokémon" : status;
+            return status.isEmpty() ? looking() : status;
         }
     }
     static String overlayStats() {
@@ -459,15 +540,39 @@ public final class ShundoSniper {
         Context ui = MapTheme.wrap(activity);
         LinearLayout body = new LinearLayout(ui); body.setOrientation(LinearLayout.VERTICAL);
         int pad = MapTheme.dp(ui, 16); body.setPadding(pad, pad, pad, pad);
+        // Experimental, and it teleports and catches far more than a player could: say so before anything else.
+        TextView warning = new TextView(ui);
+        warning.setText("Experimental. Constant teleporting and remote catching raise the risk of an account warning or ban. Use an alt account, not your main.");
+        warning.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        warning.setPadding(0, 0, 0, pad / 2);
+        body.addView(warning);
         CheckBox on = new CheckBox(ui); on.setText("Shundo Sniper on"); on.setChecked(enabled); body.addView(on);
         TextView help = new TextView(ui);
-        help.setText("Teleports to 100% IV Pokémon from the feeds, checks each one in the background for shiny, and catches only shinies, with your best Ultra, Great or Poké Ball (never a Master Ball) and a Golden Razz Berry when you have one. Checking a Pokémon needs no cooldown, so it teleports freely. When it finds a shiny it stays there with the encounter open until your cooldown is over, then catches it. VGP+ pauses while this is on. It turns off when the game restarts.");
+        help.setText("Teleports to 100% IV Pokémon and checks each for shiny. A shiny is held in its encounter until your cooldown ends, then caught. VGP+ pauses while this runs.");
         body.addView(help);
-        CheckBox feedBox = new CheckBox(ui); feedBox.setText("Use the PGRazor 100% IV feed (no sign-in)");
-        CheckBox liveBox = new CheckBox(ui); liveBox.setText("Use LivePokeMap (sign-in needed)");
-        CheckBox pogoBox = new CheckBox(ui); pogoBox.setText("Use PoGoCoordinates (reveals about one location a minute)");
+        CheckBox feedBox = new CheckBox(ui); feedBox.setText("PGRazor feed");
+        CheckBox liveBox = new CheckBox(ui); liveBox.setText("LivePokeMap (sign-in)");
+        CheckBox pogoBox = new CheckBox(ui); pogoBox.setText("PoGoCoordinates (slow)");
         synchronized (LOCK) { feedBox.setChecked(useFeed); liveBox.setChecked(useLive); pogoBox.setChecked(usePogo); }
-        body.addView(feedBox); body.addView(liveBox); body.addView(pogoBox);
+        TextView sources = new TextView(ui); sources.setText("Sources"); sources.setPadding(0, pad / 2, 0, 0);
+        body.addView(sources); body.addView(feedBox); body.addView(liveBox); body.addView(pogoBox);
+        android.widget.Button speciesButton = new android.widget.Button(ui); speciesButton.setAllCaps(false);
+        speciesButton.setText(speciesLabel()); body.addView(speciesButton);
+        speciesButton.setOnClickListener(v -> SmartCatchSpeciesDialog.show(activity, "Shundo Sniper species", "species", MAX_SPECIES,
+            ShundoSniper::speciesList, ShundoSniper::setSpecies, () -> speciesButton.setText(speciesLabel())));
+        android.widget.Button gapButton = new android.widget.Button(ui); gapButton.setAllCaps(false);
+        gapButton.setText(gapLabel()); body.addView(gapButton);
+        gapButton.setOnClickListener(v -> {
+            AlertDialog choose = ChoiceList.attach(new AlertDialog.Builder(ui).setTitle("Time between teleports")
+                .setNegativeButton("Cancel", null).create(), GAP_LABELS, i -> {
+                    synchronized (LOCK) { gapSeconds = GAPS[i]; }
+                    Control.saveSettings(); gapButton.setText(gapLabel());
+                    Control.event("shundo-sniper", "teleport gap " + GAPS[i] + " s");
+                });
+            DialogLifecycle.bind(activity, choose, null);
+            choose.setOnShowListener(d -> MapTheme.styleButtons(choose));
+            choose.show();
+        });
         TextView state = new TextView(ui); state.setText(statusText()); state.setPadding(0, pad / 2, 0, 0); body.addView(state);
         on.setOnCheckedChangeListener((v, checked) -> {
             if (checked && !useFeed && !useLive && !usePogo) { on.setChecked(false); return; }
@@ -478,13 +583,14 @@ public final class ShundoSniper {
         pogoBox.setOnCheckedChangeListener((v, checked) -> { synchronized (LOCK) { usePogo = checked; nextPogo = 0; } Control.saveSettings(); });
 
         ScrollView scroll = new ScrollView(ui); scroll.addView(body);
-        AlertDialog dialog = new AlertDialog.Builder(ui).setTitle("Shundo Sniper").setView(scroll).setPositiveButton("Done", null).create();
+        AlertDialog dialog = new AlertDialog.Builder(ui).setTitle("Shundo Sniper (Experimental)").setView(scroll).setPositiveButton("Done", null).create();
         Runnable refresh = new Runnable() {
             public void run() { if (dialog.isShowing()) { if (on.isChecked() != enabled) on.setChecked(enabled); state.setText(statusText()); main.postDelayed(this, 1000); } }
         };
         DialogLifecycle.bind(activity, dialog, () -> main.removeCallbacks(refresh));
         dialog.setOnShowListener(d -> {
             MapTheme.style(body); MapTheme.styleButtons(dialog);
+            warning.setTextColor(MapTheme.dark() ? android.graphics.Color.rgb(255, 196, 87) : android.graphics.Color.rgb(150, 90, 0));
             dialog.getWindow().setBackgroundDrawable(new ColorDrawable(MapTheme.surface()));
             main.post(refresh);
         });

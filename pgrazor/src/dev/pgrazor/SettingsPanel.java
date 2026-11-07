@@ -337,6 +337,8 @@ final class SettingsPanel {
     private void buildAutomationSection() {
         // ----- Automation (one-shot manual tasks; mirrors the quick-menu Automation hub) -----
         LinearLayout autoC = section(body, "Automation", false);
+        Button shundo = button("Shundo Sniper (Experimental)"); autoC.addView(shundo);
+        shundo.setOnClickListener(v -> ShundoSniper.show(activity));
         Button incense = button("Daily Incense Session"); autoC.addView(incense);
         incense.setOnClickListener(v -> AutomationPanel.showIncense(activity));
         Button remoteFeed = button("Remote Gym Feeding"); autoC.addView(remoteFeed);
