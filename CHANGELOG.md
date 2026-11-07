@@ -9,6 +9,7 @@
 ### Improvements & fixes
 
 - Added more cutscene skips
+- Shundo Sniper: waits 10 seconds before its first teleport, showing the first Pokémon and how far away it is. Its card shows the next Pokémon's distance before each teleport and how far you are from where you started.
 
 ## v0.2.2
 
