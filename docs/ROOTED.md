@@ -14,6 +14,8 @@ This is development work. See the internal build/device receipt for the exact va
 
 To turn it off, disable the `pgrazor` module in your root manager and reboot. Uninstalling the installer APK alone does not uninstall the module.
 
+For manual installation, install `PGRazor-Root-module.zip` through your root manager's module installer and reboot. Use the official game version supported by that release. You can also install `PGRazor-Root.apk` for status checks and automatic account-switch restarts; you do not need to install the module again through the APK. Without the installer APK, account switches require manually closing and reopening the game. `PGRazor.apk` is the separate non-root patched game, not the Root companion APK.
+
 The runtime requires the exact packaged game version and official signing certificate. A newer game is not automatically accepted just because Java bridge names still match: native gameplay also depends on the supported game build. Root status and Zygisk configuration do not by themselves prove injection succeeded; the in-game Run log records startup.
 
 ## Build
@@ -26,7 +28,7 @@ py -3.12 -B pgrazor/rooted.py pgrazor/input/game.apkm --download --output dist/r
 
 `--skip-build` reuses the existing DEX only after validating its source fingerprints. `--module-only` produces the module ZIP for development without the installer. The source APK/APKM must have the trusted game certificate; bridge validation runs before packaging.
 
-Each run lives in `pgrazor/build/rooted/<run>/` and records module, payload, DEX, installer hashes, supported game version, and architectures in `report.json`. Release output contains `PGRazor-Root.apk`, `root-build-info.json`, and its entry in `SHA256SUMS.txt`. The release workflow builds both APKs; publication remains a separate workflow input.
+Each run lives in `pgrazor/build/rooted/<run>/` and records module, payload, DEX, installer hashes, supported game version, and architectures in `report.json`. Release output contains `PGRazor-Root.apk`, `PGRazor-Root-module.zip`, `root-build-info.json`, and checksum entries for both Root downloads in `SHA256SUMS.txt`. The release workflow uploads both APKs and the manual module ZIP as build artifacts and, when publication is requested, as release assets. Publication remains a separate workflow input.
 
 `cleanup.ps1 -RootedOnly` previews rooted cleanup; add `-Apply` to execute it. Packaging invokes this cleanup after completing its report. Copied `input-*.apk` files are expendable once a complete module has been verified. The latest three run folders and `pinnedRootedRuns` entries in local `build-retention.json` protect module/installer outputs. Keep the deployed candidate and a tested rollback pinned. Cleanup preserves reports, original inputs, source, and keys, and writes a receipt under `build/cleanup/`.
 

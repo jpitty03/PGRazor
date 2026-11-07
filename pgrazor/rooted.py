@@ -212,7 +212,7 @@ def main(argv=None):
     parser.add_argument('--download', action='store_true', help='Download pinned build dependencies when missing')
     parser.add_argument('--skip-build', action='store_true', help='Reuse a source-validated PGRazor DEX')
     parser.add_argument('--module-only', action='store_true', help='Build only the development module ZIP')
-    parser.add_argument('--output', type=Path, help='Copy installer and rooted build receipt to this release directory')
+    parser.add_argument('--output', type=Path, help='Copy installer, module ZIP, and rooted build receipt to this release directory')
     args = parser.parse_args(argv)
     if args.output and args.module_only: parser.error('--output requires the installer')
     if not args.skip_build:
@@ -221,12 +221,14 @@ def main(argv=None):
     if args.output:
         args.output.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(report['installer'], args.output / 'PGRazor-Root.apk')
+        shutil.copyfile(report['module'], args.output / 'PGRazor-Root-module.zip')
         public = {key: report[key] for key in ('version', 'target', 'module_sha256', 'installer_sha256', 'abis')}
         (args.output / 'root-build-info.json').write_text(json.dumps(public, indent=2) + '\n', encoding='utf-8')
         sums = args.output / 'SHA256SUMS.txt'
         lines = sums.read_text(encoding='utf-8').splitlines() if sums.exists() else []
-        lines = [line for line in lines if not line.endswith('  PGRazor-Root.apk')]
+        lines = [line for line in lines if not line.endswith(('  PGRazor-Root.apk', '  PGRazor-Root-module.zip'))]
         lines.append(report['installer_sha256'] + '  PGRazor-Root.apk')
+        lines.append(report['module_sha256'] + '  PGRazor-Root-module.zip')
         sums.write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
 
