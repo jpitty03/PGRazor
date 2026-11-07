@@ -104,11 +104,34 @@ uintptr_t pending_raid=0;uint64_t raid_since=0,raid_next=0,raid_closed=0;int32_t
 // fully dismissed (state 0): while it is still dismissing, an invisible screen would swallow the swipes
 // of the encounter underneath. Followed for at most 60 s.
 void *canvas_raycasts=nullptr;
-// The "You're going too fast" warning (Niantic.Holoholo.Map.SpeedModal, opened through GuiController.Open).
-// With the setting on it is hidden as it opens and, once open (state 2), dismissed with its own
-// GuiController.Dismiss(), like tapping through it. Shown again for taps if it is not open within 10 s.
-void *speed_modal_class=nullptr,*gui_dismiss=nullptr;uintptr_t pending_speed=0;uint64_t speed_since=0;
-constexpr uint64_t kSpeedWatchMs=10000;
+// Pop-ups closed with their own GuiController.Dismiss(), as tapping through them does: the "You're going
+// too fast" warning (Niantic.Holoholo.Map.SpeedModal), the medal pop-ups (BadgeAwardGuiController for a new medal, BadgeIncrementGuiController for a medal
+// tier) and the weekly Adventure Sync summary (BgMode.UI.WeeklyFitnessDialog). With the setting on each is hidden as it opens (GuiController.Open) and dismissed once open
+// (state 2); one not open within 15 s is shown again for taps.
+// The level-up screen (LevelUpV3GuiController) is not dismissed: closed straight after opening it left
+// the map ignoring taps (Pixel, until another pop-up closed). It is hidden and stepped through instead,
+// as taps do: its summary's ClaimRewardsButtonClicked and its rewards screen's OnScreenClicked, every
+// 250 ms (each only runs the callback the screen has set for that step, so an early call does nothing),
+// until the screen closes itself; one still open after 30 s is shown again for taps.
+// Nothing here grants anything: level-up
+// rewards are requested by PlayerService itself when the level changes (its Claim Rewards button only
+// runs a UI callback), medals are awarded by the server before the pop-up opens, and the weekly summary
+// is opened from the response to its own GetFitnessRewards request (BgModeWeeklyFitnessNotification).
+struct DismissKind{const char *ns,*name,*event;bool step;void *klass;};
+DismissKind dismiss_kinds[]={{"Niantic.Holoholo.Map","SpeedModal","speed-warning",false,nullptr},
+ {"Niantic.Holoholo.UI","LevelUpV3GuiController","level-up",true,nullptr},
+ {"Niantic.Holoholo.UI","BadgeAwardGuiController","medal",false,nullptr},
+ {"Niantic.Holoholo.UI","BadgeIncrementGuiController","medal-tier",false,nullptr},
+ {"Niantic.Holoholo.BgMode.UI","WeeklyFitnessDialog","weekly-fitness",false,nullptr}};
+constexpr int kDismissKinds=int(sizeof(dismiss_kinds)/sizeof(dismiss_kinds[0]));
+// The level-up screen's two step screens and their tap handlers.
+void *levelup_summary=nullptr,*levelup_rewards=nullptr,*levelup_claim=nullptr,*levelup_click=nullptr;
+constexpr uint64_t kLevelUpStepMs=250,kLevelUpWatchMs=30000;
+struct PendingPopup{uintptr_t handle;int kind;uint64_t since,next;int steps;};
+constexpr int kPendingPopups=8;  // medals often open several at once
+PendingPopup pending_popups[kPendingPopups]={};int pending_popup_count=0;
+void *gui_dismiss=nullptr;
+constexpr uint64_t kPopupWatchMs=15000;
 constexpr uint64_t kRaidDismissWatchMs=60000;
 // The power-up animation on a Pokemon's page. PokemonInfoPanel.cift (obfuscated) handles the server's
 // UpgradePokemonOutProto and starts the panel's own power-up coroutine, which paces each step (model
@@ -378,29 +401,65 @@ void hook_gui_open(void *self,const void *m){
   }catch(...){}
  }
  reinterpret_cast<GuiOpen>(gui_open_original.load(std::memory_order_acquire))(self,m);
- if(active()&&self&&speed_modal_class&&gui_dismiss&&!pending_speed){
+ if(active()&&self&&gui_dismiss&&pending_popup_count<kPendingPopups){
   try{
-   if(klass(self)==speed_modal_class){
-    pending_speed=fn<uintptr_t(*)(void*,int)>(boot.runtime.gchandle_new)(self,0);speed_since=clock_ms();
-    if(root_canvas&&canvas_alpha)set_alpha(self,0.f);
+   void *k=klass(self);
+   for(int i=0;i<kDismissKinds;++i){
+    if(!dismiss_kinds[i].klass||k!=dismiss_kinds[i].klass)continue;
+    const uintptr_t h=fn<uintptr_t(*)(void*,int)>(boot.runtime.gchandle_new)(self,0);
+    if(h){pending_popups[pending_popup_count++]={h,i,clock_ms(),0,0};if(root_canvas&&canvas_alpha)set_alpha(self,0.f);}
+    break;
    }
   }catch(...){}
  }
 }
-void advance_speed(){
- void *gui=fn<void*(*)(uintptr_t)>(boot.runtime.gchandle_get_target)(pending_speed);
- bool done=!gui;
+void *object_field(void *o,void *f){void *v=nullptr;fn<void(*)(void*,void*,void*)>(boot.runtime.field_get_value)(o,f,&v);return v;}
+// One step for the hidden level-up screen; true once it has closed itself or is left for taps.
+bool advance_levelup(PendingPopup &p,void *gui){
+ const uint64_t now=clock_ms();
+ const int32_t state=int_field(gui,gui_state);
+ if(state==0){event("{\"phase\":\"skipped\",\"kind\":\"level-up\",\"ms\":"+std::to_string(now-p.since)+",\"steps\":"+std::to_string(p.steps)+"}");return true;}
+ if(now-p.since>kLevelUpWatchMs){set_alpha(gui,1.f);status("warning","level-up left for taps (state "+std::to_string(state)+")");return true;}
+ set_alpha(gui,0.f);  // every tick: its own transitions may restore the alpha
+ if(state==3||now<p.next)return false;  // closing itself, or between steps
+ p.next=now+kLevelUpStepMs;++p.steps;
+ if(void *summary=object_field(gui,levelup_summary))invoke(levelup_claim,summary);
+ if(void *rewards=object_field(gui,levelup_rewards))invoke(levelup_click,rewards);
+ return false;
+}
+// One step for a hidden pop-up; true once it is dismissed, gone or left for taps.
+bool advance_popup(PendingPopup &p){
+ void *gui=fn<void*(*)(uintptr_t)>(boot.runtime.gchandle_get_target)(p.handle);
+ if(!gui)return true;
+ const DismissKind &k=dismiss_kinds[p.kind];
  try{
-  if(gui){
-   const int32_t state=int_field(gui,gui_state);
-   if(state==2){invoke(gui_dismiss,gui);done=true;event("{\"phase\":\"skipped\",\"kind\":\"speed-warning\",\"ms\":"+std::to_string(clock_ms()-speed_since)+"}");}
-   else if(state==0||state==3)done=true;
-   else if(clock_ms()-speed_since>kSpeedWatchMs){done=true;set_alpha(gui,1.f);status("warning","Speed warning left for taps");}
-   else set_alpha(gui,0.f);
-  }
- }catch(const Failure &f){done=true;if(gui){try{set_alpha(gui,1.f);}catch(...){}}status("warning",std::string("Speed warning left for taps: ")+f.where);}
- if(!done)return;
- fn<void(*)(uintptr_t)>(boot.runtime.gchandle_free)(pending_speed);pending_speed=0;
+  if(k.step)return advance_levelup(p,gui);
+  const int32_t state=int_field(gui,gui_state);
+  if(state==2){invoke(gui_dismiss,gui);event(std::string("{\"phase\":\"skipped\",\"kind\":\"")+k.event+"\",\"ms\":"+std::to_string(clock_ms()-p.since)+"}");return true;}
+  if(state==0||state==3)return true;
+  if(clock_ms()-p.since>kPopupWatchMs){set_alpha(gui,1.f);status("warning",std::string(k.event)+" left for taps");return true;}
+  set_alpha(gui,0.f);  // every tick: its own transitions may restore the alpha
+  return false;
+ }catch(const Failure &f){try{set_alpha(gui,1.f);}catch(...){}status("warning",std::string(k.event)+" left for taps: "+f.where);return true;}
+ catch(...){try{set_alpha(gui,1.f);}catch(...){}status("warning",std::string(k.event)+" left for taps");return true;}
+}
+void advance_popups(){
+ int kept=0;
+ for(int i=0;i<pending_popup_count;++i){
+  PendingPopup p=pending_popups[i];
+  if(advance_popup(p))fn<void(*)(uintptr_t)>(boot.runtime.gchandle_free)(p.handle);
+  else pending_popups[kept++]=p;
+ }
+ pending_popup_count=kept;
+}
+// Without ticks a hidden pop-up is shown again rather than left invisible.
+void release_popups(){
+ for(int i=0;i<pending_popup_count;++i){
+  void *gui=fn<void*(*)(uintptr_t)>(boot.runtime.gchandle_get_target)(pending_popups[i].handle);
+  if(gui){try{set_alpha(gui,1.f);}catch(...){}}
+  fn<void(*)(uintptr_t)>(boot.runtime.gchandle_free)(pending_popups[i].handle);
+ }
+ pending_popup_count=0;
 }
 
 using RaidInit=void(*)(void*,void*,const void*);
@@ -668,12 +727,23 @@ void install(){
   if(hook(api,t,missing))++count;else raid_close=nullptr;
  }catch(const Failure &f){raid_close=nullptr;missing+=std::string(missing.empty()?"":", ")+"raid-results ("+f.where+")";}
 
- // The speed warning: dismissed through GuiController.Dismiss once open (no hook of its own).
+ // The speed warning, level-up screen and medal pop-ups: dismissed through GuiController.Dismiss once
+ // open (no hooks of their own). Each class is optional.
  try{
   require(gui_state&&root_canvas&&canvas_alpha,"GuiController state");
   gui_dismiss=method(class_of(api,"Niantic.Holoholo.NUI","GuiController"),"Dismiss",0);
-  speed_modal_class=class_of(api,"Niantic.Holoholo.Map","SpeedModal");
- }catch(const Failure &f){gui_dismiss=nullptr;speed_modal_class=nullptr;missing+=std::string(missing.empty()?"":", ")+"speed-warning ("+f.where+")";}
+  for(auto &k:dismiss_kinds){
+   try{
+    k.klass=class_of(api,k.ns,k.name);
+    if(k.step){
+     auto field=[&](const char *name){void *f=fn<void*(*)(void*,const char*)>(boot.meta.class_get_field_from_name)(k.klass,name);require(f,name);return f;};
+     levelup_summary=field("levelUpSummaryScreen");levelup_rewards=field("levelUpRewardsScreen");
+     levelup_claim=method(class_of(api,"Niantic.Holoholo.UI","LevelUpSummaryScreen"),"ClaimRewardsButtonClicked",0);
+     levelup_click=method(class_of(api,"Niantic.Holoholo.UI","LevelUpRewardsScreen"),"OnScreenClicked",0);
+    }
+   }catch(const Failure &f){k.klass=nullptr;missing+=std::string(missing.empty()?"":", ")+k.event+" ("+f.where+")";}
+  }
+ }catch(const Failure &f){gui_dismiss=nullptr;missing+=std::string(missing.empty()?"":", ")+"pop-ups ("+f.where+")";}
 
  // The power-up animation: the panel's seven Single timing fields by name, then cift.
  try{
@@ -724,7 +794,7 @@ void pgr_cutscene_skip_tick(uint64_t tid,const PgrSharedMetadataOutput *){
  if(pending_rewards)advance_rewards();
  if(fast_rewards)advance_fast();
  if(pending_raid)advance_raid();
- if(pending_speed)advance_speed();
+ if(pending_popup_count)advance_popups();
  const bool on=configured();enabled.store(on,std::memory_order_release);
  if(!on||tried||faulted.load(std::memory_order_acquire))return;
  tried=true;
@@ -741,6 +811,7 @@ void pgr_cutscene_skip_stop(uint64_t tid){
   if(pending_dialog)finish_dialog();
   if(pending_dismiss)finish_dismiss();
   if(pending_radar)finish_radar();
+  if(pending_popup_count)release_popups();
   if(pending_raid){  // shown again rather than left hidden without ticks
    void *gui=fn<void*(*)(uintptr_t)>(boot.runtime.gchandle_get_target)(pending_raid);
    if(gui){try{set_alpha(gui,1.f);}catch(...){}}

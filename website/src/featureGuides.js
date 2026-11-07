@@ -471,7 +471,7 @@ export const featureGuides = [
       'For Team GO Rocket, the grunt’s and leader’s lines are skipped, but the battle starts only when you press Battle. After a win, the rewards screen is skipped and the shadow encounter opens.',
     ],
     notes: [
-      'Also skipped: the hatched Pokémon’s page, the Rocket Radar and Purified Gem assembled pop-ups (the radar is still equipped), the shadow raid results screen, and the power-up animation. Power-up confirmations still show.',
+      'Also skipped: the hatched Pokémon’s page, the Rocket Radar and Purified Gem assembled pop-ups (the radar is still equipped), the shadow raid results screen, the power-up animation, the level-up screen, new medal and medal tier pop-ups, the weekly Adventure Sync summary, and the “You’re going too fast” warning. Power-up confirmations still show.',
       'Rewards are granted by the server as usual; only the screens are skipped.',
       'A loss or draw keeps the Rocket results screen so you can rematch.',
     ],

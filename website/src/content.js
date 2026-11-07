@@ -85,7 +85,7 @@ export const settingGroups = [
       { name: 'Overlay scaling', detail: 'Size the launcher, quick menu, joystick, timer, and overlays at 100 / 75 / 50 / 25%.' },
       { name: 'Reposition overlays', detail: 'Drag the cooldown timer, VGP icon, and Keep All toggle anywhere.' },
       { name: 'Quick menu', detail: 'Reach Map, speed, Autowalk, Feeds, Favorites, Teleport, Automation, Research, and Settings fast. Customize Quick Menu hides entries you don’t use; Settings always stays visible.' },
-      { name: 'Skip cutscenes', detail: 'Bypass evolution, hatch, new-species, power-up, and Team GO Rocket cutscenes and result screens so they are never drawn. Battles still start only when you press Battle.' },
+      { name: 'Skip cutscenes', detail: 'Bypass evolution, hatch, new-species, power-up, level-up, medal, and Team GO Rocket cutscenes and result screens so they are never drawn. Battles still start only when you press Battle.' },
       { name: 'Hide overlay', detail: 'Make the game look stock: hide every PGRazor button, status, and IV text; tap with three fingers to bring them back.' },
       { name: 'Settings backup', detail: 'Export / import settings as JSON; tokens, location, and routes are left out.' },
     ],
