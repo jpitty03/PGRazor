@@ -51,6 +51,16 @@ bool number(const std::string &s,int lo,int hi,int &v){
  for(char c:s){if(c<'0'||c>'9')return false;n=n*10+c-'0';}
  if(n<lo||n>hi)return false;v=n;return true;
 }
+// Comma-separated dex ids into an ascending, de-duplicated array; an empty string is an empty list.
+bool species_list(const std::string &text,int32_t *ids,uint32_t &count){
+ count=0;if(text.empty())return true;
+ size_t pos=0;while(pos<=text.size()){
+  size_t end=text.find(',',pos);if(end==std::string::npos)end=text.size();int id=0;
+  if(count==PGR_SMART_MAX_SPECIES||!number(text.substr(pos,end-pos),1,2000,id))return false;
+  ids[count++]=id;if(end==text.size())break;pos=end+1;
+ }
+ std::sort(ids,ids+count);count=uint32_t(std::unique(ids,ids+count)-ids);return true;
+}
 bool read_config(std::string &text,PgrSmartSettings &settings){
  const auto *t=static_cast<const PgrRuntimeTransportApi*>(pgrazor_runtime_transport_api(1));
  PgrRuntimeTransportSample sample{};sample.version=1;sample.size=sizeof(sample);
@@ -102,8 +112,9 @@ extern "C" int pgr_smart_parse_settings(const char *text,size_t len,PgrSmartSett
  *out={};out->ball=1;out->premium=1;out->high_cp=1500;out->high_level=30;out->grade=3;out->curve=1;out->auto_target=75;
  if(!text||len>PGR_SMART_CONFIG_MAX)return 0;
  std::vector<std::string> parts;size_t start=0;
- for(size_t i=0;i<=len;++i)if(i==len||text[i]==';'){parts.emplace_back(text+start,i-start);start=i+1;if(parts.size()>12)return 0;}
- const bool v2=parts.size()==12&&parts[0]=="2";
+ for(size_t i=0;i<=len;++i)if(i==len||text[i]==';'){parts.emplace_back(text+start,i-start);start=i+1;if(parts.size()>13)return 0;}
+ const bool v3=parts.size()==13&&parts[0]=="3";
+ const bool v2=v3||(parts.size()==12&&parts[0]=="2");
  if(!v2&&(parts.size()!=10||parts[0]!="1"))return 0;
  PgrSmartSettings s{};s.auto_target=75;
  if(v2&&(!number(parts[9],0,1,s.auto_ball)||!number(parts[10],1,99,s.auto_target)))return 0;
@@ -111,15 +122,8 @@ extern "C" int pgr_smart_parse_settings(const char *text,size_t len,PgrSmartSett
  if(!number(parts[1],0,1,s.enabled)||!number(parts[2],1,3,s.ball)||!number(parts[3],0,708,s.berry)||
     (s.berry&&!berry_valid(s.berry))||!number(parts[4],0,1,s.premium)||!number(parts[5],0,10000,s.high_cp)||
     !number(parts[6],0,50,s.high_level)||!number(parts[7],0,3,s.grade)||!number(parts[8],0,1,s.curve))return 0;
- if(!species.empty()){
-  size_t pos=0;while(pos<=species.size()){
-   size_t end=species.find(',',pos);if(end==std::string::npos)end=species.size();int id=0;
-   if(s.species_count==PGR_SMART_MAX_SPECIES||!number(species.substr(pos,end-pos),1,2000,id))return 0;
-   s.species[s.species_count++]=id;if(end==species.size())break;pos=end+1;
-  }
-  std::sort(s.species,s.species+s.species_count);
-  s.species_count=std::unique(s.species,s.species+s.species_count)-s.species;
- }
+ if(!species_list(species,s.species,s.species_count))return 0;
+ if(v3&&!species_list(parts[12],s.catch_species,s.catch_count))return 0;
  *out=s;return 0;
 }
 extern "C" void pgr_smart_decide(const PgrSmartSettings *s,bool shiny,int iv_sum,bool iv_valid,int cp,int level_half,int species,PgrSmartDecision *out){
@@ -158,6 +162,7 @@ extern "C" int pgr_smart_plan(void *target,void *itemBag,uint64_t owner,PgrSmart
  if(!exact(pokemon.get(),b.class_pokemon_proto))return PGR_SMART_ERR_IDENTITY;
  const int atk=field<int>(pokemon.get(),b.f_proto_atk),def=field<int>(pokemon.get(),b.f_proto_def),sta=field<int>(pokemon.get(),b.f_proto_sta);
  const int cp=field<int>(pokemon.get(),b.f_proto_cp),species=field<int>(pokemon.get(),b.f_proto_id);
+ if(!pgr_smart_catch_wanted(&settings,species))return PGR_SMART_SKIP_SPECIES;
  const float multiplier=field<float>(pokemon.get(),b.f_proto_cpmul)+field<float>(pokemon.get(),b.f_proto_addcpmul);
  bool shiny=false;void *display=field<void*>(pokemon.get(),b.f_proto_display);
  if(display){if(!exact(display,b.class_display_proto))return PGR_SMART_ERR_IDENTITY;shiny=field<uint8_t>(display,b.f_display_shiny)!=0;}

@@ -9358,6 +9358,11 @@
         "value": "0x18",
         "purpose": "Field IncenseEncounterOutProto.Pokemon"
       },
+      "wild_pokemon_offset": {
+        "kind": "offset",
+        "value": "0x38",
+        "purpose": "Field WildPokemonProto.Pokemon"
+      },
       "embt_offset": {
         "kind": "offset",
         "value": "0x280",

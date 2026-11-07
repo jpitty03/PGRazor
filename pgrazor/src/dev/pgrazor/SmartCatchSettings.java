@@ -36,6 +36,9 @@ public final class SmartCatchSettings {
     public static String normalizeSpecies(String value){return SmartCatchPreferences.normalizeSpecies(value);}
     static String candySpecies(){return preferences.candySpecies();}
     static void setCandySpecies(String value){set("CandySpecies",value);}
+    static String catchSpecies(){return preferences.catchSpecies();}
+    static void setCatchSpecies(String value){set("CatchSpecies",value);}
+    private static String count(String ids,String none){return ids.isEmpty()?none:ids.split(",").length+" selected";}
     private static void set(String key,Object value){preferences.set(key,String.valueOf(value));persist();}
     private static void persist(){Control.saveSettings();}
     public static Runnable populate(Activity activity,LinearLayout body){
@@ -63,8 +66,11 @@ public final class SmartCatchSettings {
         CheckBox gymSpin=new CheckBox(ui);gymSpin.setText("Auto-spin Gym discs");gymSpin.setChecked(preferences.spinGyms());options.addView(gymSpin);
         TextView gymSpinHelp=new TextView(ui);gymSpinHelp.setText("While VGP is running on the map, spin nearby Gym discs of any team within 80 m when the item bag has room.");options.addView(gymSpinHelp);
         gymSpin.setOnCheckedChangeListener((v,on)->{if(on!=preferences.spinGyms())set("SpinGyms",on);});
-        TextView candy=button(options,"Candy species (Pinap): "+(preferences.candySpecies().isEmpty()?"None":preferences.candySpecies().split(",").length+" selected"));
-        candy.setOnClickListener(v->SmartCatchSpeciesDialog.show(activity,()->candy.setText("Candy species (Pinap): "+(preferences.candySpecies().isEmpty()?"None":preferences.candySpecies().split(",").length+" selected"))));
+        TextView candy=button(options,"Candy species (Pinap): "+count(preferences.candySpecies(),"None"));
+        candy.setOnClickListener(v->SmartCatchSpeciesDialog.show(activity,()->candy.setText("Candy species (Pinap): "+count(preferences.candySpecies(),"None"))));
+        TextView only=button(options,"Catch only: "+count(preferences.catchSpecies(),"All species"));
+        TextView onlyHelp=new TextView(ui);onlyHelp.setText("When species are selected, VGP+ catches only those and leaves every other Pokémon on the map, shiny or not.");options.addView(onlyHelp);
+        only.setOnClickListener(v->SmartCatchSpeciesDialog.showCatchOnly(activity,()->only.setText("Catch only: "+count(preferences.catchSpecies(),"All species"))));
         Runnable refresh=()->{mode.setChecked(preferences.enabled());gymSpin.setChecked(preferences.spinGyms());auto.setChecked(preferences.autoBall());SettingsUi.enabled(mode,Control.vgpOverlay());SettingsUi.enabled(options,Control.vgpOverlay()&&preferences.enabled());if(Control.vgpOverlay()&&preferences.enabled()){SettingsUi.enabled(autoTarget,preferences.autoBall());SettingsUi.enabled(standard,!preferences.autoBall());}};
         auto.setOnCheckedChangeListener((v,on)->{if(on!=preferences.autoBall())set("AutoBall",on);refresh.run();});
         mode.setOnCheckedChangeListener((v,on)->{if(on!=preferences.enabled())set("Enabled",on);refresh.run();});
@@ -109,8 +115,8 @@ public final class SmartCatchSettings {
     }
 }
 
-// Searchable, offline species picker adapted from TransferKeepDialog: the Smart Catch candy list and the
-// Shundo Sniper species list.
+// Searchable, offline species picker adapted from TransferKeepDialog: the Smart Catch candy and catch-only
+// lists and the Shundo Sniper species list.
 final class SmartCatchSpeciesDialog {
     private SmartCatchSpeciesDialog() {}
 
@@ -121,6 +127,10 @@ final class SmartCatchSpeciesDialog {
 
     public static void show(Activity activity, Runnable onSaved) {
         show(activity, "Candy species (Pinap)", "candy species", 200, SmartCatchSettings::candySpecies, SmartCatchSettings::setCandySpecies, onSaved);
+    }
+
+    static void showCatchOnly(Activity activity, Runnable onSaved) {
+        show(activity, "Catch only these species", "species", 200, SmartCatchSettings::catchSpecies, SmartCatchSettings::setCatchSpecies, onSaved);
     }
 
     /** A picker over a canonical comma list of dex ids: load reads it, save stores it, at most max ids. */

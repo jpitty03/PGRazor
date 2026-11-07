@@ -7,7 +7,7 @@ import java.util.TreeSet;
 public final class SmartCatchPreferences {
     private boolean enabled, premium=true, curve=true, spinGyms, autoBall;
     private int ball=1, berry, highCp=1500, highLevel=30, grade=3, autoBallTarget=75;
-    private String candySpecies="";
+    private String candySpecies="",catchSpecies="";
     private static final int[] BERRIES={0,701,703,705,706,708};
 
     private static int number(Properties p,String key,int fallback,int min,int max){
@@ -44,6 +44,7 @@ public final class SmartCatchPreferences {
         if(spin==null)spin=p.getProperty("gymAutomationSpin");
         spinGyms="true".equals(spin);
         try{candySpecies=normalizeSpecies(p.getProperty("smartCatchCandySpecies",""));}catch(IllegalArgumentException e){candySpecies="";}
+        try{catchSpecies=normalizeSpecies(p.getProperty("smartCatchCatchSpecies",""));}catch(IllegalArgumentException e){catchSpecies="";}
     }
     public synchronized void write(Properties p){
         p.setProperty("smartCatchEnabled",String.valueOf(enabled));p.setProperty("smartCatchBall",String.valueOf(ball));
@@ -53,10 +54,12 @@ public final class SmartCatchPreferences {
         p.setProperty("smartCatchAutoBall",String.valueOf(autoBall));p.setProperty("smartCatchAutoBallTarget",String.valueOf(autoBallTarget));
         p.setProperty("smartCatchSpinGyms",String.valueOf(spinGyms));p.remove("gymAutomationSpin");
         p.setProperty("smartCatchCandySpecies",candySpecies);
+        p.setProperty("smartCatchCatchSpecies",catchSpecies);
     }
     public synchronized String config(){
-        // Version 2 adds auto ball and its target before the species list.
-        return "2;"+(enabled?1:0)+";"+ball+";"+berry+";"+(premium?1:0)+";"+highCp+";"+highLevel+";"+grade+";"+(curve?1:0)+";"+(autoBall?1:0)+";"+autoBallTarget+";"+candySpecies;
+        // Version 2 adds auto ball and its target before the species list; version 3 appends the
+        // catch-only species list (empty catches every species).
+        return "3;"+(enabled?1:0)+";"+ball+";"+berry+";"+(premium?1:0)+";"+highCp+";"+highLevel+";"+grade+";"+(curve?1:0)+";"+(autoBall?1:0)+";"+autoBallTarget+";"+candySpecies+";"+catchSpecies;
     }
     public static boolean matchesSpecies(int id,String name,String query){
         String q=query==null?"":query.trim().toLowerCase(java.util.Locale.US);
@@ -75,15 +78,17 @@ public final class SmartCatchPreferences {
     public synchronized int highLevel(){return highLevel;}
     public synchronized int grade(){return grade;}
     public synchronized String candySpecies(){return candySpecies;}
+    public synchronized String catchSpecies(){return catchSpecies;}
     /** Validates a complete prospective snapshot before replacing any state. */
     public synchronized void set(String suffix,String value){
         if(suffix==null||value==null)throw new IllegalArgumentException("Setting key and value are required.");
         Properties p=new Properties();write(p);p.setProperty("smartCatch"+suffix,value);
         SmartCatchPreferences candidate=new SmartCatchPreferences();candidate.read(p);
         Properties normalized=new Properties();candidate.write(normalized);
-        if(!value.equals(normalized.getProperty("smartCatch"+suffix)) && !"CandySpecies".equals(suffix))
+        boolean species="CandySpecies".equals(suffix)||"CatchSpecies".equals(suffix);
+        if(!value.equals(normalized.getProperty("smartCatch"+suffix)) && !species)
             throw new IllegalArgumentException("Invalid smart catch "+suffix);
-        if("CandySpecies".equals(suffix))p.setProperty("smartCatchCandySpecies",normalizeSpecies(value));
+        if(species)p.setProperty("smartCatch"+suffix,normalizeSpecies(value));
         read(p);
     }
 }

@@ -12,6 +12,7 @@ std::string smart_text="1;1;3;0;1;1500;30;3;1;";
 int selected_calls=0,berry_calls=0,berry_confirmations=0,plans=0;
 int desired_berry=705;
 int encounter_accepted=1;
+int plan_status=0;
 uint64_t idle_clock=0,idle_deadline=0;
 unsigned idle_enumerations=0;
 uint32_t last_discovery_kind=0;
@@ -58,9 +59,10 @@ extern "C" int pgr_smart_parse_settings(const char *text,size_t len,PgrSmartSett
 }
 extern "C" int pgr_smart_ensure_bound(uint64_t owner){assert(owner==tid);return 0;}
 extern "C" int pgr_smart_spawn_fresh(void *target,uint64_t owner){assert(target==candObj.p()&&owner==tid);return 1;}
+extern "C" int pgr_smart_map_species(void *target,uint64_t owner){assert(target==candObj.p()&&owner==tid);return 0;}
 extern "C" int pgr_smart_encounter_success(void *target,void *response,uint64_t){assert(target==candObj.p()&&response==respObj.p());return encounter_accepted;}
 extern "C" int pgr_smart_plan(void *target,void *bag,uint64_t owner,PgrSmartDecision *out){
- assert(target==candObj.p()&&bag==ibagObj.p()&&owner==tid);++plans;*out={};out->enabled=true;out->ball=3;out->grade=3;out->curve=true;out->berry=desired_berry;return 0;
+ assert(target==candObj.p()&&bag==ibagObj.p()&&owner==tid);++plans;*out={};if(plan_status)return plan_status;out->enabled=true;out->ball=3;out->grade=3;out->curve=true;out->berry=desired_berry;return 0;
 }
 void pgr_smart_set_admission_guard(bool (*guard)(void*),void *context){admission=guard;admission_context=context;}
 extern "C" int pgr_smart_berry(void *target,void *bag,int32_t berry,uint64_t owner,uint64_t lease,uint64_t *promise,uint64_t *reflection){
@@ -121,6 +123,10 @@ int main(){
  resetScenario();encounter_accepted=0;g_pollRc=PGR_VR_PENDING;step();
  g_pollRc=PGR_VR_DONE;next_poll();auto declined=step();
  assert(declined.status==PGR_VGC_ST_REJECTED&&selected_calls==4&&berry_calls==4);assert_clean();encounter_accepted=1;
+ // A species off the catch-only list is left alone: no berry, no throw, no roots kept.
+ {plan_status=PGR_SMART_SKIP_SPECIES;const int plans_before=plans;uint64_t entered=begin_wait();
+  auto skipped=await_phase(PGR_VGC_PH_NONE,entered+2200);
+  assert(plans==plans_before+1&&skipped.status==PGR_VGC_ST_WATCHING&&selected_calls==4&&berry_calls==4);assert_clean();plan_status=0;}
  begin_wait();assert(api->stop(tid)==0);assert_clean();next_poll();step();assert(selected_calls==4&&berry_calls==4);assert_clean();
  std::puts("smart catch production controller pacing, berry confirmation, retry cap and cancellation passed");
 }

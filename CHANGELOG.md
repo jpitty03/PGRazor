@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### New features
+
+- VGP+ catch-only list: choose species, such as Combee, and VGP+ catches only those, leaving every other Pokémon on the map.
+
 ### Improvements & fixes
 
 - Added more cutscene skips

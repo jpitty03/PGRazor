@@ -88,6 +88,7 @@ enum PgrSmartStatus {
   PGR_SMART_OK            = 0,   // plan(): decision written (may be .enabled==false); berry(): refused
   PGR_SMART_NO_BALLS      = 2,   // plan(): enabled but NO regular ball in stock (distinct from error)
   PGR_SMART_NOT_SUCCESS   = 3,   // berry_success(): response is UseItemEncounterOutProto but not Success
+  PGR_SMART_SKIP_SPECIES  = 4,   // plan(): enabled, but the species is not on the catch-only list
   PGR_SMART_ERR_NULL_ARG      = -1,
   PGR_SMART_ERR_BAD_VERSION   = -2,
   PGR_SMART_ERR_BAD_SIZE      = -3,
@@ -104,8 +105,9 @@ enum PgrSmartStatus {
 
 // Parsed Smart Catcher settings (transport index 7). Format, exactly as emitted by
 // SmartCatchSettings.config():
-//   "2;enabled;ball;berry;premium;highCp;highLevel;grade;curve;autoBall;autoTarget;<species ids>"
-// The version-1 form (without autoBall/autoTarget) is still accepted, with auto ball off.
+//   "3;enabled;ball;berry;premium;highCp;highLevel;grade;curve;autoBall;autoTarget;<candy ids>;<catch ids>"
+// The version-2 form (without the catch-only list) and the version-1 form (also without
+// autoBall/autoTarget) are still accepted, catching every species with auto ball off for version 1.
 // Field 0 is the schema tag "1". A malformed string, a wrong tag, an out-of-range field or an over-long
 // buffer yields a SAFE DISABLED result (enabled == false): smart is never run on an unparseable config.
 struct PgrSmartSettings {
@@ -121,7 +123,17 @@ struct PgrSmartSettings {
   int32_t  species[PGR_SMART_MAX_SPECIES];  // ascending, de-duplicated National Dex ids (1..2000)
   int32_t  auto_ball;      // 0/1: pick the cheapest ball that reaches auto_target (version 2)
   int32_t  auto_target;    // 1..99 percent (default 75)
+  uint32_t catch_count;    // catch-only species (version 3); 0 catches every species
+  int32_t  catch_species[PGR_SMART_MAX_SPECIES];  // ascending, de-duplicated National Dex ids (1..2000)
 };
+
+// Catch-only list: an empty list catches every species.
+static inline bool pgr_smart_catch_wanted(const PgrSmartSettings *s, int species) {
+  if (!s || !s->catch_count) return true;
+  for (uint32_t i = 0; i < s->catch_count && i < PGR_SMART_MAX_SPECIES; ++i)
+    if (s->catch_species[i] == species) return true;
+  return false;
+}
 
 // The decision handed back to the controller after a confirmed encounter. ball is always a regular ball
 // (1..3) that is in stock on PGR_SMART_OK with enabled==true; berry is 0 when Off or out of stock.
@@ -237,7 +249,8 @@ void pgr_smart_decide(const PgrSmartSettings *s, bool shiny, int iv_sum, bool iv
 // a different one is PGR_SMART_ERR_RECONFIG. Validates header/size and rejects any null mandatory pointer.
 int pgr_smart_bind(const PgrSmartBinding *binding);
 
-// Plan the ball/berry for a CONFIRMED encounter. `target` is the rooted WildMapPokemon, `itemBag` the
+// Plan the ball/berry for a CONFIRMED encounter. Returns PGR_SMART_SKIP_SPECIES, before any stock read,
+// when a catch-only list is set and the encountered species is not on it. `target` is the rooted WildMapPokemon, `itemBag` the
 // rooted IItemBag; `owner` is the proven Unity owner tid. Reads WildMapPokemon.eluq (PokemonProto) ONLY
 // (exact class checked), derives shiny/IV/CP/(optional level)/species, decides, then resolves actual
 // stock: the selected ball or a cheaper in-stock regular ball (never Master); the berry is dropped when

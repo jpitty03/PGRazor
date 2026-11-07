@@ -68,6 +68,10 @@ int pgr_smart_ensure_bound(uint64_t owner);
 // (0) when the mon is known to despawn in under FRESH_MIN_MS, or PGR_SMARTBIND_ERR_IDENTITY (-11) on a
 // null/wrong-class target, an owner-thread mismatch, or when ensure_bound has not succeeded. Read-only.
 int pgr_smart_spawn_fresh(void *rootedWild, uint64_t owner);
+// Species (National Dex id) a rooted WildMapPokemon shows on the map, from its WildPokemonProto, before any
+// encounter. 0 when unknown (incense spawn, no map data, or the optional field did not bind); negative on a
+// null/wrong-class target or owner mismatch. Read-only.
+int pgr_smart_map_species(void *rootedWild, uint64_t owner);
 // 1 = exact successful encounter with Pokemon data, 0 = declined, negative = malformed.
 int pgr_smart_encounter_success(void *target, void *response, uint64_t owner);
 
