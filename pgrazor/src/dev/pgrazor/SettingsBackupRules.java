@@ -45,7 +45,7 @@ public final class SettingsBackupRules {
             if(key.equals("smartHealThreshold")){require(n==25||n==50||n==75||n==100,"Invalid smart healing threshold");continue;}
             if(key.equals("pvpKeepLeagues")){require(n>=0&&n<=7,"Invalid PvP leagues");continue;}
             if(key.equals("pvpGreatRank")||key.equals("pvpUltraRank")||key.equals("pvpMasterRank")){require(n>=1&&n<=4096,"Invalid PvP rank");continue;}
-            int max=key.equals("battleOptions")?1023:key.equals("transferProtect")?63:key.equals("grade")?3:key.equals("mapTap")?3:key.equals("storageIv")||key.equals("storageIvFormat")||key.equals("ivCatchFormat")||key.equals("ivOwnedFormat")?4:7;
+            int max=key.equals("battleOptions")?1023:key.equals("transferProtect")?127:key.equals("grade")?3:key.equals("mapTap")?3:key.equals("storageIv")||key.equals("storageIvFormat")||key.equals("ivCatchFormat")||key.equals("ivOwnedFormat")?4:7;
             require(n>=0&&n<=max,"Invalid "+key);
         }
         JSONObject preferences=root.getJSONObject("preferences");

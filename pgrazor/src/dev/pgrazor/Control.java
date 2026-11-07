@@ -120,7 +120,7 @@ public final class Control {
     private static volatile boolean quickSummaryConfigured, quickSummaryReady, quickSummaryEnabled;
     private static volatile boolean quickSummaryAutoDismiss;
     private static volatile boolean autoTransferEnabled, autoTransferReady;
-    private static volatile int transferProtect=63;
+    private static volatile int transferProtect=127;
     private static volatile String transferStatus="Waiting for transfer support";
     // Custom keep list (canonical, sorted/de-duplicated positive dex IDs) plus the persistent Keep All
     // overlay. Keep All holds every catch regardless of the other rules; the keep list protects the
@@ -436,7 +436,7 @@ public final class Control {
     public static int transferProtect(){return transferProtect;}
     public static String transferStatus(){return transferStatus;}
     public static void setAutoTransferEnabled(boolean enabled){invalidateQuickBallOutcome();autoTransferEnabled=enabled;saveSettings();event("auto-transfer-setting",enabled?"ON; new catches below90percent only":"OFF");}
-    public static void setTransferProtect(int mask){transferProtect=mask>=0&&mask<=63?mask:63;saveSettings();event("auto-transfer-protection",String.valueOf(transferProtect));}
+    public static void setTransferProtect(int mask){transferProtect=mask>=0&&mask<=127?mask:127;saveSettings();event("auto-transfer-protection",String.valueOf(transferProtect));}
     public static void setAutoTransferReady(boolean ready,String status){autoTransferReady=ready&&quickSummaryReady();transferStatus=status==null?"":status;}
     public static void transferResult(String status){transferStatus=status==null?"":status;}
     /** Main transfer permission; manual Keep All is applied only by the encounter consumer. */
@@ -1088,7 +1088,7 @@ public final class Control {
                 if(!validItemRules(itemRules)||!validItemRules(itemLimits)){itemTransferEnabled=false;itemRules="";itemLimits="";}
                 quickSpinEnabled=Boolean.parseBoolean(p.getProperty("quickSpin","false"));
                 autoTransferEnabled=Boolean.parseBoolean(p.getProperty("autoTransfer","false"));
-                try { transferProtect=Integer.parseInt(p.getProperty("transferProtect","63")); if(transferProtect<0||transferProtect>63)transferProtect=63; } catch(NumberFormatException e){transferProtect=63;}
+                try { transferProtect=Integer.parseInt(p.getProperty("transferProtect","127")); if(transferProtect<0||transferProtect>127)transferProtect=127; } catch(NumberFormatException e){transferProtect=127;}
                 transferKeepAll=Boolean.parseBoolean(p.getProperty("transferKeepAll","false"));
                 transferOverlayEnabled=Boolean.parseBoolean(p.getProperty("transferOverlay","false"));
                 boolean[] keepDamaged=new boolean[1];

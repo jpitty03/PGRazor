@@ -21,6 +21,8 @@ int decide(const PgrTransferInput *v) {
     if(v->flags&192)return 8;
     if((v->attack+v->defense+v->stamina)*100>=90*45)return 9;
     for(uint32_t bit=0;bit<6;++bit)if(v->protect&v->flags&(1u<<bit))return 10+bit;
+    // Protect bit 6 (64): keep a 0/0/0 Pokemon.
+    if((v->protect&64)&&v->attack==0&&v->defense==0&&v->stamina==0)return 19;
     return 0;
 }
 const PgrTransferApi api{1,sizeof(PgrTransferApi),decide};

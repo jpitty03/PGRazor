@@ -363,7 +363,7 @@ static void notify_transfer_result(const char *summary) {
 
 static void notify_transfer_outcome(const char *outcome){const char *strings[]={outcome};transport_emit_op(22,nullptr,0,strings,1);}
 static void notify_transfer_error(const char *reason){char text[256];snprintf(text,sizeof(text),"Transfer Error: %s",reason);notify_transfer_result(text);notify_transfer_outcome("transfer-error");}
-static const char *transfer_reason(int code){static const char *reasons[]={"","keep-all","invalid-keep-list","unknown-species","custom-keep-list","unknown-iv","unknown-category","unknown-size","favorite-or-egg","iv-at-least-90","protected-rare","protected-shiny","protected-event","protected-background","protected-xxs","protected-xxl","invalid-input","invalid-input","pvp-rank"};return code>0&&code<19?reasons[code]:"invalid-input";}
+static const char *transfer_reason(int code){static const char *reasons[]={"","keep-all","invalid-keep-list","unknown-species","custom-keep-list","unknown-iv","unknown-category","unknown-size","favorite-or-egg","iv-at-least-90","protected-rare","protected-shiny","protected-event","protected-background","protected-xxs","protected-xxl","invalid-input","invalid-input","pvp-rank","protected-zero-iv"};return code>0&&code<20?reasons[code]:"invalid-input";}
 
 static void notify_map_poi_snapshot(const char *json_array) {
   if (!json_array) return;
@@ -711,7 +711,7 @@ static void handle_vgp_transfer_ready(const PgrVgpControllerOut &out, uint64_t t
 
   void *pk_obj = g_exp.gchandle_get_target ? g_exp.gchandle_get_target(g_vgp_transfer.pokemon_handle) : nullptr;
   void *gm_obj = g_exp.gchandle_get_target ? g_exp.gchandle_get_target(g_vgp_transfer.gm_handle) : nullptr;
-  uint32_t protect_mask = g_opts.transfer_protect >= 0 ? static_cast<uint32_t>(g_opts.transfer_protect) : 63u;
+  uint32_t protect_mask = g_opts.transfer_protect >= 0 ? static_cast<uint32_t>(g_opts.transfer_protect&127) : 127u;
 
   PgrTransferFactsRequest req = {};
   req.version = PGR_TF_REQUEST_VERSION;
@@ -1412,7 +1412,7 @@ static void sync_from_transport(uint64_t tid) {
     next_opts = {};
     next_opts.version = PGR_EH_API_VERSION;
     next_opts.size = sizeof(PgrEncounterHostOptions);
-    next_opts.transfer_protect = 63;
+    next_opts.transfer_protect = 127;
     next_opts.lease_remaining_ms = 0ULL;
     g_opts = next_opts;
     g_lease_deadline_ms = 0ULL;

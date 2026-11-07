@@ -17,12 +17,16 @@ int main(int argc,char **argv) {
   if(api->decide(&v)!=(a+d+s>=41?9:0))return 5;
  }
  v.attack=v.defense=v.stamina=0;
- for(unsigned flags=0;flags<256;++flags)for(unsigned protect=0;protect<64;++protect){
+ for(unsigned flags=0;flags<256;++flags)for(unsigned protect=0;protect<128;++protect){
   v.flags=flags;v.protect=protect;int reason=0;
   if(flags&192)reason=8;
   else for(int bit=0;bit<6;++bit)if((flags&(1u<<bit))&&(protect&(1u<<bit))){reason=10+bit;break;}
+  if(!reason&&(protect&64))reason=19; // 0/0/0 kept only with its own bit
   if(api->decide(&v)!=reason)return 6;
  }
+ // Only an exact 0/0/0 is kept by bit 6; any other low IV still transfers.
+ v.flags=0;v.protect=127;for(int a=0;a<3;++a)for(int d=0;d<3;++d)for(int s=0;s<3;++s){v.attack=a;v.defense=d;v.stamina=s;if(api->decide(&v)!=(a+d+s==0?19:0))return 13;}
+ v.attack=v.defense=v.stamina=0;
  v.flags=0;v.protect=63;
  for(unsigned bit=0;bit<8;++bit){v.known=255^(1u<<bit);if(api->decide(&v)!=(bit==4||bit==5?7:6))return 7;}
  v.known=255;int32_t ids[]{25,150};v.keep_ids=ids;v.keep_count=2;
@@ -31,6 +35,6 @@ int main(int argc,char **argv) {
  v.keep_count=0xffffffff;if(api->decide(&v)!=2)return 10;
  v.keep_all=1;if(api->decide(&v)!=1)return 11;
  v.keep_all=0;v.keep_count=0;v.attack=-1;if(api->decide(&v)!=5)return 12;
- std::puts("PASS native transfer policy: exhaustive IV thresholds, category masks, unknown data and custom keep priority");
+ std::puts("PASS native transfer policy: exhaustive IV thresholds, 0/0/0 keep, category masks, unknown data and custom keep priority");
  return 0;
 }
