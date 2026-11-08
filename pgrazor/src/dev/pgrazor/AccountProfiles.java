@@ -84,7 +84,12 @@ final class AccountProfiles {
                     final AccountProfileStore.Profile actual=found;
                     main.post(()->{
                         if(epoch!=generation)return;
-                        if(actual.id.equals(startupId)){verified=true;message=actual.label;return;}
+                        if(actual.id.equals(startupId)){
+                            verified=true;message=actual.label;
+                            // Regression evidence only: never include trainer names or account IDs.
+                            Control.event("account-session-verified","Game identity matched the active profile");
+                            return;
+                        }
                         switching=true;message="Restoring " + actual.label;
                         try{Control.quiesceAccounts();}catch(IOException error){fail("Could not save outgoing location. Reopen the game.");return;}
                         io.execute(()->{
