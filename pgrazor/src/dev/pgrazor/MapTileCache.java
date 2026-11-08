@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /** Two-tier tile store: a process-wide in-memory bitmap LRU over a bounded on-disk PNG cache.
  *  Pure storage, decoding and eviction with byte/dimension bounds; no networking, view or Control ties. */
@@ -25,6 +26,7 @@ final class MapTileCache {
     private static final int TILE_BYTE_LIMIT = 512 * 1024;
 
     private final File directory;
+    private final AtomicInteger writes = new AtomicInteger();
 
     MapTileCache(File directory) { this.directory = directory; }
 
@@ -53,12 +55,14 @@ final class MapTileCache {
             try (FileOutputStream out = new FileOutputStream(temporary)) { out.write(bytes); }
             if (file.exists()) file.delete();
             if (!temporary.renameTo(file)) temporary.delete();
-            trim(); // Bound disk use even if the user keeps changing viewport before a batch finishes.
+            // Bound disk use even if the user keeps changing viewport before a batch finishes; listing and
+            // sorting the whole directory after every tile slowed loading, so only every 32nd write.
+            if (writes.incrementAndGet() % 32 == 0) trim();
         } catch (IOException e) { temporary.delete(); }
     }
 
     /** Evict the oldest files until within the byte and count ceilings. */
-    void trim() {
+    synchronized void trim() {
         File[] files = directory.listFiles(); if (files == null) return;
         Arrays.sort(files, Comparator.comparingLong(File::lastModified));
         long total = 0; for (File file : files) total += file.length();

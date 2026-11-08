@@ -10,6 +10,7 @@
 
 ### Improvements & fixes
 
+- World map: tiles load faster, two at a time over a reused connection, starting from the middle of the screen.
 - Added more cutscene skips
 - Transfer on catch: new "Keep 0% IV (0/0/0)" option, on by default for new setups.
 - Gym Slotter and Berry Feeder: placing a defender now comes before feeding.
