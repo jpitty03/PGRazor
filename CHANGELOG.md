@@ -1,22 +1,24 @@
 # Changelog
 
-## Unreleased
+## v0.2.3
+
+[Full release notes](docs/releases/v0.2.3.md)
 
 ### New features
 
-- Battery usage (General Settings): lower the game's resolution, limit it to 20 FPS, or turn off various effects.
-- VGP+ catch-only list: choose species, such as Combee, and VGP+ catches only those, leaving every other Pokémon on the map.
-- Shundo Sniper black screen: tap Dark on its card to black out the game while it runs. Tap the screen to bring the game back.
-- Throw variety (Throws and VGP+): each throw gets a random rating, with even odds, from Excellent & Great; Excellent, Great & Nice; or All (those three or a plain throw). Off by default.
+- **Battery usage:** lower resolution, 20 FPS cap, or fewer effects (General Settings).
+- **Throw variety:** random throw ratings from the ones you pick, under Throws and in VGP+. Off by default.
+- **VGP+ catch-only list:** VGP+ catches only the species you choose.
+- **Shundo Sniper black screen:** tap Dark on its card; tap the screen to return.
 
 ### Improvements & fixes
 
-- World map: tiles load faster.
-- Added more cutscene skips.
-- Transfer on catch: new "Keep 0% IV (0/0/0)" option, on by default for new setups.
+- Smart healing: new "Always heal fully" item choice.
+- Shundo Sniper: starts sooner, moves on faster when its target doesn't appear, and shows missed checks.
+- Transfer on catch: new "Keep 0% IV (0/0/0)" option.
 - Gym Slotter and Berry Feeder: placing a defender now comes before feeding.
-- Shundo Sniper: Performance improvements.
-- Smart healing: new "Items" choice. Smart saves big potions and Max Revives for big wounds and can leave a little HP missing; Always heal fully uses whatever it takes to heal and revive completely.
+- World map tiles load faster.
+- More cutscene skips.
 
 ## v0.2.2
 
