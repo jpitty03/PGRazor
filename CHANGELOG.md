@@ -4,14 +4,16 @@
 
 ### New features
 
+- Battery usage (General Settings): lower the game's resolution, limit it to 20 FPS, or turn off shadows, fog, water reflections, encounter grass and other effects.
 - VGP+ catch-only list: choose species, such as Combee, and VGP+ catches only those, leaving every other Pokémon on the map.
+- Shundo Sniper black screen: tap Dark on its card to black out the game while it runs, keeping PGRazor's cards on top and drawing the game at lower resolution behind it. Tap the screen to bring the game back.
 
 ### Improvements & fixes
 
 - Added more cutscene skips
 - Transfer on catch: new "Keep 0% IV (0/0/0)" option, on by default for new setups.
 - Gym Slotter and Berry Feeder: placing a defender now comes before feeding.
-- Shundo Sniper: waits 10 seconds before its first teleport, showing the first Pokémon and how far away it is. Its card shows the next Pokémon's distance before each teleport and how far you are from where you started.
+- Shundo Sniper: waits 3 seconds before its first teleport, showing the first Pokémon and how far away it is. Its card shows the next Pokémon's distance before each teleport and how far you are from where you started. When other Pokémon appear at the new spot but not the one it teleported for, it moves on 10 seconds later instead of waiting up to 75 seconds.
 
 ## v0.2.2
 

@@ -39,7 +39,7 @@ public final class ShundoSniper {
         SETTLE_MS = 2_000, RETRY_MS = 60_000;
     // Every start waits this long before the first teleport, whatever the gap, so the card can show where
     // the first spawn is (and the player can stop) before anything moves.
-    static final long START_DELAY_MS = 10_000;
+    static final long START_DELAY_MS = 3_000;
     static final int MAX_CANDIDATES = 6000, RECENT = 8, MAX_SPECIES = 500;
     // The shortest time between two teleports, chosen by the user (seconds; 0 = right away).
     static final int[] GAPS = {0, 30, 60, 90};
@@ -184,6 +184,15 @@ public final class ShundoSniper {
         synchronized (LOCK) { return "Species: " + (species.isEmpty() ? "All" : species.size() + " selected"); }
     }
     public static boolean active() { return enabled; }
+    /** The card's black screen: it covers the game (PGRazor's overlays stay on top) while the sniper runs. */
+    private static volatile boolean dark;
+    static boolean dark() { return dark && enabled; }
+    static void setDark(boolean on) {
+        if (on && !enabled) on = false;
+        if (dark == on) return;
+        dark = on;
+        Control.event("shundo-sniper", "black screen " + (on ? "ON" : "OFF"));
+    }
 
     /**
      * "S1|<request>|<encounter id>|<go>|<running>" while a spawn is being checked, else "S1|0|0|0|<running>"
@@ -196,7 +205,7 @@ public final class ShundoSniper {
     static void setEnabled(Context context, boolean on) {
         synchronized (LOCK) {
             if (on == enabled) return;
-            enabled = on;
+            enabled = on; dark = false;
             target = null; teleporting = false; candidates.clear(); nextPick = nextLive = nextPogo = nextFeed = 0;
             startLat = startLon = Double.NaN; startAt = 0;
             status = on ? looking() : "";

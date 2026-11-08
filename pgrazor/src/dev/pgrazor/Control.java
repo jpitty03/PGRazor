@@ -566,6 +566,18 @@ public final class Control {
     public static String cutsceneSkipStatus(){return skipCutscenes?cutsceneSkipStatus:"";}
     /** "K1|on" for the native cutscene bypass (transport slot 17). */
     public static String cutsceneSkipConfig(){return "K1|"+(skipCutscenes?1:0);}
+    // Battery usage (each off by default): the native module draws the 3D view at a lower resolution, caps
+    // the game at 20 fps, and turns off shadows, anti-aliasing and far detail, putting the game's own
+    // values back when a setting is turned off.
+    private static volatile boolean batteryLowRes, batteryFps20, batteryLowQuality;
+    public static boolean batteryLowRes(){return batteryLowRes;}
+    public static boolean batteryFps20(){return batteryFps20;}
+    public static boolean batteryLowQuality(){return batteryLowQuality;}
+    public static void setBatteryLowRes(boolean on){batteryLowRes=on;saveSettings();event("battery","lower resolution "+(on?"ON":"OFF"));}
+    public static void setBatteryFps20(boolean on){batteryFps20=on;saveSettings();event("battery","20 fps cap "+(on?"ON":"OFF"));}
+    public static void setBatteryLowQuality(boolean on){batteryLowQuality=on;saveSettings();event("battery","low graphics quality "+(on?"ON":"OFF"));}
+    /** "B2|lowRes|fps20|lowQuality|blackScreen" for the native graphics module (transport slot 20). */
+    public static String batteryConfig(){return "B2|"+(batteryLowRes?1:0)+"|"+(batteryFps20?1:0)+"|"+(batteryLowQuality?1:0)+"|"+(ShundoSniper.dark()?1:0);}
     // Smart healing (off by default): the native module heals with the cheapest mix of potions and
     // revives. healWhen: 0 after battles, 1 periodically, 2 both. healThreshold: heal below this percent
     // of max HP, 100 = any missing HP. healStatus is the module's last problem or this session's items.
@@ -1105,6 +1117,9 @@ public final class Control {
                 int target=boundedSetting(p,"autoBallTarget",99);autoBallTarget=target>0?target:75;
                 pvpKeepLeagues=p.getProperty("pvpKeepLeagues")==null?3:boundedSetting(p,"pvpKeepLeagues",7);
                 skipCutscenes=Boolean.parseBoolean(p.getProperty("skipCutscenes","false"));
+                batteryLowRes=Boolean.parseBoolean(p.getProperty("batteryLowRes","false"));
+                batteryFps20=Boolean.parseBoolean(p.getProperty("batteryFps20","false"));
+                batteryLowQuality=Boolean.parseBoolean(p.getProperty("batteryLowQuality","false"));
                 healEnabled=Boolean.parseBoolean(p.getProperty("smartHealEnabled","false"));
                 healRevive=Boolean.parseBoolean(p.getProperty("smartHealRevive","true"));
                 healWhen=boundedSetting(p,"smartHealWhen",2);
@@ -1192,6 +1207,7 @@ public final class Control {
         p.setProperty("ivCatch",String.valueOf(ivCatchEnabled)); p.setProperty("ivOwned",String.valueOf(ivOwnedEnabled)); p.setProperty("ivCatchFormat",String.valueOf(ivCatchFormat)); p.setProperty("ivOwnedFormat",String.valueOf(ivOwnedFormat)); p.setProperty("storageIv",String.valueOf(storageIvMode)); p.setProperty("storageIvFormat",String.valueOf(storageIvFormat));
         p.setProperty("catchChance",String.valueOf(catchChanceShown)); p.setProperty("autoBall",String.valueOf(autoBall)); p.setProperty("autoBallTarget",String.valueOf(autoBallTarget));
         p.setProperty("pvpKeepLeagues",String.valueOf(pvpKeepLeagues)); p.setProperty("skipCutscenes",String.valueOf(skipCutscenes));
+        p.setProperty("batteryLowRes",String.valueOf(batteryLowRes)); p.setProperty("batteryFps20",String.valueOf(batteryFps20)); p.setProperty("batteryLowQuality",String.valueOf(batteryLowQuality));
         p.setProperty("smartHealEnabled",String.valueOf(healEnabled)); p.setProperty("smartHealRevive",String.valueOf(healRevive));
         p.setProperty("smartHealWhen",String.valueOf(healWhen)); p.setProperty("smartHealThreshold",String.valueOf(healThreshold));
         for(int i=0;i<3;i++)p.setProperty(PVP_RANK_KEYS[i],String.valueOf(pvpRanks[i]));

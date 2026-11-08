@@ -11,6 +11,7 @@
 #include <dlfcn.h>
 #include <map>
 #include <string>
+#include <unordered_set>
 #include <time.h>
 #include <unistd.h>
 // Shundo Sniper: one teleported-to spawn at a time (see shundo.h). Every call goes through the game's
@@ -93,6 +94,9 @@ Config configured(){
 }
 
 constexpr uint64_t kFindMs=75000,kFindEveryMs=750,kResponseMs=15000,kBerryMs=10000;
+// Once wild Pokemon that were not on the map at the teleport have arrived, the requested one gets this
+// long to arrive too before the search gives up on it (it is usually in the same batch).
+constexpr uint64_t kAfterOthersMs=10000;
 constexpr int kMaxThrows=10;
 enum Step {IDLE,FIND,ENCOUNTER,HOLD,BERRY,BERRY_WAIT,THROW_WAIT,DONE};
 struct State {
@@ -103,6 +107,9 @@ struct State {
  int throws=0,species=0;
  // What the last searches saw, for a "missing" report: searches run and wild Pokemon on the map.
  unsigned scans=0,seen=0;std::string sample;
+ // The wild Pokemon on the map at the first search (still the area left behind) and when one not among
+ // them first appeared: the new area's spawns have started arriving.
+ std::unordered_set<uint64_t> before;bool have_before=false;uint64_t fresh_at=0;unsigned fresh=0;
  // The game's map content handler, asked to fetch map objects right away after a teleport (its own
  // fetch throttle otherwise leaves wild spawns off the map for 30-60 s).
  Root map_content;uint64_t next_refresh=0;unsigned refreshes=0;bool throttle_logged=false;
@@ -115,7 +122,7 @@ void event(const char *phase,const std::string &extra=""){
 }
 // A berry or a throw counts toward the cooldown estimate; the encounter itself does not.
 void cooldown(const char *action){auto tr=transport();if(!tr)return;PgrRuntimeTransportString s[]={{action,uint32_t(std::strlen(action))}};tr->emit(17,nullptr,0,s,1);}
-void reset(){st.promise.reset();st.target.reset();st.spawn.reset();st.step=IDLE;st.throws=0;st.species=0;st.scans=st.seen=0;st.sample.clear();st.next_refresh=0;st.refreshes=0;}
+void reset(){st.promise.reset();st.target.reset();st.spawn.reset();st.step=IDLE;st.throws=0;st.species=0;st.scans=st.seen=0;st.sample.clear();st.next_refresh=0;st.refreshes=0;st.before.clear();st.have_before=false;st.fresh_at=0;st.fresh=0;}
 void finish(const char *phase,const std::string &message,const std::string &extra=""){
  event(phase,",\"message\":"+quote(message)+extra);st.promise.reset();st.target.reset();st.step=DONE;
 }
@@ -144,21 +151,27 @@ void refresh_map(){
  call(handler,"ForceRefreshVisibleCells");++st.refreshes;
 }
 // The requested spawn among the active wild map Pokemon, rooted in st.target.
-bool find_target(){
+bool find_target(uint64_t now){
  void *wild=cls("Niantic.Holoholo.Map","WildMapPokemon");
  static void *finder=nullptr;if(!finder)finder=method(cls("UnityEngine","Object"),"FindObjectsOfType",2);
  Root type=type_object(wild);bool inactive=true;void *args[]={type.get(),&inactive};
  Root list(invoke(finder,nullptr,args));if(!list)return false;
  const uintptr_t n=at<uintptr_t>(list.get(),0x18);require(n<=5000,"map Pokemon count");
  void *get_id=method(wild,"get_EncounterId",0);
- unsigned seen=0;std::string sample;
+ // The report's ids are the fresh ones when there are any: Java compares them across misses to notice a
+ // game that stopped following teleports, and the area left behind can still be listed for a while.
+ unsigned seen=0,fresh=0;std::string sample,fresh_sample;
+ auto add=[](std::string &list,uint64_t id){list+=(list.empty()?"":",")+std::string("\"")+std::to_string(id)+"\"";};
  for(uintptr_t i=0;i<n;++i){
   void *p=at<void*>(list.get(),0x20+i*8);if(!p||klass(p)!=wild)continue;
   const uint64_t id=unbox<uint64_t>(invoke(get_id,p));
   if(id==st.id){st.target=Root(p);return true;}
-  ++seen;if(seen<=6)sample+=(sample.empty()?"":",")+std::string("\"")+std::to_string(id)+"\"";
+  ++seen;if(seen<=6)add(sample,id);
+  if(!st.have_before)st.before.insert(id);else if(!st.before.count(id)&&++fresh<=6)add(fresh_sample,id);
  }
- st.seen=seen;st.sample=sample;
+ st.have_before=true;
+ if(fresh&&!st.fresh_at)st.fresh_at=now;
+ st.seen=seen;st.sample=fresh?fresh_sample:sample;st.fresh=fresh;
  return false;
 }
 // The encounter response the game keeps on the map Pokemon (its only EncounterOutProto field).
@@ -264,9 +277,9 @@ void read_catch(Root &response,uint64_t now){
 }
 void step(const Config &c,uint64_t now){
  if(st.step==FIND){
-  if(now-st.started>kFindMs){
-   finish("missing","Not on the map here; it may have despawned",",\"scans\":"+std::to_string(st.scans)+",\"seen\":"+std::to_string(st.seen)+",\"ids\":["+st.sample+"]");return;
-  }
+  const std::string facts=",\"ms\":"+std::to_string(now-st.started)+",\"scans\":"+std::to_string(st.scans)+",\"seen\":"+std::to_string(st.seen)+",\"fresh\":"+std::to_string(st.fresh)+",\"ids\":["+st.sample+"]";
+  if(now-st.started>kFindMs){finish("missing","Not on the map here; it may have despawned",facts);return;}
+  if(st.fresh_at&&now-st.fresh_at>=kAfterOthersMs){finish("missing","Other Pokémon here appeared, this one did not",facts);return;}
   if(!c.map||now<st.next)return;st.next=now+kFindEveryMs;
   // After a jump the server leaves wild Pokemon out of map objects for about 30 s however often the game
   // asks (measured: found at 31-33 s with refreshes every 3 s or every 10 s). So one refresh 2 s after the
@@ -277,7 +290,7 @@ void step(const Config &c,uint64_t now){
    st.next_refresh=now-st.started<30000?st.started+30000:now+3000;
    try{refresh_map();}catch(const Failure &f){event("refresh-failed",",\"message\":"+quote(f.where));st.next_refresh=UINT64_MAX;}
   }
-  ++st.scans;if(!find_target())return;
+  ++st.scans;if(!find_target(now))return;
   st.promise=Root(call(st.target.get(),"SendEncounterRequest"));require(bool(st.promise),"encounter not sent");
   st.step=ENCOUNTER;st.since=now;return;
  }

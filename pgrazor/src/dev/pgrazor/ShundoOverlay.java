@@ -11,13 +11,14 @@ import android.widget.TextView;
 
 /**
  * Shundo Sniper's on-map card: what it is doing now, how many teleports and checks it has made, and a
- * Start/Stop button. Pad owns its OverlayDrag, visibility and lifecycle and calls {@link #refresh} on each
+ * Start/Stop button, and while it runs a Dark button that blacks out the game behind PGRazor's overlays to
+ * save battery (a tap on the black screen brings the game back). Pad owns its OverlayDrag, visibility and lifecycle and calls {@link #refresh} on each
  * heartbeat. It appears once the sniper has been started; the close button stops the sniper and hides it.
  */
 public final class ShundoOverlay extends LinearLayout {
     private final Activity activity;
     private final TextView badge, step, stats, close;
-    private final Button toggle;
+    private final Button toggle, dark;
     private Boolean lastRunning;  // null until first painted while shown
     private String lastStep = "", lastStats = "";
 
@@ -44,12 +45,13 @@ public final class ShundoOverlay extends LinearLayout {
         LayoutParams badgeLayout = new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
         badgeLayout.rightMargin = SettingsUi.dp(activity, 6);
         top.addView(badge, badgeLayout);
-        toggle = new Button(activity);
-        toggle.setAllCaps(false);
-        toggle.setTextSize(12);
-        toggle.setMinWidth(0); toggle.setMinimumWidth(0); toggle.setMinHeight(0); toggle.setMinimumHeight(0);
-        toggle.setPadding(SettingsUi.dp(activity, 12), SettingsUi.dp(activity, 4), SettingsUi.dp(activity, 12), SettingsUi.dp(activity, 4));
-        MapTheme.setButtonBackground(toggle);
+        dark = button(activity, "Dark");
+        dark.setContentDescription("Black out the screen to save battery while the sniper runs. Tap the black screen to bring the game back.");
+        dark.setOnClickListener(v -> ShundoSniper.setDark(true));
+        LayoutParams darkLayout = new LayoutParams(LayoutParams.WRAP_CONTENT, SettingsUi.dp(activity, 30));
+        darkLayout.rightMargin = SettingsUi.dp(activity, 6);
+        top.addView(dark, darkLayout);
+        toggle = button(activity, "");
         toggle.setOnClickListener(v -> { ShundoSniper.toggle(activity); refresh(true); });
         top.addView(toggle, new LayoutParams(LayoutParams.WRAP_CONTENT, SettingsUi.dp(activity, 30)));
         close = new TextView(activity);
@@ -80,6 +82,17 @@ public final class ShundoOverlay extends LinearLayout {
         refresh(true);
     }
 
+    private static Button button(Activity activity, String label) {
+        Button b = new Button(activity);
+        b.setText(label);
+        b.setAllCaps(false);
+        b.setTextSize(12);
+        b.setMinWidth(0); b.setMinimumWidth(0); b.setMinHeight(0); b.setMinimumHeight(0);
+        b.setPadding(SettingsUi.dp(activity, 12), SettingsUi.dp(activity, 4), SettingsUi.dp(activity, 12), SettingsUi.dp(activity, 4));
+        MapTheme.setButtonBackground(b);
+        return b;
+    }
+
     /** Pad calls this on each heartbeat; hidden beneath the settings panel and the quick menu. */
     public void refresh(boolean visible) {
         setVisibility(visible && ShundoSniper.overlayShown() ? VISIBLE : GONE);
@@ -93,15 +106,17 @@ public final class ShundoOverlay extends LinearLayout {
             badge.setTextColor(running ? Color.WHITE : MapTheme.muted());
             badge.setBackground(SettingsUi.rounded(activity, running ? Color.rgb(56, 181, 112) : 0x22808080, SettingsUi.dp(activity, 9)));
             toggle.setText(running ? "Stop" : "Start");
+            dark.setVisibility(running ? VISIBLE : GONE);
             toggle.setTextColor(running ? MapTheme.ink() : MapTheme.accent());
             setContentDescription("Shundo Sniper " + (running ? "running" : "stopped") + ". Drag to reposition.");
         }
         for (TextView t : new TextView[]{(TextView) ((LinearLayout) getChildAt(0)).getChildAt(0), step}) t.setTextColor(MapTheme.ink());
         stats.setTextColor(MapTheme.muted());
+        dark.setTextColor(MapTheme.ink());
         close.setTextColor(MapTheme.muted());
         if (!nowStep.equals(lastStep)) { lastStep = nowStep; step.setText(nowStep); }
         if (!nowStats.equals(lastStats)) { lastStats = nowStats; stats.setText(nowStats); }
     }
 
-    public void close() { toggle.setOnClickListener(null); close.setOnClickListener(null); setVisibility(GONE); }
+    public void close() { toggle.setOnClickListener(null); dark.setOnClickListener(null); close.setOnClickListener(null); setVisibility(GONE); }
 }

@@ -33,6 +33,7 @@ def control_shell():
     specs.append(('cutsceneSkipConfig', '', 'String'))
     specs.append(('healConfig', '', 'String'))
     specs.append(('shundoConfig', '', 'String'))
+    specs.append(('batteryConfig', '', 'String'))
     methods = []
     for name, params, expected_result in specs:
         actual = re.search(r'public static\s+(?:synchronized\s+)?([\w\[\]]+)\s+' + name + r'\(([^)]*)\)', source)
@@ -56,6 +57,8 @@ def control_shell():
             body = 'reads++;return "H1|1|2|75|1";'
         elif name == 'shundoConfig':
             body = 'reads++;return "S1|7|123456789|0|1";'
+        elif name == 'batteryConfig':
+            body = 'reads++;return "B2|1|0|1|0";'
         elif name == 'storageIvConfig':
             body = 'reads++;return "S2|2|2|3";'
         elif name == 'researchConfig':

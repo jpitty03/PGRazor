@@ -165,6 +165,7 @@ public final class ResearchSettings {
     'dev/pgrazor/ShundoSniper.java': '''package dev.pgrazor;
 public final class ShundoSniper {
  public static boolean active(){return false;}
+ static boolean dark(){return false;}
  public static String config(){return "S1|0|0";}
  public static void publish(String detail){}
  public static void read(java.util.Properties p){}

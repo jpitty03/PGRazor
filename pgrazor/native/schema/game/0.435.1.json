@@ -10087,6 +10087,38 @@
         "purpose": "PokemonInventoryCellView.Initialize prologue (stack setup only)"
       }
     },
+    "battery_cpp": {
+      "shadow_pass_rva": {
+        "kind": "rva",
+        "value": "168036568",
+        "purpose": "AngledGradientShadowScriptableRenderFeature.AddRenderPasses method address"
+      },
+      "shadow_pass_fingerprint": {
+        "kind": "bytes",
+        "value": ["0xfe", "0x5f", "0xbd", "0xa9", "0xf6", "0x57", "0x01", "0xa9", "0xf4", "0x4f", "0x02", "0xa9", "0xb6", "0x88", "0x02", "0xb0", "0xf5", "0x03", "0x02", "0xaa", "0xf3", "0x03", "0x01", "0xaa"],
+        "purpose": "AngledGradientShadowScriptableRenderFeature.AddRenderPasses prologue"
+      },
+      "water_reflection_rva": {
+        "kind": "rva",
+        "value": "173437536",
+        "purpose": "Vista.WaterReflection.UpdateRenderTexture method address"
+      },
+      "water_reflection_fingerprint": {
+        "kind": "bytes",
+        "value": ["0xfe", "0x0f", "0x1d", "0xf8", "0xf6", "0x57", "0x01", "0xa9", "0xf4", "0x4f", "0x02", "0xa9", "0xd3", "0x5e", "0x02", "0xb0", "0xf5", "0x03", "0x00", "0xaa", "0x68", "0xc2", "0x6e", "0x39"],
+        "purpose": "Vista.WaterReflection.UpdateRenderTexture prologue"
+      },
+      "ground_cover_rva": {
+        "kind": "rva",
+        "value": "181116212",
+        "purpose": "Encounter.DenseGroundCoverRenderer.RenderDenseGroundCover method address"
+      },
+      "ground_cover_fingerprint": {
+        "kind": "bytes",
+        "value": ["0xe8", "0x0f", "0x1a", "0xfc", "0xfe", "0x6f", "0x01", "0xa9", "0xfa", "0x67", "0x02", "0xa9", "0xf8", "0x5f", "0x03", "0xa9", "0xf6", "0x57", "0x04", "0xa9", "0xf4", "0x4f", "0x05", "0xa9"],
+        "purpose": "Encounter.DenseGroundCoverRenderer.RenderDenseGroundCover prologue"
+      }
+    },
     "cutscene_skip_cpp": {
       "evolve_rva": {
         "kind": "rva",

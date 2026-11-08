@@ -45,6 +45,7 @@
 #include "batch_evolution.h"
 #include "heal.h"
 #include "shundo.h"
+#include "battery.h"
 #include "remote_gym.h"
 #include "gift_batch.h"
 #include "research.h"
@@ -2492,6 +2493,7 @@ static int api_tick(uint64_t proven_tid) {
   pgr_evolution_tick(os_tid, &g_md);
   pgr_heal_tick(os_tid, &g_md);
   pgr_shundo_tick(os_tid, &g_md);
+  pgr_battery_tick(os_tid, &g_md);
   pgr_buddy_emotion_tick(os_tid, &g_md);
 
 
@@ -2528,6 +2530,7 @@ static int api_stop(uint64_t proven_tid) {
       pgr_evolution_stop(tid);
       pgr_heal_stop(tid);
       pgr_shundo_stop(tid);
+      pgr_battery_stop(tid);
       pgr_buddy_emotion_stop(tid);
       g_vgc->stop(tid);
       notify_vgp_target(0, 0.0, 0.0, 0);
