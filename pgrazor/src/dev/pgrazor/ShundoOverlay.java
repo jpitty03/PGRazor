@@ -74,7 +74,7 @@ public final class ShundoOverlay extends LinearLayout {
         addView(step, stepLayout);
         stats = new TextView(activity);
         stats.setTextSize(11);
-        stats.setMaxLines(1);
+        stats.setMaxLines(2);  // five counts with the missed one no longer fit on one line
         stats.setEllipsize(TextUtils.TruncateAt.END);
         LayoutParams statsLayout = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
         statsLayout.topMargin = SettingsUi.dp(activity, 3);

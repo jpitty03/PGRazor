@@ -32,7 +32,8 @@ enum {
 
   PGR_CH_CONTINUOUS_INTERVAL_MS = 100u,
   PGR_CH_CONTINUOUS_LEASE_MS = 250u,
-  PGR_CH_HEADING_LOG_INTERVAL_MS = 1000u,
+  // Once a minute: at once a second it filled most of the log, leaving only ~3 hours of history.
+  PGR_CH_HEADING_LOG_INTERVAL_MS = 60000u,
   PGR_CH_MIN_MATCHES = 3u,
   PGR_CH_EVENT_QUEUE_MAX = 64u
 };

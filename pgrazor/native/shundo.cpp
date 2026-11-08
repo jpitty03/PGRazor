@@ -97,6 +97,11 @@ constexpr uint64_t kFindMs=75000,kFindEveryMs=750,kResponseMs=15000,kBerryMs=100
 // Once wild Pokemon that were not on the map at the teleport have arrived, the requested one gets this
 // long to arrive too before the search gives up on it (it is usually in the same batch).
 constexpr uint64_t kAfterOthersMs=10000;
+// The server sends the new area's wild Pokemon about 30 s after a jump (measured overnight: 136 of 152
+// finds at 30-35 s, the rest at 60-65 s). Some Pokemon often show up within a second or two of the
+// jump and some vanish again; those come before this point and count as already there, so they never
+// start the countdown above.
+constexpr uint64_t kServerHoldMs=25000;
 constexpr int kMaxThrows=10;
 enum Step {IDLE,FIND,ENCOUNTER,HOLD,BERRY,BERRY_WAIT,THROW_WAIT,DONE};
 struct State {
@@ -107,9 +112,11 @@ struct State {
  int throws=0,species=0;
  // What the last searches saw, for a "missing" report: searches run and wild Pokemon on the map.
  unsigned scans=0,seen=0;std::string sample;
- // The wild Pokemon on the map at the first search (still the area left behind) and when one not among
- // them first appeared: the new area's spawns have started arriving.
- std::unordered_set<uint64_t> before;bool have_before=false;uint64_t fresh_at=0;unsigned fresh=0;
+ // The wild Pokemon on the map before the server's hold ends (the area left behind, and any that show up
+ // early) and since when ones not among them are on the map: the new area's spawns have arrived.
+ // first_fresh (ms after the teleport, 0 = none) and early (how many showed up after the first search but
+ // before the hold ended, early_ms the first of them) are reported, so the wait can be tuned from logs.
+ std::unordered_set<uint64_t> before;bool have_before=false;uint64_t fresh_at=0,first_fresh=0,early_ms=0;unsigned fresh=0,early=0;
  // The game's map content handler, asked to fetch map objects right away after a teleport (its own
  // fetch throttle otherwise leaves wild spawns off the map for 30-60 s).
  Root map_content;uint64_t next_refresh=0;unsigned refreshes=0;bool throttle_logged=false;
@@ -122,7 +129,7 @@ void event(const char *phase,const std::string &extra=""){
 }
 // A berry or a throw counts toward the cooldown estimate; the encounter itself does not.
 void cooldown(const char *action){auto tr=transport();if(!tr)return;PgrRuntimeTransportString s[]={{action,uint32_t(std::strlen(action))}};tr->emit(17,nullptr,0,s,1);}
-void reset(){st.promise.reset();st.target.reset();st.spawn.reset();st.step=IDLE;st.throws=0;st.species=0;st.scans=st.seen=0;st.sample.clear();st.next_refresh=0;st.refreshes=0;st.before.clear();st.have_before=false;st.fresh_at=0;st.fresh=0;}
+void reset(){st.promise.reset();st.target.reset();st.spawn.reset();st.step=IDLE;st.throws=0;st.species=0;st.scans=st.seen=0;st.sample.clear();st.next_refresh=0;st.refreshes=0;st.before.clear();st.have_before=false;st.fresh_at=st.first_fresh=st.early_ms=0;st.fresh=st.early=0;}
 void finish(const char *phase,const std::string &message,const std::string &extra=""){
  event(phase,",\"message\":"+quote(message)+extra);st.promise.reset();st.target.reset();st.step=DONE;
 }
@@ -167,10 +174,15 @@ bool find_target(uint64_t now){
   const uint64_t id=unbox<uint64_t>(invoke(get_id,p));
   if(id==st.id){st.target=Root(p);return true;}
   ++seen;if(seen<=6)add(sample,id);
-  if(!st.have_before)st.before.insert(id);else if(!st.before.count(id)&&++fresh<=6)add(fresh_sample,id);
+  if(!st.have_before||now-st.started<kServerHoldMs){
+   if(st.before.insert(id).second&&st.have_before&&!st.early++)st.early_ms=now-st.started;
+  }
+  else if(!st.before.count(id)&&++fresh<=6)add(fresh_sample,id);
  }
  st.have_before=true;
- if(fresh&&!st.fresh_at)st.fresh_at=now;
+ // The countdown starts again if the fresh ones leave the map.
+ st.fresh_at=fresh?(st.fresh_at?st.fresh_at:now):0;
+ if(fresh&&!st.first_fresh)st.first_fresh=now-st.started;
  st.seen=seen;st.sample=fresh?fresh_sample:sample;st.fresh=fresh;
  return false;
 }
@@ -206,7 +218,7 @@ void read_encounter(){
  const bool shiny=field<uint8_t>(display.get(),"Shiny","System.Boolean")!=0;
  st.species=unbox<int32_t>(call(pokemon.get(),"get_PokemonId"));
  const int a=unbox<int32_t>(call(pokemon.get(),"get_IndividualAttack")),d=unbox<int32_t>(call(pokemon.get(),"get_IndividualDefense")),s=unbox<int32_t>(call(pokemon.get(),"get_IndividualStamina"));
- const std::string facts=",\"ms\":"+std::to_string(clock_ms()-st.started)+",\"refreshes\":"+std::to_string(st.refreshes)+",\"shiny\":"+std::string(shiny?"true":"false")+",\"species\":"+std::to_string(st.species)+",\"iv\":["+std::to_string(a)+","+std::to_string(d)+","+std::to_string(s)+"]";
+ const std::string facts=",\"ms\":"+std::to_string(clock_ms()-st.started)+",\"refreshes\":"+std::to_string(st.refreshes)+",\"seen\":"+std::to_string(st.seen)+",\"fresh\":"+std::to_string(st.fresh)+",\"fresh_ms\":"+std::to_string(st.first_fresh)+",\"early\":"+std::to_string(st.early)+",\"early_ms\":"+std::to_string(st.early_ms)+",\"shiny\":"+std::string(shiny?"true":"false")+",\"species\":"+std::to_string(st.species)+",\"iv\":["+std::to_string(a)+","+std::to_string(d)+","+std::to_string(s)+"]";
  if(!shiny){finish("checked","Not shiny",facts);return;}
  // A shiny is held in its encounter until Java says a catch needs no cooldown (go).
  st.rpc=Root(field<void*>(st.target.get(),"rpcHandler","Niantic.Holoholo.Rpc.IRpcHandler"));st.spawn=Root(call(st.target.get(),"get_SpawnPointId"));
@@ -277,7 +289,7 @@ void read_catch(Root &response,uint64_t now){
 }
 void step(const Config &c,uint64_t now){
  if(st.step==FIND){
-  const std::string facts=",\"ms\":"+std::to_string(now-st.started)+",\"scans\":"+std::to_string(st.scans)+",\"seen\":"+std::to_string(st.seen)+",\"fresh\":"+std::to_string(st.fresh)+",\"ids\":["+st.sample+"]";
+  const std::string facts=",\"ms\":"+std::to_string(now-st.started)+",\"scans\":"+std::to_string(st.scans)+",\"seen\":"+std::to_string(st.seen)+",\"fresh\":"+std::to_string(st.fresh)+",\"fresh_ms\":"+std::to_string(st.first_fresh)+",\"early\":"+std::to_string(st.early)+",\"early_ms\":"+std::to_string(st.early_ms)+",\"ids\":["+st.sample+"]";
   if(now-st.started>kFindMs){finish("missing","Not on the map here; it may have despawned",facts);return;}
   if(st.fresh_at&&now-st.fresh_at>=kAfterOthersMs){finish("missing","Other Pokémon here appeared, this one did not",facts);return;}
   if(!c.map||now<st.next)return;st.next=now+kFindEveryMs;

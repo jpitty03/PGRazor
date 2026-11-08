@@ -95,7 +95,8 @@ public final class Pad {
             Path r=new Path();r.moveTo(13,11);r.lineTo(29,11);r.lineTo(36,18);r.lineTo(29,26);r.lineTo(36,37);r.lineTo(26,37);r.lineTo(19,26);r.lineTo(19,37);r.lineTo(12,37);r.lineTo(17,19);r.lineTo(24,19);r.lineTo(23,22);r.lineTo(27,22);r.lineTo(30,18);r.lineTo(27,16);r.lineTo(12,16);r.close();c.drawPath(r,paint);c.restore();}
     }
 
-    private long lastTick = SystemClock.elapsedRealtime(), lastLog;
+    private long lastTick = SystemClock.elapsedRealtime(), lastLog, lastPositionCheck;
+    private String lastPosition = "";
     private boolean closed, lastEnabled;
     private AlertDialog stopRouteDialog;
     public Pad(Activity host) {
@@ -331,9 +332,15 @@ public final class Pad {
             }
             Control.checkpoint(now);
             refresh();
-            if (now-lastLog >= 1000 && Control.engine.enabled) {
-                lastLog = now;
-                Control.event("position", String.format(Locale.US, "lat=%.7f lon=%.7f speed=%.3f walking=%s idleWalking=%s reads=%d/%d", Control.engine.latitude, Control.engine.longitude, Control.engine.metersPerSecond(), Control.engine.walking, Control.engine.idleWalkingActive(), Control.latitudeReads, Control.longitudeReads));
+            if (now-lastPositionCheck >= 1000 && Control.engine.enabled) {
+                lastPositionCheck = now;
+                // Each second while it changes, else once a minute: a line every second standing still
+                // filled most of the log, leaving only ~3 hours of history.
+                String where = String.format(Locale.US, "lat=%.7f lon=%.7f speed=%.3f walking=%s idleWalking=%s", Control.engine.latitude, Control.engine.longitude, Control.engine.metersPerSecond(), Control.engine.walking, Control.engine.idleWalkingActive());
+                if (!where.equals(lastPosition) || now-lastLog >= 60000) {
+                    lastLog = now; lastPosition = where;
+                    Control.event("position", where + String.format(Locale.US, " reads=%d/%d", Control.latitudeReads, Control.longitudeReads));
+                }
             }
             handler.postDelayed(this, 100);
         }
