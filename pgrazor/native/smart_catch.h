@@ -105,8 +105,8 @@ enum PgrSmartStatus {
 
 // Parsed Smart Catcher settings (transport index 7). Format, exactly as emitted by
 // SmartCatchSettings.config():
-//   "3;enabled;ball;berry;premium;highCp;highLevel;grade;curve;autoBall;autoTarget;<candy ids>;<catch ids>"
-// The version-2 form (without the catch-only list) and the version-1 form (also without
+//   "4;enabled;ball;berry;premium;highCp;highLevel;grade;curve;autoBall;autoTarget;<candy ids>;<catch ids>;variety"
+// The version-3 form (without throw variety), the version-2 form (without the catch-only list) and the version-1 form (also without
 // autoBall/autoTarget) are still accepted, catching every species with auto ball off for version 1.
 // Field 0 is the schema tag "1". A malformed string, a wrong tag, an out-of-range field or an over-long
 // buffer yields a SAFE DISABLED result (enabled == false): smart is never run on an unparseable config.
@@ -125,6 +125,7 @@ struct PgrSmartSettings {
   int32_t  auto_target;    // 1..99 percent (default 75)
   uint32_t catch_count;    // catch-only species (version 3); 0 catches every species
   int32_t  catch_species[PGR_SMART_MAX_SPECIES];  // ascending, de-duplicated National Dex ids (1..2000)
+  int32_t  variety;        // throw variety (version 4): 0 off, 1 Excellent & Great, 2 + Nice, 3 + a plain throw
 };
 
 // Catch-only list: an empty list catches every species.
@@ -234,6 +235,10 @@ struct PgrSmartBinding {
 // (malformed -> out->enabled==0), or PGR_SMART_ERR_NULL_ARG when out is null. len is the byte length
 // (the string need not be NUL-terminated); a len above PGR_SMART_CONFIG_MAX yields a disabled result.
 int pgr_smart_parse_settings(const char *text, size_t len, PgrSmartSettings *out);
+
+// Throw variety: the grade for one throw, at even odds, from Excellent & Great (variety 1); Excellent,
+// Great & Nice (2); or those and a plain throw (3). random is any uniform 32-bit value.
+int pgr_smart_variety_grade(int variety, uint32_t random);
 
 // Pure decision precedence over the extracted encounter stats. With auto_ball the standard ball is
 // replaced by a Poke Ball, which plan() then raises to the target; the Ultra Ball rules still apply. iv_sum is attack+defense+stamina (0..45),

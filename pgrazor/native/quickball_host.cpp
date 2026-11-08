@@ -184,7 +184,7 @@ int configure(const PgrQuickballHostConfig *input){
 }
 bool valid_options(const PgrQuickballHostOptions &p){
  return p.version==1&&p.size==sizeof(p)&&!p.reserved&&p.quick_allowed<=1&&p.throw_allowed<=1&&p.ar_allowed<=1&&p.map_allowed<=1&&p.iv_allowed<=1&&
- p.grade<=3&&p.curve<=1&&p.always_hit<=1&&p.ar_enabled<=1&&p.map_mode<=3&&p.iv_catch<=1&&p.iv_owned<=1&&p.lease_ms<=2500&&
+ p.grade<=6&&p.curve<=1&&p.always_hit<=1&&p.ar_enabled<=1&&p.map_mode<=3&&p.iv_catch<=1&&p.iv_owned<=1&&p.lease_ms<=2500&&
  p.map_epoch<=((flags&PGR_QBH_TRANSPORT)?uint64_t(INT32_MAX):9007199254740991ULL);
 }
 int set_options(const PgrQuickballHostOptions *p){

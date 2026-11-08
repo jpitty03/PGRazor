@@ -135,9 +135,9 @@ std::string smartConfig(){
   return std::string(text,size);
 }
 bool smartEnabled(const std::string &s){PgrSmartSettings options{};pgr_smart_parse_settings(s.data(),s.size(),&options);return options.enabled!=0;}
-void smartEvent(int ball,int berry,unsigned attempt){
+void smartEvent(int ball,int berry,unsigned attempt,int grade=-1){
   const auto *t=static_cast<const PgrRuntimeTransportApi*>(pgrazor_runtime_transport_api(1));
-  char detail[128];int n=snprintf(detail,sizeof(detail),"ball=%d berry=%d attempt=%u",ball,berry,attempt);
+  char detail[128];int n=grade<0?snprintf(detail,sizeof(detail),"ball=%d berry=%d attempt=%u",ball,berry,attempt):snprintf(detail,sizeof(detail),"ball=%d berry=%d grade=%d attempt=%u",ball,berry,grade,attempt);
   const char name[]="smart-catch-request";
   PgrRuntimeTransportString text[]={{name,sizeof(name)-1},{detail,uint32_t(n)}};
   if(t)t->emit(19,nullptr,0,text,2);
@@ -459,7 +459,7 @@ void tickSmartWait(const PgrVgpControllerTick *in,PgrVgpControllerOut *o,uint64_
   if(rc<0){pauseError(o,rc);return;}
   if(rc!=PGR_VA_ISSUED){onRefused(o,in->owner,now);return;}
   pend.promise=promise;rootCount.fetch_add(1);++pend.attempts;
-  smartEvent(decision.ball,0,pend.attempts);
+  smartEvent(decision.ball,0,pend.attempts,decision.grade);
   pend.phase=PGR_VGC_PH_CATCH;pend.deadline=nowMs()+20000;
   o->flags|=PGR_VGC_EV_CATCH_ISSUED;setStatus(o,PGR_VGC_ST_CATCHING);
 }

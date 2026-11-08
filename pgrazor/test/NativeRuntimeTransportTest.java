@@ -111,8 +111,8 @@ public final class NativeRuntimeTransportTest {
         at += 4 + "P2|50|10|0|150".length(); // PvP keep slot 16.
         require(readString(snap, at).equals("K1|1"));
         at += 4 + "K1|1".length(); // Skip cutscenes slot 17.
-        require(readString(snap, at).equals("H1|1|2|75|1"));
-        at += 4 + "H1|1|2|75|1".length(); // Smart healing slot 18.
+        require(readString(snap, at).equals("H2|1|2|75|1|0"));
+        at += 4 + "H2|1|2|75|1|0".length(); // Smart healing slot 18.
         require(readString(snap, at).equals("S1|7|123456789|0|1"));
         at += 4 + "S1|7|123456789|0|1".length(); // Shundo Sniper slot 19.
         require(readString(snap, at).equals("B2|1|0|1|0"));

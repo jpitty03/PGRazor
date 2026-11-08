@@ -112,8 +112,9 @@ extern "C" int pgr_smart_parse_settings(const char *text,size_t len,PgrSmartSett
  *out={};out->ball=1;out->premium=1;out->high_cp=1500;out->high_level=30;out->grade=3;out->curve=1;out->auto_target=75;
  if(!text||len>PGR_SMART_CONFIG_MAX)return 0;
  std::vector<std::string> parts;size_t start=0;
- for(size_t i=0;i<=len;++i)if(i==len||text[i]==';'){parts.emplace_back(text+start,i-start);start=i+1;if(parts.size()>13)return 0;}
- const bool v3=parts.size()==13&&parts[0]=="3";
+ for(size_t i=0;i<=len;++i)if(i==len||text[i]==';'){parts.emplace_back(text+start,i-start);start=i+1;if(parts.size()>14)return 0;}
+ const bool v4=parts.size()==14&&parts[0]=="4";
+ const bool v3=v4||(parts.size()==13&&parts[0]=="3");
  const bool v2=v3||(parts.size()==12&&parts[0]=="2");
  if(!v2&&(parts.size()!=10||parts[0]!="1"))return 0;
  PgrSmartSettings s{};s.auto_target=75;
@@ -124,8 +125,22 @@ extern "C" int pgr_smart_parse_settings(const char *text,size_t len,PgrSmartSett
     !number(parts[6],0,50,s.high_level)||!number(parts[7],0,3,s.grade)||!number(parts[8],0,1,s.curve))return 0;
  if(!species_list(species,s.species,s.species_count))return 0;
  if(v3&&!species_list(parts[12],s.catch_species,s.catch_count))return 0;
+ if(v4&&!number(parts[13],0,3,s.variety))return 0;
  *out=s;return 0;
 }
+extern "C" int pgr_smart_variety_grade(int variety,uint32_t random){
+ static constexpr int kSets[3][4]={{3,2},{3,2,1},{3,2,1,0}};
+ if(variety<1||variety>3)return 3;
+ return kSets[variety-1][random%uint32_t(variety+1)];
+}
+namespace {
+// Uniform 32-bit values for throw variety (splitmix64 over a shared counter mixed with the boot clock).
+uint32_t random32(){
+ static std::atomic<uint64_t> state{0};
+ uint64_t z=state.fetch_add(0x9e3779b97f4a7c15ull)+now()*0xbf58476d1ce4e5b9ull;
+ z=(z^(z>>30))*0xbf58476d1ce4e5b9ull;z=(z^(z>>27))*0x94d049bb133111ebull;return uint32_t((z^(z>>31))>>32);
+}
+}  // namespace
 extern "C" void pgr_smart_decide(const PgrSmartSettings *s,bool shiny,int iv_sum,bool iv_valid,int cp,int level_half,int species,PgrSmartDecision *out){
  if(!out)return;*out={};if(!s||!s->enabled)return;
  out->enabled=true;out->ball=s->auto_ball?1:s->ball;  // auto ball replaces the standard ball
@@ -179,6 +194,8 @@ extern "C" int pgr_smart_plan(void *target,void *itemBag,uint64_t owner,PgrSmart
   }
  }
  pgr_smart_decide(&settings,shiny,atk+def+sta,atk>=0&&atk<=15&&def>=0&&def<=15&&sta>=0&&sta<=15,cp,level_half,species,out);
+ // Throw variety: this throw's rating, picked before auto ball so its chance uses the same one.
+ if(settings.variety)out->grade=pgr_smart_variety_grade(settings.variety,random32());
  // Auto ball needs the server's per-ball rates; without them the standard ball is used as before.
  double base[4]={};
  const bool autoball=settings.auto_ball&&capture_source&&capture_source(map.get(),owner,base);

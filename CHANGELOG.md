@@ -7,6 +7,7 @@
 - Battery usage (General Settings): lower the game's resolution, limit it to 20 FPS, or turn off various effects.
 - VGP+ catch-only list: choose species, such as Combee, and VGP+ catches only those, leaving every other Pokémon on the map.
 - Shundo Sniper black screen: tap Dark on its card to black out the game while it runs. Tap the screen to bring the game back.
+- Throw variety (Throws and VGP+): each throw gets a random rating, with even odds, from Excellent & Great; Excellent, Great & Nice; or All (those three or a plain throw). Off by default.
 
 ### Improvements & fixes
 
@@ -15,6 +16,7 @@
 - Transfer on catch: new "Keep 0% IV (0/0/0)" option, on by default for new setups.
 - Gym Slotter and Berry Feeder: placing a defender now comes before feeding.
 - Shundo Sniper: Performance improvements.
+- Smart healing: new "Items" choice. Smart saves big potions and Max Revives for big wounds and can leave a little HP missing; Always heal fully uses whatever it takes to heal and revive completely.
 
 ## v0.2.2
 

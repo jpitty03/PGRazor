@@ -108,6 +108,14 @@ void pure_tests(){
  assert(parse("3;1;2;0;1;1500;30;3;1;0;75;"+ids+";"+ids).catch_count==200);
  for(const std::string &bad:{"3;1;2;0;1;1500;30;3;1;0;75;;0","3;1;2;0;1;1500;30;3;1;0;75;;2001","3;1;2;0;1;1500;30;3;1;0;75;;1,","3;1;2;0;1;1500;30;3;1;0;75;;;","2;1;2;0;1;1500;30;3;1;0;75;;415"})assert(!parse(bad).enabled);
  assert(!parse("3;1;2;0;1;1500;30;3;1;0;75;;"+ids+",201").enabled);
+ // Version 4: throw variety appended; version 3 means variety off.
+ assert(parse("3;1;2;0;1;1500;30;3;1;0;75;;").variety==0);
+ s=parse("4;1;2;0;1;1500;30;3;1;0;75;25;415;2");assert(s.enabled&&s.variety==2&&s.catch_count==1&&s.species_count==1);
+ for(const std::string &bad:{"4;1;2;0;1;1500;30;3;1;0;75;;;4","4;1;2;0;1;1500;30;3;1;0;75;;;-1","4;1;2;0;1;1500;30;3;1;0;75;;","3;1;2;0;1;1500;30;3;1;0;75;;;1","4;1;2;0;1;1500;30;3;1;0;75;;;1;"})assert(!parse(bad).enabled);
+ for(int variety=1;variety<=3;++variety){
+  int seen[4]={};for(uint32_t r=0;r<1200;++r)++seen[pgr_smart_variety_grade(variety,r*2654435761u)];
+  for(int g=0;g<4;++g){const bool in=g>=3-variety;assert(in?seen[g]>=1200/(variety+1)/2:seen[g]==0);}
+ }
  s=parse("2;1;2;0;1;1500;30;3;1;1;75;");assert(s.catch_count==0);
  pgr_smart_decide(&s,false,20,true,100,10,99,&d);assert(d.ball==1);       // auto ball starts from a Poke Ball
  pgr_smart_decide(&s,true,20,true,100,10,99,&d);assert(d.ball==3&&d.berry==706); // premium still Ultra

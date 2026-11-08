@@ -49,7 +49,8 @@ std::atomic<uint64_t> g_unity_tid{0};
 std::mutex g_policy_mutex;
 struct Sample {
     bool     valid = false;
-    uint32_t grade = 0;
+    uint32_t setting = 0;   // the grade setting (0-6) the submit ran under
+    uint32_t grade = 0;     // the grade it applied (0-3)
     uint64_t at_ns = 0;
     uint64_t original = 0;  // submit input x1 word (item low32 | radius-bits high32)
     uint64_t changed = 0;   // submit output x1 word
@@ -71,6 +72,14 @@ inline uint32_t rng_next() {
     }
     g_rng ^= g_rng << 13; g_rng ^= g_rng >> 7; g_rng ^= g_rng << 17;
     return static_cast<uint32_t>(g_rng >> 32);
+}
+// Grade settings 0-3 are one grade (off, Nice, Great, Excellent). 4-6 are throw variety: each throw
+// picks one grade, with even odds, from Excellent & Great (4); Excellent, Great & Nice (5); or those three
+// and a plain throw (6). Called under the policy lock (the RNG is single-threaded).
+inline uint32_t pick_grade(uint32_t setting) {
+    if (setting <= 3) return setting;
+    static constexpr uint32_t kSets[3][4] = {{3, 2}, {3, 2, 1}, {3, 2, 1, 0}};
+    return kSets[setting - 4][rng_next() % (setting - 2)];
 }
 inline float rng_band(uint32_t grade) {
     const float u = static_cast<float>(rng_next() >> 8) * (1.0f / 16777216.0f); // [0,1)
@@ -106,7 +115,7 @@ inline uint64_t x1_word(const PgrThrowValue &v) {
 // `now` already read. Holds g_policy_mutex; NEVER calls the original (the caller does,
 // after releasing the lock), so a reentrant submit->hit call cannot deadlock.
 // ---------------------------------------------------------------------------
-PgrThrowValue transform(const PgrThrowValue &v, uint32_t grade, uint32_t curve, int route, uint64_t now) {
+PgrThrowValue transform(const PgrThrowValue &v, uint32_t setting, uint32_t curve, int route, uint64_t now) {
     std::lock_guard<std::mutex> lock(g_policy_mutex);
     const Sample prev = g_sample;
     g_sample.valid = false;
@@ -118,9 +127,11 @@ PgrThrowValue transform(const PgrThrowValue &v, uint32_t grade, uint32_t curve, 
     const uint64_t first = x1_word(v);
 
 
-    const bool paired = route == ROUTE_HIT && prev.valid && prev.grade == grade &&
+    const bool paired = route == ROUTE_HIT && prev.valid && prev.setting == setting &&
                         now >= prev.at_ns && now - prev.at_ns < kWindowNs &&
                         (first == prev.original || first == prev.changed);
+    // The paired hit keeps the grade its submit picked.
+    const uint32_t grade = paired ? prev.grade : pick_grade(setting);
 
     PgrThrowValue out = v;                 // preserve item, missed and pad verbatim
     float chosen = v.radius;
@@ -131,9 +142,10 @@ PgrThrowValue transform(const PgrThrowValue &v, uint32_t grade, uint32_t curve, 
     out.bullseye = static_cast<uint8_t>(v.bullseye | (grade ? 1u : 0u));
     out.spinning = static_cast<uint8_t>(v.spinning | (curve ? 1u : 0u));
 
-    // Submit seeds the one-shot sample the paired hit may reuse; hit never re-stores.
-    if (grade && route == ROUTE_SUBMIT) {
-        g_sample = Sample{true, grade, now, first, x1_word(out), chosen};
+    // Submit seeds the one-shot sample the paired hit may reuse; hit never re-stores. A plain throw
+    // picked by variety is stored too, so its hit stays plain.
+    if (setting && route == ROUTE_SUBMIT) {
+        g_sample = Sample{true, setting, grade, now, first, x1_word(out), chosen};
     }
 
     g_tel.count += 1;
@@ -244,7 +256,7 @@ int api_install(const PgrThrowConfig *config) {
 
 int api_update(int grade, int curve, int allowed, uint64_t lease_ms, uint64_t unity_tid) {
     if (!g_installed.load(std::memory_order_acquire)) return ERR_NOT_INSTALLED;
-    if (grade < 0 || grade > 3) {
+    if (grade < 0 || grade > 6) {
         g_allowed.store(0, std::memory_order_release);
         g_deadline_ns.store(0, std::memory_order_release);
         std::lock_guard<std::mutex> lock(g_policy_mutex); g_sample.valid=false;

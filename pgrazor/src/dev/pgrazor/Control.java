@@ -134,7 +134,7 @@ public final class Control {
     private static volatile boolean throwReady, throwCurve, throwAr, throwArReady;
     // Independent of throw rating, curveball and Quick Catch. Defaults off.
     private static volatile boolean throwAlwaysHit, throwAlwaysHitReady;
-    private static volatile int throwGrade;
+    private static volatile int throwGrade, throwVariety;
     // Optional IV/level overlays rendered by the ball-animation agent. Catch screen
     // defaults ON (prior behavior); owned Pokemon details defaults OFF. ivOwnedReady
     // is runtime only: whether the agent resolved the owned-details metadata.
@@ -582,7 +582,7 @@ public final class Control {
     // revives. healWhen: 0 after battles, 1 periodically, 2 both. healThreshold: heal below this percent
     // of max HP, 100 = any missing HP. healStatus is the module's last problem or this session's items.
     public static final String[] HEAL_WHEN_LABELS={"After battles","Periodically","After battles & periodically"};
-    private static volatile boolean healEnabled,healRevive=true;
+    private static volatile boolean healEnabled,healRevive=true,healFull;
     private static volatile int healWhen,healThreshold=50;
     private static volatile String healStatus="";
     public static boolean healEnabled(){return healEnabled;}
@@ -594,9 +594,12 @@ public final class Control {
     public static void cycleHealThreshold(){healThreshold=healThreshold>=100?25:healThreshold+25;saveSettings();event("smart-heal","settings "+healConfig());}
     public static boolean healRevive(){return healRevive;}
     public static void setHealRevive(boolean on){healRevive=on;saveSettings();event("smart-heal","settings "+healConfig());}
+    /** Heal fully: use whatever items it takes, instead of saving big potions and revives for big wounds. */
+    public static boolean healFull(){return healFull;}
+    public static void setHealFull(boolean on){healFull=on;saveSettings();event("smart-heal","settings "+healConfig());}
     public static String healStatus(){return healEnabled?healStatus:"";}
-    /** "H1|enabled|when|threshold|revive" for the native healer (transport slot 18). */
-    public static String healConfig(){return "H1|"+(healEnabled?1:0)+"|"+healWhen+"|"+healThreshold+"|"+(healRevive?1:0);}
+    /** "H2|enabled|when|threshold|revive|full" for the native healer (transport slot 18). */
+    public static String healConfig(){return "H2|"+(healEnabled?1:0)+"|"+healWhen+"|"+healThreshold+"|"+(healRevive?1:0)+"|"+(healFull?1:0);}
     public static void configureQuickBall(boolean configured) {
         synchronized(quickBallLock) {
             quickBallConfigured=configured; quickBallReady=false; ivOwnedReady=false; setThrowReady(false);setMapTapReady(false);
@@ -659,7 +662,13 @@ public final class Control {
     }
     public static boolean throwReady() { return quickBallReady() && throwReady; }
     public static void setThrowReady(boolean ready) { throwReady=ready; }
-    public static int throwGrade() { return throwGrade; }
+    /** The grade the native throw layer applies: the rating 0-3, or 4-6 while throw variety is on. */
+    public static int throwGrade() { return throwVariety>0 ? 3+throwVariety : throwGrade; }
+    /** The Throw rating setting: 0 off, 1 Nice, 2 Great, 3 Excellent. */
+    public static int throwRating() { return throwGrade; }
+    /** Throw variety: 0 off, 1 Excellent & Great, 2 Excellent, Great & Nice, 3 all (with a plain throw). */
+    public static int throwVariety() { return throwVariety; }
+    public static final String[] THROW_VARIETY_LABELS={"Off","Excellent & Great","Excellent, Great & Nice","All"};
     public static boolean throwCurve() { return throwCurve; }
     public static boolean throwAr() { return throwAr; }
     public static boolean throwArReady() { return throwArReady && throwReady(); }
@@ -667,6 +676,7 @@ public final class Control {
     public static void setThrowAr(boolean value) { throwAr=value; saveSettings(); }
 
     public static void setThrowGrade(int grade) { throwGrade=grade>=0 && grade<=3 ? grade : 0; saveSettings(); event("throw-grade",""+throwGrade); }
+    public static void setThrowVariety(int variety) { throwVariety=variety>=0 && variety<=3 ? variety : 0; saveSettings(); event("throw-variety",THROW_VARIETY_LABELS[throwVariety]); }
     public static void setThrowCurve(boolean enabled) { throwCurve=enabled; saveSettings(); event("throw-curve",""+throwCurve); }
     public static boolean throwAlwaysHitReady() { return throwReady() && throwAlwaysHitReady; }
     public static void setThrowAlwaysHitReady(boolean ready) { throwAlwaysHitReady=ready; }
@@ -1122,6 +1132,7 @@ public final class Control {
                 batteryLowQuality=Boolean.parseBoolean(p.getProperty("batteryLowQuality","false"));
                 healEnabled=Boolean.parseBoolean(p.getProperty("smartHealEnabled","false"));
                 healRevive=Boolean.parseBoolean(p.getProperty("smartHealRevive","true"));
+                healFull=Boolean.parseBoolean(p.getProperty("smartHealFull","false"));
                 healWhen=boundedSetting(p,"smartHealWhen",2);
                 int threshold=boundedSetting(p,"smartHealThreshold",100);healThreshold=threshold==25||threshold==50||threshold==75||threshold==100?threshold:50;
                 for(int i=0;i<3;i++){int rank=boundedSetting(p,PVP_RANK_KEYS[i],4096);pvpRanks[i]=rank>0?rank:PVP_DEFAULT_RANKS[i];}
@@ -1131,8 +1142,8 @@ public final class Control {
                 throwCurve=Boolean.parseBoolean(p.getProperty("curve","false"));
                 throwAlwaysHit=Boolean.parseBoolean(p.getProperty("throwAlwaysHit","false"));
                 throwAr=Boolean.parseBoolean(p.getProperty("throwAr","false"));
-                throwGrade=boundedSetting(p,"grade",3); mapTapMode=boundedSetting(p,"mapTap",3);
-                event("settings-restored","dismiss="+quickSummaryEnabled+" fastBall="+quickBallEnabled+" grade="+throwGrade+" curve="+throwCurve+" mapTap="+mapTapMode+" cameraRelative=true heal="+healConfig());
+                throwGrade=boundedSetting(p,"grade",3); throwVariety=boundedSetting(p,"throwVariety",3); mapTapMode=boundedSetting(p,"mapTap",3);
+                event("settings-restored","dismiss="+quickSummaryEnabled+" fastBall="+quickBallEnabled+" grade="+throwGrade+" variety="+throwVariety+" curve="+throwCurve+" mapTap="+mapTapMode+" cameraRelative=true heal="+healConfig());
             } catch(FileNotFoundException missing) {
                 // Defaults apply only until the user first saves a choice.
             } catch(IOException | RuntimeException error) { event("settings-load-error",error.toString()); }
@@ -1208,11 +1219,11 @@ public final class Control {
         p.setProperty("catchChance",String.valueOf(catchChanceShown)); p.setProperty("autoBall",String.valueOf(autoBall)); p.setProperty("autoBallTarget",String.valueOf(autoBallTarget));
         p.setProperty("pvpKeepLeagues",String.valueOf(pvpKeepLeagues)); p.setProperty("skipCutscenes",String.valueOf(skipCutscenes));
         p.setProperty("batteryLowRes",String.valueOf(batteryLowRes)); p.setProperty("batteryFps20",String.valueOf(batteryFps20)); p.setProperty("batteryLowQuality",String.valueOf(batteryLowQuality));
-        p.setProperty("smartHealEnabled",String.valueOf(healEnabled)); p.setProperty("smartHealRevive",String.valueOf(healRevive));
+        p.setProperty("smartHealEnabled",String.valueOf(healEnabled)); p.setProperty("smartHealRevive",String.valueOf(healRevive)); p.setProperty("smartHealFull",String.valueOf(healFull));
         p.setProperty("smartHealWhen",String.valueOf(healWhen)); p.setProperty("smartHealThreshold",String.valueOf(healThreshold));
         for(int i=0;i<3;i++)p.setProperty(PVP_RANK_KEYS[i],String.valueOf(pvpRanks[i]));
         p.setProperty("autoDismiss",String.valueOf(quickSummaryEnabled)); p.setProperty("fastBall",String.valueOf(quickBallEnabled));
-        p.setProperty("throwAr",String.valueOf(throwAr)); p.setProperty("curve",String.valueOf(throwCurve)); p.setProperty("grade",String.valueOf(throwGrade));
+        p.setProperty("throwAr",String.valueOf(throwAr)); p.setProperty("curve",String.valueOf(throwCurve)); p.setProperty("grade",String.valueOf(throwGrade)); p.setProperty("throwVariety",String.valueOf(throwVariety));
         p.setProperty("throwAlwaysHit",String.valueOf(throwAlwaysHit));
         p.setProperty("mapTap",String.valueOf(mapTapMode));
         return p;

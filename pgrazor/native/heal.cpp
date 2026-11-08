@@ -26,14 +26,16 @@
 // not a Max Potion; a Max Potion is used only when it beats the potions on hand (and is never spent
 // on less than ~40 missing HP); a Revive plus potions beats a Max Revive whenever potions are on hand.
 // Heal amounts are the game's long-standing ones: 20 / 50 / 200 HP and full; Revive to half HP.
+// Heal fully (the setting): each HP left missing costs more than any item, so the Pokemon is always
+// healed (and revived) as far as the items on hand allow, still with the cheapest mix that gets there.
 namespace pgr_heal {
 namespace {
 constexpr long kValue[KIND_COUNT]={20,50,200,400,300,1000};
-constexpr long kPerItem=10,kPerMissingHp=10;
+constexpr long kPerItem=10,kPerMissingHp=10,kPerMissingHpFull=100000;
 constexpr int kHeal[3]={20,50,200};
 long item_cost(int kind,int n){return n*(kValue[kind]+kPerItem);}
-Plan potions(int missing,const Stock &s){
- Plan best;best.cost=kPerMissingHp*long(missing);  // use nothing
+Plan potions(int missing,const Stock &s,long per_missing){
+ Plan best;best.cost=per_missing*long(missing);  // use nothing
  long best_over=0;int best_items=0;
  // Equal scores: the one that overheals least (wastes the least), then the one with fewer items.
  auto consider=[&](const Plan &p,long over){
@@ -46,21 +48,22 @@ Plan potions(int missing,const Stock &s){
   Plan p;p.count[HYPER_POTION]=h;p.count[SUPER_POTION]=su;p.count[POTION]=po;
   const int heal=h*kHeal[2]+su*kHeal[1]+po*kHeal[0];
   p.healed=heal<missing?heal:missing;
-  p.cost=item_cost(HYPER_POTION,h)+item_cost(SUPER_POTION,su)+item_cost(POTION,po)+kPerMissingHp*long(missing-p.healed);
+  p.cost=item_cost(HYPER_POTION,h)+item_cost(SUPER_POTION,su)+item_cost(POTION,po)+per_missing*long(missing-p.healed);
   consider(p,heal>missing?heal-missing:0);
  }
  return best;
 }
 }  // namespace
-Plan plan(int hp,int max_hp,const Stock &s,bool revive){
+Plan plan(int hp,int max_hp,const Stock &s,bool revive,bool full){
  if(max_hp<=0||hp<0||hp>=max_hp)return {};
- if(hp>0){Plan p=potions(max_hp-hp,s);return p.any()?p:Plan{};}
+ const long per_missing=full?kPerMissingHpFull:kPerMissingHp;
+ if(hp>0){Plan p=potions(max_hp-hp,s,per_missing);return p.any()?p:Plan{};}
  if(!revive)return {};
- Plan best;best.cost=kPerMissingHp*long(max_hp);  // leave it fainted
+ Plan best;best.cost=per_missing*long(max_hp);  // leave it fainted
  if(s.count[MAX_REVIVE]>0){Plan p;p.count[MAX_REVIVE]=1;p.healed=max_hp;p.cost=item_cost(MAX_REVIVE,1);if(p.cost<best.cost)best=p;}
  if(s.count[REVIVE]>0){
   const int after=max_hp/2>0?max_hp/2:1;
-  Plan p=potions(max_hp-after,s);p.count[REVIVE]=1;p.healed+=after;p.cost+=item_cost(REVIVE,1);
+  Plan p=potions(max_hp-after,s,per_missing);p.count[REVIVE]=1;p.healed+=after;p.cost+=item_cost(REVIVE,1);
   if(p.cost<best.cost)best=p;
  }
  return best.any()?best:Plan{};
@@ -134,15 +137,15 @@ std::string escape(const std::string &s){std::string out;for(unsigned char c:s){
 void event(const std::string &json){auto tr=transport();if(!tr)return;PgrRuntimeTransportString s[]={{"smart-heal",10},{json.c_str(),uint32_t(json.size())}};tr->emit(19,nullptr,0,s,2);}
 void status(const char *phase,const std::string &message){event(std::string("{\"phase\":\"")+phase+"\",\"message\":\""+escape(message)+"\"}");}
 
-struct Config {bool on=false;int when=0,threshold=50;bool revive=true;};  // when: 0 after battle, 1 periodic, 2 both
-// "H1|enabled|when|threshold|revive"; anything else (or a stale snapshot) means off.
+struct Config {bool on=false;int when=0,threshold=50;bool revive=true,full=false;};  // when: 0 after battle, 1 periodic, 2 both
+// "H2|enabled|when|threshold|revive|full"; anything else (or a stale snapshot) means off.
 Config configured(bool &on_map){
  Config c;on_map=false;auto tr=transport();PgrRuntimeTransportSample a{};char s[64]{};uint32_t n=0;
  if(!tr||tr->sample(&a)||!a.snapshot_fresh||a.fault||tr->get_string(18,s,sizeof(s)-1,&n)||n>=sizeof(s))return c;
- s[n]=0;int e=0,w=0,t=0,r=0;
- if(std::sscanf(s,"H1|%d|%d|%d|%d",&e,&w,&t,&r)!=4||(e!=0&&e!=1)||w<0||w>2||(t!=25&&t!=50&&t!=75&&t!=100)||(r!=0&&r!=1))return c;
+ s[n]=0;int e=0,w=0,t=0,r=0,f=0;
+ if(std::sscanf(s,"H2|%d|%d|%d|%d|%d",&e,&w,&t,&r,&f)!=5||(e!=0&&e!=1)||w<0||w>2||(t!=25&&t!=50&&t!=75&&t!=100)||(r!=0&&r!=1)||(f!=0&&f!=1))return c;
  int active=0,ready=0,map=0;tr->get_bool(3,&active);tr->get_bool(16,&ready);tr->get_bool(38,&map);
- c.on=e==1&&active&&ready;c.when=w;c.threshold=t;c.revive=r==1;on_map=map!=0;return c;
+ c.on=e==1&&active&&ready;c.when=w;c.threshold=t;c.revive=r==1;c.full=f==1;on_map=map!=0;return c;
 }
 
 constexpr uint64_t kScanMs=4000,kSweepMs=120000,kFirstSweepMs=10000,kGapMs=400,kResponseMs=15000,kConfirmMs=5000,kRetryMs=600000;
@@ -218,7 +221,7 @@ void heal_next(const Config &c,uint64_t now){
   if(!p||klass(p.get())!=st.pokemon_class||!usable(p.get())){st.queued.erase(id);st.queue.erase(st.queue.begin());continue;}
   const int hp=at<int32_t>(p.get(),st.f.hp),max=at<int32_t>(p.get(),st.f.max);
   if(hp==0&&!c.revive){st.queued.erase(id);st.queue.erase(st.queue.begin());continue;}
-  const Plan plan=pgr_heal::plan(hp,max,stock(),c.revive);const int kind=first(plan);
+  const Plan plan=pgr_heal::plan(hp,max,stock(),c.revive,c.full);const int kind=first(plan);
   if(kind<0){
    // Full, or nothing on hand is worth using on it: look again only after a while.
    if(hp<max)st.skip_until[id]=now+kRetryMs;

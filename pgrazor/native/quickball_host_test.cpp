@@ -153,7 +153,7 @@ int main(int argc,char **argv){
   if(!std::strcmp(event_out.kind,"speed-applied"))saw_speed=true;
  }assert(saw_outcome&&saw_map&&saw_speed);
  // Invalid settings revoke and cannot revive an earlier deadline on the next tick.
- bad=config;auto invalid=settings;invalid.grade=4;assert(host->set_options(&invalid)==PGR_QBH_BAD_CONFIG);assert(host->tick(gettid())==0);
+ bad=config;auto invalid=settings;invalid.grade=7;assert(host->set_options(&invalid)==PGR_QBH_BAD_CONFIG);assert(host->tick(gettid())==0);
  PgrThrowValue unchanged{1,0.5f,0,0,0,0};value=unchanged;host->rewrite_submit(&ball,&value);assert(!std::memcmp(&value,&unchanged,sizeof(value)));
  assert(root_count==0);
  // Deadline belongs to settings, never to repeated ticks.

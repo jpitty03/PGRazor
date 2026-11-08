@@ -54,7 +54,7 @@ def control_shell():
         elif name == 'cutsceneSkipConfig':
             body = 'reads++;return "K1|1";'
         elif name == 'healConfig':
-            body = 'reads++;return "H1|1|2|75|1";'
+            body = 'reads++;return "H2|1|2|75|1|0";'
         elif name == 'shundoConfig':
             body = 'reads++;return "S1|7|123456789|0|1";'
         elif name == 'batteryConfig':

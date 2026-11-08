@@ -78,6 +78,10 @@ def main(argv=None):
             if source.stem == 'gift_batch_test':
                 extra_flags = ['-rdynamic', '-fexceptions']
                 entry['included_source_sha256'] = native_build.sha256(root/'native/gift_batch.cpp')
+            if source.stem == 'smart_catch_test':
+                owner = root / 'native/smart_catch.cpp'
+                extra_flags = [owner]
+                entry['owner_sha256'] = native_build.sha256(owner)
             if source.stem == 'smart_catch_controller_test':
                 controller = root / 'native/vgp_controller.cpp'
                 extra_flags = [controller]

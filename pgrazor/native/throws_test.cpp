@@ -46,6 +46,21 @@ int main(int argc,char **argv){
    if(i==0)first=value.radius;else if(value.radius!=first)varied=true;
   }if(!varied)return 11;
  }
+ // Throw variety (4-6): only the set's grades, each at roughly even odds, and the paired hit keeps the
+ // grade (and radius) its submit picked, a plain throw included.
+ for(int setting=4;setting<=6;++setting){
+  if(api->update(setting,0,1,2500,gettid()))return 21;
+  int seen[4]={};const int n=setting-2;
+  for(int i=0;i<800;++i){value=original;api->rewrite_submit(&ball,&value);
+   int grade=-1;
+   if(!value.bullseye&&value.radius==original.radius)grade=0;
+   else for(int g=1;g<=3;++g)if(value.bullseye&&value.radius>=low[g]&&value.radius<=high[g])grade=g;
+   if(grade<0||grade<4-n)return 22;  // e.g. Excellent & Great never gives Nice or a plain throw
+   ++seen[grade];
+   call(&owner,original,&config);if(last.radius!=value.radius||last.bullseye!=value.bullseye)return 23;
+  }
+  for(int g=4-n;g<=3;++g)if(seen[g]<800/n/2)return 24;  // even odds: each well above half its share
+ }
  for(int item : {4,6}){value=original;value.item=item;PgrThrowValue before=value;api->rewrite_submit(&ball,&value);if(std::memcmp(&before,&value,12))return 12;}
  value=original;value.missed=1;api->rewrite_submit(&ball,&value);if(value.radius!=original.radius||value.bullseye)return 13;
  value=original;value.radius=std::numeric_limits<float>::quiet_NaN();api->rewrite_submit(&ball,&value);if(!std::isnan(value.radius)||value.bullseye)return 14;

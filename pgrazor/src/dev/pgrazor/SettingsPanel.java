@@ -47,7 +47,7 @@ final class SettingsPanel {
     private Button uiScale;
     private TextView incubatorStatus;
     // Primary action and cycle/dialog rows.
-    private Button mapTap, throwGrade, storageIv, ivCatchMode, ivOwnedMode, itemSettings, cameraSample, interactionCapture, transferKeepList;
+    private Button mapTap, throwGrade, throwVariety, storageIv, ivCatchMode, ivOwnedMode, itemSettings, cameraSample, interactionCapture, transferKeepList;
     // Boolean settings use proper switches.
     private Switch idleWalkSwitch, locationSwitch, vgpSwitch, joystickSwitch, cooldownSwitch, spawnSwitch, autoTransferSwitch,
         quickSpinSwitch, berrySwitch, quickSummarySwitch, curveSwitch, alwaysHitSwitch, arSwitch, transferOverlaySwitch, catchChanceSwitch, autoBallSwitch, skipCutscenesSwitch,
@@ -55,7 +55,7 @@ final class SettingsPanel {
     private Button autoBallTarget;
     private TextView quickSummaryLabel, vgpStatus, cutsceneStatus, healStatus;
     private Switch healSwitch, healReviveSwitch;
-    private Button healWhen, healThreshold;
+    private Button healWhen, healThreshold, healItems;
     private final CheckBox[] vgpChoices=new CheckBox[3];
     private CheckBox vgpCooldownStop;
     // Status / caption lines (muted, readiness driven).
@@ -402,6 +402,8 @@ final class SettingsPanel {
         healWhen.setOnClickListener(v -> { Control.setHealWhen((Control.healWhen()+1)%3); refreshHealing(); });
         healThreshold = button(""); owner.addView(healThreshold);
         healThreshold.setOnClickListener(v -> { Control.cycleHealThreshold(); refreshHealing(); });
+        healItems = button(""); owner.addView(healItems);
+        healItems.setOnClickListener(v -> { Control.setHealFull(!Control.healFull()); refreshHealing(); });
         healReviveSwitch = switchRow(owner, "Revive fainted Pokémon"); healReviveSwitch.setChecked(Control.healRevive());
         healReviveSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.healRevive())return; Control.setHealRevive(checked); });
         healStatus = caption(owner, "");
@@ -413,8 +415,9 @@ final class SettingsPanel {
         healSwitch.setChecked(Control.healEnabled()); healReviveSwitch.setChecked(Control.healRevive());
         healWhen.setText("Heal: "+Control.HEAL_WHEN_LABELS[Control.healWhen()]);
         healThreshold.setText(Control.healThreshold()>=100?"Heal when: Any HP missing":"Heal when: Below "+Control.healThreshold()+"% HP");
+        healItems.setText(Control.healFull()?"Items: Always heal fully":"Items: Smart (saves big potions)");
         boolean on=Control.healEnabled();
-        SettingsUi.enabled(healWhen,on); SettingsUi.enabled(healThreshold,on); SettingsUi.enabled(healReviveSwitch,on);
+        SettingsUi.enabled(healWhen,on); SettingsUi.enabled(healThreshold,on); SettingsUi.enabled(healItems,on); SettingsUi.enabled(healReviveSwitch,on);
         String status=Control.healStatus(); healStatus.setText(status); healStatus.setVisibility(status.isEmpty()?View.GONE:View.VISIBLE);
     }
 
@@ -431,7 +434,10 @@ final class SettingsPanel {
         LinearLayout throwC = section(body, "Throws", false); quickBallRoot = (View)throwC.getParent();
 
         throwGrade = button("Throw rating: OFF"); throwC.addView(throwGrade);
-        throwGrade.setOnClickListener(v -> { Control.setThrowGrade((Control.throwGrade()+1)%4); host.refresh(); });
+        throwGrade.setOnClickListener(v -> { Control.setThrowGrade((Control.throwRating()+1)%4); host.refresh(); });
+        throwVariety = button("Throw variety: Off"); throwC.addView(throwVariety);
+        throwVariety.setOnClickListener(v -> { Control.setThrowVariety((Control.throwVariety()+1)%4); host.refresh(); });
+        caption(throwC, "Throw variety picks a rating at random for each throw, with even odds. All includes a plain throw. It replaces the throw rating while on.");
         curveSwitch = switchRow(throwC, "Always curveball"); curveSwitch.setChecked(Control.throwCurve());
         curveSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.throwCurve())return; Control.setThrowCurve(curveSwitch.isChecked()); host.refresh(); });
         alwaysHitSwitch = switchRow(throwC, "Always hit"); alwaysHitSwitch.setChecked(Control.throwAlwaysHit());
@@ -675,8 +681,10 @@ final class SettingsPanel {
     private static final String[] IV_MODES={"Off","Lv · 15/14/12","Lv · IV","Lv · IV · 15/14/12","Lv · IV · 15/14/12 · PvP"};
 
     private void refreshThrows() {
-        throwGrade.setText("Throw rating: "+new String[]{"OFF","Nice","Great","Excellent"}[Control.throwGrade()]);
-        throwGrade.setEnabled(Control.quickBallConfigured());
+        throwGrade.setText("Throw rating: "+new String[]{"OFF","Nice","Great","Excellent"}[Control.throwRating()]);
+        throwGrade.setEnabled(Control.quickBallConfigured()&&Control.throwVariety()==0);
+        throwVariety.setText("Throw variety: "+Control.THROW_VARIETY_LABELS[Control.throwVariety()]);
+        throwVariety.setEnabled(Control.quickBallConfigured());
         curveSwitch.setChecked(Control.throwCurve());curveSwitch.setEnabled(Control.quickBallConfigured());
         alwaysHitSwitch.setChecked(Control.throwAlwaysHit());alwaysHitSwitch.setEnabled(Control.throwAlwaysHitReady() || Control.throwAlwaysHit());
         arSwitch.setChecked(Control.throwAr());arSwitch.setEnabled(Control.throwArReady());
