@@ -192,6 +192,7 @@ public final class Control {
         () -> Cooldown.remaining(), Control::cooldownAction,
         Control::event, Control::saveSettings);
     public static boolean vgpEnabled(){guardVgpCooldown();return vgpOverlay&&vgpEnabled;}
+    static boolean regressionAutomationActive(){return vgpEnabled||engine.walking||engine.metersPerSecond()>0;}
     public static boolean vgpOverlay(){return vgpOverlay;}
     public static void setVgpOverlay(boolean value){vgp.setOverlay(value);}
     public static boolean vgpOverlayVisible(){return vgpOverlay&&hostLive();}
@@ -317,19 +318,34 @@ public final class Control {
     public static boolean rocketAllowed(){return rocketReady&&quickSummaryReady()&&hostLive();}
     private static volatile boolean itemTransferEnabled,itemTransferReady;
     private static volatile String itemRules="",itemLimits="",itemCatalog="",itemStatus="Waiting for item bag";
+    private static volatile long itemCatalogRevision;
+    public static long itemCatalogRevision(){return itemCatalogRevision;}
+    private static volatile int regressionCatalogToken=2,regressionCatalogCompleted;
+    private static volatile String regressionCatalog="";
+    private static volatile long regressionCatalogRevision;
+    static int regressionCatalogCompleted(){return regressionCatalogCompleted;}
+    static String regressionCatalog(){return regressionCatalog;}
+    static long regressionCatalogRevision(){return regressionCatalogRevision;}
     public static boolean itemTransferEnabled(){return itemTransferEnabled;}
     public static String itemRules(){return itemRules;}
     public static String itemLimits(){return itemLimits;}
     public static String itemCatalog(){return itemCatalog;}
     public static String itemStatus(){return itemStatus;}
     public static boolean itemAccessAllowed(){return itemTransferReady&&quickSummaryReady()&&hostLive();}
-    private static volatile long itemCatalogUntil,berryCatalogUntil;
+    private static volatile long itemCatalogUntil,berryCatalogUntil,regressionCatalogUntil;
     public static void requestItemCatalog(){itemCatalogUntil=SystemClock.elapsedRealtime()+5000;}
+    static int requestRegressionItemCatalog(){
+        if(regressionCatalogToken==Integer.MAX_VALUE)throw new IllegalStateException("Catalog request exhausted");
+        regressionCatalogToken++;regressionCatalogUntil=SystemClock.elapsedRealtime()+5000;
+        return regressionCatalogToken;
+    }
+    static void cancelRegressionItemCatalog(){regressionCatalogUntil=0;}
     public static void requestBerryCatalog(){berryCatalogUntil=SystemClock.elapsedRealtime()+5000;}
-    /** 0: idle, 1: five berry counts only, 2: explicit inventory settings catalog. */
+    /** 0: idle, 1: berries, 2: UI catalog, >=3: unique regression read request. */
     public static int itemCatalogMode(){
         if(!hostLive())return 0;
         long now=SystemClock.elapsedRealtime();
+        if(now<regressionCatalogUntil)return regressionCatalogToken;
         if(now<itemCatalogUntil)return 2;
         return now<berryCatalogUntil||encounterBerryVisible()?1:0;
     }
@@ -337,10 +353,20 @@ public final class Control {
     public static void setItemStatus(String status){itemStatus=status==null?"":status;}
     public static void setItemCatalog(String value){
         if(value==null||value.length()>100000)return;
+        int completed=0;
+        if(value.startsWith("#regression:")){
+            int newline=value.indexOf('\n');if(newline<0)return;
+            try{completed=Integer.parseInt(value.substring(12,newline));}catch(NumberFormatException ignored){return;}
+            if(completed!=regressionCatalogToken||SystemClock.elapsedRealtime()>=regressionCatalogUntil)return;
+            value=value.substring(newline+1);
+        }
         TreeMap<Integer,String> rows=new TreeMap<>();
         for(String row:itemCatalog.split("\n")){String[] bits=row.split("\\|",-1);try{if(bits.length==3)rows.put(Integer.parseInt(bits[0]),bits[0]+"|"+bits[1]+"|0");}catch(NumberFormatException ignored){}}
         for(String row:value.split("\n")){String[] bits=row.split("\\|",-1);try{if(bits.length==3&&Integer.parseInt(bits[0])>0&&Integer.parseInt(bits[2])>=0)rows.put(Integer.parseInt(bits[0]),row);}catch(NumberFormatException ignored){}}
         itemCatalog=String.join("\n",rows.values());itemStatus="Ready: "+rows.size()+" recyclable item types";
+        itemCatalogRevision++;
+        if(completed>=3){regressionCatalog=itemCatalog;regressionCatalogRevision=itemCatalogRevision;
+            regressionCatalogCompleted=completed;regressionCatalogUntil=0;}
     }
     private static boolean validItemRules(String value){
         if(value==null||value.length()>30000)return false;HashSet<Integer> seen=new HashSet<>();
@@ -869,6 +895,7 @@ public final class Control {
         AccountProfiles.init(app);
         loadState(app);
         loadSettings(app);
+        RegressionBridge.start(app);
         Cooldown.init(app);
         app.registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
             public void onActivityResumed(Activity activity) { GoogleBrowserAuth.onHostResumed(activity); attach(activity); }

@@ -99,6 +99,7 @@ struct Pending {
     double   fullness = 0.0;            // fullness at feed time (progress baseline)
     uint64_t deadline_ms = 0;
     uint64_t generation = 0;            // bumped each new request (result-hook onLeave match)
+    uint64_t buddy_id = 0;              // only this buddy's fed state can settle uncertainty
 };
 struct State {
     void    *service_handle = nullptr;  // durable GC root on BuddyStatsService
@@ -307,7 +308,8 @@ void *resolve(Root &container_root, void *contract_cls, void *concrete_cls, Root
 void orchestrate(int32_t berry, uint64_t now, uint64_t deadline) {
     State &r = g_st;
 
-    // 1. A pending request outstanding: consume a captured result, else wait / time out.
+    // 1. Consume a captured result. After timeout we may observe live hunger, but
+    // must never issue another Feed until this same buddy has been observed fed.
     if (r.pending.active) {
         bool have_result; int32_t result; double fullness;
         {
@@ -340,11 +342,11 @@ void orchestrate(int32_t berry, uint64_t now, uint64_t deadline) {
             r.blocked = true;
             set_status(PGR_BUDDY_STATUS_TIMEOUT);
         }
-        return;
+        if (now <= r.pending.deadline_ms) return;
     }
 
     // 2. Config (berry) change resets the per-cycle state (keeps no pending here).
-    if (r.config_berry != berry) {
+    if (!r.pending.active && r.config_berry != berry) {
         r.config_berry = berry;
         r.blocked = false;
         r.feeds = 0;
@@ -421,6 +423,7 @@ void orchestrate(int32_t berry, uint64_t now, uint64_t deadline) {
         if (!exact(proto_h.target(), g_cfg.class_buddy_proto)) return; // not ready (soft)
         uint64_t id = read_u64(proto_h.target(), g_cfg.f_buddy_id);
         if (id == 0) return;                              // no buddy id yet (soft)
+        if (r.pending.active && id != r.pending.buddy_id) return;
         if (!g_st.have_id || id != g_st.buddy_id) {
             g_st.buddy_id = id; g_st.have_id = true;
             g_st.feeds = 0; g_st.have_progress = false; g_st.blocked = false;
@@ -447,6 +450,17 @@ void orchestrate(int32_t berry, uint64_t now, uint64_t deadline) {
         invoke_float(g_cfg.m_fullness, nullptr, sp, &fullness, &err); if (err) goto fail;
         if (!std::isfinite(remaining) || !std::isfinite(fullness)) { err = true; goto fail; }
 
+        if (r.pending.active) {
+            // A clear or lease revocation inside a managed getter cannot authorize
+            // state changes. A callback captured during this poll is consumed on
+            // the next tick instead of being replaced by an inferred result.
+            if (g_revoke || boottime_ms() >= deadline || r.pending.have_result) return;
+            if (remaining <= 0.0f) return;
+            drop_pending();
+            refresh_root_count();
+            // We only know the buddy is fed (possibly manually). Do not increment
+            // result_serial or feeds, and do not credit the uncertain request.
+        }
         if (remaining > 0.0f) {                           // fed -> re-arm for the next cycle
             g_st.feeds = 0; g_st.have_progress = false; g_st.blocked = false;
             set_status_detail(PGR_BUDDY_STATUS_FED,
@@ -492,6 +506,7 @@ void orchestrate(int32_t berry, uint64_t now, uint64_t deadline) {
             g_st.pending.fullness = fullness;
             g_st.pending.deadline_ms = now + kFeedMs;
             g_st.pending.generation = gen = ++g_st.next_generation;
+            g_st.pending.buddy_id = id;
             g_st.invoking = true;
         }
         refresh_root_count();

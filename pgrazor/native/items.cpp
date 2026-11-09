@@ -380,10 +380,10 @@ struct OwnerScope {
 };
 
 // --- catalog publication (Unity thread -> mutex-guarded copy; no managed calls) ----
-void publish_catalog() {
+void publish_catalog(bool fresh_request = false) {
     std::lock_guard<std::mutex> lock(g_catalog_mutex);
     uint32_t n = g_rows_n; if (n > kMaxRows) n = kMaxRows;
-    if (g_catalog_serial.load(std::memory_order_relaxed) != 0 && g_pub_n == n &&
+    if (!fresh_request && g_catalog_serial.load(std::memory_order_relaxed) != 0 && g_pub_n == n &&
         std::memcmp(g_pub_rows, g_rows, static_cast<size_t>(n) * sizeof(pgrazor_item_row)) == 0) return;
     std::memcpy(g_pub_rows, g_rows, static_cast<size_t>(n) * sizeof(pgrazor_item_row));
     g_pub_n = n;
@@ -512,7 +512,7 @@ lerr:
 
 // --- catalog enumeration + the single recycle (Unity thread, no exceptions) --------
 // deadline is an absolute CLOCK_BOOTTIME ms watermark for the single RecycleItem.
-void enumerate_and_recycle(uint64_t now, uint64_t deadline) {
+void enumerate_and_recycle(uint64_t now, uint64_t deadline, bool fresh_request) {
     bool err = false;
     Root list_h, candidate_h, expiry_h, row_h, bag_h;
     int32_t cand_id = 0, cand_cap = 0;
@@ -595,7 +595,7 @@ void enumerate_and_recycle(uint64_t now, uint64_t deadline) {
     }
 
     partial = g_st.scan_handle && g_st.scan_cursor < g_st.scan_count;
-    if (!partial) { release_scan(); publish_catalog(); }
+    if (!partial) { release_scan(); publish_catalog(fresh_request); }
     else g_st.next_ms = 0; // continue next frame, with no repeated managed list enumeration
     refresh_root_count();
 
@@ -834,7 +834,7 @@ void orchestrate(uint64_t now, uint64_t deadline, uint32_t force_poll) {
         return;
     }
     if (!explicit_catalog && !g_st.scan_handle && probe_selected(now, deadline) != 1) return;
-    enumerate_and_recycle(now, deadline);
+    enumerate_and_recycle(now, deadline, explicit_catalog && (force_poll & 16u));
 }
 
 // --- service capture (Unity thread) -----------------------------------------------

@@ -14,6 +14,14 @@ public class SettingsBackupRulesTest {
     }
     public static void main(String[] args)throws Exception{
         SettingsBackupRules.validate(valid());
+        // Export uses this whitelist; accepting a field alone must not silently omit it.
+        if(!java.util.Arrays.asList(SettingsBackupRules.SETTINGS).contains("throwAlwaysHit"))
+            throw new AssertionError("Always Hit is omitted from settings export");
+        for(String value:new String[]{"true","false"}){
+            JSONObject alwaysHit=valid();alwaysHit.getJSONObject("settings").put("throwAlwaysHit",value);
+            SettingsBackupRules.validate(alwaysHit);
+        }
+        JSONObject invalidAlwaysHit=valid();invalidAlwaysHit.getJSONObject("settings").put("throwAlwaysHit","yes");rejects(invalidAlwaysHit);
         JSONObject buddyOrder=valid();buddyOrder.getJSONObject("settings").put("buddyEmotionBerries","708,703,701");SettingsBackupRules.validate(buddyOrder);
         for(String bad:new String[]{"703,703","707","703,","1201"}){buddyOrder.getJSONObject("settings").put("buddyEmotionBerries",bad);rejects(buddyOrder);}
         buddyOrder.getJSONObject("settings").put("buddyEmotionBerries","");SettingsBackupRules.validate(buddyOrder);

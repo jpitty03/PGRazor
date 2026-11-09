@@ -22,7 +22,11 @@ def main(argv=None):
     parser.add_argument('--serial', help='Explicit device serial; omitted means compile only')
     parser.add_argument('--adb', default='adb')
     parser.add_argument('--library', type=Path, help='Reviewed core to test; defaults to native build output')
+    parser.add_argument('--timeout', type=int, default=90,
+                        help='Per-harness device runtime limit in seconds (1..1800; default 90)')
     args = parser.parse_args(argv)
+    if not 1 <= args.timeout <= 1800:
+        parser.error('--timeout must be between 1 and 1800 seconds')
     sources = []
     for name in args.tests:
         if not re.fullmatch(r'[a-z][a-z0-9_]*', name):
@@ -43,8 +47,8 @@ def main(argv=None):
     output.mkdir(parents=True)
     receipt = {'abi': args.abi, 'ndk': revision, 'serial': args.serial, 'tests': [], 'success': False}
 
-    def run(command):
-        result = subprocess.run([str(x) for x in command], capture_output=True, text=True, timeout=90)
+    def run(command, timeout=90):
+        result = subprocess.run([str(x) for x in command], capture_output=True, text=True, timeout=timeout)
         if result.returncode:
             raise RuntimeError('Command failed (exit ' + str(result.returncode) + '): ' + str(command[0]) + '\n' + result.stdout + result.stderr)
         return result.stdout + result.stderr
@@ -91,8 +95,16 @@ def main(argv=None):
                 vendor = native_build.ensure_dobby(root, download=False)
                 extra_flags = ['-fexceptions', '-I'+str(vendor/'include'), '-llog']
                 entry['included_source_sha256'] = native_build.sha256(source.with_name(source.stem.removesuffix('_test')+'.cpp'))
-            if source.stem in ('runtime_host_flow_test', 'buddy_emotion_runtime_test'):
+            if source.stem in ('runtime_host_flow_test', 'buddy_emotion_runtime_test', 'batch_evolution_runtime_test'):
                 extra_flags = ['-llog']
+            if source.stem in ('gym_automation_test', 'gym_runtime_test', 'remote_gym_runtime_test'):
+                owner = root / 'native/gym_automation.cpp'
+                extra_flags = [owner, '-llog', '-rdynamic']
+                entry['owner_sha256'] = native_build.sha256(owner)
+            if source.stem == 'smart_catch_discovery_test':
+                owner = root / 'native/vgp_discovery.cpp'
+                extra_flags = [owner]
+                entry['owner_sha256'] = native_build.sha256(owner)
             if source.stem == 'code_patch_boundary_test':
                 vendor = native_build.ensure_dobby(root, download=False)
                 dobby = root / 'build/native/build' / args.abi / 'dobby/libdobby.a'
@@ -127,7 +139,7 @@ def main(argv=None):
                                     'gym_runtime.cpp', 'gym_automation.cpp', 'batch_evolution.cpp',
                                     'buddy_emotion.cpp', 'profile_scroll.cpp', 'vgp_controller.cpp', 'smart_catch.cpp',
                                     'smart_catch_binding.cpp', 'vgp_discovery.cpp', 'research.cpp', 'storage_iv.cpp',
-                                    'ar_values.cpp', 'ar_throw.cpp', 'catch_chance.cpp', 'cutscene_skip.cpp', 'catch_presentation.cpp', 'rocket_swap.cpp', 'rocket_combat.cpp', 'heal.cpp', 'shundo.cpp', 'battery.cpp')
+                                    'ar_values.cpp', 'ar_throw.cpp', 'catch_chance.cpp', 'cutscene_skip.cpp', 'catch_presentation.cpp', 'rocket_swap.cpp', 'rocket_combat.cpp', 'rocket_actions.cpp', 'heal.cpp', 'shundo.cpp', 'battery.cpp')
                     extra_flags[:0] = [root/'native'/name for name in dependencies]
                     entry['linked_sources_sha256'] = {name: native_build.sha256(root/'native'/name)
                                                      for name in dependencies}
@@ -139,7 +151,8 @@ def main(argv=None):
                 target = remote + '/' + source.stem
                 run(adb + ['push', executable, target])
                 run(adb + ['shell', 'chmod', '700', target])
-                entry['run_output'] = run(adb + ['shell', target, remote + '/core.so'])
+                entry['timeout_seconds'] = args.timeout
+                entry['run_output'] = run(adb + ['shell', target, remote + '/core.so'], timeout=args.timeout)
                 print(entry['run_output'].strip())
             else:
                 print('Compiled ' + source.stem + ' (' + args.abi + ')')

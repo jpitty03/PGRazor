@@ -14,6 +14,7 @@ struct PgrInventoryHostConfig {
  const PgrInventoryRuntime *runtime;
 };
 struct PgrInventoryHostOptions {
+ // item_catalog: 0 idle, 1 berries, 2 full UI catalog, 3..INT_MAX unique regression read token.
  uint32_t version,size,item_enabled,item_allowed,item_catalog,buddy_allowed,incubator_enabled,incubator_longest,incubator_allowed,gift_mask,gift_allowed,reserved;
  int32_t buddy_berry;uint32_t lease_ms;
  const char *item_rules; // bounded ASCII id:cap; pairs, copied synchronously

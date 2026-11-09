@@ -260,6 +260,7 @@ typedef int (*pgrazor_items_install_fn)(const pgrazor_items_config_v1 *config);
  * force_poll bits: 1 resets the poll cadence (getItemState().next = 0), 2 requests a full
  * catalog while recycling is off, 4 requests only five berry counts. Bits 2/4 preserve cadence;
  * enabled recycling always scans fully. Disabled with neither 2 nor 4 never enumerates.
+ * Bit 16 with bit 2 publishes completed regression reads even if counts are unchanged.
  * remaining_lease_ms is the residual (itemLease - now) window,
  * clamped here to PGRAZOR_ITEMS_MAX_LEASE_MS and turned into an absolute CLOCK_BOOTTIME deadline
  * re-checked immediately before the single RecycleItem (0/expired -> no managed recycle).

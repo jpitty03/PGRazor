@@ -16,6 +16,16 @@ public final class ControlItemCatalogTest {
         Control.setEncounterBerry(false,false);check(Control.itemCatalogMode()==0,"Leaving encounter stops berry sampling");
         Control.requestItemCatalog();flag("foreground",false);check(Control.itemCatalogMode()==0,"Background cannot request a catalog");
         flag("foreground",true);check(Control.itemAccessAllowed(),"Shared availability was not tied to auto-discard");
+        int token=Control.requestRegressionItemCatalog();check(token>=3&&Control.itemCatalogMode()==token,"Regression demand carries identity");
+        Control.setItemCatalog("1|Ball|7");check(Control.regressionCatalogCompleted()!=token,"Ordinary update cannot acknowledge regression read");
+        Control.setItemCatalog("#regression:"+(token+1)+"\n1|Ball|8");check(Control.regressionCatalogCompleted()!=token,"Foreign acknowledgement rejected");
+        Control.setItemCatalog("#regression:"+token+"\n1|Ball|9");check(Control.regressionCatalogCompleted()==token,"Matching full read acknowledged");
+        check(Control.regressionCatalog().contains("1|Ball|9"),"Completed counts captured");
+        Control.setItemCatalog("1|Ball|10");check(Control.regressionCatalog().contains("1|Ball|9"),"Later UI updates cannot change completed read");
+        int next=Control.requestRegressionItemCatalog();check(next>token,"Read identity never reused");
+        Control.setItemCatalog("#regression:"+token+"\n1|Ball|11");check(Control.regressionCatalogCompleted()!=next,"Delayed previous response rejected");
+        android.os.SystemClock.now+=5001;Control.renewLease();check(Control.itemCatalogMode()==0,"Regression demand expires");
+        Control.setItemCatalog("#regression:"+next+"\n1|Ball|12");check(Control.regressionCatalogCompleted()!=next,"Expired read cannot succeed");
         System.out.println("PASS: Control demand-driven inventory and berry sampling");
     }
 }

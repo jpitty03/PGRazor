@@ -42,6 +42,7 @@ final class SettingsPanel {
     private final ScrollView bodyScroll;
     private final TextView coords;
     private View closeIcon, themeIcon;
+    private Integer previousSystemBarAppearance;
     private Switch incubatorSwitch;
     private Button incubatorPriority;
     private Button uiScale;
@@ -181,7 +182,7 @@ final class SettingsPanel {
         buildDiagnosticsSection();
 
         // Closing the full-screen settings panel simply returns to the game (or the quick menu on the next tap).
-        closeIcon.setOnClickListener(v -> panel.setVisibility(View.GONE));
+        closeIcon.setOnClickListener(v -> hide());
         // The settings panel is a full-screen modal now; it consumes taps so the game behind it stays inert.
         panel.setClickable(true);
     }
@@ -492,11 +493,25 @@ final class SettingsPanel {
     View view(){return panel;}
     boolean isVisible(){return panel.getVisibility()==View.VISIBLE;}
     /** Bring the full-screen panel up; Pad applies current insets immediately after. */
-    void show(){panel.setVisibility(View.VISIBLE);panel.bringToFront();panel.requestApplyInsets();}
+    void show(){panel.setVisibility(View.VISIBLE);panel.bringToFront();panel.requestApplyInsets();applySystemBarTheme();}
     /** Hidden state matches the original startup and the close affix: returns to the game underneath. */
-    void hide(){panel.setVisibility(View.GONE);}
+    void hide(){
+        panel.setVisibility(View.GONE);
+        if(previousSystemBarAppearance!=null){
+            int mask=systemBarAppearanceMask();
+            if(Build.VERSION.SDK_INT>=30){
+                WindowInsetsController controller=activity.getWindow().getInsetsController();
+                if(controller!=null)controller.setSystemBarsAppearance(previousSystemBarAppearance,mask);
+            }else{
+                View decor=activity.getWindow().getDecorView();
+                decor.setSystemUiVisibility((decor.getSystemUiVisibility()&~mask)|previousSystemBarAppearance);
+            }
+            previousSystemBarAppearance=null;
+        }
+    }
     /** Release this panel's dialog polling when its owning activity panel is detached. */
     void close(){
+        hide();
         for(AlertDialog dialog:new java.util.ArrayList<>(itemDialogs))dialog.dismiss();
         itemDialogs.clear();handler.removeCallbacksAndMessages(null);
     }
@@ -518,12 +533,35 @@ final class SettingsPanel {
     }
 
     void applyTheme(){
+        applySystemBarTheme();
         panel.setBackgroundColor(surface());styleTree(panel);
         for(TextView head:sectionHeads){head.setTextColor(accent());head.setTypeface(Typeface.DEFAULT,Typeface.BOLD);}
         for(TextView c:captions)c.setTextColor(muted());
         if(coords!=null)coords.setTextColor(ink());
         if(closeIcon!=null)closeIcon.invalidate();
         if(themeIcon!=null){themeIcon.setContentDescription(Control.darkTheme()?"Switch to light theme":"Switch to dark theme");themeIcon.invalidate();}
+    }
+
+    private int systemBarAppearanceMask(){
+        if(Build.VERSION.SDK_INT>=30)return WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS|WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+        return (Build.VERSION.SDK_INT>=23?View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR:0)
+            |(Build.VERSION.SDK_INT>=26?View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR:0);
+    }
+    /** Own only icon contrast while settings are visible; preserve the game's layout/fullscreen flags. */
+    private void applySystemBarTheme(){
+        if(!isVisible())return;
+        int mask=systemBarAppearanceMask();
+        if(Build.VERSION.SDK_INT>=30){
+            WindowInsetsController controller=activity.getWindow().getInsetsController();
+            if(controller==null)return;
+            if(previousSystemBarAppearance==null)previousSystemBarAppearance=controller.getSystemBarsAppearance()&mask;
+            controller.setSystemBarsAppearance(Control.darkTheme()?0:mask,mask);
+        }else{
+            View decor=activity.getWindow().getDecorView();
+            int flags=decor.getSystemUiVisibility();
+            if(previousSystemBarAppearance==null)previousSystemBarAppearance=flags&mask;
+            decor.setSystemUiVisibility((flags&~mask)|(Control.darkTheme()?0:mask));
+        }
     }
 
     private void showItemSettings(){

@@ -104,7 +104,7 @@ bool parse_rules(const std::string &text,pgrazor_items_rules_v1 &out){
 }
 int update(const PgrInventoryHostOptions *p){
  if(!configured.load(std::memory_order_acquire))return -1;
- if(!p||p->version!=1||p->size!=sizeof(*p)||p->reserved||p->item_enabled>1||p->item_allowed>1||p->item_catalog>2||p->buddy_allowed>1||p->incubator_enabled>1||p->incubator_longest>1||p->incubator_allowed>1||p->gift_mask>7||p->gift_allowed>1||p->lease_ms>2500){std::lock_guard<std::mutex> lock(policy_lock);deadline=0;++revision;return -2;}
+ if(!p||p->version!=1||p->size!=sizeof(*p)||p->reserved||p->item_enabled>1||p->item_allowed>1||p->item_catalog>0x7fffffffu||p->buddy_allowed>1||p->incubator_enabled>1||p->incubator_longest>1||p->incubator_allowed>1||p->gift_mask>7||p->gift_allowed>1||p->lease_ms>2500){std::lock_guard<std::mutex> lock(policy_lock);deadline=0;++revision;return -2;}
  if(stopping.load())return -3;
  size_t len=p->item_rules?strnlen(p->item_rules,8193):0;if(len>8192){std::lock_guard<std::mutex> lock(policy_lock);deadline=0;++revision;return -2;}
  std::string text=p->item_rules?std::string(p->item_rules,len):"";pgrazor_items_rules_v1 next{};bool valid=parse_rules(text,next);if(!valid){next={};next.version=1;next.size=sizeof(next);}
@@ -121,7 +121,7 @@ void poll_policy(){
  if(!(flags&1))return;auto tr=transport();PgrRuntimeTransportSample a{},z{};PgrInventoryHostOptions p{};p.version=1;p.size=sizeof(p);p.lease_ms=100;
  auto b=[&](unsigned i){int v=0;return tr->get_bool(i,&v)==0&&v==1;};auto n=[&](unsigned i){int32_t v=0;return tr->get_int(i,&v)==0?v:0;};
  if(tr->sample(&a)||!a.snapshot_fresh){p.lease_ms=0;update(&p);return;}
- p.item_enabled=b(17);p.item_allowed=b(16);int mode=n(3);p.item_catalog=mode>=0&&mode<=2?mode:0;p.buddy_allowed=b(8);p.buddy_berry=n(1);
+ p.item_enabled=b(17);p.item_allowed=b(16);int mode=n(3);p.item_catalog=mode>=0?mode:0;p.buddy_allowed=b(8);p.buddy_berry=n(1);
  p.incubator_enabled=b(4);p.incubator_longest=b(13);p.incubator_allowed=b(14);int mask=n(2);p.gift_mask=mask>=0&&mask<=7?mask:0;p.gift_allowed=b(12);
  // A one-shot batch owns gift requests until its terminal acknowledgement.
  // Keep the user's saved manual-screen options, but do not start competing UI requests.
@@ -131,13 +131,18 @@ void poll_policy(){
  if(tr->sample(&z)||!z.snapshot_fresh||a.snapshot_seq!=z.snapshot_seq)p.lease_ms=0;update(&p);
 }
 std::string number(double value){char text[32];snprintf(text,sizeof(text),"%.15g",value);return text;}
-void drain_inventory(int32_t berry){
+void drain_inventory(int32_t berry,uint32_t regression_token,uint64_t before_catalog){
  if(caps.load()&PGR_IH_ITEMS){pgrazor_items_sample_v1 v{};if(!items()->sample(&v)){
   if(v.bag_ready_serial!=old_items.bag_ready_serial)event("item-bag-ready");
   if(v.catalog_serial!=old_items.catalog_serial){pgrazor_item_row row[1024]{};uint32_t n=0;if(!items()->catalog(row,1024,&n)&&n<=1024){std::string rows;
    for(uint32_t i=0;i<n;++i){std::string name="Item "+std::to_string(row[i].id);for(uint32_t k=0;k<md.item_name_count&&k<kItemNameMax;++k)if(md.item_names[k].value==row[i].id){name=md.item_names[k].name;break;}
     if(i)rows+='\n';rows+=std::to_string(row[i].id)+"|"+name+"|"+std::to_string(row[i].count);}
-   event("item-catalog","\"rows\":"+quote(rows));text_action(37,rows);
+   event("item-catalog","\"rows\":"+quote(rows));
+   if(regression_token>=3&&v.catalog_serial!=before_catalog){
+    event("item-regression-catalog","\"request\":"+std::to_string(regression_token));
+    rows="#regression:"+std::to_string(regression_token)+"\n"+rows;
+   }
+   text_action(37,rows);
   }}
   if(v.events_lost!=old_items.events_lost){event("item-transfer-error","\"reason\":\"Native item event queue overflow; recycling paused\"");text_action(39,"Item transfer: Native item event queue overflow; recycling paused");}old_items=v;
  }
@@ -303,11 +308,17 @@ int tick(uint64_t tid){
  if(!stopping.load())poll_policy();PgrInventoryHostOptions p{};pgrazor_items_rules_v1 local_rules{};uint64_t expires=0;
  {std::lock_guard<std::mutex> lock(policy_lock);p=policy;local_rules=rules;expires=deadline;}
  uint64_t time=clock_ms();uint64_t lease=time&&time<expires&&!stopping.load()&&count>=3?expires-time:0;
- if(caps.load()&PGR_IH_ITEMS){if(stopping.load())items()->clear(tid);else if(!(faults.load()&PGR_IH_ITEMS)){uint32_t force=(force_poll.exchange(false)?1:0)|(cleanup_poll.exchange(false)?9:0)|(p.item_catalog==2?2:p.item_catalog==1?4:0);if(items()->tick(&local_rules,force,p.item_allowed?lease:0,tid)){faults.fetch_or(PGR_IH_ITEMS);items()->clear(tid);}}}
+ pgrazor_items_sample_v1 before_items{};if(caps.load()&PGR_IH_ITEMS)items()->sample(&before_items);
+ static uint32_t last_regression_token=0;
+ uint32_t regression_token=p.item_catalog>=3?p.item_catalog:0;
+ // A diagnostic read never recycles, even if the UI enables transfer mid-request.
+ if(regression_token)local_rules.enabled=0;
+ bool new_regression=regression_token&&regression_token!=last_regression_token;last_regression_token=regression_token;
+ if(caps.load()&PGR_IH_ITEMS){if(stopping.load())items()->clear(tid);else if(!(faults.load()&PGR_IH_ITEMS)){uint32_t force=(force_poll.exchange(false)?1:0)|(cleanup_poll.exchange(false)?9:0)|(regression_token?18:p.item_catalog==2?2:p.item_catalog==1?4:0)|(new_regression?9:0);if(items()->tick(&local_rules,force,p.item_allowed?lease:0,tid)){faults.fetch_or(PGR_IH_ITEMS);items()->clear(tid);}}}
  int32_t berry=(p.buddy_berry==701||p.buddy_berry==703||p.buddy_berry==705||p.buddy_berry==706||p.buddy_berry==707)?p.buddy_berry:0;
  if(caps.load()&PGR_IH_BUDDY){if(stopping.load())buddy()->clear(tid);else if(!(faults.load()&PGR_IH_BUDDY)&&buddy()->tick(berry,p.buddy_allowed?lease:0,tid)){faults.fetch_or(PGR_IH_BUDDY);buddy()->clear(tid);}}
  if(caps.load()&PGR_IH_INCUBATION){if(stopping.load())inc()->clear(tid);else if(!(faults.load()&PGR_IH_INCUBATION)&&inc()->tick(p.incubator_enabled,p.incubator_longest,p.incubator_allowed?lease:0,tid)){faults.fetch_or(PGR_IH_INCUBATION);inc()->clear(tid);}}
- drain_inventory(berry);social_tick(time,tid,lease,p);refresh_roots();return 0;
+ drain_inventory(berry,regression_token,before_items.catalog_serial);social_tick(time,tid,lease,p);refresh_roots();return 0;
 }
 int stop(){stopping.store(true);{std::lock_guard<std::mutex> lock(policy_lock);deadline=0;++revision;}
  // Owner reentry must revoke the leaf currently inside a managed call, not wait

@@ -861,11 +861,12 @@ int main(int argc, char **argv) {
    puts("PASS continuous camera survives 200000 calls and counter saturation; diagnostic budget retained");return 0;
   }
   if(transport_mode){
-   uint64_t seq=0;unsigned heading_actions=0,telemetry_actions=0;auto frame=[&](bool enabled){std::vector<uint8_t> bytes(PGR_TRANSPORT_SNAPSHOT_FIXED+4*PGR_TRANSPORT_STRINGS,0);auto set=[&](size_t at,uint32_t v){memcpy(bytes.data()+at,&v,4);};set(0,PGR_TRANSPORT_SNAPSHOT_MAGIC);set(4,PGR_TRANSPORT_FRAME_VERSION);set(8,bytes.size());++seq;memcpy(bytes.data()+16,&seq,8);bytes[32+10]=enabled;uint32_t length=0;std::vector<uint8_t> output(65536);assert(transport->exchange(bytes.data(),bytes.size(),output.data(),output.size(),&length)==0);
-    auto read=[&](size_t at){uint32_t v;memcpy(&v,output.data()+at,4);return v;};size_t at=32;for(unsigned n=0;n<read(12);++n){uint32_t op=read(at),ns=read(at+4),nt=read(at+8);at+=12+8*ns;heading_actions+=op==57;telemetry_actions+=op==19;for(unsigned j=0;j<nt;++j){uint32_t size=read(at);at+=4+size;}}assert(at==length);
+   uint64_t seq=0;unsigned heading_actions=0,telemetry_actions=0,heading_events=0;auto frame=[&](bool enabled){std::vector<uint8_t> bytes(PGR_TRANSPORT_SNAPSHOT_FIXED+4*PGR_TRANSPORT_STRINGS,0);auto set=[&](size_t at,uint32_t v){memcpy(bytes.data()+at,&v,4);};set(0,PGR_TRANSPORT_SNAPSHOT_MAGIC);set(4,PGR_TRANSPORT_FRAME_VERSION);set(8,bytes.size());++seq;memcpy(bytes.data()+16,&seq,8);bytes[32+10]=enabled;uint32_t length=0;std::vector<uint8_t> output(65536);assert(transport->exchange(bytes.data(),bytes.size(),output.data(),output.size(),&length)==0);
+    auto read=[&](size_t at){uint32_t v;memcpy(&v,output.data()+at,4);return v;};size_t at=32;for(unsigned n=0;n<read(12);++n){uint32_t op=read(at),ns=read(at+4),nt=read(at+8);at+=12+8*ns;heading_actions+=op==57;telemetry_actions+=op==19;for(unsigned j=0;j<nt;++j){uint32_t size=read(at);at+=4;if(op==19&&j==0&&size==14&&memcmp(output.data()+at,"camera-heading",14)==0)++heading_events;at+=size;}}assert(at==length);
    };
    frame(true);for(unsigned i=0;i<3;++i){renew();run_execute();}renew();natural_getter();assert(sample().sample_count==1);assert(g_handles.empty());
-   for(unsigned i=0;i<130;++i){renew();natural_getter();frame(true);}assert(sample().sample_count==131&&heading_actions>=130&&telemetry_actions>10&&sample().queued_events==0&&drain_all(api).empty());
+   // Thirteen seconds of headings stay below the 60-second telemetry interval.
+   for(unsigned i=0;i<130;++i){renew();natural_getter();frame(true);}assert(sample().sample_count==131&&heading_actions>=130&&telemetry_actions>0&&heading_events==1&&sample().queued_events==0&&drain_all(api).empty());
    // OFF snapshot and stale snapshot never renew a continuous camera lease.
    frame(false);g_fake_now_ms+=300;natural_getter();unsigned samples=sample().sample_count;assert(samples==131);
    frame(true);renew();natural_getter();assert(sample().sample_count==samples+1);samples++;

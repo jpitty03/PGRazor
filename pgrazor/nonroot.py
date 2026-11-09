@@ -248,6 +248,11 @@ def package(source, *,research_runtime=False,panel_only=False,download=False,pre
     if quick_ball: mode['quickBall']=True
     if google_browser_login: mode['googleBrowserLogin']=True
     assets={'assets/pgrazor/mode.json':json.dumps(mode).encode()}
+    regression_bridge = os.environ.get('PGRAZOR_REGRESSION_BRIDGE', '0')
+    if regression_bridge not in ('0', '1'):
+        raise ValueError('PGRAZOR_REGRESSION_BRIDGE must be 0 or 1')
+    if regression_bridge == '1':
+        assets['assets/pgrazor/regression-v1.enabled'] = b'v1\n'
     if native_pilot:
         import native_build
         with scoped_env(PGRAZOR_NATIVE_PILOT='1'):
@@ -321,6 +326,7 @@ def package(source, *,research_runtime=False,panel_only=False,download=False,pre
         'mode':'compiled-gameplay' if compiled_gameplay else ('panel-only' if panel_only else 'research-runtime'),'original_abis':sorted(native_abis),'runtime_abi':game_runtime_abi if not preview else probe_abi,'runtime_abis':abis,
         'game_acceptance':'UNTESTED','runtime':runtimes,'outputs':[], 'input_certificate_sha256':certificates[0],
         'installation':'Not installed. Signed with local development key; cannot update a differently signed installation.'}
+    report['regression_bridge'] = regression_bridge == '1'
     if native_pilot:
         report['native_pilot'] = {
             'selftest_requested': mode.get('nativeSelftest', False),

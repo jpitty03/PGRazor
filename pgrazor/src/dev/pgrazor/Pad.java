@@ -263,7 +263,7 @@ public final class Pad {
         Rect previousSafe=appliedWindowBounds.isEmpty()?safe:new Rect(appliedWindowBounds);
         appliedWindowBounds.set(safe);appliedWindowWidth=parent.getWidth();appliedWindowHeight=parent.getHeight();
         appliedUiScale=percent;float scale=percent/100f;
-        for(View view:new View[]{launcher,joystickOverlay,cooldownTimer,vgpToggle,vgpActivity,vgpMarker,transferToggle,gameRoutesOverlay,gymFeedOverlay,gymAutomationStatus,shundoOverlay}){
+        for(View view:new View[]{launcher,joystickOverlay,cooldownTimer,vgpToggle,vgpActivity,vgpMarker,transferToggle,gameRoutesOverlay,gymFeedOverlay,gymAutomationStatus,shundoOverlay,buddyEmotionStatus,catchChance,automationStatus}){
             if(view==null)continue;
             float x=view.getX(),y=view.getY();
             int oldWidth=OverlayDrag.visualWidth(view),oldHeight=OverlayDrag.visualHeight(view);
@@ -276,6 +276,9 @@ public final class Pad {
         if(transferDrag!=null)transferDrag.refreshBounds();
         if(gameRoutesDrag!=null)gameRoutesDrag.refreshBounds();
         if(gymFeedDrag!=null)gymFeedDrag.refreshBounds();
+        if(buddyEmotionDrag!=null)buddyEmotionDrag.refreshBounds();
+        if(catchChanceDrag!=null)catchChanceDrag.refreshBounds();
+        if(automationDrag!=null)automationDrag.refreshBounds();
         if(encounterBerry!=null)encounterBerry.applyUiScale(scale);
         if(quickMenu!=null)quickMenu.applyScale(scale);
     }
@@ -512,6 +515,7 @@ public final class Pad {
         if(cooldownDrag!=null){cooldownDrag.detach();cooldownDrag=null;}if(vgpDrag!=null){vgpDrag.detach();vgpDrag=null;}if(transferDrag!=null){transferDrag.detach();transferDrag=null;}if(gameRoutesDrag!=null){gameRoutesDrag.detach();gameRoutesDrag=null;}
         if(buddyEmotionDrag!=null){buddyEmotionDrag.detach();buddyEmotionDrag=null;}
         if(buddyEmotionStatus!=null)overlays.removeView(buddyEmotionStatus);
+        if(automationDrag!=null){automationDrag.detach();automationDrag=null;}
         if(automationStatus!=null){overlays.removeView(automationStatus);automationStatus=null;}
         if(catchChanceDrag!=null){catchChanceDrag.detach();catchChanceDrag=null;}if(catchChance!=null){overlays.removeView(catchChance);catchChance=null;}
         if(gymFeedDrag!=null){gymFeedDrag.detach();gymFeedDrag=null;}

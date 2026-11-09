@@ -299,6 +299,10 @@ static int scenario(int which) {
         pgrazor_items_sample_v1 s = snap();
         if (s.catalog_serial == 0 || s.catalog_count != 2) return 2;
         if (s.has_candidate != 0) return 3;
+        // A regression read acknowledges freshness even with unchanged counts.
+        // This must not turn a read-only inventory request into a recycle action.
+        g_api->tick(&r, 19, 2500, tid); pump_events();
+        if (snap().catalog_serial <= s.catalog_serial || g_recycle_calls != 0) return 4;
         return 0;
     }
     case 3: { // in-flight async request is never auto-duplicated; the pending bag is a counted root

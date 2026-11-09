@@ -241,12 +241,15 @@ final class MapPoiLayer {
     }
     private String poiShortLabel(JSONObject point) {
         long now = System.currentTimeMillis();
-        if (point.optLong("raidEnd") > now) { String tier = point.optString("tier", ""); return "Raid" + (tier.isEmpty() ? "" : " " + tier) + (point.optBoolean("egg") ? " (egg)" : ""); }
+        if (point.optLong("raidEnd") > now) { String tier = raidTierLabel(point.optString("tier", "")); return "Raid" + (tier.isEmpty() ? "" : " " + tier) + (point.optBoolean("egg") ? " (egg)" : ""); }
         if ("stop".equals(point.optString("kind"))) { String rocket = rocketName(point, now); return rocket == null ? "PokéStop" : "PokéStop · Team GO Rocket " + rocket; }
         String team = point.optString("team", ""); return "Gym" + (team.isEmpty() ? "" : " (" + team + ")");
     }
     private void registerPoiDialog(AlertDialog dialog) {
         poiDialogs.add(dialog); dialog.setOnDismissListener(d -> poiDialogs.remove(dialog));
+    }
+    private static String raidTierLabel(String tier) {
+        return tier.replace("_", " ").replaceAll("([0-9])([A-Za-z])", "$1 $2").trim();
     }
     private void showPoiDetails(JSONObject initial) {
         if (closed) return;
@@ -315,8 +318,8 @@ final class MapPoiLayer {
             else sb.append("Defenders: unavailable\n");
         }
         if (p.optLong("raidEnd") > now) {
-            sb.append('\n'); boolean egg = p.optBoolean("egg"); String tier = p.optString("tier", "");
-            sb.append("Raid tier: ").append(tier.isEmpty() ? "Unknown" : tier.replace("_", " ").replaceAll("([0-9])([A-Za-z])", "$1 $2").trim()).append('\n');
+            sb.append('\n'); boolean egg = p.optBoolean("egg"); String tier = raidTierLabel(p.optString("tier", ""));
+            sb.append("Raid tier: ").append(tier.isEmpty() ? "Unknown" : tier).append('\n');
             if (egg) {
                 long start = p.optLong("raidStart", 0);
                 sb.append("Egg — boss not yet revealed");

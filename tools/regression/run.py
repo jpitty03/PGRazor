@@ -27,6 +27,7 @@ DEFERRED = {
     'combat': 'Needs a suitable battle and combat outcome assertions.',
     'transfer': 'Needs explicit destructive-test opt-in and disposable inventory.',
 }
+SOAK_SAMPLE_SECONDS = 30  # How often the post-readiness soak re-checks the PID and native markers.
 
 
 class DeviceError(RuntimeError):
@@ -72,7 +73,63 @@ def classify(markers):
     ]
 
 
-def cycle(adb, folder, timeout):
+def observe(adb, stamp, pid):
+    # logcat is an adb command here; keep the timestamp as one argv element.
+    logs = adb.call('logcat', '-d', '-v', 'threadtime', '-T', stamp, '-s', 'PGRazor:I').decode('utf-8', errors='replace')
+    return evidence(logs, pid)
+
+
+def write_events(folder, markers):
+    # Only fixed marker labels are persisted; raw log bodies never reach disk.
+    (folder / 'events.json').write_text(json.dumps(sorted(markers), indent=2) + '\n')
+
+
+def write_soak(folder, markers, samples, requested, observed, status):
+    # Sanitized progress: fixed marker labels, elapsed seconds, and PID stability only.
+    (folder / 'soak.json').write_text(json.dumps(
+        {'requested_seconds': requested, 'observed_seconds': observed, 'status': status, 'samples': samples},
+        indent=2) + '\n')
+    write_events(folder, markers)
+
+
+def soak(adb, folder, stamp, pid, markers, seconds):
+    """After readiness, keep watching the same PID and native health.
+
+    An incomplete watch (interruption or device error) is reported 'blocked' and a
+    regression ('failed'); it is never upgraded to 'passed'. Markers accumulate so a
+    late native-unavailable event is caught even though readiness already passed.
+    """
+    start = time.monotonic()
+    deadline = start + seconds
+    samples = []
+    observed = 0
+    outcome = None
+    try:
+        while True:
+            now = time.monotonic()
+            observed = round(min(seconds, now - start))
+            if adb.shell('pidof', PACKAGE, '||', 'true') != pid:
+                outcome = ('failed', f'Game process changed after {observed}s of soak observation.')
+                break
+            markers |= observe(adb, stamp, pid)
+            samples.append({'elapsed': observed, 'pid_stable': True, 'markers': sorted(markers)})
+            write_soak(folder, markers, samples, seconds, observed, 'observing')
+            print('Soak observation:', observed, '/', seconds, 's', flush=True)
+            if any('unavailable' in marker for marker in markers):
+                outcome = ('failed', f'Native became unavailable after {observed}s of soak observation.')
+                break
+            if now >= deadline:
+                break
+            time.sleep(min(SOAK_SAMPLE_SECONDS, max(0, deadline - time.monotonic())))
+    except (DeviceError, KeyboardInterrupt) as error:
+        outcome = ('blocked', f'Soak observation stopped early ({type(error).__name__}); stability not certified.')
+    if outcome is None:
+        outcome = ('passed', f'Process {pid} and native stayed healthy for {observed}s of soak.')
+    write_soak(folder, markers, samples, seconds, observed, outcome[0])
+    return {'test': 'soak', 'status': outcome[0], 'reason': outcome[1]}
+
+
+def cycle(adb, folder, timeout, soak_seconds=0):
     # A timestamp fence avoids clearing the user's logcat buffer and excludes earlier launches.
     stamp = adb.shell('date', '+%m-%d_%H:%M:%S.000').replace('_', ' ')
     if not re.fullmatch(r'\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.000', stamp):
@@ -90,16 +147,18 @@ def cycle(adb, folder, timeout):
         current = adb.shell('pidof', PACKAGE, '||', 'true')
         if current != pid:
             return [{'test': 'process-stability', 'status': 'failed', 'reason': 'Game process changed during observation.'}]
-        # logcat is an adb command here; keep the timestamp as one argv element.
-        logs = adb.call('logcat', '-d', '-v', 'threadtime', '-T', stamp, '-s', 'PGRazor:I').decode('utf-8', errors='replace')
-        markers |= evidence(logs, pid)
+        markers |= observe(adb, stamp, pid)
         if all(row['status'] == 'passed' for row in classify(markers)):
             break
         if any('unavailable' in marker for marker in markers):
             break
         time.sleep(min(2, max(0, deadline - time.monotonic())))
-    (folder / 'events.json').write_text(json.dumps(sorted(markers), indent=2) + '\n')
-    return classify(markers)
+    write_events(folder, markers)
+    results = classify(markers)
+    # Soak only runs once readiness is fully passed; a blocked/failed launch never soaks.
+    if soak_seconds and all(row['status'] == 'passed' for row in results):
+        results.append(soak(adb, folder, stamp, pid, markers, soak_seconds))
+    return results
 
 
 def save_report(folder, report):
@@ -126,21 +185,26 @@ def main(argv=None):
     parser.add_argument('--cycles', type=int, default=2)
     parser.add_argument('--timeout', type=int, default=90, help='Observation seconds per launch')
     parser.add_argument('--idle-seconds', type=int, default=0, help='Home-screen idle before subsequent cold launches')
+    parser.add_argument('--soak-seconds', type=int, default=0,
+                        help='After readiness, keep observing the same PID and native health for this many seconds (0 disables)')
     parser.add_argument('--output', type=Path, default=Path('.artifacts/device-regression'))
     args = parser.parse_args(argv)
-    if not 1 <= args.cycles <= 100 or not 5 <= args.timeout <= 600 or not 0 <= args.idle_seconds <= 86400:
-        parser.error('cycles must be 1..100, timeout 5..600, idle-seconds 0..86400')
+    if (not 1 <= args.cycles <= 100 or not 5 <= args.timeout <= 600 or
+            not 0 <= args.idle_seconds <= 86400 or not 0 <= args.soak_seconds <= 43200):
+        parser.error('cycles must be 1..100, timeout 5..600, idle-seconds 0..86400, soak-seconds 0..43200')
     if not re.fullmatch(r'[A-Za-z0-9_.:\[\]-]+', args.serial):
         parser.error('Invalid device serial')
     if not args.execute:
-        print(json.dumps({'device': args.serial, 'cycles': args.cycles, 'actions': ['force-stop', 'launch', 'observe events', 'screenshot'],
+        actions = ['force-stop', 'launch', 'observe events'] + (['soak observe'] if args.soak_seconds else []) + ['screenshot']
+        print(json.dumps({'device': args.serial, 'cycles': args.cycles, 'soak_seconds': args.soak_seconds, 'actions': actions,
                           'unimplemented': DEFERRED, 'note': 'Plan only. Add --execute to run.'}, indent=2))
         return 0
     folder = args.output / (dt.datetime.now(dt.timezone.utc).strftime('%Y%m%d-%H%M%S') + '-' + uuid.uuid4().hex[:8])
     folder.mkdir(parents=True)
     adb = Adb(args.adb, args.serial)
     report = {'schema': 1, 'serial': args.serial, 'started_utc': dt.datetime.now(dt.timezone.utc).isoformat(),
-              'configuration': {'cycles': args.cycles, 'timeout': args.timeout, 'idle_seconds': args.idle_seconds}, 'results': []}
+              'configuration': {'cycles': args.cycles, 'timeout': args.timeout, 'idle_seconds': args.idle_seconds,
+                                'soak_seconds': args.soak_seconds}, 'results': []}
     try:
         if adb.call('get-state').strip() != b'device':
             raise DeviceError('Device is not online/authorized')
@@ -160,7 +224,7 @@ def main(argv=None):
             case.mkdir()
             print('Running cycle', number, 'on', args.serial, flush=True)
             try:
-                rows = cycle(adb, case, args.timeout)
+                rows = cycle(adb, case, args.timeout, args.soak_seconds)
             except DeviceError as error:
                 rows = [{'test': 'device-execution', 'status': 'blocked', 'reason': str(error)}]
             for row in rows:

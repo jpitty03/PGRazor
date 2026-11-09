@@ -24,6 +24,9 @@ final class SettingsBackup {
     private boolean busy;
     SettingsBackup(Activity activity){this.activity=activity;}
     void show(){
+        activity.setTitle("Settings backup");
+        // The host action bar overlaps our own heading in Android 15's edge-to-edge window.
+        if(activity.getActionBar()!=null)activity.getActionBar().hide();
         LinearLayout root=new LinearLayout(activity);root.setOrientation(LinearLayout.VERTICAL);
         int p=MapTheme.dp(activity,20);root.setPadding(p,p*3,p,p*2);
         TextView title=new TextView(activity);title.setText("Settings backup");title.setTextSize(22);root.addView(title);
@@ -67,7 +70,7 @@ final class SettingsBackup {
         },"pgrazor-settings-backup").start();
     }
     boolean isBusy(){return busy;}
-    private static synchronized JSONObject snapshot(Context context)throws Exception{
+    static synchronized JSONObject snapshot(Context context)throws Exception{
         JSONObject result=new JSONObject();result.put("format","PGRazor settings");result.put("version",1);result.put("speedKmh",Control.engine.speedKmh);
         JSONObject settings=new JSONObject();Properties p=Control.exportSettings();
         for(String key:SettingsBackupRules.SETTINGS)if(p.containsKey(key))settings.put(key,p.getProperty(key));result.put("settings",settings);
@@ -85,7 +88,7 @@ final class SettingsBackup {
             else edit.putString(key,(String)value);
         }if(!edit.commit())throw new IOException("Could not save settings");
     }
-    private static synchronized void restore(Context context,JSONObject document)throws Exception{
+    static synchronized void restore(Context context,JSONObject document)throws Exception{
         SettingsBackupRules.validate(document);JSONObject previous=snapshot(context),prefs=document.getJSONObject("preferences");
         Properties props=new Properties();JSONObject settings=document.getJSONObject("settings");for(String key:SettingsBackupRules.SETTINGS)if(settings.has(key))props.setProperty(key,settings.getString(key));
         try{

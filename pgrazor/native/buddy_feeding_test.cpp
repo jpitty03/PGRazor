@@ -26,6 +26,7 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 
 // ---- symbolic il2cpp identities (compared by address only) -----------------------
 static int c_map, c_ctx, c_contract, c_stats, c_pokesvc, c_rpc, c_proto, c_observed,
@@ -327,6 +328,43 @@ static int scenario(int which) {
         g_api->clear(tid);
         return g_roots || snap().owned_roots || g_bad_free ? 3 : 0;
     }
+    case 16: case 17: { // Lost/ambiguous completion: only a later fed state releases uncertainty.
+        g_api->tick(701,2500,tid);
+        if (snap().feed_request_serial != 1) return 1;
+        if (which == 17) call_feed(&g_rpc,701,1,&m_feed);
+        const int calls = g_feed_target_calls;
+        // Off/config changes and owner clear must not duplicate an uncertain request.
+        g_api->tick(0,2500,tid);
+        g_api->clear(tid);
+        if (g_roots || snap().owned_roots || g_bad_free) return 2;
+        g_api->tick(703,2500,tid);
+        if (snap().feed_request_serial != 1 || g_feed_target_calls != calls) return 3;
+        timespec timeout{31,0}; nanosleep(&timeout,nullptr);
+        g_api->tick(701,2500,tid); // timeout while still hungry: no retry
+        if (snap().feed_request_serial != 1 || snap().result_serial) return 4;
+        auto wait_poll = [] { timespec delay{5,100000000}; nanosleep(&delay,nullptr); };
+        if (which == 17) {
+            g_remaining = 300; ++g_proto.buddy_id; // another buddy cannot settle our request
+            wait_poll(); g_api->tick(701,2500,tid);
+            if (snap().status == PGR_BUDDY_STATUS_FED || snap().result_serial) return 5;
+            --g_proto.buddy_id;
+            g_remaining = std::numeric_limits<float>::quiet_NaN();
+            wait_poll(); g_api->tick(701,2500,tid);
+            if (snap().status != PGR_BUDDY_STATUS_ERROR || !snap().fault_serial) return 6;
+        }
+        g_remaining = 300;
+        wait_poll(); g_api->tick(701,2500,tid);
+        auto fed = snap();
+        if (fed.status != PGR_BUDDY_STATUS_FED) return 7;
+        if (fed.feed_request_serial != 1 || fed.result_serial || g_feed_target_calls != calls) return 8;
+        if (fed.owned_roots != 1 || g_roots != 1 || g_bad_free) return 9;
+        g_remaining = 0;
+        wait_poll(); g_api->tick(701,2500,tid); // later hungry transition permits ONE new request
+        g_api->tick(701,2500,tid);
+        if (snap().feed_request_serial != 2 || snap().result_serial || g_feed_target_calls != calls+1) return 10;
+        g_api->clear(tid);
+        return g_roots || snap().owned_roots || g_bad_free ? 11 : 0;
+    }
     default: return 0;
     }
 }
@@ -354,7 +392,7 @@ int main(int argc, char **argv) {
     bad = c; bad.result_address = bad.feed_address;
     if (g_api->install(&bad) != PGR_BUDDY_ERR_DUP_HOOK) { std::puts("FAIL dup"); return 5; }
 
-    const int cases = 16;
+    const int cases = 18;
     for (int i = 0; i < cases; ++i) {
         pid_t pid = fork();
         if (pid == 0) _exit(scenario(i));          // fresh process -> clean module/hook state
@@ -369,6 +407,7 @@ int main(int argc, char **argv) {
               "ambiguity, result failure no retry, in-flight no duplicate, lease expiry mid-getter "
               "no feed, off-thread clear no free + stop/root balance with preserved pending, "
               "wrong-thread no-op, config validation, delayed hunger snapshot recovery without "
-              "setting changes, managed hunger exception remains fail-closed");
+              "setting changes, managed hunger exception remains fail-closed, lost/ambiguous "
+              "completion recovers only after same-buddy fed observation without synthetic results");
     return 0;
 }

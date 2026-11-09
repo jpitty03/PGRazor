@@ -81,6 +81,7 @@ class PackageTests(unittest.TestCase):
                  patch.object(axml,'inspect_manifest',return_value=info), \
                  patch.object(axml,'patch_manifest',side_effect=lambda data:data), \
                  patch.object(axml,'add_account_restart_activity',side_effect=lambda data:data), \
+                 patch.dict(os.environ, {'PGRAZOR_REGRESSION_BRIDGE': '0'}), \
                  contextlib.redirect_stdout(io.StringIO()):
                 for options in ({},{'il2cpp_survey':True},{'scene_probe':True},
                                 {'scene_observe':True},{'camera_sample':True},{'interaction_probe':True}):
@@ -95,9 +96,19 @@ class PackageTests(unittest.TestCase):
                             self.assertEqual(archive.read('classes.dex'),b'original-game-dex')
                             self.assertIn('assets/pgrazor/embedded-agent.js',names)
                             self.assertIn('assets/pgrazor/java-bridge.js',names)
+                            self.assertNotIn('assets/pgrazor/regression-v1.enabled', names)
+                            self.assertFalse(report['regression_bridge'])
                             self.assertFalse(any(name.endswith(('/quick-close.js','/quick-ball.js','/quick-summary.js')) for name in names))
                             for name,receipt in report['script_bundles'].items():
                                 self.assertEqual(receipt['sha256'],hashlib.sha256(archive.read('assets/pgrazor/'+name)).hexdigest())
+                with patch.dict(os.environ, {'PGRAZOR_REGRESSION_BRIDGE': '1'}):
+                    report, folder = nonroot.package(source, research_runtime=True)
+                    self.assertTrue(report['regression_bridge'])
+                    with zipfile.ZipFile(report['outputs'][0]['file']) as archive:
+                        self.assertEqual(archive.read('assets/pgrazor/regression-v1.enabled'), b'v1\n')
+                with patch.dict(os.environ, {'PGRAZOR_REGRESSION_BRIDGE': 'yes'}):
+                    with self.assertRaisesRegex(ValueError, 'must be 0 or 1'):
+                        nonroot.package(source, research_runtime=True)
             self.assertEqual(runtime_assets.sha256(source),original_hash)
 
     def test_clean_game_baseline_rejects_both_observed_modified_signers(self):

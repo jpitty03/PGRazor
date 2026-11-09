@@ -111,6 +111,15 @@ int inventory_run(int argc,char **argv){
  p.item_catalog=2;assert(api->update(&p)==0);api->request_item_poll();
  for(int frame=0;frame<300&&item_gets-gets_before<257;++frame){int before=item_gets;assert(api->tick(gettid())==0);assert(item_gets-before<=64);}
  assert(item_gets-gets_before==257&&item_lists-lists_before==1);
+ // Regression reads carry a unique token and republish unchanged complete counts.
+ p.item_enabled=1;p.item_catalog=3;item_count=1;item_quantity=50;assert(api->update(&p)==0);
+ while(api->next_event(&e)==0){}
+ assert(api->tick(gettid())==0);
+ bool fresh=false;while(api->next_event(&e)==0)if(strstr(e.json,"item-regression-catalog")&&strstr(e.json,"\"request\":3"))fresh=true;
+ assert(fresh&&item_recycles==1);
+ p.item_catalog=4;assert(api->update(&p)==0);assert(api->tick(gettid())==0);
+ fresh=false;while(api->next_event(&e)==0)if(strstr(e.json,"item-regression-catalog")&&strstr(e.json,"\"request\":4"))fresh=true;
+ assert(fresh&&item_recycles==1);
  std::thread foreign([&]{assert(api->stop()==0);assert(api->tick(gettid())==-5);});foreign.join();assert(api->tick(gettid())==0);assert(api->sample(&s)==0&&s.stopping&&!s.roots);assert(handles.empty());
  puts("PASS actual65 + real14/12/9 installs/manual originals/disabled gates/native incubation missing-map/invalid policy/foreign stop/root cleanup. Synthetic56 metadata; social flow covered in child process.");return 0;
 }
