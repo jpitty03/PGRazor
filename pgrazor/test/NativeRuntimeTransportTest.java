@@ -11,7 +11,7 @@ import java.nio.charset.StandardCharsets;
  */
 public final class NativeRuntimeTransportTest {
     // Wire constants mirror runtime_transport.h / NativeRuntimeTransport.
-    private static final int MAGIC_SNAPSHOT = 0x53524750, MAGIC_EVENTS = 0x45524750, VERSION = 17;
+    private static final int MAGIC_SNAPSHOT = 0x53524750, MAGIC_EVENTS = 0x45524750, VERSION = 18;
     private static final int OFF_BOOLS = 32, OFF_INTS = 80, OFF_DOUBLES = 120, OFF_PULSES = 136, OFF_STRINGS = 160;
     private static final int EVENT_HEADER = 32;
 
@@ -117,6 +117,8 @@ public final class NativeRuntimeTransportTest {
         at += 4 + "S1|7|123456789|0|1".length(); // Shundo Sniper slot 19.
         require(readString(snap, at).equals("B2|1|0|1|0"));
         at += 4 + "B2|1|0|1|0".length(); // Battery usage slot 20.
+        require(readString(snap, at).equals("F1|1"));
+        at += 4 + "F1|1".length(); // Smart battling slot 21.
         require(at == fake.lastSnapshot.length);
 
         // 3. A valid event batch dispatches to Control exactly once (no replay on the next tick).

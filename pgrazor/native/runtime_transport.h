@@ -42,16 +42,16 @@ enum PgrRuntimeTransportInfo {
   PGR_TRANSPORT_API_VERSION     = 1,
   PGR_TRANSPORT_CONFIG_VERSION  = 1,
   PGR_TRANSPORT_SAMPLE_VERSION  = 1,
-  PGR_TRANSPORT_FRAME_VERSION   = 17,
+  PGR_TRANSPORT_FRAME_VERSION   = 18,
 
   // Version 9 appends one-shot automation commands at string slot 12; version 10 appends the
   // field research config at string slot 13; version 11 appends the storage IV config at slot 14; version 12 the catch chance config at slot 15;
-  // version 13 the PvP keep config at slot 16; version 14 the skip cutscenes config at slot 17; version 15 the smart healing config at slot 18; version 16 the Shundo Sniper target at slot 19; version 17 the battery usage config at slot 20.
+  // version 13 the PvP keep config at slot 16; version 14 the skip cutscenes config at slot 17; version 15 the smart healing config at slot 18; version 16 the Shundo Sniper target at slot 19; version 17 the battery usage config at slot 20; version 18 the Smart battling config at slot 21.
   // 40+10+2+6 scalar readers plus accountCommandSnapshot; 3 pulses; 59 actions.
   PGR_TRANSPORT_BOOLS           = 40,
   PGR_TRANSPORT_INTS            = 10,
   PGR_TRANSPORT_DOUBLES         = 2,
-  PGR_TRANSPORT_STRINGS         = 21,   // 5 strings + account command/token pair + smart catch config
+  PGR_TRANSPORT_STRINGS         = 22,   // 5 strings + account command/token pair + smart catch config
   PGR_TRANSPORT_PULSES          = 3,
   PGR_TRANSPORT_ACTIONS         = 59,
 

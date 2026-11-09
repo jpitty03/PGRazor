@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### New features
+
+- **Smart battling:** picks counters for the Pokémon you are fighting. It builds your team before gym, raid, and typed Rocket grunt battles, and swaps to your best counter during gym and Rocket battles. Off by default.
+
 ## v0.2.3
 
 [Full release notes](docs/releases/v0.2.3.md)

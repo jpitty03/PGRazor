@@ -150,6 +150,7 @@ add_library(pgrazor_core SHARED
   catch_chance.cpp
   cutscene_skip.cpp
   rocket_swap.cpp
+  smart_battle.cpp
   heal.cpp
   shundo.cpp
   battery.cpp
@@ -163,7 +164,7 @@ add_library(pgrazor_core SHARED
 
 target_sources(pgrazor_core PRIVATE events/event_collector.cpp)
 set_source_files_properties(events/event_collector.cpp PROPERTIES COMPILE_OPTIONS "-fexceptions")
-set_source_files_properties(gift_batch.cpp research.cpp storage_iv.cpp iv_panel.cpp ar_values.cpp catch_chance.cpp cutscene_skip.cpp rocket_swap.cpp heal.cpp shundo.cpp battery.cpp remote_gym.cpp incense_guard.cpp batch_evolution.cpp gym_runtime.cpp buddy_emotion.cpp PROPERTIES COMPILE_OPTIONS "-fexceptions")
+set_source_files_properties(gift_batch.cpp research.cpp storage_iv.cpp iv_panel.cpp ar_values.cpp catch_chance.cpp cutscene_skip.cpp rocket_swap.cpp smart_battle.cpp heal.cpp shundo.cpp battery.cpp remote_gym.cpp incense_guard.cpp batch_evolution.cpp gym_runtime.cpp buddy_emotion.cpp PROPERTIES COMPILE_OPTIONS "-fexceptions")
 
 target_include_directories(pgrazor_core PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}

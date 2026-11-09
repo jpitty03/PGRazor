@@ -53,8 +53,8 @@ final class SettingsPanel {
         quickSpinSwitch, berrySwitch, quickSummarySwitch, curveSwitch, alwaysHitSwitch, arSwitch, transferOverlaySwitch, catchChanceSwitch, autoBallSwitch, skipCutscenesSwitch,
         batteryResSwitch, batteryFpsSwitch, batteryQualitySwitch;
     private Button autoBallTarget;
-    private TextView quickSummaryLabel, vgpStatus, cutsceneStatus, healStatus;
-    private Switch healSwitch, healReviveSwitch;
+    private TextView quickSummaryLabel, vgpStatus, cutsceneStatus, healStatus, smartBattleStatus;
+    private Switch healSwitch, healReviveSwitch, smartBattleSwitch;
     private Button healWhen, healThreshold, healItems;
     private final CheckBox[] vgpChoices=new CheckBox[3];
     private CheckBox vgpCooldownStop;
@@ -373,6 +373,7 @@ final class SettingsPanel {
 
     private void buildBattlesSection() {
         LinearLayout battleC = section(body, "Team Rocket, Gyms, Raids & Dynamax", false); battleRoot = (View)battleC.getParent();
+        buildSmartBattle(battleC);
         buildHealing(battleC);
         buildRocketSection(battleC);
         LinearLayout gymC = section(battleC, "Gyms", false);
@@ -393,6 +394,20 @@ final class SettingsPanel {
         battleChoice(maxC,6,"Auto Max attack");
         battleChoice(maxC,9,"Auto dodge");
         battleStatus = caption(battleC, "");
+    }
+
+    private void buildSmartBattle(LinearLayout owner) {
+        smartBattleSwitch = switchRow(owner, "Smart battling"); smartBattleSwitch.setChecked(Control.smartBattle());
+        smartBattleSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.smartBattle())return; Control.setSmartBattle(checked); refreshSmartBattle(); });
+        caption(owner, "Picks counters for the Pokémon you are fighting: fills your team before gym, raid and Rocket battles, and swaps to your best counter during gym and Rocket battles.");
+        smartBattleStatus = caption(owner, "");
+        refreshSmartBattle();
+    }
+
+    private void refreshSmartBattle() {
+        if(smartBattleSwitch==null)return;
+        smartBattleSwitch.setChecked(Control.smartBattle());
+        String status=Control.smartBattleStatus(); smartBattleStatus.setText(status); smartBattleStatus.setVisibility(status.isEmpty()?View.GONE:View.VISIBLE);
     }
 
     private void buildHealing(LinearLayout owner) {
@@ -572,6 +587,7 @@ final class SettingsPanel {
         batteryResSwitch.setChecked(Control.batteryLowRes());batteryFpsSwitch.setChecked(Control.batteryFps20());batteryQualitySwitch.setChecked(Control.batteryLowQuality());
         cutsceneStatus.setVisibility(Control.cutsceneSkipStatus().isEmpty()?View.GONE:View.VISIBLE);
         refreshHealing();
+        refreshSmartBattle();
         refreshDependencies();
     }
 

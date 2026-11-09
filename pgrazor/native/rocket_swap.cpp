@@ -5,6 +5,7 @@
 #include "runtime_bootstrap.h"
 #include "runtime_metadata.h"
 #include "runtime_transport.h"
+#include "smart_battle.h"
 #include <atomic>
 #include <cstring>
 #include <dlfcn.h>
@@ -55,7 +56,7 @@ bool configured(){
  int active=0,allowed=0;int32_t options=0;
  if(tr->get_bool(3,&active)||tr->get_bool(26,&allowed)||tr->get_int(6,&options))return false;
  if(tr->sample(&z)||!z.snapshot_fresh||z.snapshot_seq!=a.snapshot_seq)return false;
- return active==1&&allowed==1&&options>0;
+ return active==1&&allowed==1&&(options>0||pgr_smart_battle_enabled());
 }
 bool rocket_battle(){
  auto api=static_cast<const pgr_rocket_combat_api_v1*>(pgrazor_rocket_combat_api(1));
@@ -87,6 +88,7 @@ void step(){
  void *list=ref_field(widget,prompt_list);if(!list){next_try=now+kSettleMs;return;}
  const int count=unbox<int>(invoke(method(klass(list),"get_Count",0),list));
  void *get_item=method(klass(list),"get_Item",1);
+ void *usable[16];int slots[16],n=0;
  for(int i=0;i<count&&i<16;i++){
   void *args[]={&i};void *button=invoke(get_item,list,args);if(!button)continue;
   void *ui=ref_field(button,button_field);if(!ui)continue;
@@ -94,8 +96,12 @@ void step(){
   // The fainted Pokemon's and the active Pokemon's buttons can still be interactable; their overlays tell.
   auto shown=[&](void *f){void *go=ref_field(button,f);return go&&unbox<bool>(invoke(active_self,go));};
   if(shown(fainted_field)||shown(active_field))continue;
-  invoke(swap_method,button);++presses;
-  event("{\"phase\":\"swapped\",\"slot\":"+std::to_string(i)+",\"presses\":"+std::to_string(presses)+"}");
+  usable[n]=button;slots[n]=i;++n;
+ }
+ if(n){
+  int pick=pgr_smart_battle_pick_prompt(usable,n);if(pick<0||pick>=n)pick=0;  // Smart battling off or unsure: first available.
+  invoke(swap_method,usable[pick]);++presses;
+  event("{\"phase\":\"swapped\",\"slot\":"+std::to_string(slots[pick])+",\"presses\":"+std::to_string(presses)+"}");
   next_try=now+kRetryMs;return;
  }
  next_try=now+kSettleMs;  // buttons not ready yet

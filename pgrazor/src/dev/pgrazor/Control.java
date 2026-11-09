@@ -598,6 +598,14 @@ public final class Control {
     public static boolean healFull(){return healFull;}
     public static void setHealFull(boolean on){healFull=on;saveSettings();event("smart-heal","settings "+healConfig());}
     public static String healStatus(){return healEnabled?healStatus:"";}
+    // Smart battling: one switch, off by default. Native smart_battle.cpp owns all of the behaviour.
+    private static volatile boolean smartBattle;
+    private static volatile String smartBattleStatus="";
+    public static boolean smartBattle(){return smartBattle;}
+    public static void setSmartBattle(boolean on){smartBattle=on;if(!on)smartBattleStatus="";saveSettings();event("smart-battle",on?"ON":"OFF");}
+    public static String smartBattleStatus(){return smartBattle?smartBattleStatus:"";}
+    /** "F1|enabled" for native Smart battling (transport slot 21). */
+    public static String smartBattleConfig(){return "F1|"+(smartBattle?1:0);}
     /** "H2|enabled|when|threshold|revive|full" for the native healer (transport slot 18). */
     public static String healConfig(){return "H2|"+(healEnabled?1:0)+"|"+healWhen+"|"+healThreshold+"|"+(healRevive?1:0)+"|"+(healFull?1:0);}
     public static void configureQuickBall(boolean configured) {
@@ -1131,6 +1139,7 @@ public final class Control {
                 batteryFps20=Boolean.parseBoolean(p.getProperty("batteryFps20","false"));
                 batteryLowQuality=Boolean.parseBoolean(p.getProperty("batteryLowQuality","false"));
                 healEnabled=Boolean.parseBoolean(p.getProperty("smartHealEnabled","false"));
+                smartBattle=Boolean.parseBoolean(p.getProperty("smartBattle","false"));
                 healRevive=Boolean.parseBoolean(p.getProperty("smartHealRevive","true"));
                 healFull=Boolean.parseBoolean(p.getProperty("smartHealFull","false"));
                 healWhen=boundedSetting(p,"smartHealWhen",2);
@@ -1219,6 +1228,7 @@ public final class Control {
         p.setProperty("catchChance",String.valueOf(catchChanceShown)); p.setProperty("autoBall",String.valueOf(autoBall)); p.setProperty("autoBallTarget",String.valueOf(autoBallTarget));
         p.setProperty("pvpKeepLeagues",String.valueOf(pvpKeepLeagues)); p.setProperty("skipCutscenes",String.valueOf(skipCutscenes));
         p.setProperty("batteryLowRes",String.valueOf(batteryLowRes)); p.setProperty("batteryFps20",String.valueOf(batteryFps20)); p.setProperty("batteryLowQuality",String.valueOf(batteryLowQuality));
+        p.setProperty("smartBattle",String.valueOf(smartBattle));
         p.setProperty("smartHealEnabled",String.valueOf(healEnabled)); p.setProperty("smartHealRevive",String.valueOf(healRevive)); p.setProperty("smartHealFull",String.valueOf(healFull));
         p.setProperty("smartHealWhen",String.valueOf(healWhen)); p.setProperty("smartHealThreshold",String.valueOf(healThreshold));
         for(int i=0;i<3;i++)p.setProperty(PVP_RANK_KEYS[i],String.valueOf(pvpRanks[i]));
@@ -1253,6 +1263,15 @@ public final class Control {
         if("research".equals(kind))ResearchSettings.publish(detail);
         if("shundo-sniper".equals(kind)&&detail.startsWith("{"))ShundoSniper.publish(detail);
         if("catch-chance".equals(kind))CatchChance.publish(detail);
+        if("smart-battle".equals(kind)&&detail.startsWith("{")){
+            try{org.json.JSONObject o=new org.json.JSONObject(detail);String phase=o.optString("phase");
+                if("error".equals(phase))smartBattleStatus=o.optString("message","");
+                else if("ready".equals(phase))smartBattleStatus="";
+                else if("team".equals(phase))smartBattleStatus="Team set to counter "+o.optInt("foes")+(o.optInt("foes")==1?" opponent":" opponents");
+                else if("swapped".equals(phase))smartBattleStatus="Swapped to your best counter";
+                else if("swap-refused".equals(phase))smartBattleStatus="The game refused a swap; staying in";
+            }catch(Exception ignored){}
+        }
         if("smart-heal".equals(kind)){
             try{org.json.JSONObject o=new org.json.JSONObject(detail);String phase=o.optString("phase");
                 if("error".equals(phase)||"warning".equals(phase))healStatus=o.optString("message","");

@@ -10806,6 +10806,148 @@
         "purpose": "Obfuscated name of the PokemonInfoPanel method that handles UpgradePokemonOutProto and starts the power-up animation"
       }
     },
+    "smart_battle_cpp": {
+      "construct_party_rva": {
+        "kind": "rva",
+        "value": "182737076",
+        "purpose": "BattlePartyService.ConstructPartyAgainst method address"
+      },
+      "construct_party_fingerprint": {
+        "kind": "bytes",
+        "value": [
+          "0xff",
+          "0x83",
+          "0x03",
+          "0xd1",
+          "0xea",
+          "0x33",
+          "0x00",
+          "0xfd",
+          "0xe9",
+          "0x23",
+          "0x07",
+          "0x6d",
+          "0xfd",
+          "0x7b",
+          "0x08",
+          "0xa9",
+          "0xfc",
+          "0x6f",
+          "0x09",
+          "0xa9",
+          "0xfa",
+          "0x67",
+          "0x0a",
+          "0xa9"
+        ],
+        "purpose": "BattlePartyService.ConstructPartyAgainst prologue"
+      },
+      "find_grunt_party_rva": {
+        "kind": "rva",
+        "value": "182754600",
+        "purpose": "BattlePartyService.FindGruntParty method address"
+      },
+      "find_grunt_party_fingerprint": {
+        "kind": "bytes",
+        "value": [
+          "0xfe",
+          "0x0f",
+          "0x1d",
+          "0xf8",
+          "0xf6",
+          "0x57",
+          "0x01",
+          "0xa9",
+          "0xf4",
+          "0x4f",
+          "0x02",
+          "0xa9",
+          "0xd5",
+          "0x17",
+          "0x02",
+          "0xd0",
+          "0xf4",
+          "0x03",
+          "0x01",
+          "0x2a",
+          "0xf3",
+          "0x03",
+          "0x00",
+          "0xaa"
+        ],
+        "purpose": "BattlePartyService.FindGruntParty prologue"
+      },
+      "swap_ui_start_rva": {
+        "kind": "rva",
+        "value": "183227824",
+        "purpose": "Niantic.Holoholo.Battle.SwapUI.Start method address"
+      },
+      "swap_ui_start_fingerprint": {
+        "kind": "bytes",
+        "value": [
+          "0xfe",
+          "0x5f",
+          "0xbd",
+          "0xa9",
+          "0xf6",
+          "0x57",
+          "0x01",
+          "0xa9",
+          "0xf4",
+          "0x4f",
+          "0x02",
+          "0xa9",
+          "0x34",
+          "0x14",
+          "0x02",
+          "0xd0",
+          "0xf3",
+          "0x03",
+          "0x00",
+          "0xaa",
+          "0x88",
+          "0x7e",
+          "0x7c",
+          "0x39"
+        ],
+        "purpose": "Niantic.Holoholo.Battle.SwapUI.Start prologue"
+      },
+      "swap_ui_vnext_start_rva": {
+        "kind": "rva",
+        "value": "155766064",
+        "purpose": "Niantic.Holoholo.VNext.SwapUIVNext.Start method address"
+      },
+      "swap_ui_vnext_start_fingerprint": {
+        "kind": "bytes",
+        "value": [
+          "0xfe",
+          "0x57",
+          "0xbe",
+          "0xa9",
+          "0xf4",
+          "0x4f",
+          "0x01",
+          "0xa9",
+          "0x74",
+          "0xe5",
+          "0x02",
+          "0xf0",
+          "0xf3",
+          "0x03",
+          "0x00",
+          "0xaa",
+          "0x88",
+          "0x3a",
+          "0x52",
+          "0x39",
+          "0x48",
+          "0x02",
+          "0x00",
+          "0x37"
+        ],
+        "purpose": "Niantic.Holoholo.VNext.SwapUIVNext.Start prologue"
+      }
+    },
     "rocket_swap_cpp": {
       "show_prompt_rva": {
         "kind": "rva",
