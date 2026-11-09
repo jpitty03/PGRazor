@@ -6,12 +6,14 @@
 #include "runtime_metadata.h"
 #include "runtime_transport.h"
 #include <atomic>
+#include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <dlfcn.h>
 #include <string>
 #include <time.h>
 #include <unistd.h>
-// Skip cutscenes: the cutscenes are bypassed, not tapped through, so nothing is drawn.
+// Skip cutscenes: bypass pure presentation; automatically advance screens that own game-state cleanup.
 //
 // PokemonCutsceneService.Play*Cutscene (evolve, Mega, egg hatch, egg incubate, purify, fusion,
 // unfusion, form change, new species) only build a cutscene GUI and return an IPromise that
@@ -92,18 +94,25 @@ uintptr_t fast_rewards=0;uint64_t fast_since=0,fast_next=0;int fast_taps=0;
 constexpr uint64_t kFastSettleMs=300,kFastGiveUpMs=15000;
 uintptr_t pending_rewards=0;uint64_t pending_rewards_since=0;
 constexpr uint64_t kRewardsOpenWaitMs=3000;
-// The results screen after a raid (RaidResolveUIController): victory, rewards and bonus Premier Balls,
-// the leaderboard. After a win its own Close() ends it and goes on to the raid boss encounter, as the
-// last tap does; the rewards are already granted by the server. With the setting on, a won raid's
-// screen is hidden (root CanvasGroup alpha 0) and, once it has finished opening (state 2, Open) and
-// settled briefly, Close() runs. A bypassed post-raid dialogue completes first. Defeat, timeout or quit
-// keep the screen. After 15 s it is shown again for normal taps.
-void *raid_close=nullptr,*raid_status=nullptr;int32_t raid_victory=-1;
-uintptr_t pending_raid=0;uint64_t raid_since=0,raid_next=0,raid_closed=0;int32_t raid_last_state=-1;
-// After Close() the hidden screen also stops taking touches (CanvasGroup.blocksRaycasts) until it has
-// fully dismissed (state 0): while it is still dismissing, an invisible screen would swallow the swipes
-// of the encounter underneath. Followed for at most 60 s.
-void *canvas_raycasts=nullptr;
+// Raid rewards must run their own animator/scheduler sequence. Calling Close early bypasses its
+// reward/leaderboard steps. Advance with CancelAreaTapped and the registered CloseLeaderboard action,
+// then press the active final confirmation button through its own handler. Speed up only this
+// screen's animator. Never call Close early or mutate global input/time state.
+void *raid_tap=nullptr,*raid_leaderboard_close=nullptr,*raid_status=nullptr;int32_t raid_victory=-1;
+void *raid_animator_field=nullptr,*raid_canvas_field=nullptr,*gui_back_action=nullptr;
+void *unity_alive=nullptr,*animator_speed_get=nullptr,*animator_speed_set=nullptr;
+void *canvas_raycasts=nullptr,*canvas_raycasts_get=nullptr;
+void *delegate_method=nullptr,*delegate_target=nullptr,*action_invoke=nullptr,*reflection_method=nullptr;
+void *raid_confirm_field=nullptr,*raid_confirm_root=nullptr,*raid_button_type=nullptr;
+void *game_object_active=nullptr,*component_in_children=nullptr,*button_active=nullptr;
+void *button_interactable=nullptr,*button_press=nullptr;
+uintptr_t pending_raid=0;uint64_t raid_since=0,raid_next=0;int32_t raid_last_state=-1;
+struct RaidCanvas{uintptr_t handle=0;bool raycasts=true,raycasts_changed=false;};
+RaidCanvas raid_canvases[2]{};
+uintptr_t raid_animator=0;float raid_speed=1.f,raid_fast_speed=20.f;
+bool raid_recovering=false,raid_finished=false,raid_confirmed=false;int raid_taps=0;
+int raid_wait_state=-1;
+constexpr uint64_t kRaidStepMs=250,kRaidWatchMs=30000,kRaidRecoveryMs=60000;
 // Pop-ups closed with their own GuiController.Dismiss(), as tapping through them does: the "You're going
 // too fast" warning (Niantic.Holoholo.Map.SpeedModal), the medal pop-ups (BadgeAwardGuiController for a new medal, BadgeIncrementGuiController for a medal
 // tier) and the weekly Adventure Sync summary (BgMode.UI.WeeklyFitnessDialog). With the setting on each is hidden as it opens (GuiController.Open) and dismissed once open
@@ -111,7 +120,7 @@ void *canvas_raycasts=nullptr;
 // The level-up screen (LevelUpV3GuiController) is not dismissed: closed straight after opening it left
 // the map ignoring taps (Pixel, until another pop-up closed). It is hidden and stepped through instead,
 // as taps do: its summary's ClaimRewardsButtonClicked and its rewards screen's OnScreenClicked, every
-// 250 ms (each only runs the callback the screen has set for that step, so an early call does nothing),
+// 250 ms, only after that child screen is visible, fully faded in and interactable,
 // until the screen closes itself; one still open after 30 s is shown again for taps.
 // Nothing here grants anything: level-up
 // rewards are requested by PlayerService itself when the level changes (its Claim Rewards button only
@@ -126,13 +135,15 @@ DismissKind dismiss_kinds[]={{"Niantic.Holoholo.Map","SpeedModal","speed-warning
 constexpr int kDismissKinds=int(sizeof(dismiss_kinds)/sizeof(dismiss_kinds[0]));
 // The level-up screen's two step screens and their tap handlers.
 void *levelup_summary=nullptr,*levelup_rewards=nullptr,*levelup_claim=nullptr,*levelup_click=nullptr;
+void *levelup_summary_canvas=nullptr,*levelup_rewards_canvas=nullptr;
+void *levelup_summary_visibility=nullptr,*levelup_rewards_visibility=nullptr;
+void *levelup_active=nullptr,*levelup_visible=nullptr,*levelup_alpha=nullptr,*levelup_interactable=nullptr;
 constexpr uint64_t kLevelUpStepMs=250,kLevelUpWatchMs=30000;
-struct PendingPopup{uintptr_t handle;int kind;uint64_t since,next;int steps;};
+struct PendingPopup{uintptr_t handle;int kind;uint64_t since,next;int steps;bool summary_claimed=false,rewards_wait=false,opened=false;};
 constexpr int kPendingPopups=8;  // medals often open several at once
 PendingPopup pending_popups[kPendingPopups]={};int pending_popup_count=0;
 void *gui_dismiss=nullptr;
 constexpr uint64_t kPopupWatchMs=15000;
-constexpr uint64_t kRaidDismissWatchMs=60000;
 // The power-up animation on a Pokemon's page. PokemonInfoPanel.cift (obfuscated) handles the server's
 // UpgradePokemonOutProto and starts the panel's own power-up coroutine, which paces each step (model
 // spin, CP and HP count-up, sound) with the panel's serialized timings. With the setting on, those
@@ -414,17 +425,39 @@ void hook_gui_open(void *self,const void *m){
  }
 }
 void *object_field(void *o,void *f){void *v=nullptr;fn<void(*)(void*,void*,void*)>(boot.runtime.field_get_value)(o,f,&v);return v;}
+bool levelup_screen_ready(void *screen,void *canvas_field,void *visibility_field){
+ if(!screen)return false;
+ auto yes=[&](void *m,void *o){void *v=invoke(m,o);require(v,"Level-up readiness");return *static_cast<bool*>(fn<void*(*)(void*)>(boot.runtime.object_unbox)(v));};
+ if(!yes(levelup_active,screen))return false;
+ void *visibility=object_field(screen,visibility_field),*canvas=object_field(screen,canvas_field);
+ if(!visibility||!canvas||!yes(levelup_visible,visibility)||!yes(levelup_interactable,canvas))return false;
+ void *v=invoke(levelup_alpha,canvas);require(v,"Level-up alpha");
+ const float alpha=*static_cast<float*>(fn<void*(*)(void*)>(boot.runtime.object_unbox)(v));
+ return std::isfinite(alpha)&&alpha>=0.99f;
+}
 // One step for the hidden level-up screen; true once it has closed itself or is left for taps.
 bool advance_levelup(PendingPopup &p,void *gui){
  const uint64_t now=clock_ms();
  const int32_t state=int_field(gui,gui_state);
- if(state==0){event("{\"phase\":\"skipped\",\"kind\":\"level-up\",\"ms\":"+std::to_string(now-p.since)+",\"steps\":"+std::to_string(p.steps)+"}");return true;}
+ if(state==2)p.opened=true;
+ if(state==0&&p.opened){event("{\"phase\":\"skipped\",\"kind\":\"level-up\",\"ms\":"+std::to_string(now-p.since)+",\"steps\":"+std::to_string(p.steps)+"}");return true;}
  if(now-p.since>kLevelUpWatchMs){set_alpha(gui,1.f);status("warning","level-up left for taps (state "+std::to_string(state)+")");return true;}
  set_alpha(gui,0.f);  // every tick: its own transitions may restore the alpha
- if(state==3||now<p.next)return false;  // closing itself, or between steps
- p.next=now+kLevelUpStepMs;++p.steps;
- if(void *summary=object_field(gui,levelup_summary))invoke(levelup_claim,summary);
- if(void *rewards=object_field(gui,levelup_rewards))invoke(levelup_click,rewards);
+ if(state!=2)return false;
+ void *summary=object_field(gui,levelup_summary),*rewards=object_field(gui,levelup_rewards);
+ const bool rewards_ready=levelup_screen_ready(rewards,levelup_rewards_canvas,levelup_rewards_visibility);
+ // A registered callback is not evidence that its screen is ready. In particular the summary
+ // callback exists during the coin flip/avatar-stage setup. Never advance both screens together,
+ // and after a rewards click observe its transition before allowing the next group to advance.
+ if(!rewards_ready)p.rewards_wait=false;
+ if(now<p.next)return false;
+ if(!p.summary_claimed&&levelup_screen_ready(summary,levelup_summary_canvas,levelup_summary_visibility)){
+  p.summary_claimed=true;p.next=now+kLevelUpStepMs;++p.steps;invoke(levelup_claim,summary);
+  event("{\"phase\":\"level-up-action\",\"action\":\"claim-rewards\"}");
+ }else if(rewards_ready&&!p.rewards_wait){
+  p.rewards_wait=true;p.next=now+kLevelUpStepMs;++p.steps;invoke(levelup_click,rewards);
+  event("{\"phase\":\"level-up-action\",\"action\":\"next-reward-group\"}");
+ }
  return false;
 }
 // One step for a hidden pop-up; true once it is dismissed, gone or left for taps.
@@ -463,59 +496,170 @@ void release_popups(){
 }
 
 using RaidInit=void(*)(void*,void*,const void*);
+void *raid_target(uintptr_t h){return h?fn<void*(*)(uintptr_t)>(boot.runtime.gchandle_get_target)(h):nullptr;}
+bool raid_alive(void *o){
+ if(!o)return false;
+ void *args[]={o};void *boxed=invoke(unity_alive,nullptr,args);require(boxed,"Unity object liveness");
+ return *static_cast<bool*>(fn<void*(*)(void*)>(boot.runtime.object_unbox)(boxed));
+}
+float raid_get_speed(void *animator){
+ void *boxed=invoke(animator_speed_get,animator);require(boxed,"Raid animator speed");
+ const float v=*static_cast<float*>(fn<void*(*)(void*)>(boot.runtime.object_unbox)(boxed));
+ require(std::isfinite(v)&&v>=0.f,"Raid animator speed value");return v;
+}
+void raid_set_alpha(void *group,float alpha){void *args[]={&alpha};invoke(canvas_alpha,group,args);}
+void raid_set_raycasts(void *group,bool value){void *args[]={&value};invoke(canvas_raycasts,group,args);}
+void raid_free(uintptr_t &h){if(h)fn<void(*)(uintptr_t)>(boot.runtime.gchandle_free)(h);h=0;}
+// Each saved component is rooted independently: the controller can be destroyed during an animator
+// callback. A failed managed call is NOT evidence of destruction, and must never report success.
+bool restore_raid(bool reveal){
+ bool ok=true;
+ for(auto &c:raid_canvases){
+  void *group=raid_target(c.handle);
+  // GuiController.CleanUp hides its canvas on dismissal. Do not re-enable input on that hidden
+  // screen: only a fallback to the still-open UI restores its original raycast setting.
+  try{if((!reveal||c.raycasts_changed)&&raid_alive(group)){
+   if(!reveal)c.raycasts_changed=true;
+   raid_set_raycasts(group,reveal?c.raycasts:false);
+  }}catch(...){ok=false;}
+  // Attempt both properties independently; one failure must not skip the other components.
+  if(reveal)try{if(raid_alive(group))raid_set_alpha(group,1.f);}catch(...){ok=false;}
+ }
+ try{void *animator=raid_target(raid_animator);if(raid_alive(animator)&&raid_get_speed(animator)==raid_fast_speed){
+  void *args[]={&raid_speed};invoke(animator_speed_set,animator,args);
+ }}catch(...){ok=false;}
+ return ok;
+}
+void release_raid(){
+ for(auto &c:raid_canvases){raid_free(c.handle);c={};}
+ raid_free(raid_animator);raid_free(pending_raid);raid_recovering=false;raid_finished=false;raid_confirmed=false;
+}
+void recover_raid(const char *reason){
+ if(!raid_recovering)status("warning",std::string("Raid skip stopped; restoring screen state: ")+reason);
+ raid_recovering=true;
+ if(restore_raid(!raid_finished))release_raid();
+ else if(clock_ms()-raid_since>=kRaidRecoveryMs){
+  status("error","Raid controls could not be fully restored; restart the game");release_raid();
+ }
+}
+void capture_raid_canvas(void *group){
+ require(raid_alive(group),"Raid canvas unavailable");
+ for(auto &c:raid_canvases)if(raid_target(c.handle)==group)return;
+ for(auto &c:raid_canvases)if(!c.handle){
+  void *boxed=invoke(canvas_raycasts_get,group);require(boxed,"Raid canvas input state");
+  c.raycasts=*static_cast<bool*>(fn<void*(*)(void*)>(boot.runtime.object_unbox)(boxed));
+  c.handle=fn<uintptr_t(*)(void*,int)>(boot.runtime.gchandle_new)(group,0);require(c.handle,"Raid canvas root");return;
+ }
+ throw Failure{"Raid canvas changed"};
+}
+void prepare_raid(void *gui){
+ // The subclass's rootCanvasGroup is separate from GuiController's cached root canvas.
+ capture_raid_canvas(object_field(gui,raid_canvas_field));
+ capture_raid_canvas(invoke(root_canvas,gui));
+ if(!raid_animator){
+  void *animator=object_field(gui,raid_animator_field);require(raid_alive(animator),"Raid animator unavailable");
+  raid_speed=raid_get_speed(animator);raid_fast_speed=std::max(raid_speed,20.f);
+  raid_animator=fn<uintptr_t(*)(void*,int)>(boot.runtime.gchandle_new)(animator,0);require(raid_animator,"Raid animator root");
+  void *args[]={&raid_fast_speed};invoke(animator_speed_set,animator,args);
+ }
+ for(auto &c:raid_canvases)if(c.handle)raid_set_alpha(raid_target(c.handle),0.f);
+}
+bool raid_bool(void *method,void *object){
+ void *boxed=invoke(method,object);require(boxed,"Raid button state");
+ return *static_cast<bool*>(fn<void*(*)(void*)>(boot.runtime.object_unbox)(boxed));
+}
+bool raid_wait(int state,const char *reason){
+ if(raid_wait_state!=state){
+  raid_wait_state=state;
+  event(std::string("{\"phase\":\"raid-results-wait\",\"reason\":\"")+reason+"\"}");
+ }
+ return false;
+}
+bool confirm_raid(void *gui){
+ // CancelAreaTapped advances animations but cannot press GO TO BONUS CHALLENGE. The final
+ // confirmation row is activated by the summary sequence; never bypass that readiness boundary.
+ void *row=object_field(gui,raid_confirm_field);if(!row)return raid_wait(0,"confirmation-row-missing");
+ void *root=object_field(row,raid_confirm_root);
+ if(!raid_alive(root)||!raid_bool(game_object_active,root))return raid_wait(1,"confirmation-row-inactive");
+ bool include_inactive=false;void *args[]={raid_button_type,&include_inactive};
+ void *button=invoke(component_in_children,root,args);
+ if(!raid_alive(button))return raid_wait(2,"confirmation-button-missing");
+ if(!raid_bool(button_active,button))return raid_wait(3,"confirmation-button-inactive");
+ if(!raid_bool(button_interactable,button))return raid_wait(4,"confirmation-button-not-interactable");
+ // Press checks normal button eligibility and invokes its installed click listeners. This is a
+ // managed callback, not a physical tap, and does not depend on the hidden canvas's alpha.
+ raid_confirmed=true;
+ event("{\"phase\":\"raid-results-action\",\"action\":\"bonus-challenge\"}");
+ invoke(button_press,button);return true;
+}
+void step_raid(void *gui){
+ if(raid_confirmed)return; // the final callback may finish asynchronously; never double-submit
+ // Only invoke the leaderboard callback while the game has actually installed it for this screen.
+ // Calling CloseLeaderboard at other stages would corrupt its saved back-button action.
+ void *action=object_field(gui,gui_back_action);
+ if(action&&invoke(delegate_target,action)==gui){
+  void *reflected=invoke(delegate_method,action);require(reflected,"Raid back action method");
+  if(fn<void*(*)(void*)>(reflection_method)(reflected)==raid_leaderboard_close){
+   invoke(action_invoke,action);return;
+  }
+ }
+ if(confirm_raid(gui))return;
+ invoke(raid_tap,gui);
+}
 void hook_raid_results(void *self,void *info,const void *m){
  orig<RaidInit>(K_RAID_RESULTS)(self,info,m);
- if(!active()||!self||!raid_close||pending_raid)return;
+ if(!active()||!self||!raid_tap||pending_raid)return;
  try{
   pending_raid=fn<uintptr_t(*)(void*,int)>(boot.runtime.gchandle_new)(self,0);require(pending_raid,"GC root");
-  raid_since=clock_ms();raid_next=0;raid_closed=0;raid_last_state=-1;
+  raid_since=clock_ms();raid_next=0;raid_last_state=-1;raid_wait_state=-1;raid_recovering=false;raid_finished=false;raid_confirmed=false;raid_taps=0;
  }catch(...){status("warning","Raid results screen could not be skipped");}
 }
-void hide_raid(void *gui){
- set_alpha(gui,0.f);  // every tick: transitions may restore the alpha
- if(!raid_closed||!canvas_raycasts)return;
- void *group=invoke(root_canvas,gui);if(!group)return;
- bool off=false;void *args[]={&off};invoke(canvas_raycasts,group,args);
-}
 // One step for a raid results screen; ends once it has fully dismissed, or is left for taps.
-void advance_raid(){
- void *gui=fn<void*(*)(uintptr_t)>(boot.runtime.gchandle_get_target)(pending_raid);
- const uint64_t now=clock_ms();bool done=!gui;
+void advance_raid(bool on){
+ if(!on||raid_recovering){recover_raid(on?"retrying component restoration":"setting disabled");return;}
+ void *gui=raid_target(pending_raid);const uint64_t now=clock_ms();
  try{
-  if(gui){
-   const int32_t state=int_field(gui,gui_state),result=int_field(gui,raid_status);
-   if(raid_closed&&state!=raid_last_state)
-    event("{\"phase\":\"raid-results-state\",\"state\":"+std::to_string(state)+",\"ms\":"+std::to_string(now-raid_closed)+"}");
+  const bool alive=raid_alive(gui);
+  const int32_t state=alive?int_field(gui,gui_state):-1;
+  if(!alive||(state==0&&raid_last_state>0)){
+   raid_finished=true;
+   require(restore_raid(false),"Raid component restoration");
+   if(raid_taps)event("{\"phase\":\"skipped\",\"kind\":\"raid-results\",\"completion\":\""+
+    std::string(alive?"dismissed":"destroyed")+"\",\"ms\":"+std::to_string(now-raid_since)+",\"taps\":"+std::to_string(raid_taps)+"}");
+   release_raid();return;
+  }
+  if(state!=raid_last_state){
+   event("{\"phase\":\"raid-results-state\",\"state\":"+std::to_string(state)+",\"ms\":"+std::to_string(now-raid_since)+"}");
    raid_last_state=state;
-   if(raid_closed){
-    if(state==0){done=true;event("{\"phase\":\"skipped\",\"kind\":\"raid-results\",\"ms\":"+std::to_string(raid_closed-raid_since)+",\"dismissMs\":"+std::to_string(now-raid_closed)+"}");}
-    else if(now-raid_closed>kRaidDismissWatchMs){done=true;status("warning","Raid results screen still dismissing (state "+std::to_string(state)+")");}
-    else hide_raid(gui);
-   }else if(result!=raid_victory){
-    // Not a win (or not known yet while it opens): left as it is once it has opened.
-    if(state==2||now-raid_since>=kRewardsOpenWaitMs)done=true;
-   }else if(raid_next&&state!=1&&state!=2){
-    raid_closed=now;hide_raid(gui);
-    event("{\"phase\":\"raid-results-state\",\"state\":"+std::to_string(state)+",\"ms\":0}");
-   }else if(now-raid_since>kFastGiveUpMs){
-    done=true;set_alpha(gui,1.f);status("warning","Raid results screen left for taps");
-   }else if(state==1||state==2){
-    hide_raid(gui);
-    if(pending_dialog)return;  // a bypassed post-raid dialogue completes first
-    if(state==2){
-     if(!raid_next)raid_next=now+kFastSettleMs;
-     else if(now>=raid_next)invoke(raid_close,gui);  // repeated calls return at once (its own closed flag)
-    }
+  }
+  if(now-raid_since>=kRaidWatchMs){recover_raid("timed out waiting for normal dismissal");return;}
+  if(int_field(gui,raid_status)!=raid_victory){
+   if(state==2||now-raid_since>=kRewardsOpenWaitMs){
+    if(restore_raid(true))release_raid();else recover_raid("battle result changed");
    }
-  }else if(raid_closed)event("{\"phase\":\"skipped\",\"kind\":\"raid-results\",\"ms\":"+std::to_string(raid_closed-raid_since)+",\"dismissMs\":-1}");
- }catch(...){
-  done=true;
-  // After Close() a failing call means its Unity objects are already destroyed: it is gone, not shown.
-  if(raid_closed)event("{\"phase\":\"skipped\",\"kind\":\"raid-results\",\"ms\":"+std::to_string(raid_closed-raid_since)+",\"dismissMs\":-1}");
-  else{if(gui){try{set_alpha(gui,1.f);}catch(...){}}status("warning","Raid results screen left for taps");}
- }
- if(!done)return;
- fn<void(*)(uintptr_t)>(boot.runtime.gchandle_free)(pending_raid);pending_raid=0;
+   return;
+  }
+  if(state==3){
+   // The game started dismissal itself. Only the captured screen's canvases stop intercepting input.
+   for(auto &c:raid_canvases){void *group=raid_target(c.handle);if(raid_alive(group)){
+    // Snapshot when taking ownership, not while the opening transition may still disable input.
+    if(!c.raycasts_changed){
+     void *boxed=invoke(canvas_raycasts_get,group);require(boxed,"Raid canvas input state");
+     c.raycasts=*static_cast<bool*>(fn<void*(*)(void*)>(boot.runtime.object_unbox)(boxed));
+     c.raycasts_changed=true;
+    }
+    raid_set_raycasts(group,false);
+   }}
+   return;
+  }
+  if(state!=1&&state!=2)return;
+  prepare_raid(gui);
+  if(state!=2||pending_dialog)return;
+  if(!raid_next){raid_next=now+kFastSettleMs;return;}
+  if(now<raid_next)return;
+  raid_next=now+kRaidStepMs;++raid_taps;step_raid(gui);
+ }catch(const Failure &f){recover_raid(f.where);}
+ catch(...){recover_raid("unexpected native error");}
 }
 
 using PowerUp=void(*)(void*,void*,const void*);
@@ -710,13 +854,38 @@ void install(){
   if(hook(api,t,missing))++count;else rewards_close=nullptr;
  }catch(const Failure &f){rewards_close=nullptr;missing+=std::string(missing.empty()?"":", ")+"rocket-rewards ("+f.where+")";}
 
- // The raid results screen: its Close, its BattleStatus field and the Victory literal by name. Uses the
- // GuiController state and CanvasGroup methods resolved for the Rocket results screen above.
+ // Resolve the normal raid tap actions and per-screen components; no early Close shortcut.
  try{
   require(gui_state&&root_canvas&&canvas_alpha,"GuiController state");
   void *gui=class_of(api,"Niantic.Holoholo.Raid","RaidResolveUIController");
-  raid_close=method(gui,"Close",0);
+  raid_tap=method(gui,"CancelAreaTapped",0);
+  raid_leaderboard_close=method(gui,"CloseLeaderboard",0);
   canvas_raycasts=method(class_of(api,"UnityEngine","CanvasGroup"),"set_blocksRaycasts",1);
+  canvas_raycasts_get=method(class_of(api,"UnityEngine","CanvasGroup"),"get_blocksRaycasts",0);
+  unity_alive=method(class_of(api,"UnityEngine","Object"),"op_Implicit",1);
+  animator_speed_get=method(class_of(api,"UnityEngine","Animator"),"get_speed",0);
+  animator_speed_set=method(class_of(api,"UnityEngine","Animator"),"set_speed",1);
+  auto named_field=[&](void *owner,const char *name,const char *type){
+   void *f=fn<void*(*)(void*,const char*)>(boot.meta.class_get_field_from_name)(owner,name);require(f,name);
+   require(typename_of(fn<void*(*)(void*)>(boot.meta.field_get_type)(f))==type,name);return f;
+  };
+  raid_animator_field=named_field(gui,"animator","UnityEngine.Animator");
+  raid_canvas_field=named_field(gui,"rootCanvasGroup","UnityEngine.CanvasGroup");
+  gui_back_action=named_field(class_of(api,"Niantic.Holoholo.NUI","GuiController"),"customBackButtonAction","System.Action");
+  raid_confirm_field=fn<void*(*)(void*,const char*)>(boot.meta.class_get_field_from_name)(gui,"confirmBonusRow");require(raid_confirm_field,"confirmBonusRow");
+  void *row_class=fn<void*(*)(void*)>(boot.meta.class_from_type)(fn<void*(*)(void*)>(boot.meta.field_get_type)(raid_confirm_field));require(row_class,"ConfirmBonusRow class");
+  raid_confirm_root=named_field(row_class,"Root","UnityEngine.GameObject");
+  void *game_object=class_of(api,"UnityEngine","GameObject"),*button=class_of(api,"UnityEngine.UI","Button");
+  game_object_active=method(game_object,"get_activeInHierarchy",0);
+  component_in_children=method(game_object,"GetComponentInChildren",2); // (System.Type, bool)
+  button_active=method(class_of(api,"UnityEngine","Behaviour"),"get_isActiveAndEnabled",0);
+  button_interactable=method(class_of(api,"UnityEngine.UI","Selectable"),"IsInteractable",0);
+  button_press=method(button,"Press",0);
+  raid_button_type=fn<void*(*)(void*)>(exp("type_get_object"))(fn<void*(*)(void*)>(boot.meta.class_get_type)(button));require(raid_button_type,"Button reflection type");
+  delegate_method=method(class_of(api,"System","Delegate"),"get_Method",0);
+  delegate_target=method(class_of(api,"System","Delegate"),"get_Target",0);
+  action_invoke=method(class_of(api,"System","Action"),"Invoke",0);
+  reflection_method=exp("method_get_from_reflection");
   raid_status=field_of_type(gui,"Niantic.Holoholo.Battle.BattleStatus");
   void *status_class=fn<void*(*)(void*)>(boot.meta.class_from_type)(fn<void*(*)(void*)>(boot.meta.field_get_type)(raid_status));
   void *victory=fn<void*(*)(void*,const char*)>(boot.meta.class_get_field_from_name)(status_class,"Victory");require(victory,"BattleStatus.Victory");
@@ -724,8 +893,8 @@ void install(){
   static const uint8_t p_raid[]=PGR_GAME_CUTSCENE_SKIP_CPP_RAID_RESULTS_FINGERPRINT;
   static_assert(sizeof(p_raid)==24,"24-byte prologue");
   const Target t{K_RAID_RESULTS,gui,"Initialize",1,PGR_GAME_CUTSCENE_SKIP_CPP_RAID_RESULTS_RVA,p_raid,reinterpret_cast<void*>(hook_raid_results),false};
-  if(hook(api,t,missing))++count;else raid_close=nullptr;
- }catch(const Failure &f){raid_close=nullptr;missing+=std::string(missing.empty()?"":", ")+"raid-results ("+f.where+")";}
+  if(hook(api,t,missing))++count;else raid_tap=nullptr;
+ }catch(const Failure &f){raid_tap=nullptr;missing+=std::string(missing.empty()?"":", ")+"raid-results ("+f.where+")";}
 
  // The speed warning, level-up screen and medal pop-ups: dismissed through GuiController.Dismiss once
  // open (no hooks of their own). Each class is optional.
@@ -740,6 +909,15 @@ void install(){
      levelup_summary=field("levelUpSummaryScreen");levelup_rewards=field("levelUpRewardsScreen");
      levelup_claim=method(class_of(api,"Niantic.Holoholo.UI","LevelUpSummaryScreen"),"ClaimRewardsButtonClicked",0);
      levelup_click=method(class_of(api,"Niantic.Holoholo.UI","LevelUpRewardsScreen"),"OnScreenClicked",0);
+     auto child_field=[&](const char *type,const char *name){void *f=fn<void*(*)(void*,const char*)>(boot.meta.class_get_field_from_name)(class_of(api,"Niantic.Holoholo.UI",type),name);require(f,name);return f;};
+     levelup_summary_canvas=child_field("LevelUpSummaryScreen","canvasGroup");
+     levelup_rewards_canvas=child_field("LevelUpRewardsScreen","canvasGroup");
+     levelup_summary_visibility=child_field("LevelUpSummaryScreen","visibilityController");
+     levelup_rewards_visibility=child_field("LevelUpRewardsScreen","visibilityController");
+     levelup_active=method(class_of(api,"UnityEngine","Behaviour"),"get_isActiveAndEnabled",0);
+     levelup_visible=method(class_of(api,"Niantic.Holoholo.UI","VisibilityController"),"get_IsVisible",0);
+     levelup_alpha=method(class_of(api,"UnityEngine","CanvasGroup"),"get_alpha",0);
+     levelup_interactable=method(class_of(api,"UnityEngine","CanvasGroup"),"get_interactable",0);
     }
    }catch(const Failure &f){k.klass=nullptr;missing+=std::string(missing.empty()?"":", ")+k.event+" ("+f.where+")";}
   }
@@ -793,9 +971,9 @@ void pgr_cutscene_skip_tick(uint64_t tid,const PgrSharedMetadataOutput *){
  if(pending_radar)finish_radar();
  if(pending_rewards)advance_rewards();
  if(fast_rewards)advance_fast();
- if(pending_raid)advance_raid();
- if(pending_popup_count)advance_popups();
  const bool on=configured();enabled.store(on,std::memory_order_release);
+ if(pending_raid)advance_raid(on&&!faulted.load(std::memory_order_acquire));
+ if(pending_popup_count)advance_popups();
  if(!on||tried||faulted.load(std::memory_order_acquire))return;
  tried=true;
  try{
@@ -812,10 +990,11 @@ void pgr_cutscene_skip_stop(uint64_t tid){
   if(pending_dismiss)finish_dismiss();
   if(pending_radar)finish_radar();
   if(pending_popup_count)release_popups();
-  if(pending_raid){  // shown again rather than left hidden without ticks
-   void *gui=fn<void*(*)(uintptr_t)>(boot.runtime.gchandle_get_target)(pending_raid);
-   if(gui){try{set_alpha(gui,1.f);}catch(...){}}
-   fn<void(*)(uintptr_t)>(boot.runtime.gchandle_free)(pending_raid);pending_raid=0;
+  if(pending_raid){
+   // Keep roots on restoration failure; the next valid tick retries without advancing the sequence.
+   raid_recovering=true;
+   if(restore_raid(!raid_finished))release_raid();
+   else status("error","Raid controls restoration pending after app suspension");
   }
  }
 }
