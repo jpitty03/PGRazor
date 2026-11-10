@@ -115,7 +115,8 @@ enum PgrBattleAction {
   PGR_BATTLE_ACT_QUICK   = 0,  // "quick"
   PGR_BATTLE_ACT_CHARGED = 1,  // "charged"
   PGR_BATTLE_ACT_DODGE   = 2,  // "dodge"
-  PGR_BATTLE_ACT_MAX     = 3   // "max-attack"
+  PGR_BATTLE_ACT_MAX     = 3,  // "max-attack"
+  PGR_BATTLE_ACT_MAX_ORB = 4   // "max-orb-move" (movement issued, not collection confirmed)
 };
 
 // battle-error reason codes carried in PgrBattleEvent.aux.
@@ -137,7 +138,7 @@ typedef struct pgr_battle_swap_desc {  // 24 bytes
   int32_t reserved;  // 0
 } pgr_battle_swap_desc;
 
-// Install-time configuration (fixed LP64 layout, 512 bytes). Every pointer is an already-validated
+// Install-time configuration (LP64: 512-byte base, 520 with optional orb probe). Every pointer is an already-validated
 // il2cpp export / MethodInfo* / FieldInfo* / Il2CppClass*; the native layer re-checks and rejects
 // any null. See the static_asserts in battles.cpp for the authoritative offsets/sizes.
 typedef struct pgr_battle_config_v1 {
@@ -208,7 +209,11 @@ typedef struct pgr_battle_config_v1 {
   int32_t max_attack;     // BreadMoveType.BreadAttack                               500
   uint32_t reserved0;     // must be 0                                               504
   uint32_t reserved1;     // must be 0                                               508
-} pgr_battle_config_v1;    // 512 bytes
+  // Optional extension; the original 512-byte prefix remains accepted.
+  // Read-only owner-thread probe. state is rooted for the call; return 0 for
+  // no move, otherwise a validated Direction from dodge_method's own enum.
+  int (*max_orb_direction)(void *state,void *dodge_method);                    // 512
+} pgr_battle_config_v1;    // 520 bytes
 
 // Pull-only telemetry snapshot (64 bytes). Safe from any thread; never frees.
 typedef struct pgr_battle_sample_v1 {

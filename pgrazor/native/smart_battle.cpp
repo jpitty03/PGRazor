@@ -1,5 +1,6 @@
 #include "smart_battle.h"
 #include "battle_counter.h"
+#include "smart_battle_party.h"
 #include "combat_host.h"
 #include "game_bindings.h"
 #include "hook_engine.h"
@@ -111,6 +112,13 @@ bool configured(){
  if(!tr||tr->sample(&a)||!a.snapshot_fresh||a.fault||tr->get_string(21,s,sizeof(s)-1,&n)||n!=4||std::memcmp(s,"F1|1",4)!=0)return false;
  int active=0,ready=0;tr->get_bool(3,&active);tr->get_bool(16,&ready);return active&&ready;
 }
+pgr_smart_party::HealingPolicy healing_policy(){
+ auto tr=transport();PgrRuntimeTransportSample a{};char s[64]{};uint32_t n=0;
+ if(!tr||tr->sample(&a)||!a.snapshot_fresh||a.fault||tr->get_string(18,s,sizeof(s)-1,&n)||n>=sizeof(s))return {};
+ int active=0,ready=0;
+ if(tr->get_bool(3,&active)||tr->get_bool(16,&ready)||!active||!ready)return {};
+ s[n]=0;return pgr_smart_party::healing_policy(s);
+}
 bool gate(){
  const uint64_t tid=owner.load(std::memory_order_acquire);
  return enabled.load(std::memory_order_acquire)&&tid&&tid==uint64_t(gettid());
@@ -201,12 +209,13 @@ const Species *species_of(int id,int form){
 }
 Move move_of(int id){auto it=moves.find(id);return it==moves.end()?Move{}:it->second;}
 
-struct ProtoFields {void *k=nullptr;size_t id=0,species=0,hp=0,move1=0,move2=0,move3=0,iva=0,ivd=0,ivs=0,cpm=0,extra=0,egg=0,fort=0,station=0,display=0;};
+struct ProtoFields {void *k=nullptr;size_t id=0,species=0,hp=0,max_hp=0,move1=0,move2=0,move3=0,iva=0,ivd=0,ivs=0,cpm=0,extra=0,egg=0,fort=0,station=0,display=0;};
 ProtoFields pf;size_t display_form=0,display_align=0;
 void load_proto_fields(){
  if(pf.k)return;
  ProtoFields f;f.k=cls("Holoholo.Rpc","PokemonProto");
  f.id=off(f.k,"id_");f.species=off(f.k,"pokemonId_");f.hp=off(f.k,"stamina_");f.move1=off(f.k,"move1_");f.move2=off(f.k,"move2_");f.move3=off(f.k,"move3_");
+ f.max_hp=off(f.k,"maxStamina_");
  f.iva=off(f.k,"individualAttack_");f.ivd=off(f.k,"individualDefense_");f.ivs=off(f.k,"individualStamina_");f.cpm=off(f.k,"cpMultiplier_");f.extra=off(f.k,"additionalCpMultiplier_");
  f.egg=off(f.k,"isEgg_");f.fort=off(f.k,"deployedFortId_");f.station=off(f.k,"deployedStationId_");f.display=off(f.k,"pokemonDisplay_");
  void *d=cls("Holoholo.Rpc","PokemonDisplayProto");display_form=off(d,"Form");display_align=off(d,"Alignment");
@@ -253,17 +262,20 @@ std::vector<void*> storage(Root &hold){
 
 // ---- Before battle ---------------------------------------------------------------------------
 // The party to use instead of original, or null to keep it. filter is the game's own eligibility check.
-void *counter_party(const std::vector<Foe> &foes,void *original,void *filter){
+void *counter_party(const std::vector<Foe> &foes,void *original,void *filter,bool rocket=false){
  if(foes.empty()||!original)return nullptr;
  void *party_class=klass(original);const size_t team_at=off(party_class,"TeamProtos");
- void *old_team=at<void*>(original,team_at);if(!old_team)return nullptr;
- const int size=int(at<uint64_t>(old_team,0x18));if(size<=0||size>6)return nullptr;
+ void *old_team=at<void*>(original,team_at);
+ const uint64_t old_length=old_team?at<uint64_t>(old_team,0x18):0;if(old_length>6)return nullptr;
+ const int old_size=int(old_length),size=pgr_smart_party::team_size(old_size,rocket);if(!size)return nullptr;
  Root hold;std::vector<void*> all=storage(hold);
+ const auto healing=healing_policy();
  struct Rated {void *p;std::vector<double> scores;double best;};
  std::vector<Rated> rated;rated.reserve(all.size());
  for(void *p:all){
   if(at<bool>(p,pf.egg)||has_text(p,pf.fort)||has_text(p,pf.station)||at<int32_t>(p,pf.hp)<=0)continue;
   Fighter f;if(!fighter_of(p,f))continue;
+  f.hp=pgr_smart_party::selection_hp(at<int32_t>(p,pf.hp),at<int32_t>(p,pf.max_hp),healing);
   Rated r{p,{},0};for(const Foe &e:foes){const double s=matchup(f,e);r.scores.push_back(s);r.best=std::max(r.best,s);}
   if(r.best>0)rated.push_back(std::move(r));
  }
@@ -281,7 +293,7 @@ void *counter_party(const std::vector<Foe> &foes,void *original,void *filter){
  Root array(fn<void*(*)(void*,uintptr_t)>(exp("array_new"))(pf.k,uintptr_t(size)));require(bool(array),"team array");
  std::vector<void*> team;for(int i:picks)team.push_back(eligible[size_t(i)].p);
  // Slots we could not fill keep the game's own choices.
- for(int i=0;i<size&&int(team.size())<size;++i){
+ for(int i=0;i<old_size&&int(team.size())<size;++i){
   void *p=at<void*>(old_team,0x20+size_t(i)*8);if(!p)continue;
   const uint64_t id=at<uint64_t>(p,pf.id);bool dup=false;for(void *t:team)dup=dup||at<uint64_t>(t,pf.id)==id;
   if(!dup)team.push_back(p);
@@ -318,10 +330,9 @@ void *hook_construct(void *self,void *enemies,int number,void *conditions,float 
  return result;
 }
 
-// InvasionCharacter value -> the type its name announces (CHARACTER_FIRE_GRUNT_MALE and so on).
+// InvasionCharacter value -> the type its managed name announces (CharacterFireGruntMale).
 std::unordered_map<int,int> grunt_types;
 void load_grunt_types(void *hook_method){
- static const char *const names[kTypeCount]={"NORMAL","FIGHTING","FLYING","POISON","GROUND","ROCK","BUG","GHOST","METAL","FIRE","WATER","GRASS","ELECTRIC","PSYCHIC","ICE","DRAGON","DARK","FAIRY"};
  void *type=const_cast<void*>(fn<const void*(*)(void*,uint32_t)>(exp("method_get_param"))(hook_method,0));require(type,"grunt parameter");
  void *k=fn<void*(*)(void*)>(exp("class_from_type"))(type);require(k,"grunt enum");
  void *iter=nullptr;
@@ -329,20 +340,22 @@ void load_grunt_types(void *hook_method){
   if((fn<int(*)(void*)>(boot.meta.field_get_flags)(f)&0x8050)!=0x8050)continue;
   const char *name=fn<const char*(*)(void*)>(exp("field_get_name"))(f);if(!name)continue;
   int value=0;fn<void(*)(void*,void*)>(boot.runtime.field_static_get_value)(f,&value);
-  const std::string text=name;
-  if(text.find("GRUNT")==std::string::npos)continue;
-  for(int t=0;t<kTypeCount;++t)if(text.find(std::string("_")+names[t]+"_")!=std::string::npos){grunt_types[value]=t+1;break;}
+  const int type_id=pgr_smart_party::grunt_type(name);if(type_id)grunt_types[value]=type_id;
  }
+ require(!grunt_types.empty(),"No typed Rocket grunts recognized");
+ event("{\"phase\":\"grunt-types\",\"count\":"+std::to_string(grunt_types.size())+"}");
 }
 using FindGrunt=void*(*)(void*,int,const void*);
 std::atomic<FindGrunt> grunt_original{nullptr};
 void *hook_grunt(void *self,int character,const void *m){
  void *result=grunt_original.load(std::memory_order_acquire)(self,character,m);
- if(!result||!gate()||!tables_ready())return result;
+ if(!gate()||!tables_ready())return result;
  try{
-  auto it=grunt_types.find(character);if(it==grunt_types.end())return result;
+  auto it=grunt_types.find(character);
+  event("{\"phase\":\"grunt-party\",\"character\":"+std::to_string(character)+",\"type\":"+std::to_string(it==grunt_types.end()?0:it->second)+",\"saved\":"+(result?"true":"false")+"}");
+  if(it==grunt_types.end()||!result)return result;
   Foe e;e.type[0]=it->second;
-  if(void *party=counter_party({e},result,nullptr))return party;
+  if(void *party=counter_party({e},result,nullptr,true))return party;
  }catch(const Failure &f){status("error",std::string("Rocket team pick skipped: ")+f.where);}
  catch(...){status("error","Rocket team pick skipped: native failure");}
  return result;

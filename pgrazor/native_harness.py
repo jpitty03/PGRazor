@@ -78,6 +78,9 @@ def main(argv=None):
             if source.stem == 'gift_batch_test':
                 extra_flags = ['-rdynamic', '-fexceptions']
                 entry['included_source_sha256'] = native_build.sha256(root/'native/gift_batch.cpp')
+            if source.stem == 'max_orbs_test':
+                extra_flags = ['-fexceptions']
+                entry['included_source_sha256'] = native_build.sha256(root/'native/max_orbs.cpp')
             if source.stem == 'cutscene_skip_test':
                 vendor = native_build.ensure_dobby(root, download=False)
                 extra_flags = ['-fexceptions', '-I'+str(vendor/'include')]

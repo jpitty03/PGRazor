@@ -1,5 +1,6 @@
 #include "game_bindings.h"
 #include "combat_host.h"
+#include "max_orbs.h"
 
 #include "battles.h"
 #include "hook_engine.h"
@@ -471,10 +472,10 @@ void drain_leaf_events(uint64_t tid) {
                     queue_event(PGR_CBH_EV_BATTLE_DODGE_CUE, bev.id, 0, tid, buf);
                     break;
                 case PGR_BATTLE_EVT_ACTION: {
-                    static const char *const kActions[4] = {
-                        "quick", "charged", "dodge", "max-attack"
+                    static const char *const kActions[5] = {
+                        "quick", "charged", "dodge", "max-attack", "max-orb-move"
                     };
-                    const char *act = (bev.aux >= 0 && bev.aux < 4) ? kActions[bev.aux] : "unknown";
+                    const char *act = (bev.aux >= 0 && bev.aux < 5) ? kActions[bev.aux] : "unknown";
                     std::snprintf(buf, sizeof(buf), "{\"mode\":%d,\"action\":\"%s\"}",
                                   bev.id, act);
                     queue_event(PGR_CBH_EV_BATTLE_ACTION, bev.id, bev.aux, tid, buf);
@@ -1053,6 +1054,8 @@ bool configure_and_install_battles() {
     bt_cfg.max_attack    = g_md.opt_ints[I_BAT_MAX_ATTACK];
     bt_cfg.reserved0     = 0;
     bt_cfg.reserved1     = 0;
+    bt_cfg.max_orb_direction = pgr_max_orb_direction;
+    pgr_max_orbs_prepare(bt_cfg.m_dodge);
 
     if (g_battles->install(&bt_cfg) != PGR_BATTLE_OK) {
         return false;
@@ -1417,7 +1420,7 @@ int api_update(const PgrCombatHostOptions *opts) {
                                 ? opts->rocket_mask
                                 : (opts->rocket_mask & PGR_CBH_ROCKET_MASK_ALL);
 
-    const uint64_t b_lease = (active && (opts->flags & PGR_CBH_OPT_BATTLES_ALLOWED) && b_mask != 0)
+    const uint64_t b_lease = (active && (opts->flags & PGR_CBH_OPT_BATTLES_ALLOWED))
                                  ? std::min<uint64_t>(PGR_CBH_MAX_LEASE_MS, opts->battle_lease_ms)
                                  : 0;
     const uint64_t r_lease = (active && (opts->flags & PGR_CBH_OPT_ROCKET_ALLOWED) && r_mask != 0)
@@ -1502,7 +1505,7 @@ void poll_transport_options() {
     if (rocket_allowed)  opts.flags |= PGR_CBH_OPT_ROCKET_ALLOWED;
     opts.battle_mask     = b_mask;
     opts.rocket_mask     = r_mask;
-    opts.battle_lease_ms = (active && battles_allowed && b_mask > 0) ? PGR_CBH_MAX_LEASE_MS : 0;
+    opts.battle_lease_ms = (active && battles_allowed) ? PGR_CBH_MAX_LEASE_MS : 0;
     opts.rocket_lease_ms = (active && rocket_allowed && r_mask > 0) ? PGR_CBH_MAX_LEASE_MS : 0;
     opts.epoch           = a.snapshot_seq;
     api_update(&opts);

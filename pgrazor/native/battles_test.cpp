@@ -94,6 +94,16 @@ int32_t g_act_dir = 0;
 int   g_reenter = 0;
 uint32_t g_test_mask=1;
 void *g_reenter_scope = nullptr;
+int g_orb_direction=0,g_orb_calls=0,g_orb_reenter=0;
+int orb_probe(void*,void *method){
+  if(method!=&m_dodge)return 0;
+  ++g_orb_calls;
+  if(g_orb_reenter==1)g_api->tick(gettid(),1);
+  if(g_orb_reenter==2)g_api->update(0,0,0,gettid());
+  if(g_orb_reenter==3)g_api->observe(PGR_BATTLE_OBS_SCOPE_EXIT,g_reenter_scope,2,gettid());
+  if(g_orb_reenter==4)usleep(30000);
+  return g_orb_direction;
+}
 
 void *box_bool(bool v) { g_box.klass = &c_bool; g_box.v.b = v ? 1 : 0; return &g_box; }
 
@@ -187,6 +197,8 @@ void wire_active(Obj *gesture, Obj *director, Obj *state) {
 int scenario(int which) {
   const uint64_t tid = static_cast<uint64_t>(gettid());
   pgr_battle_config_v1 cfg = make_config();
+  if(which>=27)cfg.max_orb_direction=orb_probe;
+  if(which==39)cfg.size=512; // old callers cannot accidentally enable the extension
   if (g_api->install(&cfg) != PGR_BATTLE_OK) return 90;
   g_api->tick(tid, 0);  // latch the Unity owner identity before any observation
 
@@ -513,6 +525,42 @@ int scenario(int which) {
       g_api->observe(PGR_BATTLE_OBS_SCOPE_EXIT,&replacement,0,tid);if(g_live_roots)return 3;}
     return 0;
   }
+  case 27: case 28: case 29: case 30: case 31: case 32: case 33:
+  case 34: case 35: case 36: case 37: case 38: case 39: case 40: {
+    Obj scope{&c_scope2}, g{&c_max_gesture}, tap{},picker{&c_swap2};
+    wire_active(&g,&director,&state);g.vnext_tap=&tap;scope.max_gesture=&g;
+    g_api->observe(PGR_BATTLE_OBS_SCOPE_ENTER,&scope,2,tid);
+    arm(0,tid); // collection works with ALL attack/dodge switches off
+    g_orb_direction=which==28?7:9;
+    if(which==29){picker.open=true;g_api->observe(PGR_BATTLE_OBS_SWAP_OPEN,&picker,2,tid);}
+    if(which==30)arm(0,tid,1);
+    if(which==31)g_api->update(0,0,0,tid);
+    if(which==32)state.battle_status=0;
+    if(which==33)g.vnext_enabled=0;
+    if(which==34)g_orb_reenter=1;
+    if(which==35)g_orb_reenter=2;
+    if(which==36){g_orb_reenter=3;g_reenter_scope=&scope;}
+    if(which==37){g_api->update(0,10,0,tid);g_orb_reenter=4;}
+    if(which==38){g_orb_direction=0;arm(1u<<4,tid);}
+    if(which==40){std::thread t([&](){g_api->tick(tid,0);});t.join();if(g_orb_calls||g_act_method)return 1;}
+    g_api->tick(tid,0);
+    if(which==27||which==28||which==40){
+      if(g_act_method!=&m_dodge||g_act_dir!=g_orb_direction)return 2;
+      const auto serial=snap().action_serial;g_api->tick(tid,0);if(snap().action_serial!=serial)return 3;
+      bool found=false;pgr_battle_event_v1 event{};while(g_api->next_event(&event)==1)
+        if(event.code==PGR_BATTLE_EVT_ACTION&&event.aux==PGR_BATTLE_ACT_MAX_ORB)found=true;
+      if(!found)return 4;
+    }else if(which==38){if(g_act_method!=&m_max_fast)return 5;}
+    else if(g_act_method)return 6;
+    g_api->tick(tid,1);return g_live_roots?7:0;
+  }
+  case 41: { // a probe must never run in raid/gym scopes
+    Obj scope{&c_scope0},g{&c_raid_gesture},tap{};wire_active(&g,&director,&state);g.vnext_tap=&tap;
+    g_api->observe(PGR_BATTLE_OBS_SCOPE_ENTER,&scope,0,tid);
+    g_api->observe(PGR_BATTLE_OBS_GESTURE,&g,0,tid);arm(1,tid);g_orb_direction=9;
+    g_api->tick(tid,0);if(g_orb_calls||g_act_method!=&m_raid_fast)return 1;
+    g_api->tick(tid,1);return g_live_roots?2:0;
+  }
   default: return 0;
   }
 }
@@ -545,7 +593,7 @@ int main(int argc,char **argv) {
   bad = c; bad.reserved0 = 1;
   if (g_api->install(&bad) != PGR_BATTLE_ERR_BAD_CONFIG) { std::puts("FAIL reserved"); return 3; }
 
-  const int cases = 27;
+  const int cases = 42;
   for (int i = 0; i < cases; ++i) {
     pid_t pid = fork();
     if (pid == 0) {const int result=scenario(i);_exit(result?result:(g_unrooted_sender?79:0));}
@@ -560,6 +608,7 @@ int main(int argc,char **argv) {
             "Rocket exclusion, Active/Unset/terminal status, modern+legacy dodge ABIs, manual "
             "picker block + root release, Dynamax scope recovery (+inactive yield), STOP clear, "
             "wrong-thread no-op, gesture re-arm, reentrant exit-in-getter, stale/replay gym token, "
-            "moving rooted gesture, FIFO overflow fail-closed, policy revocation/rearm, nested STOP, real lease expiry, real foreign thread");
+            "moving rooted gesture, FIFO overflow fail-closed, policy revocation/rearm, nested STOP, real lease expiry, real foreign thread; "
+            "always-on Max orb movement, both directions, cadence, picker/Rocket/lease/status/input gates, probe reentrancy, legacy config");
   return 0;
 }

@@ -393,6 +393,7 @@ final class SettingsPanel {
         battleChoice(maxC,5,"Auto charged attack");
         battleChoice(maxC,6,"Auto Max attack");
         battleChoice(maxC,9,"Auto dodge");
+        caption(maxC,"Automatically moves toward nearby Max energy orbs during battle while PGRazor is active.");
         battleStatus = caption(battleC, "");
     }
 
