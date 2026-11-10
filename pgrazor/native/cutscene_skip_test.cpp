@@ -11,7 +11,11 @@ struct Obj {
  int state=2,result=1,taps=0;Obj *canvas=nullptr,*base=nullptr,*anim=nullptr,*action=nullptr,*target=nullptr;
  void *method=nullptr,*cls=nullptr;
  Obj *confirm=nullptr,*rowroot=nullptr,*button=nullptr,*summary=nullptr,*rewards=nullptr,*visibility=nullptr;
+ Obj *egg=nullptr,*tabs=nullptr,*content=nullptr,*page_transform=nullptr,*selected=nullptr;
+ int context=0,index=2,children=3;bool dragging=false,top=true,visible=true;float distance=0;
 };
+int egg_ids[16];
+enum{E_PAGE,E_TABS,E_CONTEXT,E_CLOSE,E_TRANSFORM,E_CONTENT,E_INDEX,E_DRAG,E_DISTANCE,E_COUNT,E_CHILD,E_IS_CHILD,E_TOP,E_VISIBLE,E_SERVICE,E_CURRENT};
 Obj gui,canvas,base,anim,action,confirm,rowroot,button;
 int ids[40];
 enum{ALIVE,ROOT,ALPHA,RAY_GET,RAY_SET,SPEED_GET,SPEED_SET,TAP,LEADER,METHOD,TARGET,INVOKE,
@@ -37,6 +41,8 @@ void get_field(void *o,void *f,void *out){
  else if(f==&ids[SUMMARY])*static_cast<void**>(out)=x->summary;
  else if(f==&ids[REWARDS])*static_cast<void**>(out)=x->rewards;
  else if(f==&ids[VISIBILITY])*static_cast<void**>(out)=x->visibility;
+ else if(f==&egg_ids[E_PAGE])*static_cast<void**>(out)=x->egg;
+ else if(f==&egg_ids[E_TABS])*static_cast<void**>(out)=x->tabs;
  else assert(false);
 }
 void *call(void *m,void *o,void **args,void **ex){
@@ -63,6 +69,19 @@ void *call(void *m,void *o,void **args,void **ex){
  if(m==&ids[ALPHA_GET])return &x->alpha;
  if(m==&ids[CLAIM]||m==&ids[REWARD_CLICK]){++x->taps;return nullptr;}
  if(m==&ids[GUI_DISMISS]){++x->taps;return nullptr;}  // base GuiController.Dismiss()
+ if(m==&egg_ids[E_CONTEXT])return &x->context;
+ if(m==&egg_ids[E_TOP])return &x->top;
+ if(m==&egg_ids[E_VISIBLE])return &x->visible;
+ if(m==&egg_ids[E_CLOSE]){++x->taps;return nullptr;}
+ if(m==&egg_ids[E_TRANSFORM])return x->page_transform;
+ if(m==&egg_ids[E_CONTENT])return x->content;
+ if(m==&egg_ids[E_INDEX])return &x->index;
+ if(m==&egg_ids[E_DRAG])return &x->dragging;
+ if(m==&egg_ids[E_DISTANCE])return &x->distance;
+ if(m==&egg_ids[E_COUNT])return &x->children;
+ if(m==&egg_ids[E_CHILD]){assert(*static_cast<int*>(args[0])>=0);return x->selected;}
+ if(m==&egg_ids[E_IS_CHILD]){boxed=x->base==args[0];return &boxed;}
+ if(m==&egg_ids[E_SERVICE]||m==&egg_ids[E_CURRENT])return x->target;
  assert(false);return nullptr;
 }
 int emit(uint32_t,const int64_t*,uint32_t,const PgrRuntimeTransportString *s,uint32_t n){
@@ -73,6 +92,11 @@ void *from_reflection(void *o){return o;}
 void *fixture_class(void *o){return static_cast<Obj*>(o)->cls;}  // il2cpp_object_get_class stand-in
 int gym_open_calls=0;
 void fixture_gui_open(void*,const void*){++gym_open_calls;}  // the game's own GuiController.Open
+int hatch_dismiss_calls=0;
+void fixture_hatch_dismiss(void *state,void *next,const void*){
+ ++hatch_dismiss_calls;
+ if(next){auto s=static_cast<Obj*>(state);s->target->target=static_cast<Obj*>(next);}
+}
 bool contains(const char *s){for(auto &e:events)if(e.find(s)!=std::string::npos)return true;return false;}
 void setup(){
  assert(roots.empty());allocations=frees=0;events.clear();fail_method=fail_object=nullptr;failures=0;fail_reveal=false;
@@ -260,5 +284,76 @@ int main(){
  assert(gym_open_calls==1&&pending_popup_count==0&&plain_canvas.alpha==1&&plain.taps==0);
  cleared();
  std::puts("PASS gym badge modal: classified and dismissed once, delayed open waits, disabled preserves original, other GUI untouched");
+ // Egg inventory is an independent Auto incubate policy, never a blanket inventory dismiss.
+ assert(parse_policy("K1|1",4).cutscenes&&!parse_policy("K1|1",4).inventory);
+ assert(!parse_policy("K2|0|1",6).cutscenes&&parse_policy("K2|0|1",6).inventory);
+ assert(parse_policy("K2|1|0",6).cutscenes&&!parse_policy("K2|1|0",6).inventory);
+ assert(parse_policy("K2|1|1",6).cutscenes&&parse_policy("K2|1|1",6).inventory);
+ assert(!parse_policy("K2|1|x",6).cutscenes&&!parse_policy("K2|1|1x",7).inventory);
+ Obj inv,egg,tab,content,page_transform,selected,other,hatch_state,inventory_service;int inventory_type;
+ auto wire_inventory=[&](bool automatic=true){
+  setup();advance_raid(false);cleared();
+  inv={};egg={};tab={};content={};page_transform={};selected={};other={};
+  inv.cls=&inventory_type;inv.egg=&egg;inv.tabs=&tab;egg.page_transform=&page_transform;
+  tab.content=&content;content.selected=&selected;page_transform.base=&selected;
+  boot.runtime.object_get_class=reinterpret_cast<void*>(fixture_class);
+  gui_open_original.store(reinterpret_cast<void*>(fixture_gui_open));
+  inventory_class=&inventory_type;inventory_egg_page=&egg_ids[E_PAGE];inventory_tabs=&egg_ids[E_TABS];
+  inventory_context=&egg_ids[E_CONTEXT];inventory_close=&egg_ids[E_CLOSE];inventory_active=&ids[ACTIVE];
+  inventory_top=&egg_ids[E_TOP];inventory_visible=&egg_ids[E_VISIBLE];
+  inventory_page_transform=&egg_ids[E_TRANSFORM];inventory_tab_content=&egg_ids[E_CONTENT];
+  inventory_tab_index=&egg_ids[E_INDEX];inventory_tab_dragging=&egg_ids[E_DRAG];inventory_tab_distance=&egg_ids[E_DISTANCE];
+  inventory_child_count=&egg_ids[E_COUNT];inventory_child=&egg_ids[E_CHILD];inventory_is_child=&egg_ids[E_IS_CHILD];
+  inventory_default_context=0;enabled.store(false);egg_inventory_enabled.store(true);
+  hatch_inventory_service=&egg_ids[E_SERVICE];inventory_current=&egg_ids[E_CURRENT];
+  hatch_state={};inventory_service={};hatch_state.target=&inventory_service;
+  original[K_HATCH_DISMISS].store(reinterpret_cast<void*>(fixture_hatch_dismiss));hatch_dismiss_calls=0;
+  hook_gui_open(&inv,nullptr);assert(!pending_inventory); // manual access never arms cleanup
+  if(automatic){hook_hatch_dismiss(&hatch_state,&inv,nullptr);assert(pending_inventory&&hatch_dismiss_calls==1);}
+  assert(inv.taps==0&&inv.alpha==1&&inv.raycasts);
+ };
+ auto settle_inventory=[&](){advance_inventory();if(inventory_settled)inventory_settled=clock_ms()-251;advance_inventory();};
+ wire_inventory();inv.state=1;settle_inventory();assert(inv.taps==0);
+ inv.state=2;settle_inventory();assert(inv.taps==1&&contains("egg-inventory"));
+ advance_inventory();assert(inv.taps==1);inv.state=0;advance_inventory();cleared();
+ // Manual Eggs access, even immediately after a hatch, is not captured.
+ inv.state=2;hook_gui_open(&inv,nullptr);settle_inventory();assert(!pending_inventory&&inv.taps==1);cleared();
+ wire_inventory(false);settle_inventory();assert(!pending_inventory&&inv.taps==0);cleared();
+ // Branches that leave an existing inventory alone must not adopt it.
+ wire_inventory(false);inventory_service.target=&inv;hook_hatch_dismiss(&hatch_state,nullptr,nullptr);
+ settle_inventory();assert(hatch_dismiss_calls==1&&!pending_inventory&&inv.taps==0);cleared();
+ // No UI created, failed observation, off/stale/wrong-thread: original always runs, no capture.
+ wire_inventory(false);hook_hatch_dismiss(&hatch_state,nullptr,nullptr);assert(hatch_dismiss_calls==1&&!pending_inventory);cleared();
+ wire_inventory(false);fail_method=&egg_ids[E_CURRENT];failures=1;hook_hatch_dismiss(&hatch_state,&inv,nullptr);
+ assert(hatch_dismiss_calls==1&&!pending_inventory&&inventory_service.target==&inv);cleared();
+ for(int gate=0;gate<3;++gate){wire_inventory(false);
+  if(gate==0)egg_inventory_enabled.store(false);
+  if(gate==1)last_tick.store(clock_ms()-3000);
+  if(gate==2)owner.store(uint64_t(gettid())+1);
+  hook_hatch_dismiss(&hatch_state,&inv,nullptr);assert(hatch_dismiss_calls==1&&!pending_inventory);cleared();
+ }
+ // Slow initialization is tied to this controller; timed-out captures cannot close later visits.
+ wire_inventory();inv.state=0;settle_inventory();assert(pending_inventory&&inv.taps==0);
+ inv.state=2;settle_inventory();assert(inv.taps==1);release_inventory();cleared();
+ wire_inventory();inventory_since=clock_ms()-3001;settle_inventory();assert(!pending_inventory&&inv.taps==0);cleared();
+ wire_inventory();content.selected=&other;settle_inventory();assert(inv.taps==0); // Pokemon/Tags
+ content.selected=&selected;settle_inventory();assert(!pending_inventory&&inv.taps==0);cleared();
+ wire_inventory();tab.dragging=true;settle_inventory();assert(!pending_inventory&&inv.taps==0);cleared();
+ wire_inventory();tab.distance=0.5f;settle_inventory();assert(inv.taps==0);
+ tab.distance=0;inv.context=3;settle_inventory();assert(inv.taps==0); // remote trade
+ inv.context=0;egg_inventory_enabled.store(false);enabled.store(true);settle_inventory();assert(inv.taps==0);
+ egg_inventory_enabled.store(true);settle_inventory();assert(!pending_inventory&&inv.taps==0);cleared();
+ wire_inventory();last_tick.store(clock_ms()-3000);settle_inventory();assert(!pending_inventory&&inv.taps==0);cleared();
+ wire_inventory();owner.store(uint64_t(gettid())+1);settle_inventory();assert(!pending_inventory&&inv.taps==0);cleared();
+ wire_inventory();inv.active=false;settle_inventory();assert(inv.taps==0);
+ inv.active=true;inv.top=false;settle_inventory();assert(inv.taps==0); // egg details/incubator modal above it
+ inv.top=true;inv.visible=false;settle_inventory();assert(inv.taps==0);
+ inv.visible=true;tab.index=9;settle_inventory();assert(inv.taps==0);
+ release_inventory();cleared();
+ wire_inventory();settle_inventory();inventory_clicked_at=clock_ms()-3001;advance_inventory();cleared();assert(inv.taps==1);
+ wire_inventory();fail_method=&egg_ids[E_CLOSE];failures=1;settle_inventory();cleared();assert(inv.taps==0&&inv.raycasts&&inv.alpha==1);
+ wire_inventory();pgr_cutscene_skip_stop(gettid());cleared();assert(inv.taps==0);
+ inventory_class=nullptr;egg_inventory_enabled.store(false);
+ std::puts("PASS post-hatch Eggs: manual access preserved, exact new-controller provenance, no-open/error/off/stale/thread branches, delayed open, expiry, user control, normal close and root cleanup");
  std::puts("PASS raid lifecycle: normal actions, dialogue/settle gates, real dismissal/destruction, failures, recovery, foreground stop, loss, timeout, shared canvases, repeated raids");
 }

@@ -1,0 +1,10 @@
+{
+  "repository": "https://github.com/photostructure/tz-lookup",
+  "commit": "a09cbf7a1874937d81f42ccb1bdad4ac88d0400e",
+  "sha256": {
+    "tz.js": "a08388e1ee9286a80f5d00614f8bdd2024e8399e114559d3d2611e2eee6499a0",
+    "tz_template.js": "544a0266d8dda09161a7580a32e0e8cb04d3c06a9abdecc7f1140ed4ec49e366",
+    "LICENSE": "5537d4d10b76b81b6e8dfd8b644480a4b1efa332fbb0cdb61126c5be781ef7b4",
+    "package.json": "5913815050f8d51d2ac69935372dd633a52c32648eaa2be407b07064e477101c"
+  }
+}

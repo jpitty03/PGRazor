@@ -39,6 +39,10 @@ public class SettingsBackupRulesTest {
         v=valid();v.getJSONObject("settings").put("itemRules","1:100001;");rejects(v);
         v=valid();v.getJSONObject("settings").put("idleWalking","true");SettingsBackupRules.validate(v);
         v=valid();v.getJSONObject("settings").put("idleWalking","maybe");rejects(v);
+        v=valid();v.getJSONObject("settings").put("localTimeOverlay","true");SettingsBackupRules.validate(v);
+        v=valid();v.getJSONObject("settings").put("localTimeOverlay","maybe");rejects(v);
+        v=valid();v.getJSONObject("preferences").put("pgrazor-overlays",new JSONObject().put("local-time.fx",0.3).put("local-time.fy",0.6));SettingsBackupRules.validate(v);
+        v=valid();v.getJSONObject("preferences").put("pgrazor-overlays",new JSONObject().put("local-time.fx",1.2));rejects(v);
         v=valid();v.getJSONObject("settings").put("locationSpoofing","false");SettingsBackupRules.validate(v);
         v=valid();v.getJSONObject("settings").put("locationSpoofing","invalid");rejects(v);
         v=valid();v.getJSONObject("settings").put("ivCatch","false").put("ivOwned","true");SettingsBackupRules.validate(v);

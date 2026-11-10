@@ -37,12 +37,13 @@ struct Failure {const char *where;};
 void require(bool ok,const char *where){if(!ok)throw Failure{where};}
 template<class F>F fn(const void *p){require(p,"missing runtime export");return reinterpret_cast<F>(const_cast<void*>(p));}
 
-enum Kind {K_EVOLVE,K_MEGA,K_HATCH,K_PURIFY,K_FUSION,K_UNFUSION,K_FORM,K_SPECIES,K_INCUBATE,K_DIALOG,K_EGG_INTRO,K_HATCH_RESULT,K_RADAR,K_ROCKET_REWARDS,K_GEM,K_RAID_RESULTS,K_POWER_UP,K_COUNT};
-const char *const kNames[K_COUNT]={"evolve","mega-evolve","egg-hatch","purify","fusion","unfusion","form-change","new-species","egg-incubate","rocket-dialogue","egg-hatch-intro","hatched-pokemon","rocket-radar-assembled","rocket-rewards","purified-gem","raid-results","power-up"};
+enum Kind {K_EVOLVE,K_MEGA,K_HATCH,K_PURIFY,K_FUSION,K_UNFUSION,K_FORM,K_SPECIES,K_INCUBATE,K_DIALOG,K_EGG_INTRO,K_HATCH_RESULT,K_RADAR,K_ROCKET_REWARDS,K_GEM,K_RAID_RESULTS,K_POWER_UP,K_HATCH_DISMISS,K_COUNT};
+const char *const kNames[K_COUNT]={"evolve","mega-evolve","egg-hatch","purify","fusion","unfusion","form-change","new-species","egg-incubate","rocket-dialogue","egg-hatch-intro","hatched-pokemon","rocket-radar-assembled","rocket-rewards","purified-gem","raid-results","power-up","post-hatch-eggs"};
 
 PgrBootBinding boot{};
 bool ready=false,busy=false,tried=false;
 std::atomic<bool> enabled{false},faulted{false};
+std::atomic<bool> egg_inventory_enabled{false};
 std::atomic<uint64_t> owner{0},last_tick{0};
 std::atomic<void*> original[K_COUNT]{};
 void *promise_class=nullptr,*promise_ctor=nullptr,*promise_complete=nullptr;
@@ -147,6 +148,19 @@ struct PendingPopup{uintptr_t handle;int kind;uint64_t since,next;int steps;bool
 constexpr int kPendingPopups=8;  // medals often open several at once
 PendingPopup pending_popups[kPendingPopups]={};int pending_popup_count=0;
 void *gui_dismiss=nullptr;
+// Only the inventory created by the hatch-result dismiss callback is eligible. Manual Eggs
+// access never arms this policy. Inventory stays interactive while opening. Use the same
+// ClickDismiss -> MaybeDismiss path as its X button, so input/selection cleanup runs normally.
+void *inventory_class=nullptr,*inventory_egg_page=nullptr,*inventory_tabs=nullptr;
+void *hatch_inventory_service=nullptr,*inventory_current=nullptr;
+void *inventory_context=nullptr,*inventory_close=nullptr,*inventory_active=nullptr;
+void *inventory_top=nullptr,*inventory_visible=nullptr;
+void *inventory_page_transform=nullptr,*inventory_tab_content=nullptr,*inventory_tab_index=nullptr;
+void *inventory_tab_dragging=nullptr,*inventory_tab_distance=nullptr;
+void *inventory_child_count=nullptr,*inventory_child=nullptr,*inventory_is_child=nullptr;
+int32_t inventory_default_context=-1;
+uintptr_t pending_inventory=0;uint64_t inventory_settled=0,inventory_clicked_at=0;
+uint64_t inventory_since=0;bool inventory_opened=false;
 constexpr uint64_t kPopupWatchMs=15000;
 // The power-up animation on a Pokemon's page. PokemonInfoPanel.cift (obfuscated) handles the server's
 // UpgradePokemonOutProto and starts the panel's own power-up coroutine, which paces each step (model
@@ -172,17 +186,30 @@ void event(const std::string &json){auto tr=transport();if(!tr)return;PgrRuntime
 void status(const char *phase,const std::string &message){event(std::string("{\"phase\":\"")+phase+"\",\"message\":\""+message+"\"}");}
 void skipped(Kind k){event(std::string("{\"phase\":\"skipped\",\"kind\":\"")+kNames[k]+"\"}");}
 
-// "K1|1" turns skipping on; anything else (including a stale snapshot) means off.
-bool configured(){
+// K2 separates cutscene skipping from post-hatch Auto incubate cleanup; stale snapshots mean off.
+struct SkipPolicy {bool cutscenes=false,inventory=false;};
+SkipPolicy parse_policy(const char *s,uint32_t n){
+ if(n==4&&std::memcmp(s,"K1|",3)==0&&(s[3]=='0'||s[3]=='1'))return {s[3]=='1',false};
+ if(n==6&&std::memcmp(s,"K2|",3)==0&&(s[3]=='0'||s[3]=='1')&&s[4]=='|'&&(s[5]=='0'||s[5]=='1'))
+  return {s[3]=='1',s[5]=='1'};
+ return {};
+}
+SkipPolicy configured(){
  auto tr=transport();char s[16];uint32_t n=0;PgrRuntimeTransportSample a{};
- if(!tr||tr->sample(&a)||!a.snapshot_fresh||a.fault)return false;
- return tr->get_string(17,s,sizeof(s),&n)==0&&n==4&&std::memcmp(s,"K1|1",4)==0;
+ if(!tr||tr->sample(&a)||!a.snapshot_fresh||a.fault)return {};
+ return tr->get_string(17,s,sizeof(s),&n)==0?parse_policy(s,n):SkipPolicy{};
 }
 // Skip only on the Unity thread the tick runs on, while ticks are arriving.
-bool active(){
- if(!enabled.load(std::memory_order_acquire)||faulted.load(std::memory_order_acquire))return false;
+bool live_tick(){
+ if(faulted.load(std::memory_order_acquire))return false;
  const uint64_t tid=owner.load(std::memory_order_acquire),seen=last_tick.load(std::memory_order_acquire);
  return tid&&tid==uint64_t(gettid())&&seen&&clock_ms()-seen<kTickAliveMs;
+}
+bool active(){return enabled.load(std::memory_order_acquire)&&live_tick();}
+void release_inventory(){
+ if(pending_inventory)fn<void(*)(uintptr_t)>(boot.runtime.gchandle_free)(pending_inventory);
+ pending_inventory=0;inventory_settled=inventory_clicked_at=0;
+ inventory_since=0;inventory_opened=false;
 }
 template<class F>F orig(Kind k){return reinterpret_cast<F>(original[k].load(std::memory_order_acquire));}
 
@@ -274,6 +301,40 @@ using HatchResult=void(*)(void*,void*,const void*);
 void hook_hatch_result(void *self,void *list,const void *m){
  struct Depth{Depth(){++hatch_result_depth;}~Depth(){--hatch_result_depth;}}depth;  // also on a managed exception
  orig<HatchResult>(K_HATCH_RESULT)(self,list,m);
+}
+// 0.435.2 EggHatchState.bnaj is the result page's dismiss callback. It either finishes
+// the state or calls ShowPokemon(StartOnEggsFlags) and registers the inventory's own
+// dismissal callback. Preserve all of that work, then retain only the NEW controller
+// it created. Identity survives delayed opening; no recent-hatch timer can capture a
+// later manual visit, and branches that create no inventory cannot capture an old one.
+void hook_hatch_dismiss(void *self,void *parameters,const void *m){
+ struct Roots {
+  uintptr_t service=0,before=0;
+  ~Roots(){for(uintptr_t h:{before,service})if(h)fn<void(*)(uintptr_t)>(boot.runtime.gchandle_free)(h);}
+ } roots;
+ bool observed=false;
+ if(self&&egg_inventory_enabled.load(std::memory_order_acquire)&&live_tick()&&
+    inventory_class&&inventory_close&&hatch_inventory_service&&inventory_current){
+  try{
+   void *service=invoke(hatch_inventory_service,self);require(service,"Hatch inventory service");
+   roots.service=fn<uintptr_t(*)(void*,int)>(boot.runtime.gchandle_new)(service,0);require(roots.service,"Service root");
+   if(void *before=invoke(inventory_current,service)){
+    roots.before=fn<uintptr_t(*)(void*,int)>(boot.runtime.gchandle_new)(before,0);require(roots.before,"Inventory root");
+   }
+   observed=true;
+  }catch(...){status("warning","Post-hatch inventory tracking unavailable");}
+ }
+ orig<HatchResult>(K_HATCH_DISMISS)(self,parameters,m);
+ if(!observed||!egg_inventory_enabled.load(std::memory_order_acquire)||!live_tick())return;
+ try{
+  auto target=fn<void*(*)(uintptr_t)>(boot.runtime.gchandle_get_target);
+  void *service=target(roots.service);if(!service)return;
+  void *gui=invoke(inventory_current,service);
+  if(!gui||(roots.before&&gui==target(roots.before))||klass(gui)!=inventory_class)return;
+  release_inventory();pending_inventory=fn<uintptr_t(*)(void*,int)>(boot.runtime.gchandle_new)(gui,0);
+  require(pending_inventory,"Post-hatch inventory root");inventory_since=clock_ms();
+  event("{\"phase\":\"post-hatch-eggs-tracked\"}");
+ }catch(...){release_inventory();status("warning","Post-hatch inventory left for manual close");}
 }
 // Asked by the Quick Catch bridge's ShowPokemonInfo hook (catch_presentation), which owns that
 // one hook, for every call it does not capture itself.
@@ -429,6 +490,49 @@ void hook_gui_open(void *self,const void *m){
  }
 }
 void *object_field(void *o,void *f){void *v=nullptr;fn<void(*)(void*,void*,void*)>(boot.runtime.field_get_value)(o,f,&v);return v;}
+template<class T>T inventory_value(void *m,void *o){
+ void *boxed=invoke(m,o);require(boxed,"Egg inventory state");
+ return *static_cast<T*>(fn<void*(*)(void*)>(boot.runtime.object_unbox)(boxed));
+}
+void advance_inventory(){
+ if(!pending_inventory)return;
+ try{
+  void *gui=fn<void*(*)(uintptr_t)>(boot.runtime.gchandle_get_target)(pending_inventory);
+  if(!gui){release_inventory();return;}
+  const int state=int_field(gui,gui_state);
+  const uint64_t now=clock_ms();
+  if(state==1||state==2)inventory_opened=true;
+  if(state==3||(state==0&&inventory_opened)||now-inventory_since>3000){release_inventory();return;}
+  if(!egg_inventory_enabled.load(std::memory_order_acquire)||!live_tick()){
+   release_inventory();return;
+  }
+  if(inventory_clicked_at){
+   if(now-inventory_clicked_at>3000){release_inventory();status("warning","Egg inventory left for manual close");}
+   return;
+  }
+  if(state!=2||!inventory_value<bool>(inventory_active,gui)||!inventory_value<bool>(inventory_top,gui)||
+     !inventory_value<bool>(inventory_visible,gui)||
+     inventory_value<int32_t>(inventory_context,gui)!=inventory_default_context){inventory_settled=0;return;}
+  void *tabs=object_field(gui,inventory_tabs),*page=object_field(gui,inventory_egg_page);
+  if(!tabs||!page){inventory_settled=0;return;}
+  const float distance=inventory_value<float>(inventory_tab_distance,tabs);
+  if(inventory_value<bool>(inventory_tab_dragging,tabs)){release_inventory();return;} // user took control
+  if(!std::isfinite(distance)||std::fabs(distance)>0.01f){inventory_settled=0;return;}
+  void *content=invoke(inventory_tab_content,tabs),*page_transform=invoke(inventory_page_transform,page);
+  if(!content||!page_transform){inventory_settled=0;return;}
+  int32_t index=inventory_value<int32_t>(inventory_tab_index,tabs);
+  if(index<0||index>=inventory_value<int32_t>(inventory_child_count,content)){inventory_settled=0;return;}
+  void *args[]={&index};void *selected=invoke(inventory_child,content,args);
+  if(!selected){inventory_settled=0;return;}
+  void *child_args[]={selected};void *boxed=invoke(inventory_is_child,page_transform,child_args);
+  if(!boxed||!*static_cast<bool*>(fn<void*(*)(void*)>(boot.runtime.object_unbox)(boxed))){release_inventory();return;}
+  if(!inventory_settled){inventory_settled=now;return;}
+  if(now-inventory_settled<250)return;
+  inventory_clicked_at=now;
+  invoke(inventory_close,gui);
+  event("{\"phase\":\"skipped\",\"kind\":\"egg-inventory\",\"reason\":\"post-hatch-auto-incubate\"}");
+ }catch(...){release_inventory();status("warning","Egg inventory left for manual close");}
+}
 bool levelup_screen_ready(void *screen,void *canvas_field,void *visibility_field){
  if(!screen)return false;
  auto yes=[&](void *m,void *o){void *v=invoke(m,o);require(v,"Level-up readiness");return *static_cast<bool*>(fn<void*(*)(void*)>(boot.runtime.object_unbox)(v));};
@@ -943,6 +1047,41 @@ void install(){
   if(hook(api,t,missing))++count;else power_ready=false;
  }catch(const Failure &f){power_ready=false;missing+=std::string(missing.empty()?"":", ")+"power-up ("+f.where+")";}
 
+ // The auto-incubation inventory policy captures only the post-hatch callback's new GUI. Resolve tab
+ // ownership structurally: no hardcoded tab index, and no assumption that a hidden egg page
+ // means the user is looking at it. All views of Pokemon/Tags/party selection remain untouched.
+ try{
+  require(gui_state,"Inventory GUI state");
+  void *inventory=class_of(api,"Niantic.Holoholo.UI.Pokemon","PokemonInventoryGuiController");
+  inventory_egg_page=field_of_type(inventory,"Niantic.Holoholo.UI.IEggListPage");
+  inventory_tabs=field_of_type(inventory,"Niantic.Holoholo.Widget.TabView");
+  inventory_context=method(inventory,"get_InventoryContext",0);
+  inventory_close=method(inventory,"ClickDismiss",0);
+  inventory_active=method(class_of(api,"UnityEngine","Behaviour"),"get_isActiveAndEnabled",0);
+  void *base_gui=class_of(api,"Niantic.Holoholo.NUI","GuiController");
+  inventory_top=method(base_gui,"get_IsTopGui",0);inventory_visible=method(base_gui,"get_IsVisible",0);
+  void *context_class=class_of(api,"Niantic.Holoholo.UI.Pokemon","PokemonInventoryContext");
+  void *normal=fn<void*(*)(void*,const char*)>(boot.meta.class_get_field_from_name)(context_class,"Default");require(normal,"Inventory context Default");
+  fn<void(*)(void*,void*)>(boot.runtime.field_static_get_value)(normal,&inventory_default_context);
+  inventory_page_transform=method(class_of(api,"Niantic.Holoholo.UI","EggListPage"),"get_Transform",0);
+  void *tabs=class_of(api,"Niantic.Holoholo.Widget","TabView");
+  inventory_tab_content=method(tabs,"get_Content",0);inventory_tab_index=method(tabs,"get_SelectedTabIndex",0);
+  inventory_tab_dragging=method(tabs,"get_IsDragging",0);inventory_tab_distance=method(tabs,"get_DistanceToTargetIndex",0);
+  void *transform=class_of(api,"UnityEngine","Transform");
+  inventory_child_count=method(transform,"get_childCount",0);inventory_child=method(transform,"GetChild",1);
+  inventory_is_child=method(transform,"IsChildOf",1);
+  inventory_class=inventory;
+  void *hatch_state=class_of(api,"Niantic.Holoholo.EggHatch","EggHatchState");
+  hatch_inventory_service=method(hatch_state,PGR_GAME_CUTSCENE_SKIP_CPP_HATCH_INVENTORY_SERVICE_NAME,0);
+  inventory_current=method(class_of(api,"Niantic.Holoholo.UI.Pokemon","PokemonInventoryGuiService"),"get_ActivePokemonInventoryGui",0);
+  static const uint8_t p_hatch_dismiss[]=PGR_GAME_CUTSCENE_SKIP_CPP_HATCH_DISMISS_FINGERPRINT;
+  static_assert(sizeof(p_hatch_dismiss)==24,"24-byte prologue");
+  const Target t{K_HATCH_DISMISS,hatch_state,PGR_GAME_CUTSCENE_SKIP_CPP_HATCH_DISMISS_NAME,1,
+   PGR_GAME_CUTSCENE_SKIP_CPP_HATCH_DISMISS_RVA,p_hatch_dismiss,reinterpret_cast<void*>(hook_hatch_dismiss),false};
+  if(hook(api,t,missing)){++count;event("{\"phase\":\"post-hatch-eggs-ready\"}");}
+  else inventory_class=nullptr;
+ }catch(const Failure &f){inventory_class=nullptr;status("warning",std::string("Egg inventory dismissal unavailable: ")+f.where);}
+
  // The screen-open trace; not a cutscene type, so it is not counted.
  try{
   class_name_fn=exp("class_get_name");class_namespace_fn=exp("class_get_namespace");
@@ -969,16 +1108,18 @@ void pgr_cutscene_skip_tick(uint64_t tid,const PgrSharedMetadataOutput *){
  const uint64_t prior=owner.load(std::memory_order_acquire);if(prior&&prior!=tid)return;
  struct Guard{Guard(){busy=true;}~Guard(){busy=false;}}guard;
  owner.store(tid,std::memory_order_release);last_tick.store(clock_ms(),std::memory_order_release);
+ const SkipPolicy policy=configured();const bool on=policy.cutscenes;
+ enabled.store(on,std::memory_order_release);egg_inventory_enabled.store(policy.inventory,std::memory_order_release);
  if(pending_dialog)finish_dialog();
  if(pending_egg)advance_egg();
  if(pending_dismiss)finish_dismiss();
  if(pending_radar)finish_radar();
  if(pending_rewards)advance_rewards();
  if(fast_rewards)advance_fast();
- const bool on=configured();enabled.store(on,std::memory_order_release);
  if(pending_raid)advance_raid(on&&!faulted.load(std::memory_order_acquire));
  if(pending_popup_count)advance_popups();
- if(!on||tried||faulted.load(std::memory_order_acquire))return;
+ if(pending_inventory)advance_inventory();
+ if((!on&&!policy.inventory)||tried||faulted.load(std::memory_order_acquire))return;
  tried=true;
  try{
   if(!ready){auto api=static_cast<const PgrBootApi*>(pgrazor_runtime_bootstrap_api(1));boot.version=1;boot.size=sizeof(boot);require(api&&api->snapshot(&boot)==0,"Runtime unavailable");ready=true;}
@@ -987,13 +1128,14 @@ void pgr_cutscene_skip_tick(uint64_t tid,const PgrSharedMetadataOutput *){
  catch(...){faulted.store(true,std::memory_order_release);status("error","Skip cutscenes unavailable: native failure");}
 }
 void pgr_cutscene_skip_stop(uint64_t tid){
- enabled.store(false,std::memory_order_release);last_tick.store(0,std::memory_order_release);
+ enabled.store(false,std::memory_order_release);egg_inventory_enabled.store(false,std::memory_order_release);last_tick.store(0,std::memory_order_release);
  // No more ticks: a dialogue already bypassed must not be left waiting for one.
  if(!busy&&tid&&tid==uint64_t(gettid())&&tid==owner.load(std::memory_order_acquire)){
   if(pending_dialog)finish_dialog();
   if(pending_dismiss)finish_dismiss();
   if(pending_radar)finish_radar();
   if(pending_popup_count)release_popups();
+  if(pending_inventory)release_inventory();
   if(pending_raid){
    // Keep roots on restoration failure; the next valid tick retries without advancing the sequence.
    raid_recovering=true;

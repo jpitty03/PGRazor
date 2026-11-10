@@ -57,10 +57,10 @@ public class FinalDialog extends android.app.Activity {
  public boolean closed=false;
  public void onClickClose(android.view.View v){closed=true;}
 }''',
-    # A whitelisted dialog whose OS check throws, to prove reflection faults are contained.
+    # A whitelisted dialog whose negative action throws, to prove reflection faults are contained.
     'com/nianticlabs/background/configuration/FaultyDialog.java': '''package com.nianticlabs.background.configuration;
 public class FaultyDialog extends InitialDialog {
- public int checkSelfPermission(String permission){throw new RuntimeException("sensor-unavailable");}
+ public void onClickCancel(android.view.View v){throw new RuntimeException("dialog-unavailable");}
 }''',
 }
 

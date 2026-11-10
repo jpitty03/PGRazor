@@ -49,9 +49,8 @@ public final class Control {
     static void flushAccountWrites() throws IOException { flushSettings(2500); Cooldown.flush(); }
     public static boolean adventureSyncDismissAllowed() {
         Application app=hostApplication;
-        return app!=null && hostLive() && desiredEnabled
-            && app.checkSelfPermission("android.permission.ACCESS_FINE_LOCATION")!=0
-            && app.checkSelfPermission("android.permission.ACCESS_COARSE_LOCATION")!=0;
+        // Spoofing owns this policy. Real Android location grants do not enable Adventure Sync.
+        return app!=null && hostLive() && desiredEnabled;
     }
     private static volatile boolean mapPoiOpen,autoWalkPlanning;
     private static volatile String mapPoiSnapshot="";
@@ -281,6 +280,11 @@ public final class Control {
     private static volatile String cooldownEncounter="";
     public static boolean cooldownOverlay(){return cooldownOverlay;}
     public static void setCooldownOverlay(boolean value){cooldownOverlay=value;saveSettings();}
+    // Small draggable overlay showing the local wall-clock time at the spoofed coordinates (never the
+    // device time). Off by default; the overlay view reads engine coordinates and formats time offline.
+    private static volatile boolean localTimeOverlay;
+    public static boolean localTimeOverlay(){return localTimeOverlay;}
+    public static void setLocalTimeOverlay(boolean value){localTimeOverlay=value;saveSettings();}
     public static void setCooldownEncounter(String value){cooldownEncounter=value==null?"":value.toLowerCase(java.util.Locale.US);}
     public static void cooldownAction(String action){
         if(!foreground||!backendReady||!connected())return;
@@ -609,8 +613,8 @@ public final class Control {
     public static boolean skipCutscenes(){return skipCutscenes;}
     public static void setSkipCutscenes(boolean on){skipCutscenes=on;saveSettings();event("skip-cutscenes",on?"ON":"OFF");}
     public static String cutsceneSkipStatus(){return skipCutscenes?cutsceneSkipStatus:"";}
-    /** "K1|on" for the native cutscene bypass (transport slot 17). */
-    public static String cutsceneSkipConfig(){return "K1|"+(skipCutscenes?1:0);}
+    /** Independent cutscene and auto-incubation screen policies (transport slot 17). */
+    public static String cutsceneSkipConfig(){return "K2|"+(skipCutscenes?1:0)+"|"+(autoIncubate?1:0);}
     // Battery usage (each off by default): the native module draws the 3D view at a lower resolution, caps
     // the game at 20 fps, and turns off shadows, anti-aliasing and far detail, putting the game's own
     // values back when a setting is turned off.
@@ -1135,6 +1139,7 @@ public final class Control {
                 joystickVisible=Boolean.parseBoolean(p.getProperty("joystickVisible","true"));
                 idleWalking=Boolean.parseBoolean(p.getProperty("idleWalking","false"));engine.setIdleWalking(idleWalking);
                 cooldownOverlay=Boolean.parseBoolean(p.getProperty("cooldownOverlay","false"));
+                localTimeOverlay=Boolean.parseBoolean(p.getProperty("localTimeOverlay","false"));
                 quickSummaryEnabled=Boolean.parseBoolean(p.getProperty("autoDismiss","false"));
                 spawnBooster=Boolean.parseBoolean(p.getProperty("spawnBooster","false"));
                 try{giftOptions=Integer.parseInt(p.getProperty("giftOptions","0"));}catch(NumberFormatException ignored){giftOptions=0;}
@@ -1274,7 +1279,7 @@ public final class Control {
         p.setProperty("buddyBerry",String.valueOf(buddyBerry));
         p.setProperty("autoIncubate",String.valueOf(autoIncubate));
         p.setProperty("incubateLongest",String.valueOf(incubateLongest));
-        p.setProperty("cooldownOverlay",String.valueOf(cooldownOverlay));p.setProperty("berryPriority",berryPriority);
+        p.setProperty("cooldownOverlay",String.valueOf(cooldownOverlay));p.setProperty("localTimeOverlay",String.valueOf(localTimeOverlay));p.setProperty("berryPriority",berryPriority);
         p.setProperty("encounterBerry",String.valueOf(encounterBerryEnabled));
         p.setProperty("battleOptions",String.valueOf(battleOptions));
         p.setProperty("gymRepeatEnabled",String.valueOf(gymRepeatEnabled));

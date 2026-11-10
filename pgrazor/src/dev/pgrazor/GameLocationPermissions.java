@@ -9,8 +9,8 @@ import java.lang.reflect.Method;
  * foreground-location gates should see a synthetic grant, what permission-status value to
  * return for the Niantic location flags, and whether an Adventure Sync dialog should be
  * dismissed with its own negative action. It never grants a real Android OS permission, never
- * hooks a {@code Context} grantor, and only ever reads {@code checkSelfPermission} to decide
- * whether the dialog is being shown over a genuinely denied grant.
+ * hooks a {@code Context} grantor. Adventure Sync dialogs are declined while location spoofing
+ * is enabled, independently of the real Android location grants.
  *
  * <p>The game classes are resolved by reflection through the application class loader so this
  * class compiles with no game dependencies. {@link #create()} resolves the exact metadata it
@@ -103,8 +103,8 @@ public final class GameLocationPermissions {
     /**
      * Dismiss an Adventure Sync dialog using the game's own negative/acknowledge action. This
      * fires only when the override is active and enabled, the activity is a whitelisted dialog
-     * with the matching action, it is not finishing, and the real OS location grant is denied
-     * for both fine and coarse. Any reflection failure is contained and logged.
+     * with the matching action and it is not finishing. Location spoofing is the gate; Android
+     * permission grants and Skip cutscenes do not affect this action. Reflection failures are logged.
      */
     public void dismissAdventureSync(Object activity, String action) {
         try {
@@ -124,18 +124,12 @@ public final class GameLocationPermissions {
             }
             Class<?> ac = activity.getClass();
             if ((Boolean) ac.getMethod("isFinishing").invoke(activity)) return;
-            // These OS checks are intentionally NOT the game's synthetic permission gates; they
-            // observe the real grant and are never modified by this helper.
-            Method checkSelf = ac.getMethod("checkSelfPermission", String.class);
-            int fine = (Integer) checkSelf.invoke(activity, FINE);
-            int coarse = (Integer) checkSelf.invoke(activity, COARSE);
-            if (fine == 0 || coarse == 0) return; // At least one real grant exists: leave the dialog alone.
             Class<?> view = viewClass != null ? viewClass : tryLoad(VIEW_CLASS);
             if (view == null) return;
             Method negative = ac.getMethod(action, view);
             if (!active || !Control.desiredEnabled()) return;
             negative.invoke(activity, new Object[]{null}); // Preserve the game's null-View callback contract.
-            Control.event("adventure-sync-dismissed", label + ": app location permission denied");
+            Control.event("adventure-sync-dismissed", label + ": location spoofing enabled");
         } catch (Throwable error) {
             try { Control.event("adventure-sync-dismiss-error", String.valueOf(error)); }
             catch (Throwable ignored) { }

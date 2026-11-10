@@ -12,8 +12,12 @@ public final class ControlSettingsReloadTest {
         };
         Method load=Control.class.getDeclaredMethod("loadSettings",android.app.Application.class);
         if(Control.gymRepeatEnabled())throw new AssertionError("Gym repeat should default off");
+        if(Control.localTimeOverlay())throw new AssertionError("Local clock should default off");
         load.setAccessible(true); load.invoke(null,app);
         Control.setGymRepeatEnabled(true);
+        Control.setLocalTimeOverlay(true);
+        if(!"true".equals(Control.exportSettings().getProperty("localTimeOverlay")))
+            throw new AssertionError("Export missed local clock toggle");
         if(!"true".equals(Control.exportSettings().getProperty("gymRepeatEnabled")))
             throw new AssertionError("Export missed gym repeat toggle");
         Control.setBattleOptions(111); Control.setBattleOptions(981);
@@ -21,10 +25,12 @@ public final class ControlSettingsReloadTest {
             throw new AssertionError("Export missed latest queued choice");
         Control.setAutoBerry(705); Control.setBattleOptions(2);
         java.util.Properties incoming=new java.util.Properties();
+        incoming.setProperty("localTimeOverlay","false");
         incoming.setProperty("idleWalking","false"); incoming.setProperty("battleOptions","5"); incoming.setProperty("autoBerry","701"); incoming.setProperty("gymRepeatEnabled","false");
         Control.importSettings(app,incoming,9.3); Control.flushSettings(5000);
         if(Control.idleWalking())throw new AssertionError("Idle walking import did not apply false");
         if(Control.gymRepeatEnabled())throw new AssertionError("Gym repeat import did not apply false");
+        if(Control.localTimeOverlay())throw new AssertionError("Local clock import did not apply false");
         if(Control.battleOptions()!=5 || Control.autoBerry()!=701 || Control.vgpEnabled())
             throw new AssertionError("Import ordering, legacy berry migration or VGP OFF changed");
         if(!"5".equals(Control.exportSettings().getProperty("battleOptions")))
