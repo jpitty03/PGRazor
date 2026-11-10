@@ -115,8 +115,11 @@ int raid_wait_state=-1;
 constexpr uint64_t kRaidStepMs=250,kRaidWatchMs=30000,kRaidRecoveryMs=60000;
 // Pop-ups closed with their own GuiController.Dismiss(), as tapping through them does: the "You're going
 // too fast" warning (Niantic.Holoholo.Map.SpeedModal), the medal pop-ups (BadgeAwardGuiController for a new medal, BadgeIncrementGuiController for a medal
-// tier) and the weekly Adventure Sync summary (BgMode.UI.WeeklyFitnessDialog). With the setting on each is hidden as it opens (GuiController.Open) and dismissed once open
+// tier), the "Gym Badge Earned" share/save modal (Niantic.Holoholo.GymBadges.GymBadgeAwardGuiController) and the weekly Adventure Sync summary (BgMode.UI.WeeklyFitnessDialog). With the setting on each is hidden as it opens (GuiController.Open) and dismissed once open
 // (state 2); one not open within 15 s is shown again for taps.
+// The gym badge modal only offers Share / Save over the already-awarded badge (the badge is granted
+// server-side), so dismissing it loses nothing. Its HandleOpen/HandleOpenComplete/HandleDismiss are
+// 4-byte ret stubs, so this bypasses only the inherited GuiController flow and hooks none of them.
 // The level-up screen (LevelUpV3GuiController) is not dismissed: closed straight after opening it left
 // the map ignoring taps (Pixel, until another pop-up closed). It is hidden and stepped through instead,
 // as taps do: its summary's ClaimRewardsButtonClicked and its rewards screen's OnScreenClicked, every
@@ -131,6 +134,7 @@ DismissKind dismiss_kinds[]={{"Niantic.Holoholo.Map","SpeedModal","speed-warning
  {"Niantic.Holoholo.UI","LevelUpV3GuiController","level-up",true,nullptr},
  {"Niantic.Holoholo.UI","BadgeAwardGuiController","medal",false,nullptr},
  {"Niantic.Holoholo.UI","BadgeIncrementGuiController","medal-tier",false,nullptr},
+ {"Niantic.Holoholo.GymBadges","GymBadgeAwardGuiController","gym-badge",false,nullptr},
  {"Niantic.Holoholo.BgMode.UI","WeeklyFitnessDialog","weekly-fitness",false,nullptr}};
 constexpr int kDismissKinds=int(sizeof(dismiss_kinds)/sizeof(dismiss_kinds[0]));
 // The level-up screen's two step screens and their tap handlers.

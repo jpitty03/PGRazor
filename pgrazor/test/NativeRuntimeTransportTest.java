@@ -11,7 +11,7 @@ import java.nio.charset.StandardCharsets;
  */
 public final class NativeRuntimeTransportTest {
     // Wire constants mirror runtime_transport.h / NativeRuntimeTransport.
-    private static final int MAGIC_SNAPSHOT = 0x53524750, MAGIC_EVENTS = 0x45524750, VERSION = 19;
+    private static final int MAGIC_SNAPSHOT = 0x53524750, MAGIC_EVENTS = 0x45524750, VERSION = 20;
     private static final int OFF_BOOLS = 32, OFF_INTS = 80, OFF_DOUBLES = 120, OFF_PULSES = 136, OFF_STRINGS = 160;
     private static final int EVENT_HEADER = 32;
 
@@ -83,6 +83,8 @@ public final class NativeRuntimeTransportTest {
         ByteBuffer snap = ByteBuffer.wrap(fake.lastSnapshot).order(ByteOrder.LITTLE_ENDIAN);
         require(snap.getInt(0) == MAGIC_SNAPSHOT && snap.getInt(4) == VERSION && snap.getInt(8) == fake.lastSnapshot.length);
         require(snap.get(OFF_BOOLS + 3) == 0);         // active default false
+        require(snap.get(OFF_BOOLS + 40) == 0);        // gymRepeatEnabled slot 40 (frame v20, 41 bools)
+        for (int i = OFF_BOOLS + 41; i < OFF_INTS; i++) require(snap.get(i) == 0);  // 7 zero padding bytes after 41 bools
         require(snap.getInt(OFF_INTS) == 0);           // battleOptions default 0
         require(Double.isNaN(snap.getDouble(OFF_DOUBLES)));         // latitude NaN -> null coord
         require(Double.isNaN(snap.getDouble(OFF_DOUBLES + 8)));     // longitude NaN
@@ -122,6 +124,14 @@ public final class NativeRuntimeTransportTest {
         require(readString(snap, at).equals("1|1|1|2|10,13"));
         at += 4 + "1|1|1|2|10,13".length(); // Evolve/transfer slot 22.
         require(at == fake.lastSnapshot.length);
+
+        // The new setting must reach native as true, then clear on the following snapshot.
+        Control.gymRepeat = true;
+        t.tick();
+        require(fake.lastSnapshot[OFF_BOOLS + 40] == 1);
+        Control.gymRepeat = false;
+        t.tick();
+        require(fake.lastSnapshot[OFF_BOOLS + 40] == 0);
 
         // 3. A valid event batch dispatches to Control exactly once (no replay on the next tick).
         fake.nextEvents = new FrameBuilder()

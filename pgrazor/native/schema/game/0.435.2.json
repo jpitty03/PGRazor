@@ -11122,6 +11122,218 @@
         ],
         "purpose": "Niantic.Holoholo.Map.MapExploreState.GymSelected prologue"
       }
+    },
+    "gym_repeat_cpp": {
+      "approach_open_rva": {
+        "kind": "rva",
+        "value": "157283268ULL",
+        "purpose": "Niantic.Holoholo.Gym.Approach.GymApproachGuiController.HandleOpen 0.435.2 entry"
+      },
+      "approach_open_bytes": {
+        "kind": "bytes",
+        "value": [
+          "0xfe",
+          "0x4f",
+          "0xbf",
+          "0xa9",
+          "0xf3",
+          "0x03",
+          "0x00",
+          "0xaa",
+          "0x04",
+          "0x00",
+          "0x00",
+          "0x94",
+          "0xe0",
+          "0x03",
+          "0x13",
+          "0xaa",
+          "0xfe",
+          "0x4f",
+          "0xc1",
+          "0xa8",
+          "0x34",
+          "0x01",
+          "0x00",
+          "0x14"
+        ],
+        "purpose": "Niantic.Holoholo.Gym.Approach.GymApproachGuiController.HandleOpen 0.435.2 first24bytes"
+      },
+      "approach_back_rva": {
+        "kind": "rva",
+        "value": "157288360ULL",
+        "purpose": "Niantic.Holoholo.Gym.Approach.GymApproachGuiController.OnBackButtonPressed 0.435.2 entry"
+      },
+      "approach_back_bytes": {
+        "kind": "bytes",
+        "value": [
+          "0xfe",
+          "0x57",
+          "0xbe",
+          "0xa9",
+          "0xf4",
+          "0x4f",
+          "0x01",
+          "0xa9",
+          "0xf4",
+          "0xd9",
+          "0x02",
+          "0x90",
+          "0xf3",
+          "0x03",
+          "0x00",
+          "0xaa",
+          "0x88",
+          "0x12",
+          "0x5b",
+          "0x39",
+          "0xa8",
+          "0x01",
+          "0x00",
+          "0x37"
+        ],
+        "purpose": "Niantic.Holoholo.Gym.Approach.GymApproachGuiController.OnBackButtonPressed 0.435.2 first24bytes"
+      },
+      "prep_open_rva": {
+        "kind": "rva",
+        "value": "156874640ULL",
+        "purpose": "Niantic.Holoholo.Gym.GymBattlePrepUIController.HandleOpen 0.435.2 entry"
+      },
+      "prep_open_bytes": {
+        "kind": "bytes",
+        "value": [
+          "0xfe",
+          "0x5f",
+          "0xbd",
+          "0xa9",
+          "0xf6",
+          "0x57",
+          "0x01",
+          "0xa9",
+          "0xf4",
+          "0x4f",
+          "0x02",
+          "0xa9",
+          "0x14",
+          "0xdd",
+          "0x02",
+          "0xb0",
+          "0xf3",
+          "0x03",
+          "0x00",
+          "0xaa",
+          "0x88",
+          "0x7e",
+          "0x53",
+          "0x39"
+        ],
+        "purpose": "Niantic.Holoholo.Gym.GymBattlePrepUIController.HandleOpen 0.435.2 first24bytes"
+      },
+      "prep_battle_rva": {
+        "kind": "rva",
+        "value": "156880728ULL",
+        "purpose": "Niantic.Holoholo.Gym.GymBattlePrepUIController.Battle 0.435.2 entry"
+      },
+      "prep_battle_bytes": {
+        "kind": "bytes",
+        "value": [
+          "0xfe",
+          "0x67",
+          "0xbc",
+          "0xa9",
+          "0xf8",
+          "0x5f",
+          "0x01",
+          "0xa9",
+          "0xf6",
+          "0x57",
+          "0x02",
+          "0xa9",
+          "0xf4",
+          "0x4f",
+          "0x03",
+          "0xa9",
+          "0x14",
+          "0xdd",
+          "0x02",
+          "0x90",
+          "0xf3",
+          "0x03",
+          "0x00",
+          "0xaa"
+        ],
+        "purpose": "Niantic.Holoholo.Gym.GymBattlePrepUIController.Battle 0.435.2 first24bytes"
+      },
+      "prep_exit_rva": {
+        "kind": "rva",
+        "value": "156879680ULL",
+        "purpose": "Niantic.Holoholo.Gym.GymBattlePrepUIController.ExitPressed 0.435.2 entry"
+      },
+      "prep_exit_bytes": {
+        "kind": "bytes",
+        "value": [
+          "0xfe",
+          "0x57",
+          "0xbe",
+          "0xa9",
+          "0xf4",
+          "0x4f",
+          "0x01",
+          "0xa9",
+          "0x14",
+          "0xdd",
+          "0x02",
+          "0x90",
+          "0xf3",
+          "0x03",
+          "0x00",
+          "0xaa",
+          "0x88",
+          "0x8e",
+          "0x53",
+          "0x39",
+          "0x08",
+          "0x01",
+          "0x00",
+          "0x37"
+        ],
+        "purpose": "Niantic.Holoholo.Gym.GymBattlePrepUIController.ExitPressed 0.435.2 first24bytes"
+      },
+      "results_exit_rva": {
+        "kind": "rva",
+        "value": "156967656ULL",
+        "purpose": "Niantic.Holoholo.Gym.GymBattleState.ExitBattleResultsState 0.435.2 entry"
+      },
+      "results_exit_bytes": {
+        "kind": "bytes",
+        "value": [
+          "0xfe",
+          "0x67",
+          "0xbc",
+          "0xa9",
+          "0xf8",
+          "0x5f",
+          "0x01",
+          "0xa9",
+          "0xf6",
+          "0x57",
+          "0x02",
+          "0xa9",
+          "0xf4",
+          "0x4f",
+          "0x03",
+          "0xa9",
+          "0x55",
+          "0xdc",
+          "0x02",
+          "0xd0",
+          "0xf4",
+          "0x03",
+          "0x02",
+          "0x2a"
+        ],
+        "purpose": "Niantic.Holoholo.Gym.GymBattleState.ExitBattleResultsState 0.435.2 first24bytes"
+      }
     }
   },
   "schemas": {

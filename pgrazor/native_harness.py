@@ -78,9 +78,12 @@ def main(argv=None):
             if source.stem == 'gift_batch_test':
                 extra_flags = ['-rdynamic', '-fexceptions']
                 entry['included_source_sha256'] = native_build.sha256(root/'native/gift_batch.cpp')
-            if source.stem in ('evolve_transfer_runtime_test','batch_evolution_runtime_test'):
+            if source.stem in ('evolve_transfer_runtime_test','batch_evolution_runtime_test','gym_repeat_runtime_test','heal_runtime_test'):
                 extra_flags = ['-fexceptions','-llog']
                 entry['included_source_sha256'] = native_build.sha256(root/'native'/source.name.replace('_runtime_test.cpp','.cpp'))
+            if source.stem == 'gym_repeat_runtime_test':
+                vendor = native_build.ensure_dobby(root, download=False)
+                extra_flags += ['-I'+str(vendor/'include')]
             if source.stem == 'max_orbs_test':
                 extra_flags = ['-fexceptions']
                 entry['included_source_sha256'] = native_build.sha256(root/'native/max_orbs.cpp')

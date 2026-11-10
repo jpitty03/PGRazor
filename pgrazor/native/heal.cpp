@@ -188,33 +188,53 @@ bool below(int hp,int max,const Config &c){
 }
 void enqueue(uint64_t id){if(st.queued.insert(id).second)st.queue.push_back(id);}
 
-// Reads every stored Pokemon once: queues the ones that just fought (HP dropped) or, on a periodic
-// sweep, every one below the threshold.
-void scan(const Config &c,uint64_t now){
+// Copies the Pokemon storage once (get_AllPokemon -> CopyTo an array) and visits every live
+// PokemonProto in it. The one place the storage array is read, shared by scan and the gym baseline.
+template<class F>void for_each_pokemon(const F &visit){
  Root all(call(st.bag.get(),"get_AllPokemon"));require(bool(all),"Pokemon storage list unavailable");
  void *k=klass(all.get());
  const int n=unbox<int32_t>(invoke(method(k,"get_Count",0),all.get()));require(n>=0&&n<=30000,"Pokemon storage size");
  Root array(fn<void*(*)(void*,uintptr_t)>(exp("array_new"))(st.pokemon_class,uintptr_t(n)));require(bool(array),"storage copy");
  int zero=0;void *args[]={array.get(),&zero};invoke(method(k,"CopyTo",2),all.get(),args);
- const bool after=c.when!=1&&st.baseline,sweep=c.when!=0&&now>=st.next_sweep;
- std::unordered_map<uint64_t,int> hp_now;hp_now.reserve(size_t(n));
  for(int i=0;i<n;++i){
   void *p=at<void*>(array.get(),0x20+size_t(i)*8);if(!p||klass(p)!=st.pokemon_class)continue;
+  visit(p);
+ }
+}
+
+// Reads every stored Pokemon once: queues the ones that just fought (HP dropped) or, on a periodic
+// sweep, every one below the threshold.
+void scan(const Config &c,uint64_t now){
+ const bool after=c.when!=1&&st.baseline,sweep=c.when!=0&&now>=st.next_sweep;
+ std::unordered_map<uint64_t,int> hp_now;
+ for_each_pokemon([&](void *p){
   const uint64_t id=at<uint64_t>(p,st.f.id);const int hp=at<int32_t>(p,st.f.hp),max=at<int32_t>(p,st.f.max);
-  if(!id||at<bool>(p,st.f.egg))continue;
+  if(!id||at<bool>(p,st.f.egg))return;
   hp_now[id]=hp;
-  if(!usable(p)||!below(hp,max,c))continue;
-  auto skip=st.skip_until.find(id);if(skip!=st.skip_until.end()&&skip->second>now)continue;
+  if(!usable(p)||!below(hp,max,c))return;
+  auto skip=st.skip_until.find(id);if(skip!=st.skip_until.end()&&skip->second>now)return;
   bool fought=false;
   if(after){auto was=st.last_hp.find(id);fought=was!=st.last_hp.end()&&hp<was->second;}
   if(fought||sweep)enqueue(id);
- }
+ });
  st.last_hp.swap(hp_now);st.baseline=true;
  if(sweep)st.next_sweep=now+kSweepMs;
 }
+// Records the current HP of every stored Pokemon as the after-battle baseline, queueing nothing and
+// using no item. The next scan compares against this, so a drop during the first round is not missed.
+void capture_baseline(){
+ std::unordered_map<uint64_t,int> hp_now;
+ for_each_pokemon([&](void *p){
+  const uint64_t id=at<uint64_t>(p,st.f.id);if(!id||at<bool>(p,st.f.egg))return;
+  hp_now[id]=at<int32_t>(p,st.f.hp);
+ });
+ st.last_hp.swap(hp_now);st.baseline=true;
+}
 
 // Uses the next item on the first queued Pokemon, or drops it when it is full or nothing is worth using.
-void heal_next(const Config &c,uint64_t now){
+// ready, when supplied (the gym caller's still-ready hook), is re-checked after the Pokemon and item
+// lookups and immediately before the item is sent, so a revoked permission never issues an item.
+void heal_next(const Config &c,uint64_t now,bool (*ready)()=nullptr){
  while(!st.queue.empty()){
   const uint64_t id=st.queue.front();
   uint64_t key=id;void *a[]={&key};Root p(call(st.bag.get(),"GetPokemon",1,a));
@@ -226,6 +246,11 @@ void heal_next(const Config &c,uint64_t now){
    // Full, or nothing on hand is worth using on it: look again only after a while.
    if(hp<max)st.skip_until[id]=now+kRetryMs;
    st.queued.erase(id);st.queue.erase(st.queue.begin());continue;
+  }
+  if(ready){
+   if(!ready())return;
+   bool map=false;const Config fresh=configured(map);
+   if(!fresh.on||fresh.when==1||fresh.threshold!=c.threshold||fresh.revive!=c.revive||fresh.full!=c.full)return;
   }
   int item=st.item_id[kind];uint64_t pid=id;void *args[]={&item,&pid};
   st.use_id=id;st.use_kind=kind;st.use_hp=hp;st.use_species=at<int32_t>(p.get(),st.f.species);st.use_sent=now;st.use_done=0;st.use_rejected=false;
@@ -258,9 +283,38 @@ void poll_use(uint64_t now){
   st.use_done=now;st.use_rejected=rc!=PGR_VR_DONE;
  }
  uint64_t key=st.use_id;void *a[]={&key};Root p(call(st.bag.get(),"GetPokemon",1,a));
- if(p&&at<int32_t>(p.get(),st.f.hp)>st.use_hp){finish_use(true,"");return;}
+ if(p&&at<int32_t>(p.get(),st.f.hp)>st.use_hp){
+  st.last_hp[st.use_id]=at<int32_t>(p.get(),st.f.hp);finish_use(true,"");return;
+ }
  if(now-st.use_done>kConfirmMs)finish_use(false,st.use_rejected?"declined by the game":"HP did not change");
 }
+// One-time runtime binding, shared by the map tick and the gym calls.
+void ensure_init(const PgrSharedMetadataOutput *metadata,uint64_t tid,uint64_t now){
+ if(initialized)return;
+ auto api=static_cast<const PgrBootApi*>(pgrazor_runtime_bootstrap_api(1));boot.version=1;boot.size=sizeof(boot);
+ require(api&&api->snapshot(&boot)==0,"runtime unavailable");md=metadata;require(md,"shared metadata");owner=tid;initialized=true;
+ st.next_sweep=now+kFirstSweepMs;status("ready","Smart healing ready");
+}
+
+// Off-map between-round gym session. Armed only by a verified manual Battle press (baseline) and
+// advanced only by pgr_heal_gym_tick for a confirmed victorious round. It reuses the after-battle
+// scan + item path above; it never drives the periodic sweep and never touches the map gate.
+struct Gym {
+ bool armed=false;        // a baseline was captured: off-map healing permitted for this gym session
+ bool healing=false;      // observation window closed, now draining the heal queue
+ uint64_t token=0;        // round token being processed (0 = none in progress)
+ uint64_t done_token=0;   // last round fully settled; a repeat call with it is a no-op
+ uint64_t window_start=0; // start of the post-round observation window
+ uint64_t next_scan=0,last_scan=0;
+ int scans=0;             // scans performed while observing this round
+} gym;
+constexpr uint64_t kGymObserveMs=4000;  // bounded wait for the post-battle storage HP write
+constexpr int kGymMinScans=2;           // at least an opening and a later scan before declaring done
+void gym_reset(){gym=Gym{};}
+void gym_complete(uint64_t token){gym.done_token=token;gym.token=0;gym.healing=false;gym.scans=0;}
+void gym_abort_round(){gym.token=0;gym.healing=false;gym.scans=0;}
+// Revoke only the gym permission; map healing keeps its own baseline and pending work.
+void gym_disarm(){gym=Gym{};}
 }  // namespace
 
 void pgr_heal_tick(uint64_t tid,const PgrSharedMetadataOutput *metadata){
@@ -269,11 +323,7 @@ void pgr_heal_tick(uint64_t tid,const PgrSharedMetadataOutput *metadata){
  bool on_map=false;const Config c=configured(on_map);const uint64_t now=clock_ms();
  try{
   if(!c.on&&!st.promise){if(st.baseline||!st.queue.empty()){st.last_hp.clear();st.baseline=false;reset_queue();}return;}
-  if(!initialized){
-   auto api=static_cast<const PgrBootApi*>(pgrazor_runtime_bootstrap_api(1));boot.version=1;boot.size=sizeof(boot);
-   require(api&&api->snapshot(&boot)==0,"runtime unavailable");md=metadata;require(md,"shared metadata");owner=tid;initialized=true;
-   st.next_sweep=now+kFirstSweepMs;status("ready","Smart healing ready");
-  }
+  ensure_init(metadata,tid,now);
   require(fn<void*(*)()>(boot.runtime.thread_current)()!=nullptr,"owner thread not attached");
   if(st.promise){poll_use(now);return;}  // an item in use is always followed to its answer
   if(!c.on||!on_map)return;
@@ -288,5 +338,60 @@ void pgr_heal_tick(uint64_t tid,const PgrSharedMetadataOutput *metadata){
 }
 void pgr_heal_stop(uint64_t tid){
  if(!initialized||tid!=owner||tid!=uint64_t(gettid()))return;
- st.promise.reset();st.use_id=0;reset_queue();st.last_hp.clear();st.baseline=false;st.bag.reset();st.items.reset();
+ st.promise.reset();st.use_id=0;reset_queue();st.last_hp.clear();st.baseline=false;st.bag.reset();st.items.reset();gym_reset();
+}
+// Read-only: inspects only the raw promise handle and queue size; never dereferences a
+// GC handle or issues a managed call, so it is safe to poll from the owner thread.
+int pgr_heal_busy(){return (initialized&&(st.promise.h!=0||!st.queue.empty()))?1:0;}
+
+// Records the pre-first-round HP baseline and arms the off-map gym session. Read only.
+void pgr_heal_gym_baseline(uint64_t tid,const PgrSharedMetadataOutput *metadata){
+ if(busy||faulted||!tid||tid!=uint64_t(gettid())||(owner&&owner!=tid))return;
+ struct Guard{Guard(){busy=true;}~Guard(){busy=false;}}guard;
+ bool on_map=false;const Config c=configured(on_map);const uint64_t now=clock_ms();
+ try{
+  ensure_init(metadata,tid,now);
+  if(!c.on||c.when==1){gym_disarm();return;}        // disabled / periodic-only: no baseline, no permission
+  require(fn<void*(*)()>(boot.runtime.thread_current)()!=nullptr,"owner thread not attached");
+  prepare();
+  capture_baseline();                               // read-only HP snapshot; queues nothing, uses nothing
+  gym_reset();gym.armed=true;
+ }catch(const Failure &f){
+  gym_disarm();st.bag.reset();st.items.reset();st.next_scan=now+kScanMs*4;
+  status("error",std::string("Smart healing gym baseline skipped: ")+f.where);
+ }catch(...){faulted=true;st.promise.reset();status("error","Smart healing stopped after an unexpected error");}
+}
+
+// Advances the off-map gym heal for one confirmed victorious round. See heal.h for the contract.
+int pgr_heal_gym_tick(uint64_t tid,const PgrSharedMetadataOutput *metadata,uint64_t round_token,bool (*still_ready)()){
+ if(busy||faulted||!tid||tid!=uint64_t(gettid())||(owner&&owner!=tid)||!round_token||!still_ready)return -1;
+ struct Guard{Guard(){busy=true;}~Guard(){busy=false;}}guard;
+ bool on_map=false;const Config c=configured(on_map);const uint64_t now=clock_ms();
+ try{
+  ensure_init(metadata,tid,now);
+  require(fn<void*(*)()>(boot.runtime.thread_current)()!=nullptr,"owner thread not attached");
+  if(st.promise){poll_use(now);if(st.promise)return 1;}   // follow an in-flight item to its answer first
+  if(round_token<=gym.done_token)return 0;                // already settled this round (repeat or stale token)
+  if(!gym.armed||!c.on||c.when==1){gym_disarm();return 0;}// no off-map permission: skip, never act
+  if(still_ready&&!still_ready()){gym_disarm();return 0;} // repeat off / account changed / gym closed
+  prepare();
+  if(still_ready&&!still_ready()){gym_disarm();return 0;} // revoked during the managed service lookups
+  if(gym.token!=round_token){gym.token=round_token;gym.window_start=now;gym.healing=false;gym.scans=0;gym.next_scan=0;gym.last_scan=0;}
+  Config gc=c;gc.when=0;                                  // between rounds this is an after-battle scan only, never the periodic sweep
+  // Keep observing all participants, even after one Pokemon has already healed.
+  // The normal map tick may have queued damage first; preserve that work.
+  if(!gym.scans||now>=gym.next_scan){
+   scan(gc,now);++gym.scans;gym.last_scan=now;gym.next_scan=now+kGapMs;
+  }
+  if(now>=st.next_action)heal_next(gc,now,still_ready);
+  if(st.promise)return 1;                                 // an item was sent: confirm it next tick
+  if(still_ready&&!still_ready())return 0;                // permission revoked during the heal attempt
+  if(!st.queue.empty())return 1;                          // more Pokemon to heal next tick
+  if(gym.scans<kGymMinScans||gym.last_scan-gym.window_start<kGymObserveMs)return 1;
+  gym_complete(round_token);return 0;                     // final scan observed; queue and item settled
+ }catch(const Failure &f){
+  st.promise.reset();st.use_id=0;reset_queue();gym_abort_round();
+  st.bag.reset();st.items.reset();st.next_scan=now+kScanMs*4;
+  status("error",std::string("Smart healing gym paused: ")+f.where);return -1;
+ }catch(...){faulted=true;st.promise.reset();status("error","Smart healing stopped after an unexpected error");return -1;}
 }

@@ -136,6 +136,7 @@ constexpr bool kGuardedBool[PGR_TRANSPORT_BOOLS] = {
   true,  false, true,  false, true,  false, true,  false, false, true,  // 10..19
   false, true,  true,  true,  true,  true,  true,  true,  false, true,  // 20..29
   false, false, false, false, false, false, true,  true,  false, true, // 30..39 (eventBoxesAllowed)
+  false,                                                                // 40 (gymRepeatEnabled: user setting, not a guarded readiness flag)
 };
 
 // --- little-endian frame accessors (the wire is LE; ARM64 is LE, so these are plain loads/stores) ---------
@@ -259,7 +260,7 @@ int parse_snapshot(const uint8_t *p, uint32_t len, uint32_t max_string, Snapshot
     if (b > 1) return PGR_TRANSPORT_ERR_BAD_FRAME;
     out->bools[i] = b;
   }
-  // Validate padding if a future layout leaves any; v2 uses all forty boolean bytes.
+  // Validate padding if a future layout leaves any; this version uses forty-one boolean bytes.
   for (uint32_t i = PGR_TRANSPORT_OFF_BOOLS + PGR_TRANSPORT_BOOLS; i < PGR_TRANSPORT_OFF_INTS; ++i)
     if (p[i] != 0) return PGR_TRANSPORT_ERR_BAD_FRAME;
   for (uint32_t i = 0; i < PGR_TRANSPORT_INTS; ++i)

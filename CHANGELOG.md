@@ -4,11 +4,13 @@
 
 ### New features
 
+- **Gym battles:** new "Battle until defeated" toggle to repeat full rounds from the same gym screen, with Smart healing between rounds when enabled for after battle. Uses your existing battle settings; off by default.
 - **Evolve before transferring:** evolve new catches once or through all available stages before transferring. Use your current transfer rules or a separate species list; keep protections still apply.
 - **Smart battling:** picks counters for the Pokémon you are fighting. It builds your team before gym, raid, and Rocket grunt battles, and swaps to your best counter during gym and Rocket battles. Off by default.
 
 ### Improvements & fixes
 
+- Skip cutscenes: added gym badge award pop-ups; gym repeat also handles them between rounds.
 - Skip cutscenes fixes
 - During Dyndmax battles, Max energy orbs are automatically grabbed.
 - Updated to latest game version (0.435.2)

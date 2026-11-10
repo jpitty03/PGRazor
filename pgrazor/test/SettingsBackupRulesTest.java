@@ -62,6 +62,9 @@ public class SettingsBackupRulesTest {
         v=valid();v.getJSONObject("settings").put("gymAutomationSpin","true");SettingsBackupRules.validate(v);
         v=valid();v.getJSONObject("settings").put("gymAutomationSpin","false");SettingsBackupRules.validate(v);
         v=valid();v.getJSONObject("settings").put("gymAutomationSpin","1");rejects(v);
+        v=valid();v.getJSONObject("settings").put("gymRepeatEnabled","true");SettingsBackupRules.validate(v);
+        v=valid();v.getJSONObject("settings").put("gymRepeatEnabled","false");SettingsBackupRules.validate(v);
+        v=valid();v.getJSONObject("settings").put("gymRepeatEnabled","maybe");rejects(v);
         v=valid();v.getJSONObject("settings").put("smartCatchSpinGyms","true");SettingsBackupRules.validate(v);
         v=valid();v.getJSONObject("settings").put("smartCatchSpinGyms","false");SettingsBackupRules.validate(v);
         v=valid();v.getJSONObject("settings").put("smartCatchSpinGyms","1");rejects(v);

@@ -20,6 +20,7 @@ def control_shell():
     mailbox = (ROOT / 'src/dev/pgrazor/RuntimeMailbox.java').read_text(encoding='utf-8')
     specs = re.findall(r'^\s*"(\w+):([^":]*):([^":]+)"', mailbox, re.M)
     specs.append(('eventBoxesAllowed', '', 'boolean'))
+    specs.append(('gymRepeatEnabled', '', 'boolean'))
     specs.append(('smartCatchConfig', '', 'String'))
     specs.append(('gymAutomationConfig', '', 'String'))
     specs.append(('buddyEmotionConfig', '', 'String'))
@@ -45,6 +46,8 @@ def control_shell():
         signature = ','.join(t + ' a' + str(i) for i, t in enumerate(types))
         if name == 'accountCommandSnapshot':
             body = 'reads++;return snapshot;'
+        elif name == 'gymRepeatEnabled':
+            body = 'reads++;return gymRepeat;'
         elif name == 'gymAutomationConfig':
             body = 'reads++;return "1;1;0;0;50;10";'
         elif name == 'oneShotAutomationConfig':
@@ -91,11 +94,11 @@ public final class Control {
  public static void connect(){connects++;}
  public static void renewLease(){renewals++;}
  public static void disconnect(){disconnects++;}
- public static int reads,mutations; public static boolean pulse,throwMutation;
+ public static int reads,mutations; public static boolean pulse,throwMutation,gymRepeat;
  public static long timestamp;
  public static String[] snapshot={"command","18446744073709551615"};
  public static Runnable onMutation; public static String lastDiagnostic=""; public static String badBerry="";
- public static void reset(){reads=mutations=0;pulse=throwMutation=false;timestamp=0;onMutation=null;lastDiagnostic="";badBerry="";snapshot=new String[]{"command","18446744073709551615"};}
+ public static void reset(){reads=mutations=0;pulse=throwMutation=gymRepeat=false;timestamp=0;onMutation=null;lastDiagnostic="";badBerry="";snapshot=new String[]{"command","18446744073709551615"};}
 ''' + '\n'.join(methods) + '\n}\n'
 
 

@@ -57,7 +57,7 @@ final class SettingsPanel {
         batteryResSwitch, batteryFpsSwitch, batteryQualitySwitch;
     private Button autoBallTarget;
     private TextView quickSummaryLabel, vgpStatus, cutsceneStatus, healStatus, smartBattleStatus;
-    private Switch healSwitch, healReviveSwitch, smartBattleSwitch;
+    private Switch healSwitch, healReviveSwitch, smartBattleSwitch, gymRepeatSwitch;
     private Button healWhen, healThreshold, healItems;
     private final CheckBox[] vgpChoices=new CheckBox[3];
     private CheckBox vgpCooldownStop;
@@ -395,6 +395,9 @@ final class SettingsPanel {
         battleChoice(gymC,2,"Auto quick attack");
         battleChoice(gymC,3,"Auto charged attack");
         battleChoice(gymC,8,"Auto dodge");
+        gymRepeatSwitch = switchRow(gymC, "Battle until defeated"); gymRepeatSwitch.setChecked(Control.gymRepeatEnabled());
+        gymRepeatSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.gymRepeatEnabled())return; Control.setGymRepeatEnabled(checked); });
+        caption(gymC, "After you start a gym battle, automatically starts the next full round from the same gym screen until defeated. Uses your attack settings and waits for Smart healing when set to After battle or Both. Turn off or leave manually to stop.");
 
         LinearLayout raidC = section(battleC, "Raids", false);
         battleChoice(raidC,0,"Auto quick attack");
@@ -691,6 +694,7 @@ final class SettingsPanel {
 
     private void refreshBattles() {
         for(int i=0;i<10;i++)battleChoices[i].setChecked((Control.battleOptions()&(1<<i))!=0);battleStatus.setText(Control.battleStatus());
+        gymRepeatSwitch.setChecked(Control.gymRepeatEnabled());
     }
 
     private void refreshRocket() {

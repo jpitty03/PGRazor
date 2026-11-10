@@ -315,6 +315,9 @@ public final class Control {
     public static void setBattlesReady(boolean ready,String status){battlesReady=ready;battleStatus=status;}
     public static void setBattleStatus(String status){battleStatus=status;}
     public static boolean battlesAllowed(){return battlesReady&&quickSummaryReady()&&hostLive();}
+    private static volatile boolean gymRepeatEnabled;
+    public static boolean gymRepeatEnabled(){return gymRepeatEnabled;}
+    public static void setGymRepeatEnabled(boolean enabled){gymRepeatEnabled=enabled;saveSettings();event("gym-repeat",enabled?"ON":"OFF");}
     private static volatile int rocketOptions;
     private static volatile boolean rocketReady;
     private static volatile String rocketStatus="Waiting for battle support";
@@ -1153,6 +1156,7 @@ public final class Control {
                 encounterBerryEnabled=Boolean.parseBoolean(p.getProperty("encounterBerry",String.valueOf(!berryPriority.isEmpty())));
                 try{battleOptions=Integer.parseInt(p.getProperty("battleOptions","0"));}catch(NumberFormatException ignored){battleOptions=0;}
                 if(battleOptions<0||battleOptions>1023)battleOptions=0;
+                gymRepeatEnabled=Boolean.parseBoolean(p.getProperty("gymRepeatEnabled","false"));
                 try{rocketOptions=Integer.parseInt(p.getProperty("rocketOptions","0"));}catch(NumberFormatException ignored){rocketOptions=0;}
                 if(rocketOptions<0||rocketOptions>7)rocketOptions=0;
                 itemTransferEnabled=Boolean.parseBoolean(p.getProperty("itemTransfer","false"));
@@ -1273,6 +1277,7 @@ public final class Control {
         p.setProperty("cooldownOverlay",String.valueOf(cooldownOverlay));p.setProperty("berryPriority",berryPriority);
         p.setProperty("encounterBerry",String.valueOf(encounterBerryEnabled));
         p.setProperty("battleOptions",String.valueOf(battleOptions));
+        p.setProperty("gymRepeatEnabled",String.valueOf(gymRepeatEnabled));
         p.setProperty("rocketOptions",String.valueOf(rocketOptions));
         p.setProperty("itemTransfer",String.valueOf(itemTransferEnabled));p.setProperty("itemRules",itemRules);p.setProperty("itemLimits",itemLimits);p.setProperty("itemCatalog",itemCatalog);
         p.setProperty("quickSpin",String.valueOf(quickSpinEnabled));

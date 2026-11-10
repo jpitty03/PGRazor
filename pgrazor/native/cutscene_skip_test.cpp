@@ -9,14 +9,14 @@ namespace {
 struct Obj {
  bool alive=true,raycasts=true,active=true,interactable=true;float alpha=1.f,speed=1.f;
  int state=2,result=1,taps=0;Obj *canvas=nullptr,*base=nullptr,*anim=nullptr,*action=nullptr,*target=nullptr;
- void *method=nullptr;
+ void *method=nullptr,*cls=nullptr;
  Obj *confirm=nullptr,*rowroot=nullptr,*button=nullptr,*summary=nullptr,*rewards=nullptr,*visibility=nullptr;
 };
 Obj gui,canvas,base,anim,action,confirm,rowroot,button;
 int ids[40];
 enum{ALIVE,ROOT,ALPHA,RAY_GET,RAY_SET,SPEED_GET,SPEED_SET,TAP,LEADER,METHOD,TARGET,INVOKE,
  STATE,RESULT,CANVAS,ANIM,ACTION,CONFIRM,ROWROOT,ACTIVE,COMPONENT,BUTTON_ACTIVE,INTERACTABLE,PRESS,TYPE,
- SUMMARY,REWARDS,VISIBILITY,ALPHA_GET,CLAIM,REWARD_CLICK};
+ SUMMARY,REWARDS,VISIBILITY,ALPHA_GET,CLAIM,REWARD_CLICK,GUI_DISMISS};
 std::map<uintptr_t,void*> roots;uintptr_t serial=0;int allocations=0,frees=0;
 std::vector<std::string> events;
 void *fail_method=nullptr;void *fail_object=nullptr;int failures=0;
@@ -62,6 +62,7 @@ void *call(void *m,void *o,void **args,void **ex){
  if(m==&ids[PRESS]){assert(x->active&&x->interactable);++x->taps;return nullptr;}
  if(m==&ids[ALPHA_GET])return &x->alpha;
  if(m==&ids[CLAIM]||m==&ids[REWARD_CLICK]){++x->taps;return nullptr;}
+ if(m==&ids[GUI_DISMISS]){++x->taps;return nullptr;}  // base GuiController.Dismiss()
  assert(false);return nullptr;
 }
 int emit(uint32_t,const int64_t*,uint32_t,const PgrRuntimeTransportString *s,uint32_t n){
@@ -69,6 +70,9 @@ int emit(uint32_t,const int64_t*,uint32_t,const PgrRuntimeTransportString *s,uin
 }
 PgrRuntimeTransportApi transport_mock{};
 void *from_reflection(void *o){return o;}
+void *fixture_class(void *o){return static_cast<Obj*>(o)->cls;}  // il2cpp_object_get_class stand-in
+int gym_open_calls=0;
+void fixture_gui_open(void*,const void*){++gym_open_calls;}  // the game's own GuiController.Open
 bool contains(const char *s){for(auto &e:events)if(e.find(s)!=std::string::npos)return true;return false;}
 void setup(){
  assert(roots.empty());allocations=frees=0;events.clear();fail_method=fail_object=nullptr;failures=0;fail_reveal=false;
@@ -210,5 +214,51 @@ int main(){
  p={new_root(&gui,0),1,clock_ms(),0,0};gui.state=2;base.alpha=0;
  fail_method=&ids[ACTIVE];failures=1;assert(advance_popup(p)&&base.alpha==1);free_root(p.handle);cleared();
  std::puts("PASS level-up readiness: opening, hidden/inactive/fading/noninteractable children, one action per step, reward transition, completion and visible recovery");
+ // Gym badge "Share / Save" modal (Niantic.Holoholo.GymBadges.GymBadgeAwardGuiController): classified
+ // by its class as it opens and dismissed once through the inherited GuiController.Dismiss, like the
+ // medal pop-ups. The badge is awarded server-side so no step sequence is needed; the modal's own
+ // HandleOpen/HandleDismiss are ret stubs and are never hooked. GuiController.Open still runs, so its
+ // original cleanup is preserved. Exercises the production dismiss_kinds[] entry via hook_gui_open.
+ int gym_idx=-1;for(int i=0;i<kDismissKinds;++i)if(std::string(dismiss_kinds[i].event)=="gym-badge")gym_idx=i;
+ assert(gym_idx>=0&&!dismiss_kinds[gym_idx].step);
+ int gym_class=0,other_class=0;
+ auto wire_gym=[&]{
+  setup();advance_raid(false);  // release setup()'s raid root; keep the setting enabled
+  dismiss_kinds[gym_idx].klass=&gym_class;  // as install() would resolve it
+  boot.runtime.object_get_class=reinterpret_cast<void*>(fixture_class);
+  gui_open_original.store(reinterpret_cast<void*>(fixture_gui_open),std::memory_order_release);
+  class_name_fn=class_namespace_fn=nullptr;  // skip the open trace; exercise only the dismiss path
+  gui_dismiss=&ids[GUI_DISMISS];pending_popup_count=0;gym_open_calls=0;
+ };
+ // Ready open: hidden as it opens, original Open preserved, dismissed exactly once.
+ wire_gym();
+ Obj badge,badge_canvas;badge.base=&badge_canvas;badge.cls=&gym_class;badge.state=2;
+ hook_gui_open(&badge,nullptr);
+ assert(gym_open_calls==1&&pending_popup_count==1&&badge_canvas.alpha==0&&badge.taps==0);
+ advance_popups();
+ assert(pending_popup_count==0&&badge.taps==1&&contains("\"kind\":\"gym-badge\""));
+ advance_popups();assert(badge.taps==1);  // the freed pop-up is not stepped again
+ cleared();
+ // Delayed open: left hidden while still opening (state 1), dismissed only once fully open.
+ wire_gym();
+ Obj slow,slow_canvas;slow.base=&slow_canvas;slow.cls=&gym_class;slow.state=1;
+ hook_gui_open(&slow,nullptr);assert(pending_popup_count==1&&slow_canvas.alpha==0);
+ advance_popups();assert(pending_popup_count==1&&slow.taps==0&&!contains("\"kind\":\"gym-badge\""));
+ slow.state=2;advance_popups();
+ assert(pending_popup_count==0&&slow.taps==1&&contains("\"kind\":\"gym-badge\""));
+ cleared();
+ // Disabled setting: the original Open runs untouched and nothing is queued or hidden.
+ wire_gym();enabled.store(false,std::memory_order_release);
+ Obj off,off_canvas;off.base=&off_canvas;off.cls=&gym_class;off.state=2;
+ hook_gui_open(&off,nullptr);
+ assert(gym_open_calls==1&&pending_popup_count==0&&off_canvas.alpha==1&&off.taps==0);
+ enabled.store(true,std::memory_order_release);cleared();
+ // An ordinary other screen passes straight through: not classified, not queued, not hidden.
+ wire_gym();
+ Obj plain,plain_canvas;plain.base=&plain_canvas;plain.cls=&other_class;plain.state=2;
+ hook_gui_open(&plain,nullptr);
+ assert(gym_open_calls==1&&pending_popup_count==0&&plain_canvas.alpha==1&&plain.taps==0);
+ cleared();
+ std::puts("PASS gym badge modal: classified and dismissed once, delayed open waits, disabled preserves original, other GUI untouched");
  std::puts("PASS raid lifecycle: normal actions, dialogue/settle gates, real dismissal/destruction, failures, recovery, foreground stop, loss, timeout, shared canvases, repeated raids");
 }
