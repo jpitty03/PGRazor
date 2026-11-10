@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## v0.2.4
+
+[Full release notes](docs/releases/v0.2.4.md)
+
 ### New features
 
 - **Local time:** optional draggable clock in General Settings showing the time at your spoofed location.
