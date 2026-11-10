@@ -1,5 +1,6 @@
 #include "game_bindings.h"
 #include "batch_evolution.h"
+#include "evolve_transfer.h"
 #include "batch_evolution_policy.h"
 #include "shared_metadata.h"
 #include "runtime_bootstrap.h"
@@ -149,6 +150,7 @@ void scan(){
 }
 bool authorized(const Permission &p){return p.valid&&p.allowed&&p.cmd.token==batch.token&&p.cmd.tag==batch.tag&&p.cmd.remove_tag==batch.remove_tag&&p.cmd.mode==2&&!batch.canceled;}
 void start_request(){
+ if(pgr_evolve_transfer_busy())return;
  if(batch.index>=int(batch.candidates.size())){publish("done","Batch complete");return;}
  Candidate expected=batch.candidates[batch.index++],fresh;Root current=pokemon(expected.id);
  if(!candidate(current,fresh)||!same(expected,fresh)){++batch.skipped;publish("running","Skipped changed or unavailable Pokemon");return;}
@@ -273,3 +275,4 @@ void pgr_evolution_tick(uint64_t tid,const PgrSharedMetadataOutput *metadata){
  }catch(const Failure &e){batch.promise.reset();batch.await_inventory=false;batch.tag_pending=false;batch.await_tag=false;publish("error",e.where);}catch(...){batch.promise.reset();batch.await_inventory=false;batch.tag_pending=false;batch.await_tag=false;publish("error","Evolution engine stopped after an unexpected error");}
 }
 void pgr_evolution_stop(uint64_t tid){if(initialized&&tid==owner&&tid==uint64_t(gettid())){batch.canceled=true;batch.promise.reset();batch.await_inventory=false;batch.tag_pending=false;batch.await_tag=false;publish("stopped","Session ended; preview again to continue");}}
+bool pgr_evolution_busy(){return bool(batch.promise)||batch.await_inventory||batch.await_tag||batch.phase=="running";}

@@ -24,6 +24,15 @@ public final class ControlSettingsReloadTest {
             throw new AssertionError("Import ordering, legacy berry migration or VGP OFF changed");
         if(!"5".equals(Control.exportSettings().getProperty("battleOptions")))
             throw new AssertionError("A queued snapshot overwrote imported choices");
+        // Evolve before transferring: a corrupt persisted mode must fail safe and disable the feature on reload.
+        Control.setAutoTransferEnabled(true);
+        Control.setEvolveTransferEnabled(true); Control.setEvolveTransferMode(1); Control.setEvolveTransferStages(2); Control.setEvolveTransferSpecies("1,4,25");
+        if(!Control.evolveTransferEnabled()||Control.evolveTransferMode()!=1||Control.evolveTransferStages()!=2||!Control.evolveTransferSpecies().equals("1,4,25"))
+            throw new AssertionError("Evolve-before-transfer choices not applied before import");
+        java.util.Properties corruptEvolve=new java.util.Properties(); corruptEvolve.setProperty("evolveTransferMode","9");
+        Control.importSettings(app,corruptEvolve,9.3); Control.flushSettings(5000);
+        if(Control.autoTransferEnabled()||Control.evolveTransferEnabled()||Control.evolveTransferMode()!=0||Control.evolveTransferStages()!=2||!Control.evolveTransferSpecies().equals("1,4,25"))
+            throw new AssertionError("Corrupt evolve-transfer mode did not fail safe to disabled on reload");
         Control.setDarkTheme(false); Control.flushSettings(5000);
         Field writer=Control.class.getDeclaredField("settingsWriter"); writer.setAccessible(true);
         Object original=writer.get(null);
@@ -33,6 +42,6 @@ public final class ControlSettingsReloadTest {
             load.invoke(null,app);
             if(!Control.darkTheme())throw new AssertionError("Failed save allowed stale settings reload");
         } finally { writer.set(null,original); }
-        System.out.println("PASS: export/import ordering, migration and failed-save reload isolation");
+        System.out.println("PASS: export/import ordering, migration, evolve-transfer corrupt-config fail-safe and failed-save reload isolation");
     }
 }

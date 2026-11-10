@@ -127,6 +127,15 @@ public final class Control {
     // listed species. Both persist; Keep All active state is a normal saved preference (unlike VGP).
     private static volatile String transferKeepSpecies="";
     private static volatile boolean transferKeepAll, transferOverlayEnabled;
+    // Evolve before transferring (new catches only). Off by default; requires the auto-transfer
+    // master. Mode 0 uses the current transfer rules, 1 restricts the behavior to a separate
+    // selected-species list. Stages 1 evolves once, 2 evolves through all available candy-only
+    // stages. evolveTransferSpecies is a canonical keep-species string (same validation/format as
+    // the custom keep list, but an independent list). Existing favorites/keep/IV/PvP protections
+    // always apply; this never auto-enables the master and never changes the keep list.
+    private static volatile boolean evolveTransferEnabled;
+    private static volatile int evolveTransferMode, evolveTransferStages=1;
+    private static volatile String evolveTransferSpecies="";
     private static volatile String quickSummaryStatus="";
     private static final Object quickBallLock=new Object();
     private static volatile boolean quickBallConfigured, quickBallReady, quickBallEnabled;
@@ -451,6 +460,39 @@ public final class Control {
         transferKeepSpecies=canonical;saveSettings();
         event("transfer-keep-species",(canonical.isEmpty()?0:canonical.split(",").length)+" species kept");
     }
+    // Evolve before transferring. All setters ignore invalid input; a corrupt loaded config disables
+    // the feature (see loadSettings). The feature never enables the auto-transfer master on its own.
+    public static boolean evolveTransferEnabled(){return evolveTransferEnabled;}
+    public static int evolveTransferMode(){return evolveTransferMode;}
+    public static int evolveTransferStages(){return evolveTransferStages;}
+    /** Canonical selected-species list: sorted, de-duplicated positive dex IDs; empty when none. Independent of the keep list. */
+    public static String evolveTransferSpecies(){return evolveTransferSpecies;}
+    public static void setEvolveTransferEnabled(boolean enabled){
+        if(enabled==evolveTransferEnabled)return;
+        // Never flips the auto-transfer master; the UI explains the master is required.
+        evolveTransferEnabled=enabled;saveSettings();
+        event("evolve-transfer",enabled?"ON; new catches only; requires auto transfer master":"OFF");
+    }
+    public static void setEvolveTransferMode(int mode){
+        if(mode!=0&&mode!=1||mode==evolveTransferMode)return;
+        evolveTransferMode=mode;saveSettings();
+        event("evolve-transfer-mode",mode==1?"Selected species only":"Current transfer rules");
+    }
+    public static void setEvolveTransferStages(int stages){
+        if(stages!=1&&stages!=2||stages==evolveTransferStages)return;
+        evolveTransferStages=stages;saveSettings();
+        event("evolve-transfer-stages",stages==2?"All available stages":"Once");
+    }
+    public static void setEvolveTransferSpecies(String value){
+        boolean[] damaged={false};
+        String canonical=normalizeKeepSpecies(value,damaged);
+        if(damaged[0]){event("evolve-transfer-species","Invalid selection ignored; existing list preserved");return;}
+        if(canonical.equals(evolveTransferSpecies))return;
+        evolveTransferSpecies=canonical;saveSettings();
+        event("evolve-transfer-species",(canonical.isEmpty()?0:canonical.split(",").length)+" species selected");
+    }
+    /** "1|enabled|mode|stages|species" for the native evolve-before-transfer path (transport slot 22). */
+    public static String evolveTransferConfig(){return "1|"+(evolveTransferEnabled?1:0)+"|"+evolveTransferMode+"|"+evolveTransferStages+"|"+evolveTransferSpecies;}
     /** Keep All holds manual encounter catches; background catches use the main settings. */
     public static boolean transferKeepAll(){return transferKeepAll;}
     public static void setTransferKeepAll(boolean value){
@@ -1126,6 +1168,18 @@ public final class Control {
                 // Fail safe: a corrupt keep list must not let auto transfer drop a species the user meant
                 // to keep. Disable the master even with Keep All on, so toggling it off stays safe.
                 if(keepDamaged[0])autoTransferEnabled=false;
+                // Evolve before transferring. A corrupt mode/stages/species disables the feature so a
+                // damaged config can never auto-evolve or transfer against the user's intent.
+                evolveTransferEnabled=Boolean.parseBoolean(p.getProperty("evolveTransferEnabled","false"));
+                String evolveEnabledText=p.getProperty("evolveTransferEnabled","false");
+                boolean evolveCorrupt=!(evolveEnabledText.equals("true")||evolveEnabledText.equals("false"));
+                try{evolveTransferMode=Integer.parseInt(p.getProperty("evolveTransferMode","0"));}catch(NumberFormatException invalid){evolveTransferMode=0;evolveCorrupt=true;}
+                if(evolveTransferMode!=0&&evolveTransferMode!=1){evolveTransferMode=0;evolveCorrupt=true;}
+                try{evolveTransferStages=Integer.parseInt(p.getProperty("evolveTransferStages","1"));}catch(NumberFormatException invalid){evolveTransferStages=1;evolveCorrupt=true;}
+                if(evolveTransferStages!=1&&evolveTransferStages!=2){evolveTransferStages=1;evolveCorrupt=true;}
+                boolean[] evolveDamaged=new boolean[1];
+                evolveTransferSpecies=normalizeKeepSpecies(p.getProperty("evolveTransferSpecies",""),evolveDamaged);
+                if(evolveCorrupt||evolveDamaged[0]){evolveTransferEnabled=false;autoTransferEnabled=false;}
                 ivCatchEnabled=Boolean.parseBoolean(p.getProperty("ivCatch","true"));
                 ivOwnedEnabled=Boolean.parseBoolean(p.getProperty("ivOwned","false"));
                 int catchFormat=boundedSetting(p,"ivCatchFormat",4),ownedFormat=boundedSetting(p,"ivOwnedFormat",4);
@@ -1224,6 +1278,7 @@ public final class Control {
         p.setProperty("quickSpin",String.valueOf(quickSpinEnabled));
         p.setProperty("autoTransfer",String.valueOf(autoTransferEnabled)); p.setProperty("transferProtect",String.valueOf(transferProtect));
         p.setProperty("transferKeepAll",String.valueOf(transferKeepAll)); p.setProperty("transferOverlay",String.valueOf(transferOverlayEnabled)); p.setProperty("transferKeepSpecies",transferKeepSpecies);
+        p.setProperty("evolveTransferEnabled",String.valueOf(evolveTransferEnabled)); p.setProperty("evolveTransferMode",String.valueOf(evolveTransferMode)); p.setProperty("evolveTransferStages",String.valueOf(evolveTransferStages)); p.setProperty("evolveTransferSpecies",evolveTransferSpecies);
         p.setProperty("ivCatch",String.valueOf(ivCatchEnabled)); p.setProperty("ivOwned",String.valueOf(ivOwnedEnabled)); p.setProperty("ivCatchFormat",String.valueOf(ivCatchFormat)); p.setProperty("ivOwnedFormat",String.valueOf(ivOwnedFormat)); p.setProperty("storageIv",String.valueOf(storageIvMode)); p.setProperty("storageIvFormat",String.valueOf(storageIvFormat));
         p.setProperty("catchChance",String.valueOf(catchChanceShown)); p.setProperty("autoBall",String.valueOf(autoBall)); p.setProperty("autoBallTarget",String.valueOf(autoBallTarget));
         p.setProperty("pvpKeepLeagues",String.valueOf(pvpKeepLeagues)); p.setProperty("skipCutscenes",String.valueOf(skipCutscenes));

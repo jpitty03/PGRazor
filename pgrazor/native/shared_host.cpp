@@ -9,6 +9,7 @@
 #include "catch_completion.h"
 #include "catch_presentation.h"
 #include "transfer_execution.h"
+#include "evolve_transfer.h"
 #include "transfer_facts.h"
 #include "transfer_observers.h"
 #include "pvp_keep.h"
@@ -130,7 +131,7 @@ void poll_transport(){if(!(cfg.transport_flags&1))return;PgrRuntimeTransportSamp
 struct Record {
  uint64_t key=0,slot=0,epoch=0,id=0,canvas=0,transfer_token=0;
  void *gui=nullptr,*state=nullptr,*proto=nullptr,*response=nullptr,*dismissed=nullptr,*data=nullptr,*pokemon=nullptr;
- bool details=false,cancelled=false,invoked=false,transfer_checked=false,transfer_complete=false,transfer_failed=false,opening=false;
+ bool details=false,cancelled=false,invoked=false,transfer_checked=false,evolve_queued=false,transfer_complete=false,transfer_failed=false,opening=false;
 };
 std::array<Record,4> records{};
 struct Pending {void *response=nullptr,*layer=nullptr;uint64_t id=0,epoch=0,expires=0;bool returned=false;} pending;
@@ -298,9 +299,10 @@ void *invoke(const void *method,void *receiver,void **args,bool *ok){void *excep
 void transfer_drain(){if(!(capabilities&PGR_SHH_TRANSFER))return;PgrTransferExecEvent e{};while(tx->next_event(&e)==1){
  auto external=std::find(external_tokens.begin(),external_tokens.end(),e.token);
  if(e.token&&external!=external_tokens.end()){
+  if(e.kind!=PGR_TX_EVENT_REQUEST)*external=0;
+  if(pgr_evolve_transfer_event(&e))continue;
   if(external_count==external_events.size()){fault(-30);return;}
   external_events[(external_head+external_count++)%external_events.size()]=e;
-  if(e.kind!=PGR_TX_EVENT_REQUEST)*external=0;
   continue;
  }
  Record *matched=nullptr;for(auto &r:records)if(r.slot&&r.transfer_token==e.token){matched=&r;break;}
@@ -352,6 +354,8 @@ bool transfer(Record &r,bool direct=false){auto g=gate();if(!(capabilities&PGR_S
  // PvP keep runs only when every other rule would transfer.
  if(pgr_pvp_keep){char pvp[96];if(pgr_pvp_keep(pokemon.get(),facts.attack,facts.defense,facts.stamina,facts.species,tid(),pvp,sizeof(pvp))>0){
   emit(7,r.slot,18);char message[128];std::snprintf(message,sizeof(message),"Kept: %s",pvp);publish(56,message);return false;}}
+ const int evolve=pgr_evolve_transfer_offer(&request,true);
+ if(evolve!=0){r.evolve_queued=evolve==1;return false;}
  if(r.slot)sh->transfer_bind(r.slot,r.key,tid());
  // No tick/event drain can reenter this owner while submit calls managed code.
  // The compiled observer can synchronously enqueue COMPLETE; correlate before draining.
@@ -424,7 +428,7 @@ void complete_summary(Record &r){if(capabilities&PGR_SHH_CANVAS){PgrCatchCanvasS
 }
 void complete_details(Record &r){auto q=details_request(r);if(dc->validate(&q)!=1){cancel(r);return;}if(field<int32_t>(target(r.gui),f(1))!=2){cancel(r);return;}
  if(!current(r.epoch)||opener_depth)return;if(transfer(r))return;
- if(!(gate().flags&PGR_SHH_DISMISS)&&!r.transfer_complete){cancel(r);return;}
+ if(!(gate().flags&PGR_SHH_DISMISS)&&!r.transfer_complete&&!r.evolve_queued){cancel(r);return;}
  if(!current(r.epoch))return;r.invoked=true;invoking=true;invoking_gui=target(r.gui);uint64_t token=0;dc->acquire(r.epoch,tid(),&token);PgrDetailsCompletionOutput out{};int rc=0;
  try{if(token)rc=dc->complete(&q,token,&out);}catch(...){invoking=false;invoking_gui=nullptr;fault(-11);throw;}invoking=false;invoking_gui=nullptr;
  const bool advanced=(out.flags&2)||((out.flags&4)&&out.after!=2);hide_after(r,out.flags,out.after,rc);emit(4,r.slot,rc,out.flags,out.before,out.after);sh->finish(r.slot,advanced?1:0,tid());release(r);

@@ -48,6 +48,9 @@ final class SettingsPanel {
     private TextView incubatorStatus;
     // Primary action and cycle/dialog rows.
     private Button mapTap, throwGrade, throwVariety, storageIv, ivCatchMode, ivOwnedMode, itemSettings, cameraSample, interactionCapture, transferKeepList;
+    // Evolve-before-transfer rows: enable switch, stages cycle, selection-mode cycle, selected-species picker.
+    private Switch evolveTransferSwitch;
+    private Button evolveTransferStages, evolveTransferMode, evolveTransferList;
     // Boolean settings use proper switches.
     private Switch idleWalkSwitch, locationSwitch, vgpSwitch, joystickSwitch, cooldownSwitch, spawnSwitch, autoTransferSwitch,
         quickSpinSwitch, berrySwitch, quickSummarySwitch, curveSwitch, alwaysHitSwitch, arSwitch, transferOverlaySwitch, catchChanceSwitch, autoBallSwitch, skipCutscenesSwitch,
@@ -285,6 +288,16 @@ final class SettingsPanel {
         transferOverlaySwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.transferOverlayEnabled())return; Control.setTransferOverlayEnabled(transferOverlaySwitch.isChecked()); host.refresh(); });
         caption(txC, "Kept species are never auto-transferred, across all forms. The floating button holds every catch (Keep All) or follows the rules above.");
         caption(txC, "Transfers are permanent. Favorites and unknown data are always kept.");
+        evolveTransferSwitch = switchRow(txC, "Evolve before transferring");
+        evolveTransferSwitch.setChecked(Control.evolveTransferEnabled());
+        evolveTransferSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.evolveTransferEnabled())return; Control.setEvolveTransferEnabled(evolveTransferSwitch.isChecked()); host.refresh(); });
+        evolveTransferStages = button("Evolve: once"); txC.addView(evolveTransferStages);
+        evolveTransferStages.setOnClickListener(v -> { Control.setEvolveTransferStages(Control.evolveTransferStages()==2?1:2); host.refresh(); });
+        evolveTransferMode = button("Applies to: current transfer rules"); txC.addView(evolveTransferMode);
+        evolveTransferMode.setOnClickListener(v -> { Control.setEvolveTransferMode(Control.evolveTransferMode()==1?0:1); host.refresh(); });
+        evolveTransferList = button("Selected species"); txC.addView(evolveTransferList);
+        evolveTransferList.setOnClickListener(v -> TransferKeepDialog.show(activity, "Selected species", "species selected", Control::evolveTransferSpecies, Control::setEvolveTransferSpecies, host::refresh));
+        caption(txC, "New catches only; requires Transfer above. Uses candy for ordinary evolutions, without items or special conditions. Keep rules always apply. If evolution is unavailable, transfer normally. Selected species mode keeps every species outside its list.");
         transferStatus = caption(txC, "");
         quickSpinSwitch = switchRow(catchC, "Quick spin"); quickSpinSwitch.setChecked(Control.quickSpinEnabled());
         quickSpinSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.quickSpinEnabled())return; Control.setQuickSpinEnabled(quickSpinSwitch.isChecked()); });
@@ -598,6 +611,13 @@ final class SettingsPanel {
         for(CheckBox box:transferProtection)SettingsUi.enabled(box,Control.autoTransferEnabled());
         SettingsUi.enabled(transferKeepList,Control.autoTransferEnabled());
         SettingsUi.enabled((View)transferOverlaySwitch.getParent(),Control.autoTransferEnabled());
+        // Evolve before transferring needs the auto-transfer master; its options need the feature on, and
+        // the selected-species list only matters in "Selected species only" mode.
+        SettingsUi.enabled((View)evolveTransferSwitch.getParent(),Control.autoTransferEnabled());
+        boolean evolveOn=Control.autoTransferEnabled()&&Control.evolveTransferEnabled();
+        SettingsUi.enabled(evolveTransferStages,evolveOn);
+        SettingsUi.enabled(evolveTransferMode,evolveOn);
+        SettingsUi.enabled(evolveTransferList,evolveOn&&Control.evolveTransferMode()==1);
         SettingsUi.enabled(incubatorPriority,Control.autoIncubate()&&Control.incubatorAvailable());
         SettingsUi.enabled(giftChoices[2],(Control.giftOptions()&2)!=0);
         SettingsUi.enabled((View)joystickSwitch.getParent(),Control.desiredEnabled());
@@ -640,6 +660,10 @@ final class SettingsPanel {
         for(int i=0;i<3;i++){pvpKeep[i].setChecked(Control.pvpKeep(i));pvpRank[i].setText("Top "+Control.pvpRank(i));pvpRank[i].setEnabled(Control.pvpKeep(i));}
         if(transferKeepList!=null){String kept=Control.transferKeepSpecies();int n=kept.isEmpty()?0:kept.split(",").length;transferKeepList.setText(n>0?"Custom keep list ("+n+")":"Custom keep list");}
         if(transferOverlaySwitch!=null){transferOverlaySwitch.setChecked(Control.transferOverlayEnabled());transferOverlaySwitch.setEnabled(Control.autoTransferEnabled());transferOverlaySwitch.setAlpha(1f);}
+        if(evolveTransferSwitch!=null)evolveTransferSwitch.setChecked(Control.evolveTransferEnabled());
+        if(evolveTransferStages!=null)evolveTransferStages.setText("Evolve: "+(Control.evolveTransferStages()==2?"all available stages":"once"));
+        if(evolveTransferMode!=null)evolveTransferMode.setText("Applies to: "+(Control.evolveTransferMode()==1?"selected species only":"current transfer rules"));
+        if(evolveTransferList!=null){String sel=Control.evolveTransferSpecies();int n=sel.isEmpty()?0:sel.split(",").length;evolveTransferList.setText(n>0?"Selected species ("+n+")":"Selected species");}
         transferStatus.setText(Control.transferStatus());
     }
 

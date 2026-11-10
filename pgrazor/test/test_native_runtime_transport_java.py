@@ -35,6 +35,7 @@ def control_shell():
     specs.append(('shundoConfig', '', 'String'))
     specs.append(('batteryConfig', '', 'String'))
     specs.append(('smartBattleConfig', '', 'String'))
+    specs.append(('evolveTransferConfig', '', 'String'))
     methods = []
     for name, params, expected_result in specs:
         actual = re.search(r'public static\s+(?:synchronized\s+)?([\w\[\]]+)\s+' + name + r'\(([^)]*)\)', source)
@@ -60,6 +61,8 @@ def control_shell():
             body = 'reads++;return "S1|7|123456789|0|1";'
         elif name == 'batteryConfig':
             body = 'reads++;return "B2|1|0|1|0";'
+        elif name == 'evolveTransferConfig':
+            body = 'reads++;return "1|1|1|2|10,13";'
         elif name == 'smartBattleConfig':
             body = 'reads++;return "F1|1";'
         elif name == 'storageIvConfig':

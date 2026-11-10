@@ -28,6 +28,9 @@
 #include <vector>
 #include <string>
 
+int evolve_offer_result=0,evolve_offer_calls=0,evolve_events=0;bool consume_evolve_events=false;
+int pgr_evolve_transfer_offer(const PgrTransferExecRequest*,bool manual){assert(manual);++evolve_offer_calls;return evolve_offer_result;}
+bool pgr_evolve_transfer_event(const PgrTransferExecEvent*){if(consume_evolve_events){++evolve_events;return true;}return false;}
 PgrSharedCatchApi fixture_sh{};PgrSummaryCompletionApi fixture_sc{};PgrDetailsCompletionApi fixture_dc{};
 PgrDetailsRecoveryApi fixture_dr{};PgrCatchDiscoveryApi fixture_cd{};PgrCatchCanvasApi fixture_cv{};
 PgrCatchCompletionApi fixture_cc{};PgrCatchApi fixture_bridge{};PgrTransferExecApi fixture_tx{};
@@ -326,6 +329,21 @@ int main(int argc,char **argv){assert(argc==2||argc==3);void *lib=dlopen(argv[1]
   assert(gui.visible&&dismissals==1);check_clean();
   puts("PASS summary canvas hidden through opening, normal later dismissal, OFF restores visibility");return 0;
  }
+ if(argc==3&&std::strcmp(argv[2],"evolve")==0){
+  auto broker=static_cast<const PgrSharedHostTransferApi*>(fixture_host_api(2));
+  PgrSharedHostOptions opt{1,sizeof(opt),PGR_SHH_ALLOWED|PGR_SHH_TRANSFER_ENABLED,63,2,2500,nullptr,0,0};assert(host->update(&opt)==0);host->tick(gettid(),2);
+  evolve_offer_result=1;Present volatile present=&detail_present_fn;present(&view,&pokemon,nullptr,false,nullptr);host->tick(gettid(),3);host->tick(gettid(),4);host->tick(gettid(),5);
+  assert(evolve_offer_calls==1&&release_calls==0&&detail_clicks==1);check_clean();
+  // Completion belongs to the evolution worker, not the VGP external-event reader.
+  PgrTransferFactsRequest fq{1,sizeof(fq),uint64_t(gettid()),2500,response.id,&pokemon,&gm_object,63,0};PgrTransferFactsOut facts{};assert(fixture_tf.inspect(&fq,&facts)==1);
+  PgrTransferExecRequest req{1,sizeof(req),response.id,0,uint64_t(gettid()),&bag_object,&pokemon,{}};
+  req.input={1,sizeof(PgrTransferInput),facts.attack,facts.defense,facts.stamina,facts.species,0,facts.known,facts.flags,0,0,0,nullptr};
+  consume_evolve_events=true;uint64_t token=0;assert(broker->submit(&req,&token)==1&&token&&release_calls==1);assert(evolve_events==2);PgrTransferExecEvent event{};assert(broker->next_event(&event)==0);host->tick(gettid(),6);check_clean();
+  // A list exclusion keeps the next catch and leaves its screen open without Quick Catch.
+  response.id++;pokemon.id=response.id;evolve_offer_result=2;present(&view,&pokemon,nullptr,false,nullptr);host->tick(gettid(),7);host->tick(gettid(),8);host->tick(gettid(),9);
+  assert(evolve_offer_calls==2&&release_calls==1&&detail_clicks==1);check_clean();
+  puts("PASS evolve/transfer catch handoff, details dismissal and synchronous event ownership");return 0;
+ }
  if(argc==3&&std::strcmp(argv[2],"broker")==0){
   auto broker=static_cast<const PgrSharedHostTransferApi*>(fixture_host_api(2));assert(broker&&broker->size==32&&broker->ready()==1);
   int32_t kept=25;PgrSharedHostOptions opt{1,sizeof(opt),PGR_SHH_ALLOWED|PGR_SHH_TRANSFER_ENABLED,63,2,2500,&kept,1,0};assert(host->update(&opt)==0);host->tick(gettid(),2);
@@ -377,5 +395,5 @@ int main(int argc,char **argv){assert(argc==2||argc==3);void *lib=dlopen(argv[1]
  // Original exception propagates and temporary pins unwind; no ready stage is published.
  test::options(5);host->tick(gettid(),14);init_throws=true;bool thrown=false;try{initialize();}catch(const std::runtime_error &e){thrown=std::strcmp(e.what(),"original-init")==0;}assert(thrown);host->tick(gettid(),15);assert(snapshot().fault&&snapshot().stopping);check_clean();
  assert(initializations==7&&scores_calls==6&&open_calls==5);puts("PASS compiled61 source + actual51/36 leaves + realDobby: summary roots, later-tick arming, opening-state dismissal, natural-dismiss cancellation, reentrant tick, in-original revocation, OFF cleanup, original exception");
- for(const char *mode:{"details","transport","recovery","scene","direct","observer","broker","summary-canvas"}){pid_t child=fork();assert(child>=0);if(child==0){execl(argv[0],argv[0],argv[1],mode,static_cast<char*>(nullptr));_exit(127);}int status=0;assert(waitpid(child,&status,0)==child&&WIFEXITED(status)&&WEXITSTATUS(status)==0);}
+ for(const char *mode:{"details","transport","recovery","scene","direct","observer","broker","evolve","summary-canvas"}){pid_t child=fork();assert(child>=0);if(child==0){execl(argv[0],argv[0],argv[1],mode,static_cast<char*>(nullptr));_exit(127);}int status=0;assert(waitpid(child,&status,0)==child&&WIFEXITED(status)&&WEXITSTATUS(status)==0);}
 }

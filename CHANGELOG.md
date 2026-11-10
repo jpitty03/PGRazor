@@ -4,7 +4,8 @@
 
 ### New features
 
-- **Smart battling:** picks counters for the Pokémon you are fighting. It builds your team before gym, raid, and typed Rocket grunt battles, and swaps to your best counter during gym and Rocket battles. Off by default.
+- **Evolve before transferring:** evolve new catches once or through all available stages before transferring. Use your current transfer rules or a separate species list; keep protections still apply.
+- **Smart battling:** picks counters for the Pokémon you are fighting. It builds your team before gym, raid, and Rocket grunt battles, and swaps to your best counter during gym and Rocket battles. Off by default.
 
 ### Improvements & fixes
 

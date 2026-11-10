@@ -78,6 +78,9 @@ def main(argv=None):
             if source.stem == 'gift_batch_test':
                 extra_flags = ['-rdynamic', '-fexceptions']
                 entry['included_source_sha256'] = native_build.sha256(root/'native/gift_batch.cpp')
+            if source.stem in ('evolve_transfer_runtime_test','batch_evolution_runtime_test'):
+                extra_flags = ['-fexceptions','-llog']
+                entry['included_source_sha256'] = native_build.sha256(root/'native'/source.name.replace('_runtime_test.cpp','.cpp'))
             if source.stem == 'max_orbs_test':
                 extra_flags = ['-fexceptions']
                 entry['included_source_sha256'] = native_build.sha256(root/'native/max_orbs.cpp')
@@ -131,7 +134,7 @@ def main(argv=None):
                 entry['dobby_sha256'] = native_build.sha256(dobby)
                 if source.stem == 'encounter_host_test':
                     dependencies = ('hook_engine.cpp', 'incense_guard.cpp', 'gift_batch.cpp', 'remote_gym.cpp',
-                                    'gym_runtime.cpp', 'gym_automation.cpp', 'batch_evolution.cpp',
+                                    'gym_runtime.cpp', 'gym_automation.cpp', 'batch_evolution.cpp', 'evolve_transfer.cpp',
                                     'buddy_emotion.cpp', 'profile_scroll.cpp', 'vgp_controller.cpp', 'smart_catch.cpp',
                                     'smart_catch_binding.cpp', 'vgp_discovery.cpp', 'research.cpp', 'storage_iv.cpp',
                                     'ar_values.cpp', 'ar_throw.cpp', 'catch_chance.cpp', 'cutscene_skip.cpp', 'catch_presentation.cpp', 'rocket_swap.cpp', 'smart_battle.cpp', 'rocket_combat.cpp', 'heal.cpp', 'shundo.cpp', 'battery.cpp')

@@ -19,6 +19,9 @@ public final class ControlSettingsTest {
             Control.saveItemRules(true,"1:100;101:0;","1:100;101:0;2:250;");
             try{Control.saveItemRules(true,"1:-1;","");throw new AssertionError("Negative cap accepted");}catch(IllegalArgumentException expected){}
             Control.setQuickSpinEnabled(true); Control.setAutoTransferEnabled(true); Control.setTransferProtect(13);
+            Control.setEvolveTransferEnabled(true); Control.setEvolveTransferMode(1); Control.setEvolveTransferStages(2); Control.setEvolveTransferSpecies("4,25,1"); // canonicalizes to 1,4,25
+            Control.setEvolveTransferMode(5); Control.setEvolveTransferStages(9); Control.setEvolveTransferSpecies("1,abc"); // invalid: all ignored, prior choices kept
+            if(Control.evolveTransferMode()!=1||Control.evolveTransferStages()!=2||!Control.evolveTransferSpecies().equals("1,4,25"))throw new AssertionError("Invalid evolve-transfer setter input was not ignored");
             Control.setQuickBallEnabled(true); Control.setQuickSummaryEnabled(true);
             Control.setIvCatchEnabled(false); Control.setIvOwnedEnabled(true); Control.setStorageIvMode(3); Control.setStorageIvFormat(2); Control.setStorageIvEnabled(false); Control.setIvOwnedMode(3); Control.setIvCatchMode(1); Control.setIvCatchMode(0); Control.setCatchChanceShown(false); Control.setAutoBall(true); Control.setAutoBallTarget(85); Control.setPvpKeep(0,false); Control.setPvpKeep(2,true); Control.setPvpRank(1,25);
             Control.setThrowGrade(3); Control.setThrowCurve(true); Control.setMapTapMode(2);
@@ -39,6 +42,8 @@ public final class ControlSettingsTest {
             throw new AssertionError("Saved settings lost across readiness/configuration/process restart");
         if(Control.quickSpinAllowed()||Control.autoTransferAllowed()||Control.quickBallAllowed()||Control.quickSummaryAllowed()||Control.mapTapAllowed()||Control.throwAllowed())
             throw new AssertionError("Saved preferences bypassed runtime readiness");
+        if(!Control.evolveTransferEnabled()||Control.evolveTransferMode()!=1||Control.evolveTransferStages()!=2||!Control.evolveTransferSpecies().equals("1,4,25")||!Control.evolveTransferConfig().equals("1|1|1|2|1,4,25"))
+            throw new AssertionError("Evolve-before-transfer settings lost across process restart");
         if(Control.ivCatchEnabled()||!Control.ivOwnedEnabled()||Control.ivCatchMode()!=0||Control.ivOwnedMode()!=3||Control.nextIvMode(0)!=4||Control.nextIvMode(4)!=3||Control.nextIvMode(1)!=0)throw new AssertionError("IV display preferences lost across process restart");
         if(Control.storageIvEnabled()||Control.storageIvFormat()!=2||!Control.storageIvConfig().equals("S2|0|1|3"))throw new AssertionError("Storage IV setting lost across process restart");
         if(Control.catchChanceShown()||!Control.autoBall()||Control.autoBallTarget()!=85||!Control.catchChanceConfig().startsWith("C1|0|1|85|"))throw new AssertionError("Catch chance settings lost across process restart");
