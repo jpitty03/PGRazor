@@ -1,7 +1,7 @@
 # Updating the supported game version
 
 The version-specific native binding values live in
-`pgrazor/native/schema/game/0.435.1.json`; `current.json` selects the profile.
+`pgrazor/native/schema/game/0.435.2.json`; `current.json` selects the profile.
 Update that profile, then regenerate. Do not hand-edit generated headers or the
 derived `routes.json` and `gifts.json` files.
 

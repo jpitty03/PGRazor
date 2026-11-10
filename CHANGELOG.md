@@ -5,13 +5,11 @@
 ### New features
 
 - **Smart battling:** picks counters for the Pokémon you are fighting. It builds your team before gym, raid, and typed Rocket grunt battles, and swaps to your best counter during gym and Rocket battles. Off by default.
-- **Dynamax energy collection:** automatically moves toward nearby Max energy orbs during Max Battles while PGRazor is active, independently of Auto dodge.
 
 ### Improvements & fixes
 
-- Smart battling recognizes typed Rocket grunts and fills all three team slots when a saved party is incomplete.
-- With Smart healing on, Smart battling no longer penalizes pre-battle counters for missing HP when they are at or above the healing threshold. Below the threshold, or with Smart healing off, it keeps using current HP.
-- Skip cutscenes advances raid rewards to the bonus challenge without leaving the Summary screen unresponsive.
+- Skip cutscenes fixes
+- During Dyndmax battles, Max energy orbs are automatically grabbed.
 
 ## v0.2.3
 

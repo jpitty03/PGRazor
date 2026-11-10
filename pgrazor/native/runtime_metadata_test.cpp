@@ -274,6 +274,27 @@ int main(int argc, char **argv) {
   {PgrMetaBindConfig b=cfg;b.module_base=reinterpret_cast<void *>(UINTPTR_MAX-3);b.module_size=8;
    assert(api->bind(&b)==PGR_MD_ERR_CODE_RANGE);}
   // Separate process proves bootstrap-first then schema-specific validation.
+  // Exercise the production maps resolver across adjacent, differently protected VMAs.
+  {pid_t child=fork();assert(child>=0);if(child==0){
+    const size_t page=static_cast<size_t>(sysconf(_SC_PAGESIZE));
+    auto *pages=static_cast<unsigned char *>(mmap(nullptr,page*2,PROT_READ|PROT_WRITE,
+        MAP_PRIVATE|MAP_ANONYMOUS,-1,0));assert(pages!=MAP_FAILED);
+    assert(mprotect(pages,page,PROT_READ|PROT_EXEC)==0);
+    assert(mprotect(pages+page,page,PROT_READ|PROT_WRITE|PROT_EXEC)==0);
+    PgrMetaBindConfig b=cfg;b.module_base=pages;b.module_size=page*2;b.seg_query=nullptr;
+    assert(api->bind(&b)==PGR_MD_OK);
+    PgrMetaCodeQuery q{};q.version=1;q.size=sizeof(q);q.address=pages+page-8;q.length=24;
+    assert(api->validate_code(&q)==PGR_MD_OK);
+    // Anonymous non-executable memory has no ELF executable-segment proof.
+    assert(mprotect(pages+page,page,PROT_READ)==0);
+    assert(api->validate_code(&q)==PGR_MD_ERR_SEGMENT);
+    assert(mprotect(pages+page,page,PROT_NONE)==0);
+    assert(api->validate_code(&q)==PGR_MD_ERR_SEGMENT);
+    assert(munmap(pages+page,page)==0);
+    assert(api->validate_code(&q)==PGR_MD_ERR_SEGMENT);
+    q.address=pages;q.length=8;assert(api->validate_code(&q)==PGR_MD_OK);
+    assert(munmap(pages,page)==0);_exit(0);
+   }int status=0;assert(waitpid(child,&status,0)==child&&WIFEXITED(status)&&WEXITSTATUS(status)==0);}
   {pid_t child=fork();assert(child>=0);if(child==0){
     PgrMetaExports local=exports;local.debug_get_method_info=CODE;
     PgrMetaBindConfig b=cfg;b.exports=&local;

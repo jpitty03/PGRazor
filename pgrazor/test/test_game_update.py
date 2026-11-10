@@ -135,9 +135,9 @@ class GameUpdateTests(unittest.TestCase):
         rendered = update.render((update.SCHEMA / 'catch_wait.h.in').read_text(), profile['modules']['catch_wait'], profile['bindings'])
         self.assertEqual(rendered, (ROOT / 'pgrazor/native/catch_wait_schema.h').read_text())
         tokens = re.sub(r'\s+', '', re.sub(r'//[^\n]*', '', rendered))
-        # Golden from the shipped 0.435.1 header before moving it into the profile.
+        # Golden from the 0.435.2 bindings checked against signed game metadata/code.
         self.assertEqual(hashlib.sha256(tokens.encode()).hexdigest(),
-                         '812ae37f87e2bbe1921932f942cf8043bfdd98884f055051f0aeef783eb4409e')
+                         'e103e6716a0b372996b9a6b067a199973d85c08c73c71b9650355e8dd5177a68')
 
 
 if __name__ == '__main__':

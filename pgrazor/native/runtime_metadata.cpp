@@ -109,8 +109,8 @@ bool match(const std::string &actual, const char *expected, uint32_t mode) {
 }
 
 // ---- default segment resolver: /proc/self/maps (readable/host_exec/containment) + dl_iterate_phdr
-//      (ELF PT_LOAD PF_X for translated guest code the host mapped read-only). NOT exercised by the
-//      fixture harness; UNVERIFIED on the real Houdini mapping (contract note 4).
+//      (ELF PT_LOAD PF_X for translated guest code the host mapped read-only).
+// Hook patching can split adjacent pages into separate VMAs; validate the entire range.
 #if defined(__linux__)
 struct PhdrCtx { uintptr_t addr; uintptr_t end; bool exec; };
 int phdr_cb(struct dl_phdr_info *info, size_t, void *data) {
@@ -133,18 +133,27 @@ int default_seg(void *, const void *addr, uint64_t size, PgrMetaSegment *out) {
   FILE *fp = std::fopen("/proc/self/maps", "re");
   if (fp == nullptr) return -1;
   char line[512];
+  uintptr_t cursor = a;
+  bool readable = true, writable = false, executable = true;
   while (std::fgets(line, sizeof(line), fp)) {
     uintptr_t lo = 0, hi = 0;
     char perms[8] = {0};
     if (std::sscanf(line, "%zx-%zx %7s", &lo, &hi, perms) != 3) continue;
-    if (a < lo || end > hi) continue;
-    out->found = 1;
-    out->readable = (perms[0] == 'r') ? 1u : 0u;
-    out->writable = (perms[1] == 'w') ? 1u : 0u;
-    out->host_exec = (perms[2] == 'x') ? 1u : 0u;
-    out->seg_base = reinterpret_cast<const void *>(lo);
-    out->seg_size = hi - lo;
-    break;
+    if (hi <= cursor) continue;
+    if (lo > cursor) break;  // an unmapped gap must never validate
+    readable = readable && perms[0] == 'r';
+    writable = writable || perms[1] == 'w';
+    executable = executable && perms[2] == 'x';
+    cursor = hi < end ? hi : end;
+    if (cursor == end) {
+      out->found = 1;
+      out->readable = readable;
+      out->writable = writable;
+      out->host_exec = executable;
+      out->seg_base = addr;
+      out->seg_size = size;
+      break;
+    }
   }
   std::fclose(fp);
   if (!out->found) return 0;
