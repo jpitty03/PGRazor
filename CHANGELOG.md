@@ -11,6 +11,7 @@
 
 - Skip cutscenes fixes
 - During Dyndmax battles, Max energy orbs are automatically grabbed.
+- Updated to latest game version (0.435.2)
 
 ## v0.2.3
 
