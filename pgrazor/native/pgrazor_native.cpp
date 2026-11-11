@@ -50,6 +50,7 @@
 #include "catch_discovery.h"
 #include "camera_sampler.h"
 #include "map_poi.h"
+#include "deep_radar.h"
 #include "routes_gate.h"
 #include "routes_actions.h"
 #include "routes_discovery.h"
@@ -377,6 +378,7 @@ const void *query_feature(uint32_t id, uint32_t version) {
         case 63: return pgrazor_encounter_host_api(version);
         case 69: return pgrazor_interaction_host_api(version);
         case 71: return pgrazor_spawn_host_api(version);
+        case 72: return pgrazor_deep_radar_api(version);
         default: return nullptr;
     }
 }

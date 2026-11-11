@@ -21,6 +21,7 @@
 #include "inventory_host.h"
 #include "items.h"
 #include "map_poi.h"
+#include "deep_radar.h"
 #include "quickball_host.h"
 #include "runtime_bootstrap.h"
 #include "runtime_metadata.h"
@@ -1218,6 +1219,7 @@ static void tick_map_poi(uint64_t tid, uint64_t now_ms, uint64_t lease_ms) {
   }
 
   g_sample.map_poi_scan_serial++;
+  pgr_deep_radar_seed_forts(tid,g_map_poi_out);
   g_sample.last_map_poi_count = g_map_poi_out->count;
 
   static char s_poi_json[1040000];
@@ -2487,6 +2489,7 @@ static int api_tick(uint64_t proven_tid) {
 
   // 3. MapPOI snapshot scan
   tick_map_poi(os_tid, now, rem_lease);
+  pgr_deep_radar_tick(os_tid, rem_lease);
   pgr_gift_batch_tick(os_tid, &g_md);
   pgr_research_tick(os_tid, &g_md);
   pgr_storage_iv_tick(os_tid, &g_md);
@@ -2520,6 +2523,7 @@ static int api_stop(uint64_t proven_tid) {
   uint64_t tid = proven_unity_tid();
   if (!tid || (proven_tid && proven_tid != tid)) return PGR_EH_RETRY;
   g_stopped = true;
+  pgr_deep_radar_stop(tid);
   if (tid != 0) {
     if (g_berries && (g_active_caps & PGR_EH_CAP_BERRIES)) {
       g_berries->update(nullptr, 0, 0, tid);

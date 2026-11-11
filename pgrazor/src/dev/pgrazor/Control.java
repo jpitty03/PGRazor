@@ -60,6 +60,12 @@ public final class Control {
     public static boolean mapPoiAllowed(){return (mapPoiOpen||autoWalkPlanning)&&hostLive();}
     public static void setMapPoiSnapshot(String value){if((mapPoiOpen||autoWalkPlanning)&&value!=null&&value.length()<160000){mapPoiSnapshot=value;mapPoiAt=SystemClock.elapsedRealtime();}}
     public static String mapPoiSnapshot(){return SystemClock.elapsedRealtime()-mapPoiAt<10000?mapPoiSnapshot:"";}
+    private static final DeepRadarState deepRadarState=new DeepRadarState();
+    private static volatile boolean deepRadarOpen;
+    public static void setDeepRadarOpen(boolean open){deepRadarOpen=open;if(!open)deepRadarState.clear(SystemClock.elapsedRealtime());}
+    public static boolean deepRadarAllowed(){return deepRadarOpen&&hostLive()&&AccountProfiles.allowed();}
+    public static void setDeepRadarSnapshot(String value){if(deepRadarAllowed())deepRadarState.accept(value,SystemClock.elapsedRealtime());}
+    public static DeepRadarState.Snapshot deepRadarSnapshot(){return deepRadarAllowed()?deepRadarState.get(SystemClock.elapsedRealtime()):null;}
     public static final MotionEngine engine = new MotionEngine();
     private static final GameRoutesController gameRoutes = new GameRoutesController(
         engine, SystemClock::elapsedRealtime, System::currentTimeMillis);
@@ -1002,7 +1008,7 @@ public final class Control {
         requestInteractionStop();
         OneShotAutomation.reset();
         GiftBatchSettings.reset();
-        foreground = false; autoWalkPlanning=false;mapPoiOpen=false;mapPoiSnapshot="";mapPoiAt=0; mapTapEpoch++; invalidateQuickBallOutcome(); cameraSampleRequest.set(false); invalidateCameraHeading("App backgrounded");
+        foreground = false; setDeepRadarOpen(false); autoWalkPlanning=false;mapPoiOpen=false;mapPoiSnapshot="";mapPoiAt=0; mapTapEpoch++; invalidateQuickBallOutcome(); cameraSampleRequest.set(false); invalidateCameraHeading("App backgrounded");
         // Losing the foreground switches VGP off, clears any target, and never auto-resumes.
         vgp.suspend();
         engine.pause(); saveState();

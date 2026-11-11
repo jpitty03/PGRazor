@@ -4,7 +4,7 @@ PGRazor has three layers:
 
 1. Java controls (`src/dev/pgrazor`) own settings, the menu, overlays, lifecycle, location state, and notifications.
 2. Compiled Java/ART bridges own game lifecycle, permission and location integration. `NativeRuntimeTransport` exchanges typed settings and events with native feature52.
-3. The C++ runtime manager70 drives native hosts60–71 and catch-wait58 on the verified Unity thread. Native metadata, observers and short foreground/map leases gate gameplay operations.
+3. The C++ runtime manager70 drives native hosts60–72 and catch-wait58 on the verified Unity thread. Native metadata, observers and short foreground/map leases gate gameplay operations.
 
 Normal production packaging includes no Frida runtime or PGRazor JavaScript assets. Explicit `--research-runtime` builds retain the embedded agent and the dependencies required by supported survey, scene, interaction and camera probes. Research scripts are outside the production runtime.
 
@@ -37,6 +37,7 @@ Paths below are relative to `pgrazor/`.
 | Menu and overlays | `Pad.java`: attachment, lifecycle, launcher, joystick and overlays; `SettingsPanel.java`: named settings section builders/binders and dialogs; `SettingsUi.java`: shared palette/styling |
 | Map UI and movement | `WorldMapDialog.java`, `MapProjection.java`, `AutoWalkPlanner.java`, `MotionEngine.java`: viewport, gestures, selection, routes and movement |
 | Map tiles and nearby points | `MapTileSource.java`, `MapTileCache.java`, `MapPoiLayer.java`: bounded tile fetching/cache, POI drawing, hit testing and details |
+| Deep Radar prototype | `DeepRadarState.java`, `DeepRadarLayer.java`, native `deep_radar*.cpp` and `s2_geometry.cpp`: passive decoded map responses, bounded encounter/fort caches, exact/fort/S2-area markers and local dex filtering |
 | Live feed | `LiveFeedClient.java`, `LiveFeedData.java`, `LiveFeedFilters.java`, `LiveFeedDialog.java`: service, data, filtering, UI |
 | Bootstrap | `BootstrapProvider.java`, `NativeRuntimeBootstrap.java`, native `runtime_bootstrap.cpp` and `runtime_host.cpp`: compiled startup, Unity scheduling and revocation |
 | GPS | `GameLocationDelivery.java`, `GameLocationPermissions.java`, `NativeLocationGetters.java` and `art/`: compiled location delivery and ART getter hooks |
@@ -80,6 +81,12 @@ Settings setters capture a snapshot under `Control`'s state lock and submit it t
 
 The map view owns projection, gestures, routes and selection. `MapTileSource` owns the bounded worker, viewport generation, retries and UI delivery; `MapTileCache` owns memory/disk bounds and tile validation. `MapPoiLayer` receives projection and snapshot interfaces and owns markers, hit testing and detail-dialog refresh. Closing the map closes both sources and suppresses stale callbacks. Tile cache code has no `Control` dependency.
 
+Deep Radar feature72 observes the version-validated `MapContentHandler` decoded-response callback on the independently established Unity owner thread under a BOOTTIME lease of at most 2,500 ms. The observer uses only allocation-free IL2CPP read exports, copies scalars into a two-packet bounded queue and forwards the original once; it retains no managed references and sends no RPCs. Optional local Pokédex queries use temporary strong roots and re-resolve after safepoints. Transport frame21 appends radar demand at boolean41 and snapshot action59. Closing the map, disabling the layer or backgrounding clears Java demand; account-scoped map preferences participate in settings backup.
+
+The prototype keeps at most 1,024 encounters, 2,048 fort coordinates and 1,024 expiry tombstones. Encounter freshness is capped at 90 seconds; forts expire after ten minutes. Delta omission is not deletion. Exact spawn coordinates take precedence over linked-stop coordinates; stop coordinates are explicitly approximate for the Pokémon. Packet coordinates outside their parent L15 cell remain unlocated. Existing map-POI snapshots seed the fort cache, and bounded local scene reads resolve already-observed encounter IDs using strongly rooted objects; neither lookup extends encounter lifetime or sends RPCs. This fallback is necessary on the tested MuMu session, where packet coordinate fields were zero while scene models held valid locations.
+
+An off-stop per-cell record can display its L15 cell; top-level Nearby snapshots cannot supply that provenance. The tested session supplied Nearby records through the top-level snapshot, so its off-stop records remain unlocated. `DistanceMeters` and the display shiny flag are diagnostic only; false does not establish that a Pokémon is non-shiny. The standalone spherical pocket solver is tested but not enabled in the live layer: request/response position correlation, detection radii and negative evidence need live proof before annular narrowing. No fixed 600 m coverage or hourly despawn prediction is promised.
+
 ## Verification map
 
 `python -B tools/check.py` is the device-free gate used by CI.
@@ -90,6 +97,7 @@ The map view owns projection, gestures, routes and selection. `MapTileSource` ow
 | Control policy, catch outcomes, settings export/import/reload, cooldown | `test/test_control_java.py` |
 | Ordered settings writer, coalescing and failure recovery | `test/test_settings_writer_java.py` |
 | Feed parsing/filtering and settings backup rules | `test/test_live_feed_java.py` |
+| Radar scalar store, S2/pocket geometry, mocked LP64 reader, moving-GC scene lookup and immutable Java snapshots | `test/test_deep_radar_native.py`, `test/test_deep_radar_java.py`; native host fixtures require a C++17 compiler |
 | GPX parsing, validation, round-trips and saved route storage | `test/test_gpx_java.py` |
 | Manifest, packaging, release assembly, private input, script bundles | Remaining `test/test_*.py` files |
 | Runtime behavior and bridge fixtures | Every `test/*-test.cjs` file |

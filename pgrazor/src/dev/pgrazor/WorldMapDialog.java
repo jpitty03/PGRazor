@@ -117,7 +117,9 @@ public final class WorldMapDialog {
             final String key=names[i];toggle.setOnCheckedChangeListener((b,on)->{map.setPoiLayer(bit,on);preferences.edit().putBoolean(key,on).apply();map.refreshPois();});
             layers.addView(toggle,new LinearLayout.LayoutParams(0,-2,1));
         }
+        CheckBox radarToggle=new CheckBox(ui);radarToggle.setText("Radar");radarToggle.setTextSize(13);radarToggle.setContentDescription("Deep Radar passive spawn layer");layers.addView(radarToggle,new LinearLayout.LayoutParams(0,-2,1));
         layout.addView(layers);
+        TextView radarStatus=label(ui,"Deep Radar",12);radarStatus.setPadding(0,dp(activity,6),0,dp(activity,6));layout.addView(radarStatus);map.radarLayer.attach(radarToggle,radarStatus);
         TextView coverage=label(ui,"Nearby locations loaded by the game",12);layout.addView(coverage);map.setPoiStatus(coverage);
         map.refreshPois();
         PlaceUi places = new PlaceUi(activity, ui, map, saved);
@@ -176,6 +178,7 @@ public final class WorldMapDialog {
             });
             return false; // Keep details visible if the cooldown confirmation is cancelled.
         });
+        map.radarLayer.setDestinationActions(walk==null?null:(lat,lon)->{if(!walk.onDestination(lat,lon))return false;dialog.dismiss();return true;},(radarLat,radarLon)->{if(cooldownDialog[0]!=null&&cooldownDialog[0].isShowing())return false;cooldownDialog[0]=TeleportDialog.confirm(activity,radarLat,radarLon,(lat,lon)->{if(!listener.onDestination(lat,lon))return false;dialog.dismiss();return true;});return false;});
         DialogLifecycle.bind(activity, dialog, () -> { if(hotspotsDialog[0]!=null)hotspotsDialog[0].dismiss(); if(cooldownDialog[0]!=null)cooldownDialog[0].dismiss(); if(searchDialog[0]!=null)searchDialog[0].dismiss(); if(routes!=null)routes.close(); places.close(); map.close(); });
         dialog.setOnShowListener(d -> {
             MapTheme.fullScreen(dialog); MapTheme.style(layout); MapTheme.styleButtons(dialog);
@@ -479,6 +482,7 @@ public final class WorldMapDialog {
         private final int tileSize, slop;
         private final MapTileSource tiles;
         private final MapPoiLayer poiLayer;
+        private final DeepRadarLayer radarLayer;
         private List<double[]> route = Collections.emptyList();
         private volatile boolean closed;
         private double centerX, centerY, latitude, longitude;
@@ -514,6 +518,7 @@ public final class WorldMapDialog {
                 public void setOpen(boolean open) { Control.setMapPoiOpen(open); }
                 public String read() { return Control.mapPoiSnapshot(); }
             }, this::invalidate);
+            radarLayer=new DeepRadarLayer(activity,new MapPoiLayer.Projector(){public float screenX(double lon){return projectX(lon);}public float screenY(double lat){return projectY(lat);}public int width(){return getWidth();}public int height(){return getHeight();}},this::invalidate);
             setContentDescription("World map. Blue dot is your current location; red pin is the destination. Drag to pan, pinch to zoom, tap to select destination.");
             // Use the activity hardware renderer; tile I/O stays on the worker.
             pinch=new ScaleGestureDetector(activity,new ScaleGestureDetector.SimpleOnScaleGestureListener(){
@@ -595,6 +600,7 @@ public final class WorldMapDialog {
                 }
             }
             poiLayer.draw(canvas);
+            radarLayer.draw(canvas);
             drawRoute(canvas,false);
             float markerX = (float)(getWidth() / 2.0 + MapProjection.deltaX(MapProjection.x(longitude), centerX) * world());
             float markerY = (float)(getHeight() / 2.0 + (MapProjection.y(latitude) - centerY) * world());
@@ -690,6 +696,7 @@ public final class WorldMapDialog {
                     boolean insideWorld = zoom != 0 || (Math.abs(event.getX() - getWidth() / 2.0) <= world() / 2 && Math.abs(event.getY() - getHeight() / 2.0) <= world() / 2);
                     if (!dragged && !multiTouch) {
                         // Browsing marker details never moves the destination; movement needs an explicit action.
+                        if(radarLayer.tap(event.getX(),event.getY())){performClick();getParent().requestDisallowInterceptTouchEvent(false);return true;}
                         List<JSONObject> hits = poiLayer.hasLayers() ? poiLayer.hits(event.getX(), event.getY()) : Collections.<JSONObject>emptyList();
                         if (!hits.isEmpty()) { performClick(); poiLayer.openDetails(hits); getParent().requestDisallowInterceptTouchEvent(false); return true; }
                         if (insideWorld) {
@@ -710,6 +717,7 @@ public final class WorldMapDialog {
             if (closed) return;
             closed = true;
             poiLayer.close();
+            radarLayer.close();
             tiles.close();
         }
         protected void onDetachedFromWindow() { close(); super.onDetachedFromWindow(); }

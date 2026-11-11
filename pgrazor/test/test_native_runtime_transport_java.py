@@ -21,6 +21,8 @@ def control_shell():
     specs = re.findall(r'^\s*"(\w+):([^":]*):([^":]+)"', mailbox, re.M)
     specs.append(('eventBoxesAllowed', '', 'boolean'))
     specs.append(('gymRepeatEnabled', '', 'boolean'))
+    specs.append(('deepRadarAllowed', '', 'boolean'))
+    specs.append(('setDeepRadarSnapshot', 'String', 'void'))
     specs.append(('smartCatchConfig', '', 'String'))
     specs.append(('gymAutomationConfig', '', 'String'))
     specs.append(('buddyEmotionConfig', '', 'String'))
@@ -48,6 +50,10 @@ def control_shell():
             body = 'reads++;return snapshot;'
         elif name == 'gymRepeatEnabled':
             body = 'reads++;return gymRepeat;'
+        elif name == 'deepRadarAllowed':
+            body = 'reads++;return radar;'
+        elif name == 'setDeepRadarSnapshot':
+            body = 'lastRadar=a0;'
         elif name == 'gymAutomationConfig':
             body = 'reads++;return "1;1;0;0;50;10";'
         elif name == 'oneShotAutomationConfig':
@@ -94,11 +100,12 @@ public final class Control {
  public static void connect(){connects++;}
  public static void renewLease(){renewals++;}
  public static void disconnect(){disconnects++;}
- public static int reads,mutations; public static boolean pulse,throwMutation,gymRepeat;
+ public static int reads,mutations; public static boolean pulse,throwMutation,gymRepeat,radar;
+ public static String lastRadar="";
  public static long timestamp;
  public static String[] snapshot={"command","18446744073709551615"};
  public static Runnable onMutation; public static String lastDiagnostic=""; public static String badBerry="";
- public static void reset(){reads=mutations=0;pulse=throwMutation=gymRepeat=false;timestamp=0;onMutation=null;lastDiagnostic="";badBerry="";snapshot=new String[]{"command","18446744073709551615"};}
+ public static void reset(){reads=mutations=0;pulse=throwMutation=gymRepeat=radar=false;lastRadar="";timestamp=0;onMutation=null;lastDiagnostic="";badBerry="";snapshot=new String[]{"command","18446744073709551615"};}
 ''' + '\n'.join(methods) + '\n}\n'
 
 

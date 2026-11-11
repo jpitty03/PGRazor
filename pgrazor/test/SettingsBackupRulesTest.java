@@ -109,6 +109,11 @@ public class SettingsBackupRulesTest {
         v=valid();v.getJSONObject("preferences").put("pgrazor-overlays",new JSONObject().put("transfer.fx",0.5).put("transfer.fy",0.25));SettingsBackupRules.validate(v);
         v=valid();v.getJSONObject("preferences").put("pgrazor-overlays",new JSONObject().put("transfer.fx",1.5));rejects(v);
         v=valid();v.getJSONObject("preferences").put("pgrazor-livefeed",new JSONObject().put("radius","2"));rejects(v);
+        v=valid();v.getJSONObject("preferences").put("pgrazor-map",new JSONObject().put("DeepRadar",true).put("DeepRadarUnregistered",false).put("DeepRadarSpecies","201,885"));SettingsBackupRules.validate(v);
+        for(String bad:new String[]{"0","100001","25,,26","bad"}){
+            v=valid();v.getJSONObject("preferences").put("pgrazor-map",new JSONObject().put("DeepRadarSpecies",bad));rejects(v);
+        }
+        v=valid();v.getJSONObject("preferences").put("pgrazor-map",new JSONObject().put("DeepRadar","yes"));rejects(v);
         String places="[{\"id\":\"a\",\"name\":\"Home\",\"latitude\":40,\"longitude\":-70}]";
         v=valid();v.getJSONObject("preferences").put("pgrazor-saved-places-v1",new JSONObject().put("places",places));SettingsBackupRules.validate(v);
         v.getJSONObject("preferences").getJSONObject("pgrazor-saved-places-v1").put("places",places.replace("40","400"));rejects(v);

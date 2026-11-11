@@ -87,7 +87,8 @@ constexpr ActionSchema kActions[PGR_TRANSPORT_ACTIONS] = {
   {4, 0, {ST_B, ST_D, ST_D, ST_B}}, // 55 setVgpTarget(boolean,double,double,boolean)
   {0, 1, {}},                       // 56 transferResult(String)
   {4, 0, {ST_D, ST_I, ST_B, ST_L}}, // 57 updateCameraHeadingAt(double,int,boolean,long)
-  {1, 1, {ST_B}}                    // 58 vgpResult(String,boolean)
+  {1, 1, {ST_B}},                   // 58 vgpResult(String,boolean)
+  {0, 1, {}}                       // 59 setDeepRadarSnapshot(String)
 };
 
 // Validate one scalar against its compiled type. Returns PGR_TRANSPORT_OK or PGR_TRANSPORT_ERR_DOMAIN. Longs are NOT bounded
@@ -137,6 +138,7 @@ constexpr bool kGuardedBool[PGR_TRANSPORT_BOOLS] = {
   false, true,  true,  true,  true,  true,  true,  true,  false, true,  // 20..29
   false, false, false, false, false, false, true,  true,  false, true, // 30..39 (eventBoxesAllowed)
   false,                                                                // 40 (gymRepeatEnabled: user setting, not a guarded readiness flag)
+  true,                                                                 // 41 deepRadarAllowed: fail closed on stale host policy
 };
 
 // --- little-endian frame accessors (the wire is LE; ARM64 is LE, so these are plain loads/stores) ---------

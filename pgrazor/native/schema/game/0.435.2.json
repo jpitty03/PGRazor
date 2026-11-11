@@ -11379,6 +11379,518 @@
         ],
         "purpose": "Niantic.Holoholo.Gym.GymBattleState.ExitBattleResultsState 0.435.2 first24bytes"
       }
+    },
+    "deep_radar": {
+      "ResponseStatus_name": {
+        "kind": "name",
+        "value": "Status",
+        "purpose": "Decoded radar field name"
+      },
+      "ResponseStatus_offset": {
+        "kind": "offset",
+        "value": "0x18",
+        "purpose": "Decoded radar field offset"
+      },
+      "ResponseSnapshot_name": {
+        "kind": "name",
+        "value": "NearbyPokemonSnapshot",
+        "purpose": "Decoded radar field name"
+      },
+      "ResponseSnapshot_offset": {
+        "kind": "offset",
+        "value": "0x30",
+        "purpose": "Decoded radar field offset"
+      },
+      "ResponsePinned_name": {
+        "kind": "name",
+        "value": "PinnedNearbyPokemonSnapshot",
+        "purpose": "Decoded radar field name"
+      },
+      "ResponsePinned_offset": {
+        "kind": "offset",
+        "value": "0x38",
+        "purpose": "Decoded radar field offset"
+      },
+      "CellId_name": {
+        "kind": "name",
+        "value": "S2CellId",
+        "purpose": "Decoded radar field name"
+      },
+      "CellId_offset": {
+        "kind": "offset",
+        "value": "0x10",
+        "purpose": "Decoded radar field offset"
+      },
+      "CellTime_name": {
+        "kind": "name",
+        "value": "AsOfTimeMs",
+        "purpose": "Decoded radar field name"
+      },
+      "CellTime_offset": {
+        "kind": "offset",
+        "value": "0x18",
+        "purpose": "Decoded radar field offset"
+      },
+      "CellTruncated_name": {
+        "kind": "name",
+        "value": "IsTruncatedList",
+        "purpose": "Decoded radar field name"
+      },
+      "CellTruncated_offset": {
+        "kind": "offset",
+        "value": "0x40",
+        "purpose": "Decoded radar field offset"
+      },
+      "NearbySpecies_name": {
+        "kind": "name",
+        "value": "PokedexNumber",
+        "purpose": "Decoded radar field name"
+      },
+      "NearbySpecies_offset": {
+        "kind": "offset",
+        "value": "0x10",
+        "purpose": "Decoded radar field offset"
+      },
+      "NearbyDistance_name": {
+        "kind": "name",
+        "value": "DistanceMeters",
+        "purpose": "Decoded radar field name"
+      },
+      "NearbyDistance_offset": {
+        "kind": "offset",
+        "value": "0x14",
+        "purpose": "Decoded radar field offset"
+      },
+      "NearbyId_name": {
+        "kind": "name",
+        "value": "EncounterId",
+        "purpose": "Decoded radar field name"
+      },
+      "NearbyId_offset": {
+        "kind": "offset",
+        "value": "0x18",
+        "purpose": "Decoded radar field offset"
+      },
+      "NearbyFort_name": {
+        "kind": "name",
+        "value": "FortId",
+        "purpose": "Decoded radar field name"
+      },
+      "NearbyFort_offset": {
+        "kind": "offset",
+        "value": "0x20",
+        "purpose": "Decoded radar field offset"
+      },
+      "NearbyDisplay_name": {
+        "kind": "name",
+        "value": "PokemonDisplay",
+        "purpose": "Decoded radar field name"
+      },
+      "NearbyDisplay_offset": {
+        "kind": "offset",
+        "value": "0x30",
+        "purpose": "Decoded radar field offset"
+      },
+      "WildId_name": {
+        "kind": "name",
+        "value": "EncounterId",
+        "purpose": "Decoded radar field name"
+      },
+      "WildId_offset": {
+        "kind": "offset",
+        "value": "0x10",
+        "purpose": "Decoded radar field offset"
+      },
+      "WildLat_name": {
+        "kind": "name",
+        "value": "Latitude",
+        "purpose": "Decoded radar field name"
+      },
+      "WildLat_offset": {
+        "kind": "offset",
+        "value": "0x20",
+        "purpose": "Decoded radar field offset"
+      },
+      "WildLon_name": {
+        "kind": "name",
+        "value": "Longitude",
+        "purpose": "Decoded radar field name"
+      },
+      "WildLon_offset": {
+        "kind": "offset",
+        "value": "0x28",
+        "purpose": "Decoded radar field offset"
+      },
+      "WildSpawn_name": {
+        "kind": "name",
+        "value": "SpawnPointId",
+        "purpose": "Decoded radar field name"
+      },
+      "WildSpawn_offset": {
+        "kind": "offset",
+        "value": "0x30",
+        "purpose": "Decoded radar field offset"
+      },
+      "WildPokemon_name": {
+        "kind": "name",
+        "value": "Pokemon",
+        "purpose": "Decoded radar field name"
+      },
+      "WildPokemon_offset": {
+        "kind": "offset",
+        "value": "0x38",
+        "purpose": "Decoded radar field offset"
+      },
+      "WildTth_name": {
+        "kind": "name",
+        "value": "TimeTillHiddenMs",
+        "purpose": "Decoded radar field name"
+      },
+      "WildTth_offset": {
+        "kind": "offset",
+        "value": "0x40",
+        "purpose": "Decoded radar field offset"
+      },
+      "MapId_name": {
+        "kind": "name",
+        "value": "EncounterId",
+        "purpose": "Decoded radar field name"
+      },
+      "MapId_offset": {
+        "kind": "offset",
+        "value": "0x18",
+        "purpose": "Decoded radar field offset"
+      },
+      "MapLat_name": {
+        "kind": "name",
+        "value": "Latitude",
+        "purpose": "Decoded radar field name"
+      },
+      "MapLat_offset": {
+        "kind": "offset",
+        "value": "0x30",
+        "purpose": "Decoded radar field offset"
+      },
+      "MapLon_name": {
+        "kind": "name",
+        "value": "Longitude",
+        "purpose": "Decoded radar field name"
+      },
+      "MapLon_offset": {
+        "kind": "offset",
+        "value": "0x38",
+        "purpose": "Decoded radar field offset"
+      },
+      "MapSpawn_name": {
+        "kind": "name",
+        "value": "SpawnpointId",
+        "purpose": "Decoded radar field name"
+      },
+      "MapSpawn_offset": {
+        "kind": "offset",
+        "value": "0x10",
+        "purpose": "Decoded radar field offset"
+      },
+      "MapSpecies_name": {
+        "kind": "name",
+        "value": "PokedexTypeId",
+        "purpose": "Decoded radar field name"
+      },
+      "MapSpecies_offset": {
+        "kind": "offset",
+        "value": "0x20",
+        "purpose": "Decoded radar field offset"
+      },
+      "MapExpiry_name": {
+        "kind": "name",
+        "value": "ExpirationTimeMs",
+        "purpose": "Decoded radar field name"
+      },
+      "MapExpiry_offset": {
+        "kind": "offset",
+        "value": "0x28",
+        "purpose": "Decoded radar field offset"
+      },
+      "MapDisplay_name": {
+        "kind": "name",
+        "value": "PokemonDisplay",
+        "purpose": "Decoded radar field name"
+      },
+      "MapDisplay_offset": {
+        "kind": "offset",
+        "value": "0x40",
+        "purpose": "Decoded radar field offset"
+      },
+      "FortId_name": {
+        "kind": "name",
+        "value": "FortId",
+        "purpose": "Decoded radar field name"
+      },
+      "FortId_offset": {
+        "kind": "offset",
+        "value": "0x10",
+        "purpose": "Decoded radar field offset"
+      },
+      "FortLat_name": {
+        "kind": "name",
+        "value": "Latitude",
+        "purpose": "Decoded radar field name"
+      },
+      "FortLat_offset": {
+        "kind": "offset",
+        "value": "0x20",
+        "purpose": "Decoded radar field offset"
+      },
+      "FortLon_name": {
+        "kind": "name",
+        "value": "Longitude",
+        "purpose": "Decoded radar field name"
+      },
+      "FortLon_offset": {
+        "kind": "offset",
+        "value": "0x28",
+        "purpose": "Decoded radar field offset"
+      },
+      "PokemonSpecies_name": {
+        "kind": "name",
+        "value": "pokemonId_",
+        "purpose": "Decoded radar field name"
+      },
+      "PokemonSpecies_offset": {
+        "kind": "offset",
+        "value": "0x28",
+        "purpose": "Decoded radar field offset"
+      },
+      "PokemonDisplay_name": {
+        "kind": "name",
+        "value": "pokemonDisplay_",
+        "purpose": "Decoded radar field name"
+      },
+      "PokemonDisplay_offset": {
+        "kind": "offset",
+        "value": "0xd8",
+        "purpose": "Decoded radar field offset"
+      },
+      "DisplayForm_name": {
+        "kind": "name",
+        "value": "Form",
+        "purpose": "Decoded radar field name"
+      },
+      "DisplayForm_offset": {
+        "kind": "offset",
+        "value": "0x1c",
+        "purpose": "Decoded radar field offset"
+      },
+      "DisplayCostume_name": {
+        "kind": "name",
+        "value": "Costume",
+        "purpose": "Decoded radar field name"
+      },
+      "DisplayCostume_offset": {
+        "kind": "offset",
+        "value": "0x10",
+        "purpose": "Decoded radar field offset"
+      },
+      "DisplayGender_name": {
+        "kind": "name",
+        "value": "Gender",
+        "purpose": "Decoded radar field name"
+      },
+      "DisplayGender_offset": {
+        "kind": "offset",
+        "value": "0x14",
+        "purpose": "Decoded radar field offset"
+      },
+      "SnapshotStatus_name": {
+        "kind": "name",
+        "value": "Status",
+        "purpose": "Decoded radar field name"
+      },
+      "SnapshotStatus_offset": {
+        "kind": "offset",
+        "value": "0x10",
+        "purpose": "Decoded radar field offset"
+      },
+      "PinnedStatus_name": {
+        "kind": "name",
+        "value": "Status",
+        "purpose": "Decoded radar field name"
+      },
+      "PinnedStatus_offset": {
+        "kind": "offset",
+        "value": "0x10",
+        "purpose": "Decoded radar field offset"
+      },
+      "PinnedPokemon_name": {
+        "kind": "name",
+        "value": "Pokemon",
+        "purpose": "Decoded radar field name"
+      },
+      "PinnedPokemon_offset": {
+        "kind": "offset",
+        "value": "0x20",
+        "purpose": "Decoded radar field offset"
+      },
+      "CellsList_name": {
+        "kind": "name",
+        "value": "MapCell",
+        "purpose": "Decoded radar field name"
+      },
+      "CellsList_offset": {
+        "kind": "offset",
+        "value": "0x10",
+        "purpose": "Decoded radar field offset"
+      },
+      "FortsList_name": {
+        "kind": "name",
+        "value": "Fort",
+        "purpose": "Decoded radar field name"
+      },
+      "FortsList_offset": {
+        "kind": "offset",
+        "value": "0x20",
+        "purpose": "Decoded radar field offset"
+      },
+      "NearbyList_name": {
+        "kind": "name",
+        "value": "NearbyPokemon",
+        "purpose": "Decoded radar field name"
+      },
+      "NearbyList_offset": {
+        "kind": "offset",
+        "value": "0x60",
+        "purpose": "Decoded radar field offset"
+      },
+      "WildList_name": {
+        "kind": "name",
+        "value": "WildPokemon",
+        "purpose": "Decoded radar field name"
+      },
+      "WildList_offset": {
+        "kind": "offset",
+        "value": "0x30",
+        "purpose": "Decoded radar field offset"
+      },
+      "MapList_name": {
+        "kind": "name",
+        "value": "CatchablePokemon",
+        "purpose": "Decoded radar field name"
+      },
+      "MapList_offset": {
+        "kind": "offset",
+        "value": "0x58",
+        "purpose": "Decoded radar field offset"
+      },
+      "SnapshotList_name": {
+        "kind": "name",
+        "value": "Pokemon",
+        "purpose": "Decoded radar field name"
+      },
+      "SnapshotList_offset": {
+        "kind": "offset",
+        "value": "0x18",
+        "purpose": "Decoded radar field offset"
+      },
+      "array_offset": {
+        "kind": "offset",
+        "value": "0x10",
+        "purpose": "Validated closed RepeatedField array layout"
+      },
+      "count_offset": {
+        "kind": "offset",
+        "value": "0x18",
+        "purpose": "Validated closed RepeatedField count layout"
+      },
+      "response_name": {
+        "kind": "name",
+        "value": "cmql",
+        "purpose": "Validated passive radar method name"
+      },
+      "response_rva": {
+        "kind": "rva",
+        "value": "0x9e216d4",
+        "purpose": "Validated ARM64 radar method entry"
+      },
+      "response_fingerprint": {
+        "kind": "bytes",
+        "value": [
+          "0xfe",
+          "0x5f",
+          "0xbd",
+          "0xa9",
+          "0xf6",
+          "0x57",
+          "0x1",
+          "0xa9",
+          "0xf4",
+          "0x4f",
+          "0x2",
+          "0xa9",
+          "0xf6",
+          "0x98",
+          "0x2",
+          "0xb0",
+          "0xf5",
+          "0x3",
+          "0x2",
+          "0x2a",
+          "0xf4",
+          "0x3",
+          "0x1",
+          "0xaa"
+        ],
+        "purpose": "Verified 0.435.2 ARM64 method fingerprint"
+      },
+      "captured_name": {
+        "kind": "name",
+        "value": "HasCaptured",
+        "purpose": "Validated passive radar method name"
+      },
+      "captured_rva": {
+        "kind": "rva",
+        "value": "0x9ff9c44",
+        "purpose": "Validated ARM64 radar method entry"
+      },
+      "captured_fingerprint": {
+        "kind": "bytes",
+        "value": [
+          "0xfe",
+          "0xf",
+          "0x1f",
+          "0xf8",
+          "0xe1",
+          "0x3",
+          "0x1",
+          "0x2a",
+          "0xd",
+          "0x0",
+          "0x0",
+          "0x94",
+          "0x1f",
+          "0x0",
+          "0x0",
+          "0x71",
+          "0xe0",
+          "0xd7",
+          "0x9f",
+          "0x1a",
+          "0xfe",
+          "0x7",
+          "0x41",
+          "0xf8"
+        ],
+        "purpose": "Verified 0.435.2 ARM64 method fingerprint"
+      },
+      "DisplayShiny_name": {
+        "kind": "name",
+        "value": "Shiny",
+        "purpose": "Decoded display shiny flag (false remains unknown)"
+      },
+      "DisplayShiny_offset": {
+        "kind": "offset",
+        "value": "0x18",
+        "purpose": "Verified PokemonDisplayProto.Shiny System.Boolean offset"
+      }
     }
   },
   "schemas": {

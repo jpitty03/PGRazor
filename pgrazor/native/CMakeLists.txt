@@ -97,6 +97,12 @@ add_library(pgrazor_core SHARED
   catch_discovery.cpp
   camera_sampler.cpp
   map_poi.cpp
+  deep_radar.cpp
+  deep_radar_reader.cpp
+  deep_radar_metadata.cpp
+  deep_radar_dex.cpp
+  deep_radar_store.cpp
+  s2_geometry.cpp
   routes_gate.cpp
   routes_actions.cpp
   routes_discovery.cpp
