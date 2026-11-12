@@ -128,7 +128,8 @@ def build_installer(module_zip, target, version, folder):
     manifest_path.parent.mkdir(exist_ok=True)
     manifest_path.write_text(_manifest(version), encoding='utf-8')
     unsigned = folder / 'installer-unsigned.apk'
-    build.run(build.TOOLS / 'aapt.exe', 'package', '-f', '-M', manifest_path, '-I', build.ANDROID, '-F', unsigned)
+    build.run(build.TOOLS / 'aapt.exe', 'package', '-f', '-M', manifest_path,
+              '-S', INSTALLER_DIR / 'res', '-I', build.ANDROID, '-F', unsigned)
     with zipfile.ZipFile(unsigned, 'a', zipfile.ZIP_DEFLATED) as out:
         out.write(dex_dir / 'classes.dex', 'classes.dex')
         # Already a compressed zip; store it so the APK is not needlessly recompressed.

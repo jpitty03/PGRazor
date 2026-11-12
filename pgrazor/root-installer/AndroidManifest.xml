@@ -5,7 +5,7 @@
   <queries>
     <package android:name="com.nianticlabs.pokemongo" />
   </queries>
-  <application android:label="PGRazor Root installer" android:theme="@android:style/Theme.Material.NoActionBar" android:allowBackup="false">
+  <application android:label="PGRazor Root installer" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher" android:theme="@android:style/Theme.Material.NoActionBar" android:allowBackup="false">
     <activity android:name="dev.pgrazor.root.RestartActivity" android:exported="true" android:screenOrientation="portrait" android:excludeFromRecents="true" />
     <activity android:name="dev.pgrazor.root.InstallerActivity" android:exported="true">
       <intent-filter>
