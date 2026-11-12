@@ -38,6 +38,11 @@ def message(release, role_id=''):
     apk = next((a['browser_download_url'] for a in assets if a.get('name') == 'PGRazor.apk'), None)
     highlight = next((a['browser_download_url'] for a in assets if a.get('name') == 'release-highlight.png'), None)
     fields = [{'name': 'Download', 'value': '[Install PGRazor.apk](' + apk + ')'}] if apk else []
+    for filename, label in (('PGRazor-Root.apk', 'Root installer APK'),
+                            ('PGRazor-Root-module.zip', 'Root module ZIP')):
+        asset = next((a for a in assets if a.get('name') == filename), None)
+        if asset:
+            fields.append({'name': label, 'value': '[' + filename + '](' + asset['browser_download_url'] + ')'})
     # Keep the support link visible even when long release notes are truncated.
     if 'https://ko-fi.com/pgrazor' not in notes:
         fields.append({'name': 'Support development', 'value': '[Ko-fi](https://ko-fi.com/pgrazor) (optional)'})

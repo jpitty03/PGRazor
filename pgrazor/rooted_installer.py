@@ -77,6 +77,23 @@ def _manifest(version):
     return text
 
 
+def compile_sources(target, version, folder, module_name):
+    """Compile all installer entry points; source CI needs no module or signing key."""
+    sources = sorted((INSTALLER_DIR / 'src').rglob('*.java'))
+    if not sources:
+        raise RuntimeError('Installer sources missing under ' + str(INSTALLER_DIR / 'src'))
+    classes = Path(folder) / ('installer-compile-' + uuid.uuid4().hex[:12])
+    classes.mkdir(parents=True)
+    config = classes / 'InstallerConfig.java'
+    config.write_text(_config_source(target, version, module_name), encoding='utf-8')
+    build.run('javac', '-encoding', 'UTF-8', '-source', '8', '-target', '8',
+              '-classpath', build.ANDROID, '-d', classes, config, *sources)
+    for name in EXPECTED_CLASSES:
+        if not (classes / 'dev/pgrazor/root' / (name + '.class')).is_file():
+            raise RuntimeError('Installer compilation produced no ' + name + ' class')
+    return classes
+
+
 def build_installer(module_zip, target, version, folder):
     """Compiles, packages and signs the PGRazor Root installer APK; returns the signed APK Path.
 
@@ -101,20 +118,7 @@ def build_installer(module_zip, target, version, folder):
     if not module_zip.is_file():
         raise FileNotFoundError('Module zip not found: ' + str(module_zip))
     version = 'v' + str(version).removeprefix('v')
-    sources = sorted((INSTALLER_DIR / 'src').rglob('*.java'))
-    if not sources:
-        raise RuntimeError('Installer sources missing under ' + str(INSTALLER_DIR / 'src'))
-
-    classes = folder / ('installer-compile-' + uuid.uuid4().hex[:12])
-    classes.mkdir(parents=True)
-    config = classes / 'InstallerConfig.java'
-    config.write_text(_config_source(target, version, module_zip.name), encoding='utf-8')
-    build.run('javac', '-encoding', 'UTF-8', '-source', '8', '-target', '8',
-              '-classpath', build.ANDROID, '-d', classes, config, *sources)
-    for name in EXPECTED_CLASSES:
-        if not (classes / 'dev/pgrazor/root' / (name + '.class')).is_file():
-            raise RuntimeError('Installer compilation produced no ' + name
-                               + ' class. Check the SDK/JDK and javac output above.')
+    classes = compile_sources(target, version, folder, module_zip.name)
 
     jar = folder / 'installer-classes.jar'
     with zipfile.ZipFile(jar, 'w', zipfile.ZIP_DEFLATED) as out:
@@ -147,8 +151,22 @@ def build_installer(module_zip, target, version, folder):
 def main(argv=None):
     """Standalone build from an existing rooted-run report.json (has module, target, version)."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument('report', type=Path, help='report.json from a rooted.py run')
+    parser.add_argument('report', type=Path, nargs='?', help='report.json from a rooted.py run')
+    parser.add_argument('--check', action='store_true', help='Compile installer sources without packaging or signing')
     args = parser.parse_args(argv)
+    if args.check:
+        if args.report:
+            parser.error('--check does not take a build report')
+        import tempfile
+        schema = ROOT / 'native/schema/game'
+        profile = json.loads((schema / json.loads((schema / 'current.json').read_text())['profile']).read_text())
+        target = {'package': 'com.nianticlabs.pokemongo', 'versionCode': profile['version_code'],
+                  'versionName': profile['game_version']}
+        with tempfile.TemporaryDirectory(prefix='pgrazor-installer-check-') as folder:
+            compile_sources(target, build.release_version(ROOT), folder, 'PGRazor-Root-module.zip')
+        return
+    if not args.report:
+        parser.error('report is required unless --check is supplied')
     report = json.loads(args.report.read_text(encoding='utf-8'))
     build_installer(Path(report['module']), report['target'], report['version'], args.report.resolve().parent)
 

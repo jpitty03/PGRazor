@@ -4,11 +4,14 @@
 
 ### New features
 
-- **PGRazor Root (development):** A separate installer loads PGRazor into the official game through a Zygisk module. It includes in-game logs, settings backups, and account-switch restart support.
+- **PGRazor Root (experimental):** A separate installer loads PGRazor into the official game through a Zygisk module. It includes in-game logs, settings backups, and account-switch restart support. Native hook installation can still fail on some Samsung devices.
 - **Rooted log + settings export:** Save the current log and a single-line settings snapshot together as a ZIP from the in-game Run log dialog.
 
 ### Improvements & fixes
 
+- Rooted startup can resolve Android's loader through its loaded system libraries when the default symbol lookup is unavailable, with more specific failure diagnostics.
+- Account restoration waits briefly for the game activity to resume before requesting its restart, avoiding a blocked handoff during sign-in transitions.
+- Shundo Sniper waits for account and gameplay readiness before teleporting and shows the blocking reason instead of continuing to display “Checking”.
 - Brought the rooted build up to date with v0.2.5 features and Pokémon GO 0.435.2 support, including hook/readiness diagnostics and phone details. Rooted startup logs distinguish waiting for Unity rendering from native library loading.
 - Added more cutscene skips
 - Shundo Sniper: stops and asks you to restart the game when the map stops loading Pokémon, instead of teleporting with no results. It also uses less data and searches the map less often while waiting.

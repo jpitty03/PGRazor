@@ -2,7 +2,9 @@
 
 PGRazor Root is a separate installer (`dev.pgrazor.root`) for the official, Niantic-signed Pokémon GO app. It carries a Zygisk module and installs it through Magisk 27+, KernelSU, or APatch. KernelSU and APatch also need a Zygisk provider. The patched `PGRazor.apk` remains the non-root build.
 
-This is development work. See the internal build/device receipt for the exact validation status before distributing a candidate. Installing the module does not modify the game's APK or its signing certificate.
+Rooted and non-rooted builds are maintained together on main and produced by the same release workflow. Rooted support remains experimental: native hook installation can still fail on some Samsung devices. Installing the module does not modify the game's APK or its signing certificate.
+
+If the overlay works but native features stay unavailable, check `native-bootstrap-pending` and `native-runtime-health` in Run log. The loader tries already-loaded system libraries when the default Android loader symbol is unavailable; it never loads a second game runtime. A symbol-unavailable or namespace-open-null reason needs a device-specific log. If bootstrap succeeds but `native-runtime-start` reports `scheduler-install` / `invoke-hook` with `invokeRc=-1`, native gameplay did not start; Re-check in the installer only reads status and does not retry those hooks. If Shundo Sniper reports an account wait, open Switch account for details; an unfinished account restoration keeps automation paused until the game restarts and verifies the account.
 
 ## Installation
 

@@ -217,7 +217,7 @@ def package(source, *,research_runtime=False,panel_only=False,download=False,pre
     if game_runtime_abi != 'auto' and game_runtime_abi not in runtime_assets.ARCHES: raise ValueError('Unsupported game runtime ABI')
     abis=[probe_abi] if preview else (sorted(runtime_assets.ARCHES) if game_runtime_abi == 'auto' else [game_runtime_abi])
     if preview and probe_abi not in runtime_assets.ARCHES: raise ValueError('Probe requires a supported 64-bit ABI')
-    mode={'gadget':not panel_only,'version':runtime_assets.VERSION,'preferredAbi':'' if not preview and game_runtime_abi == 'auto' else abis[0], 'runtimeAbis':abis}
+    mode={'gadget':not panel_only,'version':runtime_assets.VERSION,'pgrazorVersion':build.release_version(ROOT),'preferredAbi':'' if not preview and game_runtime_abi == 'auto' else abis[0], 'runtimeAbis':abis}
     # Compiled-only gameplay carries no Gadget runtime; bootstrap takes the compiled production path.
     if compiled_gameplay: mode['gadget']=False; mode['compiledGameplay']=True
     if research_runtime: mode['researchRuntime']=True

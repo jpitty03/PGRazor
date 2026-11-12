@@ -9,4 +9,4 @@
 - Brief description of a fix or improvement.
 - Various UI improvements and minor fixes.
 
-[Download APK](https://github.com/jpitty03/PGRazor/releases/download/vVERSION/PGRazor.apk) · [GitHub release](https://github.com/jpitty03/PGRazor/releases/tag/vVERSION)
+[Non-root APK](https://github.com/jpitty03/PGRazor/releases/download/vVERSION/PGRazor.apk) · [Root installer APK](https://github.com/jpitty03/PGRazor/releases/download/vVERSION/PGRazor-Root.apk) · [Root module ZIP](https://github.com/jpitty03/PGRazor/releases/download/vVERSION/PGRazor-Root-module.zip) · [GitHub release](https://github.com/jpitty03/PGRazor/releases/tag/vVERSION)
