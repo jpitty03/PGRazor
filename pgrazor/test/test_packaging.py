@@ -214,10 +214,12 @@ class PackageTests(unittest.TestCase):
 
 class CleanupIntegrationTests(unittest.TestCase):
     def test_cleanup_uses_native_powershell_apply_without_shell_interpolation(self):
-        with patch.object(nonroot.subprocess,'run') as run:
-            nonroot.cleanup_generated_builds()
-        run.assert_called_once_with(['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass',
-            '-File',str(ROOT/'cleanup.ps1'),'-Apply'],check=True,timeout=300)
+        for available in (None, r'C:\Program Files\PowerShell\7\pwsh.exe'):
+            with self.subTest(available=available), patch.object(nonroot.shutil,'which',return_value=available), \
+                 patch.object(nonroot.subprocess,'run') as run:
+                nonroot.cleanup_generated_builds()
+            run.assert_called_once_with([available or 'powershell.exe','-NoProfile','-ExecutionPolicy','Bypass',
+                '-File',str(ROOT/'cleanup.ps1'),'-Apply'],check=True,timeout=300)
 
     def test_cleanup_failures_warn_without_invalidating_packaging(self):
         failures=[OSError('PowerShell unavailable'),nonroot.subprocess.CalledProcessError(1,['cleanup']),
