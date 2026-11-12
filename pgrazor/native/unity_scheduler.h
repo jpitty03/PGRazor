@@ -77,6 +77,40 @@ struct PgrUnitySchedulerApi3 {
  int (*snapshot)(PgrUnitySchedulerSnapshot *);
  uint64_t (*executing_generation)(uint64_t tid); // zero outside original/owner/attached/live generation
 };
+// Which install() stage last failed. A non-OK install leaves this latched so a
+// later diagnostics() reader (e.g. feature70) can describe the terminal cause
+// without re-running install. Carries NO account id / token / coordinate.
+enum PgrUnitySchedulerFailStage : uint32_t {
+ PGR_US_STAGE_NONE=0, PGR_US_STAGE_CONFIG=1, PGR_US_STAGE_VERIFY=2,
+ PGR_US_STAGE_RESOLVE=3, PGR_US_STAGE_INVOKE_HOOK=4, PGR_US_STAGE_CONVERT_HOOK=5
+};
+// Read-only install/hook diagnostic. ABI-additive: API2/API3 are unchanged. The
+// body addresses are the validated executable veneer targets actually handed to
+// the hook installer (aarch64 follows export veneers), useful for comparing
+// failed hook sites across devices. Addresses alone do not prove another hook owner.
+struct PgrUnitySchedulerDiag {
+ uint32_t version,size;      // version==4, size==sizeof(PgrUnitySchedulerDiag)
+ int32_t last_result;        // most recent install() return that reached hook staging
+ uint32_t failed_stage;      // PgrUnitySchedulerFailStage
+ int32_t invoke_hook_rc;     // hook-engine rc for the runtime_invoke hook (0 if not attempted)
+ int32_t convert_hook_rc;    // hook-engine rc for the convert hook (0 if not attempted)
+ uint32_t installed,poisoned;
+ uint64_t invoke_body,convert_body; // resolved veneer body targets passed to the installer
+};
+static_assert(sizeof(PgrUnitySchedulerDiag)==48,"Scheduler diag ABI4");
+// API4 preserves API3 scheduling/inspection and adds the read-only diagnostics()
+// getter. It installs no hook, makes no managed call, and never mutates state.
+struct PgrUnitySchedulerApi4 {
+ uint32_t version,size;
+ int (*install)(const PgrUnitySchedulerConfig *);
+ uint64_t (*activate)();
+ int (*revoke)(uint64_t);
+ int (*valid)(uint64_t);
+ int (*snapshot)(PgrUnitySchedulerSnapshot *);
+ uint64_t (*executing_generation)(uint64_t tid);
+ int (*diagnostics)(PgrUnitySchedulerDiag *out);
+};
+static_assert(sizeof(PgrUnitySchedulerApi4)==64,"Scheduler inspection ABI4");
 static_assert(sizeof(PgrUnitySchedulerApi3)==56,"Scheduler inspection ABI3");
 static_assert(sizeof(void *)==8,"Scheduler requires LP64");
 static_assert(sizeof(PgrUnityPulse)==24,"Pulse ABI");

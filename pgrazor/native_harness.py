@@ -75,6 +75,12 @@ def main(argv=None):
             entry = {'source': str(source.relative_to(root)), 'source_sha256': native_build.sha256(source)}
             receipt['tests'].append(entry)
             extra_flags = []
+            if source.stem == 'unity_scheduler_diag_test':
+                if args.abi != 'x86_64':
+                    raise RuntimeError('unity_scheduler_diag uses an x86_64 hook seam; ARM veneer execution is covered by unity_scheduler')
+                vendor = native_build.ensure_dobby(root, download=False)
+                extra_flags = ['-fexceptions', '-I'+str(vendor/'include')]
+                entry['included_source_sha256'] = native_build.sha256(root/'native/unity_scheduler.cpp')
             if source.stem == 'gift_batch_test':
                 extra_flags = ['-rdynamic', '-fexceptions']
                 entry['included_source_sha256'] = native_build.sha256(root/'native/gift_batch.cpp')
@@ -152,7 +158,10 @@ def main(argv=None):
                 target = remote + '/' + source.stem
                 run(adb + ['push', executable, target])
                 run(adb + ['shell', 'chmod', '700', target])
-                entry['run_output'] = run(adb + ['shell', target, remote + '/core.so'])
+                if source.stem == 'unity_scheduler_diag_test':
+                    entry['run_output'] = ''.join(run(adb + ['shell', target, str(scenario)]) for scenario in range(5))
+                else:
+                    entry['run_output'] = run(adb + ['shell', target, remote + '/core.so'])
                 print(entry['run_output'].strip())
             else:
                 print('Compiled ' + source.stem + ' (' + args.abi + ')')

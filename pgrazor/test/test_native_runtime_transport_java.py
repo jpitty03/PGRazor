@@ -75,7 +75,7 @@ def control_shell():
         elif name in ('accountIdentity', 'accountSessionSaved'):
             body = 'mutations++;if(onMutation!=null)onMutation.run();if(throwMutation)throw new RuntimeException("id-secret");'
         elif name == 'event':
-            body = 'lastDiagnostic=a0;'
+            body = 'lastDiagnostic=a0;lastDiagnosticDetail=a1;diagnostics++;'
         elif name == 'effectiveBerryPriority':
             body = 'reads++;return badBerry;'  # settable so the fixture can drive a malformed-UTF-16 string
         elif name == 'updateCameraHeadingAt':
@@ -94,11 +94,11 @@ public final class Control {
  public static void connect(){connects++;}
  public static void renewLease(){renewals++;}
  public static void disconnect(){disconnects++;}
- public static int reads,mutations; public static boolean pulse,throwMutation,gymRepeat;
+ public static int reads,mutations,diagnostics; public static boolean pulse,throwMutation,gymRepeat;
  public static long timestamp;
  public static String[] snapshot={"command","18446744073709551615"};
- public static Runnable onMutation; public static String lastDiagnostic=""; public static String badBerry="";
- public static void reset(){reads=mutations=0;pulse=throwMutation=gymRepeat=false;timestamp=0;onMutation=null;lastDiagnostic="";badBerry="";snapshot=new String[]{"command","18446744073709551615"};}
+ public static Runnable onMutation; public static String lastDiagnostic="",lastDiagnosticDetail=""; public static String badBerry="";
+ public static void reset(){reads=mutations=diagnostics=0;pulse=throwMutation=gymRepeat=false;timestamp=0;onMutation=null;lastDiagnostic="";lastDiagnosticDetail="";badBerry="";snapshot=new String[]{"command","18446744073709551615"};}
 ''' + '\n'.join(methods) + '\n}\n'
 
 
@@ -111,6 +111,8 @@ class NativeRuntimeTransportJavaTests(unittest.TestCase):
             sources = [
                 work / 'Control.java',
                 ROOT / 'src/dev/pgrazor/NativeRuntimeTransport.java',
+                ROOT / 'src/dev/pgrazor/NativeCore.java',
+                ROOT / 'src/dev/pgrazor/RuntimeHealth.java',
                 ROOT / 'test/NativeRuntimeTransportTest.java',
             ]
             compiled = subprocess.run([str(compiler), '-encoding', 'UTF-8', '-d', str(work), *map(str, sources)],

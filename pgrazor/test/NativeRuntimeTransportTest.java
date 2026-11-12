@@ -20,6 +20,8 @@ public final class NativeRuntimeTransportTest {
     /** Captures the pushed snapshot and serves a single preloaded event frame (then empty), emulating consume. */
     private static final class Fake implements NativeRuntimeTransport.Exchange {
         byte[] lastSnapshot; byte[] nextEvents; int exchanges; boolean stopped; int ret;
+        boolean healthThrows;int healthCalls;
+        public long[] health(){healthCalls++;if(healthThrows)throw new UnsatisfiedLinkError("secret-diagnostic-detail");return null;}
         public int exchange(ByteBuffer snapshot, int length, ByteBuffer events) {
             exchanges++;
             lastSnapshot = new byte[length];
@@ -75,6 +77,18 @@ public final class NativeRuntimeTransportTest {
         Fake fake = new Fake();
         NativeRuntimeTransport t = fresh(fake);
         require(Control.reads == 0 && Control.mutations == 0 && fake.exchanges == 0 && fake.lastSnapshot == null);
+
+        t.tick();require(Control.lastDiagnostic.equals("runtime-gates") && Control.lastDiagnosticDetail.contains("hook execution unverified"));
+        int healthCount=Control.diagnostics;
+        for(int n=0;n<100;n++)t.tick();
+        require(Control.diagnostics==healthCount); // idle transport must not flood logs at its 50ms cadence
+        fake=new Fake();t=fresh(fake);
+
+        fake.healthThrows=true;t.tick();
+        for(int n=0;n<100;n++)t.tick();
+        require(!t.isStopped() && fake.healthCalls==1); // optional diagnostic failure never revokes gameplay or loops
+        require(!Control.lastDiagnosticDetail.contains("secret"));
+        fake=new Fake();t=fresh(fake);
 
         // 2. First tick builds a well-formed typed snapshot from the Control getters.
         Control.pulse = true;
@@ -167,6 +181,7 @@ public final class NativeRuntimeTransportTest {
         fake.ret = -14;  // negative transport status
         t.tick();
         require(t.isStopped());
+        require(Control.lastDiagnosticDetail.contains("stage=native-exchange") && Control.lastDiagnosticDetail.contains("nativeStatus=-14"));
         fake.ret = 0;
 
         // 7. Reentry: a Control setter that re-enters tick() is guarded (no double dispatch, no corruption).
@@ -241,6 +256,15 @@ public final class NativeRuntimeTransportTest {
         Control.badBerry = "\uD800";  // lone high surrogate -> malformed UTF-16
         t.tick();
         require(t.isStopped() && Control.lastDiagnostic.equals("native-transport-error"));
+
+        require(Control.lastDiagnosticDetail.contains("stage=snapshot") && Control.lastDiagnosticDetail.contains("method=effectiveBerryPriority"));
+        fake=new Fake(); t=fresh(fake);Control.throwMutation=true;
+        fake.nextEvents=new FrameBuilder().event(0,new long[0],new String[]{"id-secret","name-secret"}).build();
+        t.tick();
+        require(t.isStopped() && Control.lastDiagnosticDetail.contains("stage=event-dispatch")
+            && Control.lastDiagnosticDetail.contains("method=accountIdentity")
+            && Control.lastDiagnosticDetail.contains("exception=RuntimeException")
+            && !Control.lastDiagnosticDetail.contains("secret"));
 
         // Compiled lifecycle has one owner and revokes immediately on transport failure.
         fake = new Fake(); t = fresh(fake);

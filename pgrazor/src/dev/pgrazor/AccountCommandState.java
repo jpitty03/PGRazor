@@ -12,6 +12,18 @@ final class AccountCommandState {
 
     String current() { return entry.command; }
 
+    /**
+     * Command category without its random token, safe for a diagnostic log.
+     * Commands are issued as "{kind}:{uuid}"; the uuid is a per-switch nonce, so only the kind
+     * ("save-session", "reset-login") is retained. Never returns null, and never a trainer id.
+     */
+    static String kind(String command) {
+        if (command == null || command.isEmpty()) return "";
+        int colon = command.indexOf(':');
+        String name=colon<0?command:command.substring(0,colon);
+        return "save-session".equals(name)||"reset-login".equals(name)?name:"unknown";
+    }
+
     String[] snapshot() {
         Entry value = entry;
         return new String[]{value.command, Long.toString(value.token)};

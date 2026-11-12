@@ -1,5 +1,7 @@
 #include "accounts.h"
 #include "hook_engine.h"
+#include "runtime_transport.h"
+#include <cstdio>
 
 #include <atomic>
 #include <cstring>
@@ -8,6 +10,19 @@
 #include <unistd.h>
 
 namespace {
+
+// Owner-tick diagnostics only. Never log the identity values being resolved.
+void report_identity_gate(const char *reason,uint64_t now){
+  static const char *last="";static uint64_t at=0;
+  if(!std::strcmp(last,reason)&&(!now||now-at<60000))return;
+  last=reason;at=now;
+  char json[192];int n=std::snprintf(json,sizeof(json),"{\"reason\":\"%s\",\"boottimeMs\":%llu}",reason,(unsigned long long)now);
+  if(n<=0||size_t(n)>=sizeof(json))return;
+  const char channel[]="account-native-gate";
+  PgrRuntimeTransportString strings[]={{channel,sizeof(channel)-1},{json,uint32_t(n)}};
+  const auto *transport=static_cast<const PgrRuntimeTransportApi*>(pgrazor_runtime_transport_api(1));
+  if(transport)transport->emit(19,nullptr,0,strings,2);
+}
 
 typedef Il2CppObject* (*AuthLogoutFn)(Il2CppObject* self, const MethodInfo* method);
 
@@ -809,24 +824,25 @@ void api_tick_impl(uint64_t /*caller_now_ms*/, int32_t caller_tid) noexcept {
   ScopedGcRoot auth_root;
   if (!resolve_service_owner(g_state.cfg.auth_contract_class,
                              g_state.cfg.auth_class, &auth_root)) {
-    return;
+    report_identity_gate("auth-service-missing",now_bt);return;
   }
   Il2CppObject* auth_obj = auth_root.target();
   bool is_conn = false;
   if (!auth_obj || !invoke_bool_getter(g_state.cfg.auth_get_connected_method,
                                        auth_obj, nullptr, &is_conn)) {
     g_state.next_tick_ms = now_bt + PGR_ACCOUNTS_ERROR_BACKOFF_MS;
+    report_identity_gate("auth-state-read-failed",now_bt);
     emit_simple_event(PGR_ACC_EVT_READ_ERROR, PGR_ACC_REASON_MISSING_AUTH_STATE);
     return;
   }
   if (!is_conn) {
-    return;
+    report_identity_gate("auth-disconnected",now_bt);return;
   }
 
   ScopedGcRoot player_root;
   if (!resolve_service_owner(g_state.cfg.player_contract_class,
                              g_state.cfg.player_class, &player_root)) {
-    return;
+    report_identity_gate("player-service-missing",now_bt);return;
   }
 
   Il2CppObject* player_obj = player_root.target();
@@ -834,6 +850,7 @@ void api_tick_impl(uint64_t /*caller_now_ms*/, int32_t caller_tid) noexcept {
   if (!player_obj || !invoke_checked(g_state.cfg.player_get_id_method,
                                      player_obj, nullptr, &id_obj)) {
     g_state.next_tick_ms = now_bt + PGR_ACCOUNTS_ERROR_BACKOFF_MS;
+    report_identity_gate("identity-read-failed",now_bt);
     emit_simple_event(PGR_ACC_EVT_READ_ERROR, PGR_ACC_REASON_INVOCATION_EXCEPTION);
     return;
   }
@@ -844,6 +861,7 @@ void api_tick_impl(uint64_t /*caller_now_ms*/, int32_t caller_tid) noexcept {
   if (!player_obj || !invoke_checked(g_state.cfg.player_get_name_method,
                                      player_obj, nullptr, &name_obj)) {
     g_state.next_tick_ms = now_bt + PGR_ACCOUNTS_ERROR_BACKOFF_MS;
+    report_identity_gate("identity-read-failed",now_bt);
     emit_simple_event(PGR_ACC_EVT_READ_ERROR, PGR_ACC_REASON_INVOCATION_EXCEPTION);
     return;
   }
@@ -855,8 +873,10 @@ void api_tick_impl(uint64_t /*caller_now_ms*/, int32_t caller_tid) noexcept {
   uint16_t name_len = 0;
   if (!read_utf16_bounded(id_root.target(), id_buf, &id_len) ||
       !read_utf16_bounded(name_root.target(), name_buf, &name_len)) {
-    return;
+    report_identity_gate("identity-incomplete",now_bt);return;
   }
+
+  report_identity_gate("identity-observed",now_bt);
 
   if (cmd_kind == PGR_ACC_CMD_LOGOUT) {
     ScopedGcRoot wrapper_root;

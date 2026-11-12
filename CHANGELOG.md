@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## v0.2.5
+
+[Full release notes](docs/releases/v0.2.5.md)
+
+### Improvements & fixes
+
+- More useful diagnostics for failed hooks, account readiness waits and VGP+ readiness, with clearer startup failure reasons and background/resume tracking.
+- Logs include phone manufacturer/model, Android version
+- Reduced repetitive logging and retained key startup diagnostics when logs rotate.
+
 ## v0.2.4
 
 [Full release notes](docs/releases/v0.2.4.md)

@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
  */
 public final class NativeRuntimeTransport {
     private static final int MAX_BYTES = 1048576, MAX_CALLS = 128;
+    private static final int[] HEALTH_FIELDS={0,3,23,25,29,36,37,38};
 
     // Wire constants, compiled identically in runtime_transport.h.
     private static final int MAGIC_SNAPSHOT = 0x53524750, MAGIC_EVENTS = 0x45524750, FRAME_VERSION = 20, FLAG_INERT = 1;
@@ -90,6 +91,7 @@ public final class NativeRuntimeTransport {
          * position 0. Returns the number of event bytes written ({@code >= 0}) or a negative transport status. */
         int exchange(ByteBuffer snapshot, int length, ByteBuffer events) throws Exception;
         void stop();
+        default long[] health(){return null;}
     }
 
     private final Exchange exchange;
@@ -99,6 +101,13 @@ public final class NativeRuntimeTransport {
     private final long[] pulseCounts = new long[PULSE_READERS.length];
     private ByteBuffer snapshotBuffer, eventBuffer;
     private long seq;
+    private String diagnosticStage="idle", diagnosticMethod="none", diagnosticReason="none";
+    private int nativeStatus;
+    private long lastHealthNanos, lastNativeEventNanos;
+    private int lastGateBits=-1;
+    private final RuntimeHealth runtimeHealth=new RuntimeHealth();
+    private long lastNativeHealthNanos;
+    private boolean nativeHealthStarted, nativeHealthUnavailable;
     // Event-frame replay/restart guards. The native drain stamps every frame with the session generation and
     // the base seq of its first event. We latch the generation once and reject any later change (a native
     // restart without revival), and we require each non-empty batch to carry the next contiguous seq so a
@@ -202,7 +211,7 @@ public final class NativeRuntimeTransport {
                 return thread;
             });
             scheduled = executor.scheduleWithFixedDelay(this::tick, 0, 50, TimeUnit.MILLISECONDS);
-        } catch (Exception error) { fail(); }
+        } catch (Exception error) { fail("timer-start", error); }
     }
 
     /** Called only after compiled Location and DEX bridges are ready. */
@@ -210,7 +219,7 @@ public final class NativeRuntimeTransport {
         if (stopped || ownsLifecycle) return;
         ownsLifecycle = true;
         try { Control.connect(); }
-        catch (Throwable failure) { fail(); }
+        catch (Throwable failure) { fail("lifecycle-connect", failure); }
     }
 
     private void cancelTimer() {
@@ -229,23 +238,65 @@ public final class NativeRuntimeTransport {
         if (stopped || ticking) return;
         ticking = true;
         try {
+            diagnosticStage="lease-renew";diagnosticMethod="none";diagnosticReason="none";nativeStatus=0;
             if (ownsLifecycle) Control.renewLease();
             ensureBuffers();
+            diagnosticStage="snapshot";
             buildSnapshot();
             if (stopped) return;
+            diagnosticStage="native-exchange";diagnosticMethod="none";
             int written = exchange.exchange(snapshotBuffer, snapshotBuffer.limit(), eventBuffer);
-            if (written < 0) throw invalid();  // negative native status faults the host transport
+            nativeStatus=written<0?written:0;
+            if (written < 0) throw protocolFault(nativeFailure(written));  // negative native status faults the host transport
+            diagnosticStage="event-decode";
             Call[] calls = decode(written);
             // Native drain already consumed these events; validate the whole batch, then dispatch. A setter
             // exception or host reentry abandons the remaining calls and can never replay a gameplay action.
-            for (Call call : calls) { if (stopped) return; call.method.invoke(null, call.args); }
+            if(calls.length>0)lastNativeEventNanos=System.nanoTime();
+            diagnosticStage="event-dispatch";
+            for (Call call : calls) { if (stopped) return; diagnosticMethod=call.method.getName();call.method.invoke(null, call.args); }
+            if(!stopped)reportHealth();
         } catch (Throwable error) {
             // Throwable, not Exception: a LinkageError/UnsatisfiedLinkError from the native binding (or any
             // other Error) would otherwise escape the scheduled task, silently cancelling the daemon WITHOUT
             // stopping/revoking the transport. Fault closed on anything so the host always lands in a clean
             // stopped state with the native side revoked.
-            if (!stopped) fail();
+            if (!stopped) fail(diagnosticStage, error);
         } finally { ticking = false; }
+    }
+
+    // This is Java transport health, not proof of an installed or executing gameplay hook.
+    private void reportHealth() {
+        reportNativeHealth();
+        int bits=0;
+        for(int i=0;i<HEALTH_FIELDS.length;i++)if(snapshotBuffer.get(OFF_BOOLS+HEALTH_FIELDS[i])!=0)bits|=1<<i;
+        long now=System.nanoTime();
+        if(bits==lastGateBits&&now-lastHealthNanos<60_000_000_000L)return;
+        // Coalesce rapid gate oscillation; the next successful tick reports the current state.
+        if(lastGateBits!=-1&&now-lastHealthNanos<1_000_000_000L)return;
+        lastGateBits=bits;lastHealthNanos=now;
+        try {eventAction.invoke(null,"runtime-gates","accountManagement="+((bits&1)!=0)
+            +" locationActive="+((bits&2)!=0)+" quickBallAllowed="+((bits&4)!=0)
+            +" quickSummaryAllowed="+((bits&8)!=0)+" throwAllowed="+((bits&16)!=0)
+            +" vgpAllowed="+((bits&32)!=0)+" vgpEnabled="+((bits&64)!=0)+" mapVisible="+((bits&128)!=0)
+            +" snapshotSeq="+seq+" eventSeq="+lastEventSeq
+            +" nativeEventAgeMs="+(lastNativeEventNanos==0?-1:(now-lastNativeEventNanos)/1_000_000L)
+            +" source=java-transport; hook execution unverified");}catch(Throwable ignored){}
+    }
+
+    private void reportNativeHealth() {
+        if(nativeHealthUnavailable)return;
+        long now=System.nanoTime();
+        if(nativeHealthStarted&&now-lastNativeHealthNanos<5_000_000_000L)return;
+        nativeHealthStarted=true;lastNativeHealthNanos=now;
+        try {
+            String report=runtimeHealth.sample(now/1_000_000L,snapshotBuffer.get(OFF_BOOLS)!=0,exchange.health());
+            if(report!=null)eventAction.invoke(null,"native-runtime-health",report);
+        }catch(Throwable failure){
+            // Optional observation cannot revoke gameplay. Log once if the diagnostic seam is unavailable.
+            nativeHealthUnavailable=true;
+            try{eventAction.invoke(null,"native-runtime-health","state=diagnostics-unavailable exception="+failure.getClass().getSimpleName());}catch(Throwable ignored){}
+        }
     }
 
     /** Test/diagnostic accessor: true once stopped by {@link #stop()} or a transport fault. */
@@ -259,13 +310,17 @@ public final class NativeRuntimeTransport {
         disconnectLifecycle();
     }
 
-    private void fail() {
+    private void fail(String stage, Throwable failure) {
         stopped = true;
         cancelTimer();
         try { exchange.stop(); } catch (Throwable ignored) {}
         disconnectLifecycle();
-        // Constant diagnostic; never emits account content or exception text.
-        try { eventAction.invoke(null, "native-transport-error", "Runtime transport failed"); } catch (Exception ignored) {}
+        // Method names and exception types only: never log getter values, arguments or exception messages.
+        Throwable cause=failure instanceof java.lang.reflect.InvocationTargetException && failure.getCause()!=null?failure.getCause():failure;
+        try { eventAction.invoke(null, "native-transport-error", "stage="+stage+" method="+diagnosticMethod
+            +" reason="+diagnosticReason+" exception="+cause.getClass().getSimpleName()+" nativeStatus="+nativeStatus
+            +" snapshotSeq="+seq+" eventSeq="+lastEventSeq+" generation="+lastGeneration
+            +" action=transport-stopped; gameplay permissions revoked"); } catch (Throwable ignored) {}
     }
 
     private void disconnectLifecycle() {
@@ -279,42 +334,42 @@ public final class NativeRuntimeTransport {
         ByteBuffer buffer = snapshotBuffer;
         buffer.clear();
         for (int i = 0; i < boolReaders.length; i++)
-            buffer.put(OFF_BOOLS + i, (byte) (((Boolean) boolReaders[i].invoke(null)) ? 1 : 0));
+            buffer.put(OFF_BOOLS + i, (byte) (((Boolean) readSnapshot(boolReaders[i])) ? 1 : 0));
         for (int i = 0; i < intReaders.length; i++)
-            buffer.putInt(OFF_INTS + i * 4, (Integer) intReaders[i].invoke(null));
+            buffer.putInt(OFF_INTS + i * 4, (Integer) readSnapshot(intReaders[i]));
         for (int i = 0; i < doubleReaders.length; i++) {
-            double value = (Double) doubleReaders[i].invoke(null);
+            double value = (Double) readSnapshot(doubleReaders[i]);
             // Legacy JSON.stringify(NaN) -> null; nonfinite coords ride across as the NaN sentinel.
             buffer.putDouble(OFF_DOUBLES + i * 8, Double.isFinite(value) ? value : Double.NaN);
         }
         for (int i = 0; i < pulseReaders.length; i++) {
-            if ((Boolean) pulseReaders[i].invoke(null)) {
+            if ((Boolean) readSnapshot(pulseReaders[i])) {
                 if (pulseCounts[i] == Long.MAX_VALUE) throw invalid();  // exact 64-bit; guard only true overflow
                 pulseCounts[i]++;
             }
             buffer.putLong(OFF_PULSES + i * 8, pulseCounts[i]);
         }
         buffer.position(OFF_STRINGS);
-        for (Method method : stringReaders) putString(buffer, method.invoke(null));
-        Object pair = snapshotReader.invoke(null);
+        for (Method method : stringReaders) putString(buffer, readSnapshot(method));
+        Object pair = readSnapshot(snapshotReader);
         if (!(pair instanceof String[]) || ((String[]) pair).length != 2) throw invalid();
         for (String part : (String[]) pair) { if (part == null) throw invalid(); putString(buffer, part); }
-        putString(buffer, smartCatchReader.invoke(null));
-        putString(buffer, gymAutomationReader.invoke(null)); // slot 8
-        putString(buffer, buddyEmotionReader.invoke(null)); // slot 9
-        putString(buffer, buddyEmotionHistoryReader.invoke(null)); // slot 10
-        putString(buffer, batchEvolutionReader.invoke(null)); // slot 11
-        putString(buffer, automationReader.invoke(null)); // slot 12
-        putString(buffer, researchReader.invoke(null)); // slot 13
-        putString(buffer, storageIvReader.invoke(null)); // slot 14
-        putString(buffer, catchChanceReader.invoke(null)); // slot 15
-        putString(buffer, pvpKeepReader.invoke(null)); // slot 16
-        putString(buffer, cutsceneSkipReader.invoke(null)); // slot 17
-        putString(buffer, healReader.invoke(null)); // slot 18
-        putString(buffer, shundoReader.invoke(null)); // slot 19
-        putString(buffer, batteryReader.invoke(null)); // slot 20
-        putString(buffer, smartBattleReader.invoke(null)); // slot 21
-        putString(buffer, evolveTransferReader.invoke(null)); // slot 22
+        putString(buffer, readSnapshot(smartCatchReader));
+        putString(buffer, readSnapshot(gymAutomationReader)); // slot 8
+        putString(buffer, readSnapshot(buddyEmotionReader)); // slot 9
+        putString(buffer, readSnapshot(buddyEmotionHistoryReader)); // slot 10
+        putString(buffer, readSnapshot(batchEvolutionReader)); // slot 11
+        putString(buffer, readSnapshot(automationReader)); // slot 12
+        putString(buffer, readSnapshot(researchReader)); // slot 13
+        putString(buffer, readSnapshot(storageIvReader)); // slot 14
+        putString(buffer, readSnapshot(catchChanceReader)); // slot 15
+        putString(buffer, readSnapshot(pvpKeepReader)); // slot 16
+        putString(buffer, readSnapshot(cutsceneSkipReader)); // slot 17
+        putString(buffer, readSnapshot(healReader)); // slot 18
+        putString(buffer, readSnapshot(shundoReader)); // slot 19
+        putString(buffer, readSnapshot(batteryReader)); // slot 20
+        putString(buffer, readSnapshot(smartBattleReader)); // slot 21
+        putString(buffer, readSnapshot(evolveTransferReader)); // slot 22
         int frameSize = buffer.position();
         buffer.putInt(OFF_MAGIC, MAGIC_SNAPSHOT);
         buffer.putInt(OFF_VERSION, FRAME_VERSION);
@@ -323,6 +378,10 @@ public final class NativeRuntimeTransport {
         buffer.putLong(OFF_SEQ, ++seq);
         buffer.putLong(OFF_WALL, System.currentTimeMillis());
         buffer.position(0).limit(frameSize);
+    }
+    private Object readSnapshot(Method method) throws Exception {
+        diagnosticMethod=method.getName();
+        return method.invoke(null);
     }
     private static void putString(ByteBuffer buffer, Object value) throws Exception {
         if (!(value instanceof String)) throw invalid();  // no generic Object.toString fallback
@@ -350,21 +409,36 @@ public final class NativeRuntimeTransport {
         final Method method; final Object[] args;
         Call(Method m, Object[] a) { method = m; args = a; }
     }
+    private static String nativeFailure(int status) {
+        switch(status) {
+            case -1:return "null-argument";case -2:return "version-mismatch";case -3:return "size-mismatch";
+            case -4:return "configuration-bound";case -6:return "not-installed";case -9:return "reconfiguration";
+            case -10:return "clock-unavailable";case -13:return "event-queue-overflow";
+            case -14:return "malformed-frame";case -15:return "unknown-action";case -16:return "action-schema";
+            case -17:return "invalid-utf8";case -18:return "range";case -19:return "snapshot-stale";
+            case -20:return "transport-stopped";case -21:return "event-too-large";case -22:return "snapshot-replay";
+            case -23:return "value-domain";default:return "unknown-native-status";
+        }
+    }
+    private Exception protocolFault(String reason) {
+        diagnosticReason=reason;
+        return invalid();
+    }
     private Call[] decode(int length) throws Exception {
         ByteBuffer buffer = eventBuffer;
         buffer.position(0).limit(length);
         if (length < EVENT_HEADER || buffer.getInt(OFF_MAGIC) != MAGIC_EVENTS ||
-            buffer.getInt(OFF_VERSION) != FRAME_VERSION || buffer.getInt(OFF_FRAME_SIZE) != length) throw invalid();
+            buffer.getInt(OFF_VERSION) != FRAME_VERSION || buffer.getInt(OFF_FRAME_SIZE) != length) throw protocolFault("frame-header-mismatch");
         int count = buffer.getInt(12);
-        if (count < 0 || count > MAX_CALLS) throw invalid();
+        if (count < 0 || count > MAX_CALLS) throw protocolFault("event-count-out-of-bounds");
         long baseSeq = buffer.getLong(16), generation = buffer.getLong(24);
         // Reject a native session restart (generation change) without revival: fault closed, never resume.
-        if (generationLatched) { if (generation != lastGeneration) throw invalid(); }
+        if (generationLatched) { if (generation != lastGeneration) throw protocolFault("generation-changed"); }
         else { lastGeneration = generation; generationLatched = true; }
         // Non-empty batches must carry the next contiguous seq; a non-advancing base seq is a stale/replayed
         // frame and is refused rather than re-dispatched. (Empty frames carry base seq 0 and are skipped.)
         if (count > 0) {
-            if (baseSeq != lastEventSeq + 1) throw invalid();
+            if (baseSeq != lastEventSeq + 1) throw protocolFault("event-sequence-discontinuity");
             lastEventSeq = baseSeq + count - 1;
         }
         buffer.position(EVENT_HEADER);
@@ -438,5 +512,6 @@ public final class NativeRuntimeTransport {
             return nativeExchange(handle, snapshot, length, events, events.capacity());
         }
         public void stop() { if (handle != 0) nativeStop(handle); }
+        public long[] health(){return NativeCore.runtimeHealth();}
     }
 }

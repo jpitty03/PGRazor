@@ -1084,16 +1084,24 @@ static void tick_vgp_controller(uint64_t tid, uint64_t now_ms, uint64_t lease_ms
 
   PgrVgpControllerOut out = {};
   int rc = g_vgc->tick(&in, &out);
+  static int last_tick_error=0;
   if (rc < 0) {
     g_sample.last_error = rc;
+    if(rc!=last_tick_error)emit_eventf("vgp-tick-error","{\"error\":%d,\"leaseMs\":%llu,\"capabilities\":%u}",rc,(unsigned long long)lease_ms,g_active_caps);
+    last_tick_error=rc;
     return;
   }
+  if(last_tick_error){emit_event("vgp-tick-recovered","{}");last_tick_error=0;}
   g_sample.vgp_tick_serial++;
 
   if (static_cast<int32_t>(out.status) != g_last_vgp_status) {
     g_last_vgp_status = static_cast<int32_t>(out.status);
     const char *st = vgp_status_string(out.status);
-    emit_eventf("vgp-status", "{\"message\":\"%s\",\"code\":%u,\"error\":%d}", st, out.status,out.error);
+    emit_eventf("vgp-status", "{\"message\":\"%s\",\"code\":%u,\"error\":%d,\"allowed\":%s,\"enabled\":%s,\"leaseMs\":%llu,\"mapVisible\":%s,\"manualReady\":%s,\"manualError\":%d,\"phase\":%u,\"mask\":%u,\"capabilities\":%u}",
+        st,out.status,out.error,g_opts.vgp_allowed?"true":"false",g_opts.vgp_enabled?"true":"false",
+        (unsigned long long)lease_ms,g_opts.vgp_map_visible?"true":"false",
+        (flags&PGR_VGC_TF_MANUAL_READY)?"true":"false",quick_state.error?quick_state.error:quick_state.metadata_error,
+        out.phase,in.mask,g_active_caps);
     notify_vgp_status(st);
   }
 

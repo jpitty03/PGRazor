@@ -1,17 +1,10 @@
 package dev.pgrazor;
 
 /**
- * Minimal Java surface for the native migration pilot (libpgrazor-core).
- *
- * <p>The native library binds these methods with {@code RegisterNatives} from its
- * {@code JNI_OnLoad}, so there are no name-mangled JNI exports and the version script
- * only publishes {@code JNI_OnLoad} and {@code pgrazor_native_api}. The gameplay runtime
- * (Frida shim) talks to the native layer through the {@code pgrazor_native_api} C table;
- * this Java class exists only for host-side validation.
- *
- * <p>The coordinator loads the correct host .so for the current ABI before calling any
- * method here. Both calls are pure/deterministic and do not touch Dobby, the process
- * image, or any connected device.
+ * Java bootstrap surface for the compiled native gameplay runtime.
+ * JNI_OnLoad binds these methods with RegisterNatives after the ABI-specific library loads.
+ * bootstrapProbe discovers IL2CPP on Unity's rendered thread; runtimeStart installs the
+ * process-lifetime scheduler. Java transport/location readiness alone does not attest gameplay readiness.
  */
 public final class NativeCore {
     private NativeCore() {}
@@ -30,4 +23,7 @@ public final class NativeCore {
 
     /** Owner-thread scheduler startup; exactly1 attests no competing gameplay hook owners. */
     public static native int runtimeStart(int exclusiveOwner);
+
+    /** Atomic runtime counters only; safe off the Unity thread, never invokes game methods. */
+    public static native long[] runtimeHealth();
 }

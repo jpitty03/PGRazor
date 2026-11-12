@@ -342,10 +342,9 @@ public final class Pad {
             }
             Control.checkpoint(now);
             refresh();
-            if (now-lastPositionCheck >= 1000 && Control.engine.enabled) {
+            if (now-lastPositionCheck >= 5000 && Control.engine.enabled) {
                 lastPositionCheck = now;
-                // Each second while it changes, else once a minute: a line every second standing still
-                // filled most of the log, leaving only ~3 hours of history.
+                // Sample movement every five seconds, stationary once a minute; preserve room for failure evidence.
                 String where = String.format(Locale.US, "lat=%.7f lon=%.7f speed=%.3f walking=%s idleWalking=%s", Control.engine.latitude, Control.engine.longitude, Control.engine.metersPerSecond(), Control.engine.walking, Control.engine.idleWalkingActive());
                 if (!where.equals(lastPosition) || now-lastLog >= 60000) {
                     lastLog = now; lastPosition = where;

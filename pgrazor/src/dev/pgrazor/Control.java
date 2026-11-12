@@ -1226,6 +1226,16 @@ public final class Control {
         try { int n=Integer.parseInt(p.getProperty(key,"0")); return n>=0&&n<=max?n:0; }
         catch(NumberFormatException invalid) { return 0; }
     }
+    /** Constructed preference snapshot only: no account stores, saved places or location state. */
+    static Properties diagnosticSettings() {
+        synchronized(stateLock) {
+            Properties result=settingsSnapshot();
+            result.remove("itemCatalog"); // Derived inventory catalog, not a user preference.
+            result.remove("researchCatalog");
+            result.remove("researchCatalogFormat");
+            return result;
+        }
+    }
     static Properties exportSettings() throws IOException {
         synchronized(stateLock) {
             if(settingsFile==null)throw new IOException("Settings are not ready");
@@ -1316,6 +1326,19 @@ public final class Control {
         // Flush off stateLock: the writer never needs it, so a timed wait must not pin it either.
         if(writer!=null) writer.flush(timeoutMillis);
     }
+    // Small fixed-key startup summary survives rotation; original timestamps distinguish it from new events.
+    private static final Map<String,String> logContext=new LinkedHashMap<>();
+    private static boolean retainLogContext(String kind) {
+        switch(kind) {
+            case "account-native-gate":case "account-storage":case "account-support":case "account-state":case "account-command":
+            case "native-runtime-health":case "native-bootstrap-pending":case "native-scheduler-pending":
+            case "runtime-gates":case "session-start":case "session-root":case "session-environment":case "bootstrap":case "native-process-abi":
+            case "native-bootstrap-ready":case "native-bootstrap-unavailable":
+            case "native-scheduler-ready":case "native-scheduler-unavailable":
+            case "compiled-gameplay-armed":case "native-transport-error":case "native-runtime-start":return true;
+            default:return false;
+        }
+    }
     public static void event(String kind, String detail) {
         if("gym-automation".equals(kind))GymAutomationSettings.publish(detail);
         if("gym-spin".equals(kind)&&SmartCatchSettings.gymSpinActive()){
@@ -1363,21 +1386,29 @@ public final class Control {
             catch(Exception ignored) {}
             dev.pgrazor.events.EventSettings.publishBoxCollectorCapability(available);
         }
+        if("runtime-gates".equals(kind)||"state-activation".equals(kind)||"panel-closed".equals(kind)||"disconnected".equals(kind)||"heartbeat-expired".equals(kind))
+            detail+="; foreground="+foreground+" backendReady="+backendReady+" connected="+connected()+" accountAllowed="+AccountProfiles.allowed();
         synchronized (logLock) {
             String line = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.US).format(new Date()) + " [" + kind + "] " + detail;
+            byte[] encoded=(line+"\n").getBytes(StandardCharsets.UTF_8);
+            // Apply the same bound to logcat and disk before deciding whether to rotate.
+            if(encoded.length>65536){line=line.substring(0,Math.min(line.length(),16000))+" [truncated]";encoded=(line+"\n").getBytes(StandardCharsets.UTF_8);}
+            if(retainLogContext(kind))logContext.put(kind,line.substring(0,Math.min(line.length(),2048)));
             Log.i("PGRazor", line);
             if (log != null) {
                 try {
-                    byte[] encoded=(line+"\n").getBytes(java.nio.charset.StandardCharsets.UTF_8);
                     if(logBytes+encoded.length>1048576L){
                         log.close();
                         logFile=new File(logFile.getParentFile(),new SimpleDateFormat("yyyyMMdd-HHmmss-SSS",Locale.US).format(new Date())+"-"+(++logSegment)+".txt");
                         log=new PrintWriter(new FileOutputStream(logFile),true);logBytes=0;
+                        for(String retained:logContext.values()) {
+                            String contextLine="[retained-context] "+retained;
+                            log.println(contextLine);logBytes+=(contextLine+"\n").getBytes(StandardCharsets.UTF_8).length;
+                        }
                         pruneLogs(logFile.getParentFile(),logFile,6);
                     }
-                    // Bound an exceptional single event as well as ordinary segments.
-                    if(encoded.length>65536){line=line.substring(0,Math.min(line.length(),16000))+" [truncated]";encoded=(line+"\n").getBytes(java.nio.charset.StandardCharsets.UTF_8);}
                     log.println(line);logBytes+=encoded.length;
+                    if(log.checkError()){log.close();throw new IOException("File logging write failed");}
                 }catch(IOException error){log=null;Log.e("PGRazor","File logging unavailable",error);}
             }
         }

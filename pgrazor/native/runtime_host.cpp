@@ -15,10 +15,12 @@
 #include "account_host.h"
 #include "interaction_host.h"
 #include "encounter_host.h"
+#include "runtime_diag.h"
 #include <cstdio>
 #include <cmath>
 #include <atomic>
 #include <cstring>
+#include <mutex>
 #include <initializer_list>
 #include <time.h>
 #include <unistd.h>
@@ -41,7 +43,7 @@ const auto encounter=as<PgrEncounterHostApi>(pgrazor_encounter_host_api(1));
 constexpr uint32_t pending_mask=0;
 struct Slot {std::atomic<uint32_t> state{PGR_RTH_WAITING},caps{0},owned{0};std::atomic<int32_t> error{0};std::atomic<bool> configured{false};uint64_t retry=0;uint32_t attempts=0;bool retry_pending=false;};
 Slot slots[12];
-uint32_t reported_states[12]{};
+uint32_t reported_states[12]{},reported_caps[12]{};
 int32_t reported_errors[12]{};
 std::atomic_flag setup_busy=ATOMIC_FLAG_INIT,pulse_busy=ATOMIC_FLAG_INIT;
 std::atomic<bool> installed{false},stopping{false};
@@ -52,6 +54,12 @@ PgrUnitySchedulerConfig scheduler_config{};
 PgrSharedMetaExtraExports spin_extra{};
 PgrSpinHostConfig spin_config{};
 uint32_t interaction_forwarding=0;
+// Startup diagnostics: delivered through the transport event queue (opcode 19,
+// channel "native-runtime-start") so a failed native startup is visible even
+// when the scheduler never pulses. Only configure() touches the throttle, which
+// startup_mutex serializes; emission is best-effort and never changes a return.
+std::mutex startup_mutex;
+PgrStartupThrottle startup_throttle{};
 void update_interaction_sites(){
  PgrSharedHostSample s{};if(!shared->sample(&s)&&s.ready)interaction_forwarding|=PGR_IH_SHARED_MASK_61;
  PgrQuickballHostSample q{};if(!quick->sample(&q)&&(q.capabilities&PGR_QBH_OBSERVERS))interaction_forwarding|=PGR_IH_SHARED_MASK_49;
@@ -85,12 +93,15 @@ void stop_host(unsigned i){if(!slots[i].configured.load(std::memory_order_acquir
  switch(i){case 0:routes->stop(uint64_t(gettid()));break;case 1:shared->stop();break;case 2:quick->stop();break;case 3:encounter->stop(uint64_t(gettid()));break;case 4:camera->stop("manager-stop");break;case 5:inventory->stop();break;case 6:combat->stop(uint64_t(gettid()));break;case 7:spin->stop();break;case 8:account->stop();break;case 9:interaction->stop("manager-stop");break;case 10:wait_host->stop();break;case 11:spawn->stop();break;}
 }
 void report_host(unsigned i){
- const uint32_t state=slots[i].state.load();const int error=slots[i].error.load();
- if(reported_states[i]==state&&reported_errors[i]==error)return;
- char json[192];std::snprintf(json,sizeof(json),"{\"feature\":%u,\"state\":%u,\"error\":%d,\"capabilities\":%u}",i<10?60+i:i==10?58u:71u,state,error,slots[i].caps.load());
+ const uint32_t state=slots[i].state.load(),caps=slots[i].caps.load();const int error=slots[i].error.load();
+ if(reported_states[i]==state&&reported_errors[i]==error&&reported_caps[i]==caps)return;
+ static const char *names[]={"routes","shared","quick-ball","encounter","camera","inventory","combat","spin","account","interaction","catch-wait","spawn"};
+ static const char *states[]={"waiting","configured","ready","failed","stopped","pending"};
+ char json[320];std::snprintf(json,sizeof(json),"{\"feature\":%u,\"name\":\"%s\",\"state\":%u,\"stateName\":\"%s\",\"previousState\":%u,\"error\":%d,\"capabilities\":%u,\"owned\":%u}",
+  i<10?60+i:i==10?58u:71u,names[i],state,state<6?states[state]:"unknown",reported_states[i],error,caps,slots[i].owned.load());
  const char channel[]="native-runtime";
  PgrRuntimeTransportString strings[]={{channel,sizeof(channel)-1},{json,uint32_t(std::strlen(json))}};
- if(as<PgrRuntimeTransportApi>(pgrazor_runtime_transport_api(1))->emit(19,nullptr,0,strings,2)==0){reported_states[i]=state;reported_errors[i]=error;}
+ if(as<PgrRuntimeTransportApi>(pgrazor_runtime_transport_api(1))->emit(19,nullptr,0,strings,2)==0){reported_states[i]=state;reported_errors[i]=error;reported_caps[i]=caps;}
 }
 void failed(unsigned i,int error){slots[i].error=error;slots[i].state=PGR_RTH_FAILED;stop_host(i);report_host(i);}
 int configure_host(unsigned i){
@@ -223,21 +234,72 @@ void pulse(void*,const PgrUnityPulse *p){
   report_host(i);
  }
 }
+// Build one startup-diagnostic event and best-effort emit it. Assumes
+// startup_mutex is held. Makes no managed/il2cpp call and never aborts a
+// gameplay path: a failed emit (transport not yet installed) only means the
+// throttle heartbeat will retry delivery. identity==true appends the scheduler
+// method/hook identity (code addresses + which hook failed) for a hook failure.
+void emit_startup_locked(const char *stage,const char *reason,int32_t status,int32_t detail,bool identity){
+ const uint64_t now=clock_ms();
+ if(!pgr_rtd_should_emit(&startup_throttle,stage,reason,status,detail,now))return;
+ char json[768];
+ int n=pgr_rtd_base_json(json,int(sizeof(json)),stage,reason,status,detail);
+ if(!n)return;
+ if(identity){
+  const auto sched4=as<PgrUnitySchedulerApi4>(pgrazor_unity_scheduler_api(4));
+  PgrUnitySchedulerDiag d{};const char *hook_stage="unknown";int inv_rc=0,con_rc=0;
+  if(sched4&&sched4->version==4&&sched4->size==sizeof(PgrUnitySchedulerApi4)&&sched4->diagnostics&&!sched4->diagnostics(&d)){
+   hook_stage=pgr_rtd_sched_stage(d.failed_stage);inv_rc=d.invoke_hook_rc;con_rc=d.convert_hook_rc;
+  }
+  int m=std::snprintf(json+n,sizeof(json)-size_t(n),
+   ",\"executeTasks\":\"%p\",\"invoke\":\"%p\",\"convert\":\"%p\",\"hookStage\":\"%s\",\"invokeRc\":%d,\"convertRc\":%d,\"invokeBody\":\"0x%llx\",\"convertBody\":\"0x%llx\",\"hookOutcome\":\"%s\"}",
+   scheduler_config.execute_tasks,scheduler_config.runtime_invoke,scheduler_config.runtime_invoke_convert_args,hook_stage,inv_rc,con_rc,
+   (unsigned long long)d.invoke_body,(unsigned long long)d.convert_body,
+   d.failed_stage==PGR_US_STAGE_INVOKE_HOOK?(inv_rc?"installer-error":"missing-trampoline"):
+   d.failed_stage==PGR_US_STAGE_CONVERT_HOOK?(con_rc?"installer-error":"missing-trampoline"):"not-hook-failure");
+  if(m<0||size_t(n)+size_t(m)>=sizeof(json)){json[n]='}';json[n+1]=0;} // bounded fail-safe: close base object
+ }else{
+  if(size_t(n)+1>=sizeof(json))return;json[n]='}';json[n+1]=0;
+ }
+ const char channel[]="native-runtime-start";
+ PgrRuntimeTransportString strings[]={{channel,sizeof(channel)-1},{json,uint32_t(std::strlen(json))}};
+ as<PgrRuntimeTransportApi>(pgrazor_runtime_transport_api(1))->emit(19,nullptr,0,strings,2);
+}
+void emit_startup(const char *stage,const char *reason,int32_t status,int32_t detail,bool identity){
+ std::lock_guard<std::mutex> l(startup_mutex);emit_startup_locked(stage,reason,status,detail,identity);
+}
+// Re-announce a latched negative startup fault (e.g. the permanent scheduler
+// hook poison) on the heartbeat cadence, so a Java subscriber that attached
+// after the failure still learns the terminal cause instead of waiting forever.
+void reemit_startup_latched(){
+ std::lock_guard<std::mutex> l(startup_mutex);
+ if(!startup_throttle.have||startup_throttle.status>=0)return;
+ char stage[sizeof(startup_throttle.stage)],reason[sizeof(startup_throttle.reason)];
+ std::snprintf(stage,sizeof(stage),"%s",startup_throttle.stage);
+ std::snprintf(reason,sizeof(reason),"%s",startup_throttle.reason);
+ const bool identity=!std::strcmp(stage,"scheduler-install")||!std::strcmp(stage,"scheduler-activate");
+ emit_startup_locked(stage,reason,startup_throttle.status,startup_throttle.detail,identity);
+}
 int configure(const PgrRuntimeHostConfig *c){
  if(!c||c->version!=1||c->size!=sizeof(*c)||c->exclusive_owner!=1||c->reserved)return -1;
- if(stopping.load())return -5;if(fault.load())return fault.load();
+ if(stopping.load())return -5;if(fault.load()){reemit_startup_latched();return fault.load();}
  if(setup_busy.test_and_set(std::memory_order_acquire))return 1;
  struct Clear{~Clear(){setup_busy.clear(std::memory_order_release);}} clear;
  if(installed.load())return attached()?0:-2;
- PgrBootBinding b{};const auto boot=as<PgrBootApi>(pgrazor_runtime_bootstrap_api(1));const int status=boot->snapshot(&b);if(status)return status>0?1:status;
- if(!b.runtime.thread_current||!reinterpret_cast<void*(*)()>(b.runtime.thread_current)())return -2;
- PgrRuntimeTransportSample transport{};if(as<PgrRuntimeTransportApi>(pgrazor_runtime_transport_api(1))->sample(&transport)!=0)return 1;if(transport.fault)return -6;if(!transport.snapshot_fresh)return 1;
+ PgrBootBinding b{};const auto boot=as<PgrBootApi>(pgrazor_runtime_bootstrap_api(1));const int status=boot->snapshot(&b);
+ if(status){if(status<0)emit_startup("bootstrap",pgr_rtd_boot_reason(status),status,b.detail,false);else emit_startup("bootstrap","not-ready",1,0,false);return status>0?1:status;}
+ if(!b.runtime.thread_current||!reinterpret_cast<void*(*)()>(b.runtime.thread_current)()){emit_startup("attach","not-attached",-2,0,false);return -2;}
+ PgrRuntimeTransportSample transport{};
+ if(as<PgrRuntimeTransportApi>(pgrazor_runtime_transport_api(1))->sample(&transport)!=0){emit_startup("transport","unavailable",1,0,false);return 1;}
+ if(transport.fault){emit_startup("transport","faulted",-6,0,false);return -6;}
+ if(!transport.snapshot_fresh){emit_startup("transport","stale",1,0,false);return 1;}
  binding=b;owner=uint64_t(gettid());scheduler_config={};scheduler_config.version=2;scheduler_config.size=sizeof(scheduler_config);
  scheduler_config.runtime_invoke=b.runtime.runtime_invoke;scheduler_config.runtime_invoke_convert_args=b.runtime.runtime_invoke_convert_args;scheduler_config.execute_tasks=b.execute_tasks;
  scheduler_config.thread_current=reinterpret_cast<void*(*)()>(b.runtime.thread_current);scheduler_config.verify_metadata=verify;scheduler_config.expected_owner_tid=gettid();scheduler_config.exclusive_owner=1;
  scheduler_config.subscriber_count=1;scheduler_config.subscribers[0]={pulse,nullptr,nullptr};
- if(stopping.load())return -5;const int rc=scheduler->install(&scheduler_config);if(rc){fault=rc;return rc;}
- installed.store(true,std::memory_order_release);const uint64_t gen=scheduler->activate();if(!gen){fault=-7;return -7;}generation=gen;return 0;
+ if(stopping.load())return -5;const int rc=scheduler->install(&scheduler_config);if(rc){fault=rc;emit_startup("scheduler-install",pgr_rtd_sched_reason(rc),rc,0,true);return rc;}
+ installed.store(true,std::memory_order_release);const uint64_t gen=scheduler->activate();if(!gen){fault=-7;emit_startup("scheduler-activate","no-generation",-7,0,false);return -7;}
+ generation=gen;emit_startup("ready","ok",0,0,false);return 0;
 }
 int stop(){if(stopping.exchange(true,std::memory_order_acq_rel))return 0;
  pgr_event_collector_stop();

@@ -45,6 +45,16 @@ public final class AccountCommandStateTest {
         try { state.issue("reset-login:overflow"); throw new AssertionError("wrapped token"); }
         catch (IllegalStateException expected) { }
         require(state.current().equals("save-session:first") && state.snapshot()[1].equals("3"));
-        System.out.println("PASS: AccountCommandState restart identity, atomic snapshot, clear, overflow");
+
+        // kind() scrubs the per-switch token so a diagnostic log never carries it or any id.
+        require(AccountCommandState.kind("save-session:" + java.util.UUID.randomUUID()).equals("save-session"));
+        require(AccountCommandState.kind("reset-login:" + java.util.UUID.randomUUID()).equals("reset-login"));
+        require(AccountCommandState.kind("save-session:a:b:c").equals("save-session"));
+        require(AccountCommandState.kind("plain").equals("unknown"));
+        require(AccountCommandState.kind("private-id:secret").equals("unknown"));
+        require(AccountCommandState.kind("").isEmpty());
+        require(AccountCommandState.kind(null).isEmpty());
+        require(AccountCommandState.kind(":tail").equals("unknown"));
+        System.out.println("PASS: AccountCommandState restart identity, atomic snapshot, clear, overflow, kind");
     }
 }
