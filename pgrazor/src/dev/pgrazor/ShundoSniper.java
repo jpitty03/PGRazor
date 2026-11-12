@@ -70,6 +70,7 @@ public final class ShundoSniper {
     private static double startLat = Double.NaN, startLon = Double.NaN;
     private static long startAt;
     private static volatile String feedNote = "";
+    private static volatile String readinessWait = "";
     // The spawn being checked: the request number and encounter id native reads, and when it was sent.
     private static long request, targetSince, nextPick, nextLive, nextPogo, lastFeed;
     private static boolean feedFailed;
@@ -206,7 +207,7 @@ public final class ShundoSniper {
     static void setEnabled(Context context, boolean on) {
         synchronized (LOCK) {
             if (on == enabled) return;
-            enabled = on; dark = false;
+            enabled = on; dark = false; readinessWait = "";
             target = null; teleporting = false; candidates.clear(); nextPick = nextLive = nextPogo = lastFeed = 0; feedFailed = false;
             startLat = startLon = Double.NaN; startAt = 0;
             status = on ? looking() : "";
@@ -297,7 +298,7 @@ public final class ShundoSniper {
         try {
             if (!enabled) return;
             long now = System.currentTimeMillis();
-            if (!Control.canEnable() || !Control.locationKnown()) { synchronized (LOCK) { status = "Waiting for the game map"; } return; }
+            if (!checkReadiness()) return;
             double lat = Control.currentLatitude(), lon = Control.currentLongitude();
             synchronized (LOCK) {
                 // The start delay counts from when the map is ready, not from the tap.
@@ -328,6 +329,16 @@ public final class ShundoSniper {
         } catch (Throwable error) {
             Control.event("shundo-sniper", "tick failed: " + error);
         }
+    }
+
+    private static boolean checkReadiness() {
+        String wait = ShundoPacing.waitReason(Control.canEnable(), Control.locationKnown(), Control.active(),
+                AccountProfiles.allowed(), Control.automationReady());
+        if (!wait.equals(readinessWait)) {
+            readinessWait = wait;
+            Control.event("shundo-sniper", wait.isEmpty() ? "readiness restored" : wait);
+        }
+        return wait.isEmpty();
     }
 
     // Under LOCK: a held shiny is caught once the cooldown estimate where it is (the player stays put)
@@ -495,6 +506,11 @@ public final class ShundoSniper {
         }
         main.post(() -> {
             if (!enabled) { synchronized (LOCK) { teleporting = false; } return; }
+            // The account/activity can change after the feed worker queues this jump.
+            if (!checkReadiness()) {
+                synchronized (LOCK) { teleporting = false; attempted.remove(chosen.encounter); candidates.put(chosen.encounter, chosen); saveTried(); }
+                return;
+            }
             Control.teleport(chosen.lat, chosen.lon);  // outside LOCK: Control may call back for config()
             synchronized (LOCK) {
                 teleporting = false;
@@ -547,6 +563,7 @@ public final class ShundoSniper {
     static String overlayStep() {
         synchronized (LOCK) {
             if (!enabled) return status.startsWith("Stopped") ? status : "Stopped";
+            if (!readinessWait.isEmpty()) return readinessWait;
             if (target != null && !holding) {
                 long s = Math.max(0, (System.currentTimeMillis() - targetSince) / 1000);
                 // How far the player now is from where this run started.

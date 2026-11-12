@@ -6,6 +6,12 @@ public final class ShundoPacingTest {
     }
 
     public static void main(String[] args) {
+        check(ShundoPacing.waitReason(true,true,true,true,true).isEmpty(), "healthy search is unchanged");
+        check(ShundoPacing.waitReason(true,true,true,false,false).contains("game account"), "location working during account handoff must not permit teleport");
+        check(ShundoPacing.waitReason(true,true,true,true,false).contains("game readiness"), "native prerequisites are required");
+        check(ShundoPacing.waitReason(true,true,false,true,true).startsWith("Paused"), "background or disabled location cannot teleport");
+        check(!ShundoPacing.waitReason(false,true,true,true,true).isEmpty(), "adapter absent");
+        check(!ShundoPacing.waitReason(true,false,true,true,true).isEmpty(), "location unknown");
         check(ShundoPacing.feedDelay(4000, false) == ShundoPacing.FEED_MS, "a full queue waits the long interval");
         check(ShundoPacing.feedDelay(ShundoPacing.FEED_LOW_QUEUE, false) == ShundoPacing.FEED_MS, "the threshold itself is not low");
         check(ShundoPacing.feedDelay(ShundoPacing.FEED_LOW_QUEUE - 1, false) == ShundoPacing.FEED_SOON_MS, "a short queue reads again soon");

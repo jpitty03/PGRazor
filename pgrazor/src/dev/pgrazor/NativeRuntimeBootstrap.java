@@ -19,9 +19,9 @@ public final class NativeRuntimeBootstrap {
     private static int schedulerProbes;
     /** Diagnostics must never alter the state machine, so an event sink failure is swallowed. */
     private static void note(String kind,String detail){try{Control.event(kind,detail);}catch(Throwable ignored){}}
-    private static String bootstrapReason(int status){
+    private static String bootstrapReason(int status,int detail){
         switch(status){
-            case 1:return "library-thread-or-domain-pending";case -1:return "null-argument";
+            case 1:return loaderReason(detail);case -1:return "null-argument";
             case -2:return "abi-version-mismatch";case -3:return "abi-size-mismatch";
             case -4:return "invalid-configuration";case -5:return "concurrent-probe";
             case -6:return "missing-il2cpp-export";case -7:return "invalid-module-range";
@@ -29,6 +29,19 @@ public final class NativeRuntimeBootstrap {
             case -10:return "execute-tasks-resolution-failed";case -11:return "thread-attach-failed";
             case -12:return "poisoned";case -13:return "export-code-validation-failed";
             default:return "unknown-status";
+        }
+    }
+    // PGR_BOOT_NOT_READY detail -> PgrBootLoaderDetail (runtime_bootstrap.h). The rooted bootstrap
+    // resolves Android's private __loader_dlopen via RTLD_DEFAULT and, on an isolated payload
+    // namespace, through the already-loaded libdl/ld-android handle; these localize a stuck wait.
+    // Unknown/0 details (including the ordinary library/domain/thread wait) stay the plain pending.
+    private static String loaderReason(int detail){
+        switch(detail){
+            case 1101:return "android-loader-image-ambiguous";
+            case 1102:return "android-loader-no-executable-segment";
+            case 1103:return "android-loader-dlopen-symbol-unavailable";
+            case 1104:return "android-loader-namespace-open-null";
+            default:return "library-thread-or-domain-pending";
         }
     }
     private NativeRuntimeBootstrap() {}
@@ -44,12 +57,12 @@ public final class NativeRuntimeBootstrap {
             if(status==1||status==-5){
                 // One bounded notice once the wait is clearly past a transient startup delay.
                 if(++bootstrapProbes==BOOTSTRAP_PENDING_PROBES)
-                    note("native-bootstrap-pending","status="+status+" detail="+detail+" attempts="+bootstrapProbes+" reason="+bootstrapReason(status));
+                    note("native-bootstrap-pending","status="+status+" detail="+detail+" attempts="+bootstrapProbes+" reason="+bootstrapReason(status,detail));
                 state.set(1);return;
             }
             state.set(2);
             if(status==0){bootstrapReady=true;Control.event("native-bootstrap-ready","Compiled IL2CPP binding on rendered Unity thread");}
-            else Control.event("native-bootstrap-unavailable","status="+status+" detail="+detail+" reason="+bootstrapReason(status));
+            else Control.event("native-bootstrap-unavailable","status="+status+" detail="+detail+" reason="+bootstrapReason(status,detail));
         }catch(Throwable failure){
             state.set(2);
             try{Control.event("native-bootstrap-unavailable",failure.getClass().getSimpleName());}catch(Throwable ignored){}

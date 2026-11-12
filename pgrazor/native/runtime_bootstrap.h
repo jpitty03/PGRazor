@@ -52,8 +52,9 @@ enum PgrBootInfo {
 // probe()/snapshot() status. 0 == OK. PGR_BOOT_NOT_READY is a POSITIVE, RETRIABLE status (library or
 // managed domain not yet available). Environment failures permanently poison this owner. Caller argument/config faults and BUSY
 // leave the existing state untouched. On any non-OK status the binding output is cleared except its
-// {version,size,status,detail} header, where detail carries the underlying feature 47 PgrMetaStatus for
-// bind/resolve failures (else 0).
+// {version,size,status,detail} header. For bind/resolve failures detail carries the underlying feature 47
+// PgrMetaStatus; for PGR_BOOT_NOT_READY detail carries a PgrBootLoaderDetail localizing a rooted-namespace
+// loader fallback failure (0 == ordinary not-loaded-yet wait); otherwise detail is 0.
 enum PgrBootStatus {
   PGR_BOOT_OK                 = 0,
   PGR_BOOT_NOT_READY          = 1,   // dlopen(NOLOAD)==null or domain==null; retry later, nothing latched
@@ -72,6 +73,21 @@ enum PgrBootStatus {
   PGR_BOOT_ERR_POISONED       = -12  // reserved. Once poisoned, probe()/snapshot() REPLAY the original
                                      // precise fail-closed status+detail (deterministic); this code is
                                      // reserved for a future caller that prefers a single latched code.
+};
+
+// Diagnostic DETAIL values attached to PGR_BOOT_NOT_READY by the Android rooted-namespace loader
+// fallback (production path only; the fixture dl* seams never reach it). 0 is the ordinary startup
+// wait (library not mapped yet, managed domain not up, or caller not yet attached) and carries no
+// loader fault. The non-zero codes localize a rooted-payload loader failure so a device report that
+// stays "pending" is actionable instead of opaque. These are deliberately POSITIVE and never collide
+// with the NEGATIVE PgrMetaStatus values that populate detail on BIND/RESOLVE failures. Keep these in
+// sync with NativeRuntimeBootstrap.java's loader reason decoder.
+enum PgrBootLoaderDetail {
+  PGR_BOOT_LD_IMAGE_PENDING   = 0,    // soname not yet mapped (or domain/thread pending); retriable wait
+  PGR_BOOT_LD_IMAGE_AMBIGUOUS = 1101, // more than one loaded image matched the soname; no unique caller
+  PGR_BOOT_LD_NO_EXEC_SEGMENT = 1102, // the matched image exposes no usable executable PT_LOAD segment
+  PGR_BOOT_LD_SYMBOL_ABSENT   = 1103, // __loader_dlopen unresolvable via RTLD_DEFAULT, libdl, or ld-android
+  PGR_BOOT_LD_NOLOAD_NULL     = 1104  // __loader_dlopen resolved but the RTLD_NOLOAD re-open returned null
 };
 
 // GUEST dl* test seam. In production every callback is null and the module uses the real guest ::dlopen

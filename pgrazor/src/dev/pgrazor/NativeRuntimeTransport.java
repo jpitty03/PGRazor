@@ -30,7 +30,7 @@ import java.util.concurrent.TimeUnit;
  */
 public final class NativeRuntimeTransport {
     private static final int MAX_BYTES = 1048576, MAX_CALLS = 128;
-    private static final int[] HEALTH_FIELDS={0,3,23,25,29,36,37,38};
+    private static final int[] HEALTH_FIELDS={0,3,23,25,29,36,37,38,16};
 
     // Wire constants, compiled identically in runtime_transport.h.
     private static final int MAGIC_SNAPSHOT = 0x53524750, MAGIC_EVENTS = 0x45524750, FRAME_VERSION = 20, FLAG_INERT = 1;
@@ -279,6 +279,7 @@ public final class NativeRuntimeTransport {
             +" locationActive="+((bits&2)!=0)+" quickBallAllowed="+((bits&4)!=0)
             +" quickSummaryAllowed="+((bits&8)!=0)+" throwAllowed="+((bits&16)!=0)
             +" vgpAllowed="+((bits&32)!=0)+" vgpEnabled="+((bits&64)!=0)+" mapVisible="+((bits&128)!=0)
+            +" itemAccessAllowed="+((bits&256)!=0)
             +" snapshotSeq="+seq+" eventSeq="+lastEventSeq
             +" nativeEventAgeMs="+(lastNativeEventNanos==0?-1:(now-lastNativeEventNanos)/1_000_000L)
             +" source=java-transport; hook execution unverified");}catch(Throwable ignored){}

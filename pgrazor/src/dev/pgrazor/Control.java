@@ -349,7 +349,11 @@ public final class Control {
         if(now<itemCatalogUntil)return 2;
         return now<berryCatalogUntil||encounterBerryVisible()?1:0;
     }
-    public static void setItemReady(boolean ready,String status){itemTransferReady=ready;itemStatus=status;}
+    public static void setItemReady(boolean ready,String status){
+        boolean changed=itemTransferReady!=ready;
+        itemTransferReady=ready;itemStatus=status;
+        if(changed)event("gameplay-readiness","component=item-bag ready="+ready);
+    }
     public static void setItemStatus(String status){itemStatus=status==null?"":status;}
     public static void setItemCatalog(String value){
         if(value==null||value.length()>100000)return;
@@ -411,10 +415,13 @@ public final class Control {
     public static boolean preview() { return preview; }
     /** Saved user choices survive readiness and lifecycle changes. */
     public static void configureQuickSummary(boolean configured) {
+        boolean wasReady;
         synchronized(quickSummaryLock) {
+            wasReady=quickSummaryReady;
             quickSummaryConfigured=configured; quickSummaryReady=false; autoTransferReady=false;
             quickSummaryStatus=configured ? "Checking catch summary support" : "";
         }
+        if(wasReady)event("gameplay-readiness","component=catch-summary ready=false reason=reconfigured configured="+configured);
     }
     public static boolean quickSummaryConfigured() { return quickSummaryConfigured; }
     public static void configureQuickSummaryAutoDismiss(boolean enabled) { quickSummaryAutoDismiss=enabled; }
@@ -423,15 +430,18 @@ public final class Control {
     public static boolean quickSummaryEnabled() { return quickSummaryEnabled; }
     public static String quickSummaryStatus() { return quickSummaryStatus; }
     public static void setQuickSummaryReady(boolean ready,String status) {
-        boolean disabled;
+        boolean disabled,changed,actual,configured;
         synchronized(quickSummaryLock) {
+            boolean previous=quickSummaryReady;
             quickSummaryReady=quickSummaryConfigured && ready;
+            changed=previous!=quickSummaryReady;actual=quickSummaryReady;configured=quickSummaryConfigured;
             if(!quickSummaryReady)autoTransferReady=false;
             disabled=quickSummaryEnabled && !quickSummaryReady;
 
             String text=status==null || status.length()==0 ? (quickSummaryReady ? "Ready" : "Unavailable") : status;
             quickSummaryStatus=quickSummaryConfigured ? text.substring(0,Math.min(text.length(),320)) : "";
         }
+        if(changed)event("gameplay-readiness","component=catch-summary ready="+actual+" configured="+configured);
         if(disabled)event("quick-summary-setting","Suspended; saved choice retained");
     }
     public static void setQuickSummaryEnabled(boolean enabled) {

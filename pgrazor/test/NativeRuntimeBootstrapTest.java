@@ -66,6 +66,13 @@ public final class NativeRuntimeBootstrapTest {
                 check(NativeCore.calls==1 && Control.events.size()==2);
                 check(Control.events.get(1).equals("native-bootstrap-unavailable|AssertionError"));
                 terminal(); break;
+            case "loader-pending":
+                NativeRuntimeBootstrap.startGameplay();NativeCore.value=result(1,1103);
+                for(int i=0;i<NativeRuntimeBootstrap.BOOTSTRAP_PENDING_PROBES+10;i++)NativeRuntimeBootstrap.onRendered();
+                check(Control.events.size()==1 && Control.events.get(0).contains("reason=android-loader-dlopen-symbol-unavailable"));
+                check(NativeCore.gameplayCalls==0);
+                NativeCore.value=0;NativeRuntimeBootstrap.onRendered();
+                check(NativeCore.gameplayCalls==1 && Control.events.get(1).startsWith("native-bootstrap-ready|"));break;
             case "pending":
                 // Bootstrap stays pending: one bounded notice is emitted exactly at the threshold,
                 // never per frame, and repeated probes afterwards add nothing.

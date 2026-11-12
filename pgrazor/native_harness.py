@@ -75,7 +75,7 @@ def main(argv=None):
             entry = {'source': str(source.relative_to(root)), 'source_sha256': native_build.sha256(source)}
             receipt['tests'].append(entry)
             extra_flags = []
-            if source.stem == 'runtime_bootstrap_namespace_test':
+            if source.stem in ('runtime_bootstrap_namespace_test', 'runtime_loader_live_test'):
                 entry['included_source_sha256'] = native_build.sha256(root/'native/runtime_bootstrap.cpp')
             if source.stem == 'unity_scheduler_diag_test':
                 if args.abi != 'x86_64':

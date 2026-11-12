@@ -14,6 +14,16 @@ final class ShundoPacing {
     // A search that ran this few times had the map hidden (a menu was open), so it says nothing about the map.
     static final int EMPTY_MIN_SCANS = 30;
 
+    /** A location adapter alone is not enough: native searches also need a verified account and items. */
+    static String waitReason(boolean locationReady, boolean locationKnown, boolean active,
+                             boolean accountAllowed, boolean gameplayReady) {
+        if (!locationReady || !locationKnown) return "Waiting for the game map";
+        if (!active) return "Paused: return to the game and enable location";
+        if (!accountAllowed) return "Waiting for game account; open Switch account for details";
+        if (!gameplayReady) return "Waiting for game readiness";
+        return "";
+    }
+
     /** How long after the last feed read the next one is due. */
     static long feedDelay(int queued, boolean lastReadFailed) {
         return lastReadFailed || queued < FEED_LOW_QUEUE ? FEED_SOON_MS : FEED_MS;

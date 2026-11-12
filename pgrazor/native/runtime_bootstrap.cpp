@@ -22,12 +22,45 @@
 
 namespace {
 
+#if defined(__ANDROID__)
+// Resolve bionic's private __loader_dlopen(filename, flags, caller_addr) -- the only entry point that
+// accepts an explicit caller address, and therefore the only way to open in the game's own linker
+// namespace (RTLD_NOLOAD) without being pinned to our payload's namespace.
+//
+// Symbol-resolution semantics (bionic): __loader_dlopen is DEFINED and exported by the dynamic linker
+// (ld-android.so) and merely IMPORTED by libdl.so's public dlopen wrapper. dlsym(RTLD_DEFAULT, ...)
+// searches only the CALLER namespace's global group, which on a rooted payload's isolated namespace
+// does NOT include the linker's exports -- so RTLD_DEFAULT returns null on real devices (observed:
+// Android 12, SM-G985F). A dlsym against an EXPLICIT handle instead walks that library and its
+// DT_NEEDED tree: dlopen("libdl.so") -> DT_NEEDED ld-android.so, where the symbol lives; ld-android.so
+// resolves it directly. Both hosts are permanent, always-mapped core libraries, so RTLD_NOLOAD can
+// never force-load anything and the NOLOAD handle is released immediately (the resolved function lives
+// in the permanent linker and stays valid). If none of the three routes yield the symbol we return
+// null and the caller reports a precise not-ready diagnostic; we never fabricate a pointer.
+using LoaderDlopen = void *(*)(const char *, int, const void *);
+LoaderDlopen resolve_loader_dlopen() {
+  if (auto direct = reinterpret_cast<LoaderDlopen>(::dlsym(RTLD_DEFAULT, "__loader_dlopen"))) return direct;
+  static const char *const hosts[] = {"libdl.so", "ld-android.so"};
+  for (const char *host : hosts) {
+    void *h = ::dlopen(host, RTLD_NOLOAD | RTLD_NOW); // NOLOAD: already-mapped core lib, never force-loaded
+    if (!h) continue;
+    auto via = reinterpret_cast<LoaderDlopen>(::dlsym(h, "__loader_dlopen"));
+    ::dlclose(h); // drop the NOLOAD refcount; the host is permanent so the resolved fn stays valid
+    if (via) return via;
+  }
+  return nullptr;
+}
+#endif
+
 // Rooted payloads have a separate class-loader namespace. Discover the existing
 // image first, then ask Android's loader in that image's namespace. NOLOAD stays
 // mandatory: this must never initialize a second IL2CPP runtime. The normal
 // lookup and test seams retain precedence. Private loader API availability is
-// checked at runtime; unsupported loaders simply remain not ready.
-void *loaded_namespace_handle(const char *soname) {
+// checked at runtime; unsupported loaders simply remain not ready. *diag reports a
+// PgrBootLoaderDetail so a stuck "pending" report localizes the exact failure; it is
+// 0 (IMAGE_PENDING) whenever the handle is returned or the image is merely not mapped yet.
+void *loaded_namespace_handle(const char *soname, int *diag) {
+  if (diag) *diag = PGR_BOOT_LD_IMAGE_PENDING;
 #if defined(__ANDROID__)
   struct Search {
     const char *name;
@@ -53,10 +86,14 @@ void *loaded_namespace_handle(const char *soname) {
     }
     return 0;
   }, &search);
-  if (search.matches != 1 || !search.caller) return nullptr;
-  using Open = void *(*)(const char *, int, const void *);
-  auto open = reinterpret_cast<Open>(::dlsym(RTLD_DEFAULT, "__loader_dlopen"));
-  return open ? open(search.path, RTLD_NOLOAD | RTLD_NOW, search.caller) : nullptr;
+  if (search.matches == 0) return nullptr;                 // not mapped yet: ordinary retriable wait
+  if (search.matches > 1) { if (diag) *diag = PGR_BOOT_LD_IMAGE_AMBIGUOUS; return nullptr; }
+  if (!search.caller)     { if (diag) *diag = PGR_BOOT_LD_NO_EXEC_SEGMENT; return nullptr; }
+  LoaderDlopen open = resolve_loader_dlopen();
+  if (!open)              { if (diag) *diag = PGR_BOOT_LD_SYMBOL_ABSENT; return nullptr; }
+  void *handle = open(search.path, RTLD_NOLOAD | RTLD_NOW, search.caller);
+  if (!handle)            { if (diag) *diag = PGR_BOOT_LD_NOLOAD_NULL; return nullptr; }
+  return handle;
 #else
   (void)soname;
   return nullptr;
@@ -349,11 +386,12 @@ int api_probe(const PgrBootConfig *cfg, PgrBootBinding *out) {
   //    reused across NOT_READY retries so polling never grows the refcount. Null -> not loaded yet.
   void *handle = g.handle;
   if (handle == nullptr) {
+    int loader_detail = PGR_BOOT_LD_IMAGE_PENDING;
     handle = cfg->dlopen_fn ? cfg->dlopen_fn(cfg->seam_ctx, soname, RTLD_NOLOAD | RTLD_NOW)
                             : ::dlopen(soname, RTLD_NOLOAD | RTLD_NOW);
-    if (!handle && !cfg->dlopen_fn) handle = loaded_namespace_handle(soname);
-    if (handle == nullptr) { // library not yet loaded; RETRIABLE, nothing latched
-      fill_header(out, PGR_BOOT_NOT_READY, 0);
+    if (!handle && !cfg->dlopen_fn) handle = loaded_namespace_handle(soname, &loader_detail);
+    if (handle == nullptr) { // library not yet loaded; RETRIABLE, nothing latched. detail localizes a
+      fill_header(out, PGR_BOOT_NOT_READY, loader_detail); // rooted-namespace loader fallback failure.
       return PGR_BOOT_NOT_READY;
     }
     g.handle = handle;
