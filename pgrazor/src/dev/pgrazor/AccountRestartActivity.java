@@ -50,6 +50,27 @@ public final class AccountRestartActivity extends Activity {
     private boolean sessionApplied;
     private TextView status;
 
+    /**
+     * Routes an account-switch restart. The patched APK starts this activity in its private
+     * {@code :pgrazor_restart} process; PGRazor Root has no second process or manifest entry, so it
+     * hands off to {@link RootedRestart}, which cold-restarts the game so the pending switch is
+     * applied before Unity starts. Returns {@code false} when no restart could be initiated, so the
+     * caller can fall back to asking the user to reopen the game.
+     */
+    public static boolean launch(Activity activity, boolean switchSession) {
+        if (activity == null) return false;
+        if (PgAssets.rooted()) return RootedRestart.restart(activity, switchSession);
+        try {
+            activity.startActivity(new Intent(activity, AccountRestartActivity.class)
+                    .putExtra(EXTRA_SOURCE_PID, Process.myPid())
+                    .putExtra("switchSession", switchSession)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            return true;
+        } catch (RuntimeException error) {
+            return false;
+        }
+    }
+
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         handled = savedInstanceState != null && savedInstanceState.getBoolean(STATE_HANDLED, false);

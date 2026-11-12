@@ -93,7 +93,10 @@ Config configured(){
  c.request=request;c.id=id;c.go=go==1;c.active=active&&ready;c.map=map!=0;return c;
 }
 
-constexpr uint64_t kFindMs=75000,kFindEveryMs=750,kResponseMs=15000,kBerryMs=10000;
+constexpr uint64_t kFindMs=75000,kResponseMs=15000,kBerryMs=10000;
+// A search walks every wild Pokemon in the scene on the Unity thread. Short hops show up within 6 s, and after
+// a jump the server holds wild Pokemon back for about 30 s, so search slowly in between.
+constexpr uint64_t kFindFastMs=750,kFindSlowMs=3000,kFindSlowFromMs=6000,kFindSlowToMs=28000;
 // Once wild Pokemon that were not on the map at the teleport have arrived, the requested one gets this
 // long to arrive too before the search gives up on it (it is usually in the same batch).
 constexpr uint64_t kAfterOthersMs=10000;
@@ -292,7 +295,8 @@ void step(const Config &c,uint64_t now){
   const std::string facts=",\"ms\":"+std::to_string(now-st.started)+",\"scans\":"+std::to_string(st.scans)+",\"seen\":"+std::to_string(st.seen)+",\"fresh\":"+std::to_string(st.fresh)+",\"fresh_ms\":"+std::to_string(st.first_fresh)+",\"early\":"+std::to_string(st.early)+",\"early_ms\":"+std::to_string(st.early_ms)+",\"ids\":["+st.sample+"]";
   if(now-st.started>kFindMs){finish("missing","Not on the map here; it may have despawned",facts);return;}
   if(st.fresh_at&&now-st.fresh_at>=kAfterOthersMs){finish("missing","Other Pokémon here appeared, this one did not",facts);return;}
-  if(!c.map||now<st.next)return;st.next=now+kFindEveryMs;
+  if(!c.map||now<st.next)return;
+  {const uint64_t elapsed=now-st.started;st.next=now+(elapsed>=kFindSlowFromMs&&elapsed<kFindSlowToMs?kFindSlowMs:kFindFastMs);}
   // After a jump the server leaves wild Pokemon out of map objects for about 30 s however often the game
   // asks (measured: found at 31-33 s with refreshes every 3 s or every 10 s). So one refresh 2 s after the
   // teleport (for a short hop), then one at 30 s and every 3 s after, instead of the game's 10-30 s throttle.

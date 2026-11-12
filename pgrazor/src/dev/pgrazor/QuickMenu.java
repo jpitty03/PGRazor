@@ -180,7 +180,7 @@ public final class QuickMenu {
             super(c); this.kind = kind; setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             Bitmap decoded = null;
             if (kind == ROUTES) {
-                try (java.io.InputStream in = c.getAssets().open("pgrazor/map-icons/routes.png")) {
+                try (java.io.InputStream in = PgAssets.open(c,"pgrazor/map-icons/routes.png")) {
                     decoded = BitmapFactory.decodeStream(in);
                 } catch (Exception ignored) { }
             }

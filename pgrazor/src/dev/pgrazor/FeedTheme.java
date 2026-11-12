@@ -170,8 +170,8 @@ final class FeedTheme {
      */
     static Typeface brandFont(Context c) {
         if (brandFont == null) {
-            try { brandFont = Typeface.createFromAsset(c.getAssets(), "pgrazor/fonts/title.ttf"); }
-            catch (RuntimeException missing) { brandFont = Build.VERSION.SDK_INT >= 28 ? Typeface.create(Typeface.create("sans-serif-black", Typeface.NORMAL), 900, true) : Typeface.create("sans-serif-black", Typeface.BOLD_ITALIC); }
+            brandFont = PgAssets.typeface(c, "pgrazor/fonts/title.ttf");
+            if (brandFont == null) brandFont = Build.VERSION.SDK_INT >= 28 ? Typeface.create(Typeface.create("sans-serif-black", Typeface.NORMAL), 900, true) : Typeface.create("sans-serif-black", Typeface.BOLD_ITALIC);
         }
         return brandFont;
     }

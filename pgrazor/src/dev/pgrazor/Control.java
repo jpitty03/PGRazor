@@ -349,7 +349,11 @@ public final class Control {
         if(now<itemCatalogUntil)return 2;
         return now<berryCatalogUntil||encounterBerryVisible()?1:0;
     }
-    public static void setItemReady(boolean ready,String status){itemTransferReady=ready;itemStatus=status;}
+    public static void setItemReady(boolean ready,String status){
+        boolean changed=itemTransferReady!=ready;
+        itemTransferReady=ready;itemStatus=status;
+        if(changed)event("gameplay-readiness","component=item-bag ready="+ready);
+    }
     public static void setItemStatus(String status){itemStatus=status==null?"":status;}
     public static void setItemCatalog(String value){
         if(value==null||value.length()>100000)return;
@@ -411,10 +415,13 @@ public final class Control {
     public static boolean preview() { return preview; }
     /** Saved user choices survive readiness and lifecycle changes. */
     public static void configureQuickSummary(boolean configured) {
+        boolean wasReady;
         synchronized(quickSummaryLock) {
+            wasReady=quickSummaryReady;
             quickSummaryConfigured=configured; quickSummaryReady=false; autoTransferReady=false;
             quickSummaryStatus=configured ? "Checking catch summary support" : "";
         }
+        if(wasReady)event("gameplay-readiness","component=catch-summary ready=false reason=reconfigured configured="+configured);
     }
     public static boolean quickSummaryConfigured() { return quickSummaryConfigured; }
     public static void configureQuickSummaryAutoDismiss(boolean enabled) { quickSummaryAutoDismiss=enabled; }
@@ -423,15 +430,18 @@ public final class Control {
     public static boolean quickSummaryEnabled() { return quickSummaryEnabled; }
     public static String quickSummaryStatus() { return quickSummaryStatus; }
     public static void setQuickSummaryReady(boolean ready,String status) {
-        boolean disabled;
+        boolean disabled,changed,actual,configured;
         synchronized(quickSummaryLock) {
+            boolean previous=quickSummaryReady;
             quickSummaryReady=quickSummaryConfigured && ready;
+            changed=previous!=quickSummaryReady;actual=quickSummaryReady;configured=quickSummaryConfigured;
             if(!quickSummaryReady)autoTransferReady=false;
             disabled=quickSummaryEnabled && !quickSummaryReady;
 
             String text=status==null || status.length()==0 ? (quickSummaryReady ? "Ready" : "Unavailable") : status;
             quickSummaryStatus=quickSummaryConfigured ? text.substring(0,Math.min(text.length(),320)) : "";
         }
+        if(changed)event("gameplay-readiness","component=catch-summary ready="+actual+" configured="+configured);
         if(disabled)event("quick-summary-setting","Suspended; saved choice retained");
     }
     public static void setQuickSummaryEnabled(boolean enabled) {
@@ -1331,7 +1341,7 @@ public final class Control {
     private static boolean retainLogContext(String kind) {
         switch(kind) {
             case "account-native-gate":case "account-storage":case "account-support":case "account-state":case "account-command":
-            case "native-runtime-health":case "native-bootstrap-pending":case "native-scheduler-pending":
+            case "rooted-native-state":case "native-runtime-health":case "native-bootstrap-pending":case "native-scheduler-pending":
             case "runtime-gates":case "session-start":case "session-root":case "session-environment":case "bootstrap":case "native-process-abi":
             case "native-bootstrap-ready":case "native-bootstrap-unavailable":
             case "native-scheduler-ready":case "native-scheduler-unavailable":
@@ -1395,7 +1405,7 @@ public final class Control {
             if(encoded.length>65536){line=line.substring(0,Math.min(line.length(),16000))+" [truncated]";encoded=(line+"\n").getBytes(StandardCharsets.UTF_8);}
             if(retainLogContext(kind))logContext.put(kind,line.substring(0,Math.min(line.length(),2048)));
             Log.i("PGRazor", line);
-            if (log != null) {
+            if (log != null && !interactionMetadataRow(kind,detail)) {
                 try {
                     if(logBytes+encoded.length>1048576L){
                         log.close();
@@ -1412,6 +1422,12 @@ public final class Control {
                 }catch(IOException error){log=null;Log.e("PGRazor","File logging unavailable",error);}
             }
         }
+    }
+    // The interaction probe lists every class, field and method it inspects, about 2 MB per launch: a third
+    // of the six kept log files. Those rows stay in logcat; its summaries and results stay in the file.
+    private static boolean interactionMetadataRow(String kind,String detail) {
+        return "interaction-probe".equals(kind)&&detail!=null&&(detail.startsWith("{\"type\":\"class\"")
+            ||detail.startsWith("{\"type\":\"field\"")||detail.startsWith("{\"type\":\"method\""));
     }
     private static void pruneLogs(File directory,File active,int keep) {
         File[] files=directory.listFiles((dir,name)->name.matches("[0-9]{8}-[0-9]{6}-[0-9]{3}(-[0-9]+)?\\.txt"));

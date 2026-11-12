@@ -16,7 +16,7 @@ final class GameRoutesOverlay extends View {
     GameRoutesOverlay(Activity activity) {
         super(activity);this.activity=activity;
         Bitmap decoded=null;
-        try(InputStream in=activity.getAssets().open("pgrazor/map-icons/routes.png")) {
+        try(InputStream in=PgAssets.open(activity, "pgrazor/map-icons/routes.png")) {
             decoded=BitmapFactory.decodeStream(in);
         } catch(Exception ignored) { }
         icon=decoded;setClickable(true);setFocusable(true);

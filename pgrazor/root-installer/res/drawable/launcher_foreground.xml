@@ -1,0 +1,14 @@
+<!-- Geometry and colors from branding/pgrazor.svg, inset into the adaptive-icon safe area. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <group android:scaleX="1.35" android:scaleY="1.35"
+        android:translateX="21.6" android:translateY="21.6">
+        <path android:fillColor="#141b25"
+            android:pathData="M24,1 A23,23 0,1 1,24,47 A23,23 0,1 1,24,1 Z" />
+        <path android:fillColor="#00000000" android:strokeColor="#45e1ba" android:strokeWidth="1.5"
+            android:pathData="M24,2 A22,22 0,1 1,24,46 A22,22 0,1 1,24,2 Z" />
+        <path android:fillColor="#45e1ba"
+            android:pathData="M13,11 H29 L36,18 L29,26 L36,37 H26 L19,26 V37 H12 L17,19 H24 L23,22 H27 L30,18 L27,16 H12 Z" />
+    </group>
+</vector>

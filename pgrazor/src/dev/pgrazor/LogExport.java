@@ -96,6 +96,51 @@ public final class LogExport {
         } catch(NoSuchAlgorithmException impossible) { throw new IOException(impossible); }
         catch(IOException error) { Control.event("export-error",error.toString()); throw error; }
     }
+
+    /**
+     * PGRazor Root has no document picker (the run log is shown as a dialog, not a private activity),
+     * so save a verified copy into the game's own app-visible external files directory instead. The
+     * same two-pass digest check guards the written file; the destination path is returned so the
+     * dialog can tell the user where to find it. No new storage permission is required.
+     */
+    public static File copyToExternal(Context context,File file) throws IOException {
+        return copyToExternal(context,file,false);
+    }
+    public static File copyToExternal(Context context,File file,boolean includeSettings) throws IOException {
+        if(file==null) throw new IOException("No log is available");
+        File dir=context.getExternalFilesDir("pgrazor-logs");
+        if(dir==null) dir=new File(context.getFilesDir(),"pgrazor-logs/exports");
+        if(!dir.isDirectory() && !dir.mkdirs()) throw new IOException("Cannot create export folder");
+        String name=includeSettings?file.getName().replaceFirst("\\.txt$","")+".zip":file.getName();
+        File dest=new File(dir,name),temp=new File(dir,name+".tmp");
+        try {
+            byte[] settings=includeSettings?settingsJson(Control.diagnosticSettings(),Control.engine.speedKmh,preferenceGroups(context)):null;
+            MessageDigest written=MessageDigest.getInstance("SHA-256");
+            MessageDigest checked=MessageDigest.getInstance("SHA-256");
+            long count=0,verified=0;
+            Control.event("export-start",dest.getAbsolutePath());
+            try(InputStream in=new FileInputStream(file); OutputStream out=new FileOutputStream(temp)) {
+                CountingOutputStream counted=new CountingOutputStream(new DigestOutputStream(out,written));
+                if(includeSettings)bundle(in,file.getName(),settings,counted);
+                else {
+                    byte[] buffer=new byte[8192]; int n;
+                    while((n=in.read(buffer))!=-1)counted.write(buffer,0,n);
+                }
+                count=counted.count;
+                out.flush();
+            }
+            if(dest.exists() && !dest.delete()) throw new IOException("Could not replace the previous export");
+            if(!temp.renameTo(dest)) throw new IOException("Could not finish writing the export");
+            try(InputStream in=new FileInputStream(dest)) {
+                byte[] buffer=new byte[8192]; int n;
+                while((n=in.read(buffer))!=-1) { checked.update(buffer,0,n); verified+=n; }
+            }
+            if(count!=verified || !Arrays.equals(written.digest(),checked.digest())) throw new IOException("Saved copy verification failed");
+            Control.event("export-complete","verifiedBytes="+count+" path="+dest.getAbsolutePath());
+            return dest;
+        } catch(NoSuchAlgorithmException impossible) { throw new IOException(impossible); }
+        catch(IOException error) { temp.delete(); Control.event("export-error",error.toString()); throw error; }
+    }
     private static final class CountingOutputStream extends FilterOutputStream {
         long count;
         CountingOutputStream(OutputStream out){super(out);}

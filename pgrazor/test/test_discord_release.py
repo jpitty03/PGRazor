@@ -21,6 +21,13 @@ HIGHLIGHT = {'name': 'release-highlight.png',
 
 
 class DiscordReleaseTests(unittest.TestCase):
+    def test_both_root_downloads_are_linked_alongside_normal_apk(self):
+        roots = [{'name': name, 'browser_download_url': 'https://example.com/' + name}
+                 for name in ('PGRazor-Root.apk', 'PGRazor-Root-module.zip')]
+        fields = discord_release.message(release([APK, *roots]))['embeds'][0]['fields']
+        for asset in [APK, *roots]:
+            self.assertTrue(any(asset['browser_download_url'] in field['value'] for field in fields))
+
     def test_highlight_image_present_sets_embed_image(self):
         payload = discord_release.message(release([APK, HIGHLIGHT]))
         embed = payload['embeds'][0]

@@ -89,7 +89,7 @@ public final class PogoFeedIcons {
         if (cached != null) return cached == MISSING ? null : cached;
         Bitmap bitmap = null;
         if (context != null) {
-            try (InputStream in = context.getAssets().open(path)) {
+            try (InputStream in = PgAssets.open(context, path)) {
                 BitmapFactory.Options opts = new BitmapFactory.Options();
                 opts.inPreferredConfig = Bitmap.Config.ARGB_8888;
                 bitmap = BitmapFactory.decodeStream(in, null, opts);

@@ -25,6 +25,7 @@ final class AccountProfiles {
     // reason has already been logged this episode, so prerequisite diagnostics stay bounded.
     private static volatile boolean supportKnown, storageMissingNoted;
     private static volatile long generation;
+    private static long restartGeneration = -1;
     private static volatile String message = "Waiting for game account";
     private static final AccountCommandState commands = new AccountCommandState();
     private static String observed = "";
@@ -186,12 +187,31 @@ final class AccountProfiles {
         restart(false);
     }
     private static void restart(boolean switchSession) {
+        if(restarting&&restartGeneration==generation)return;
+        restartGeneration=generation;
+        restarting=true;
+        restartWhenResumed(switchSession,0,generation);
+    }
+    // Identity can arrive between the sign-in activity pausing and the game resuming.
+    // Keep the account gate closed, but let that short lifecycle gap finish before handing off.
+    private static void restartWhenResumed(boolean switchSession,int attempt,long epoch) {
+        if(epoch!=generation){
+            if(restartGeneration==epoch)restarting=false;
+            diag("account-command","deferred restart cancelled: account session changed");return;
+        }
         Activity activity=Control.accountActivity();
-        if(activity==null||activity.isFinishing()){fail("Account saved. Close and reopen the game to finish switching.");return;}
-        restarting=true;diag("account-command","restarting app to apply account change");
-        try {
-            activity.startActivity(new Intent(activity,AccountRestartActivity.class)
-                .putExtra("sourcePid",android.os.Process.myPid()).putExtra("switchSession",switchSession).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-        }catch(RuntimeException error){restarting=false;fail("Account saved. Close and reopen the game to finish switching.");}
+        if(activity==null||activity.isFinishing()||activity.isDestroyed()){
+            if(attempt<20){
+                if(attempt==0)diag("account-command","restart deferred: waiting for foreground activity");
+                main.postDelayed(()->restartWhenResumed(switchSession,attempt+1,epoch),250);
+                return;
+            }
+            restarting=false;
+            fail("Account saved. Close and reopen the game to finish switching.");return;
+        }
+        diag("account-command","restarting app to apply account change");
+        if(!AccountRestartActivity.launch(activity,switchSession)){
+            restarting=false;fail("Account saved. Close and reopen the game to finish switching.");
+        }
     }
 }

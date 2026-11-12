@@ -79,6 +79,7 @@ public final class NativeRuntimeTransportTest {
         require(Control.reads == 0 && Control.mutations == 0 && fake.exchanges == 0 && fake.lastSnapshot == null);
 
         t.tick();require(Control.lastDiagnostic.equals("runtime-gates") && Control.lastDiagnosticDetail.contains("hook execution unverified"));
+        require(Control.lastDiagnosticDetail.contains("itemAccessAllowed="));
         int healthCount=Control.diagnostics;
         for(int n=0;n<100;n++)t.tick();
         require(Control.diagnostics==healthCount); // idle transport must not flood logs at its 50ms cadence

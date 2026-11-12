@@ -11,9 +11,15 @@ replacement has passed device checks. Run again without -Apply to review changes
 [CmdletBinding()]
 param(
     [switch]$Apply,
+    [switch]$RootedOnly,
     [ValidateRange(3, 100)][int]$KeepLatest = 3,
     [ValidateRange(30, 525600)][int]$MinAgeMinutes = 30
 )
+
+if ($RootedOnly) {
+    & (Join-Path $PSScriptRoot 'cleanup-rooted.ps1') -Apply:$Apply -KeepLatest $KeepLatest -MinAgeMinutes $MinAgeMinutes
+    return
+}
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2

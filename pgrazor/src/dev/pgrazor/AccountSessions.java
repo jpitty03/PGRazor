@@ -24,7 +24,12 @@ final class AccountSessions {
     private static boolean run(Context context,int action) throws IOException {
         File lockFile=new File(context.getNoBackupFilesDir(),"pgrazor-account-switch.lock");
         try(RandomAccessFile lock=new RandomAccessFile(lockFile,"rw");FileLock held=acquire(lock)){
-            if(action==0&&!new File(context.getNoBackupFilesDir(),"pgrazor-account-sessions-v1/switch-journal.bin").exists())return true;
+            boolean journal=new File(context.getNoBackupFilesDir(),"pgrazor-account-sessions-v1/switch-journal.bin").exists();
+            // Patched APK: a restart with no journal has nothing to finish. PGRazor Root has no
+            // separate restart process, so a switch recorded before the cold restart is applied here,
+            // in this fresh pre-Unity process, exactly where the restart helper would have applied it.
+            if(action==0&&!journal&&!PgAssets.rooted())return true;
+            if(action==0&&!journal&&new AccountProfileStore(context.getFilesDir()).pendingId().isEmpty())return true;
             AccountSessionVault vault=new AccountSessionVault(context);
             AccountSessionTransaction transaction=new AccountSessionTransaction(context.getFilesDir(),new File(context.getApplicationInfo().dataDir,"shared_prefs"),context.getPackageName(),new AccountSessionTransaction.Vault(){
                 public byte[] read(String id)throws IOException{return vault.read(id);}
@@ -32,8 +37,13 @@ final class AccountSessions {
                 public void delete(String id)throws IOException{vault.delete(id);}
             });
             if(action==1)transaction.switchPending();else if(action==2)transaction.cancel();else {
-                try{transaction.recover();}
+                try{
+                    // A leftover journal is a crash mid-swap to replay. Without one on PGRazor Root,
+                    // switchPending() applies a pending switch (and is a no-op when none is queued).
+                    if(journal)transaction.recover();else transaction.switchPending();
+                }
                 catch(IOException damagedJournal){
+                    if(!journal&&!new File(context.getNoBackupFilesDir(),"pgrazor-account-sessions-v1/switch-journal.bin").exists())throw damagedJournal;
                     // Keep saved profiles and encrypted evidence. A fresh login is safer
                     // than launching with a partially applied session or a crash loop.
                     transaction.resetForSignIn();vault.quarantineJournal();return false;

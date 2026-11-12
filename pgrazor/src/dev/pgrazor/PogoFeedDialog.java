@@ -186,7 +186,7 @@ public final class PogoFeedDialog {
             icons = new PogoFeedIcons(activity);
             showingLogin = !client.signedIn();
             net.execute(() -> {
-                try (java.io.InputStream in = activity.getAssets().open("pgrazor/map-icons/pokemon-names.json")) {
+                try (java.io.InputStream in = PgAssets.open(activity, "pgrazor/map-icons/pokemon-names.json")) {
                     java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
                     byte[] buffer = new byte[4096]; int count;
                     while ((count = in.read(buffer)) != -1) {

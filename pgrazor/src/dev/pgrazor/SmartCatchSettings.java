@@ -251,7 +251,7 @@ final class SmartCatchSpeciesDialog {
         private void loadNames() {
             new Thread(() -> {
                 JSONObject parsed = null;
-                try (java.io.InputStream in = activity.getAssets().open(NAMES_ASSET)) {
+                try (java.io.InputStream in = PgAssets.open(activity, NAMES_ASSET)) {
                     java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
                     byte[] buffer = new byte[4096]; int read; boolean oversize = false;
                     while ((read = in.read(buffer)) != -1) {
