@@ -1,4 +1,5 @@
 #include "transfer_execution.h"
+#include "showcase_host.h"
 
 #include <atomic>
 #include <cstddef>
@@ -372,6 +373,10 @@ int do_submit(const PgrTransferExecRequest *req, uint64_t tid, uint64_t *out_tok
       rc = PGR_TX_ERR_IDENTITY;
       goto done;
     }
+
+    // Showcase ranking may invoke managed getters; all transaction arguments
+    // are rooted and are re-resolved below, before the final release gate.
+    if (pgr_showcase_keep(req->captured_id, tid)) goto done;
 
     // Resolve all managed arguments before the final gate. No callback-capable
     // lookup may occur between authorization and ReleasePokemon.

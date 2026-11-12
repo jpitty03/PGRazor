@@ -1,4 +1,8 @@
 // Executes production queue, managed request construction and confirmation flow.
+#if defined(_MSC_VER)
+// The fixture defines every optional weak hook itself; MSVC has no ELF weak attribute.
+#define __attribute__(value)
+#endif
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
@@ -25,6 +29,7 @@ PgrSharedMetadataOutput fixture_md{};PgrBootBinding fixture_boot{};
 std::string config="1|1|0|1|",keep_config,pvp_config="P2|0|0|0|150";
 bool allowed=true,fresh=true,keep_all=false,pvp_protected=false,response_ready=false,poll_error=false,foreign_bag=false,batch_busy=false;
 bool move_on_root=false;
+bool showcase_protected=false;
 int iv_attack=1,iv_defense=2,iv_stamina=3;
 bool not_evolvable=false,special=false,synchronous=true,cancel_during_check=false,change_account=false;
 int protect=127,stock=100,cost=12,evolution_calls=0,release_calls=0,next_target=2,result_status=1;
@@ -142,7 +147,9 @@ extern "C" const void *pgrazor_shared_host_api(uint32_t v){return v==2?static_ca
 const void *pgrazor_transfer_facts_api(uint32_t){return &facts_api;}const void *pgrazor_vgp_results_api(uint32_t){return &result_api;}
 extern "C" int pgr_pvp_keep(void*,int,int,int,int,uint64_t,char*,uint32_t){return pvp_protected?1:0;}
 bool pgr_evolution_busy(){return batch_busy;}
+bool pgr_showcase_keep(uint64_t,uint64_t){return showcase_protected;}
 int main(){
+ fixture();showcase_protected=true;assert(offer()==1);tick();assert(evolution_calls==0&&release_calls==0&&!job.id);showcase_protected=false;
  fixture();assert(offer()==1);tick();assert(evolution_calls==1&&release_calls==0);tick();assert(release_calls==0);accept();tick();assert(release_calls==0);reconcile();assert(job.completed==1);tick();assert(release_calls==1);tick();assert(!job.id&&handles.empty());
  fixture();stock=0;assert(offer()==1);tick();assert(evolution_calls==0&&release_calls==1);tick();
  fixture();special=true;assert(offer()==1);tick();assert(evolution_calls==0&&release_calls==1);tick();

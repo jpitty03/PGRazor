@@ -51,6 +51,13 @@ final class SettingsPanel {
     // Evolve-before-transfer rows: enable switch, stages cycle, selection-mode cycle, selected-species picker.
     private Switch evolveTransferSwitch;
     private Button evolveTransferStages, evolveTransferMode, evolveTransferList;
+    // Showcase keepers: enable switch, top-N cycle (Top 1/2/3), runtime status.
+    // Draft checkpoint: expose only after native scoring, tagging and transfer
+    // protection are implemented and verified. Settings alone do not protect Pokemon.
+    private static final boolean SHOWCASE_KEEP_UI_READY = true;
+    private Switch showcaseKeepSwitch;
+    private Button showcaseKeepSlotsButton;
+    private TextView showcaseKeepStatus;
     // Boolean settings use proper switches.
     private Switch idleWalkSwitch, locationSwitch, vgpSwitch, joystickSwitch, cooldownSwitch, localTimeSwitch, spawnSwitch, autoTransferSwitch,
         quickSpinSwitch, berrySwitch, quickSummarySwitch, curveSwitch, alwaysHitSwitch, arSwitch, transferOverlaySwitch, catchChanceSwitch, autoBallSwitch, skipCutscenesSwitch,
@@ -301,6 +308,15 @@ final class SettingsPanel {
         evolveTransferList = button("Selected species"); txC.addView(evolveTransferList);
         evolveTransferList.setOnClickListener(v -> TransferKeepDialog.show(activity, "Selected species", "species selected", Control::evolveTransferSpecies, Control::setEvolveTransferSpecies, host::refresh));
         caption(txC, "New catches only; requires Transfer above. Uses candy for ordinary evolutions, without items or special conditions. Keep rules always apply. If evolution is unavailable, transfer normally. Selected species mode keeps every species outside its list.");
+        if (SHOWCASE_KEEP_UI_READY) {
+            showcaseKeepSwitch = switchRow(txC, "Keep best Showcase Pokemon by type");
+            showcaseKeepSwitch.setChecked(Control.showcaseKeepEnabled());
+            showcaseKeepSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.showcaseKeepEnabled())return; Control.setShowcaseKeepEnabled(showcaseKeepSwitch.isChecked()); host.refresh(); });
+            showcaseKeepSlotsButton = button("Top "+Control.showcaseKeepSlots()); txC.addView(showcaseKeepSlotsButton);
+            showcaseKeepSlotsButton.setOnClickListener(v -> { Control.setShowcaseKeepSlots(Control.showcaseKeepSlots()%3+1); host.refresh(); });
+            caption(txC, "Tags the highest predicted Showcase points in each Pokemon type. Special contest rules can change scores. Other keep rules still apply. Keep XXL retains all XXL Pokemon.");
+            showcaseKeepStatus = caption(txC, "");
+        }
         transferStatus = caption(txC, "");
         quickSpinSwitch = switchRow(catchC, "Quick spin"); quickSpinSwitch.setChecked(Control.quickSpinEnabled());
         quickSpinSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.quickSpinEnabled())return; Control.setQuickSpinEnabled(quickSpinSwitch.isChecked()); });
@@ -624,6 +640,9 @@ final class SettingsPanel {
         SettingsUi.enabled(evolveTransferStages,evolveOn);
         SettingsUi.enabled(evolveTransferMode,evolveOn);
         SettingsUi.enabled(evolveTransferList,evolveOn&&Control.evolveTransferMode()==1);
+        // Showcase keepers tag winners independently of the auto-transfer master; only the Top N cycle needs
+        // the feature on.
+        if(showcaseKeepSlotsButton!=null)SettingsUi.enabled(showcaseKeepSlotsButton,Control.showcaseKeepEnabled());
         SettingsUi.enabled(incubatorPriority,Control.autoIncubate()&&Control.incubatorAvailable());
         SettingsUi.enabled(giftChoices[2],(Control.giftOptions()&2)!=0);
         SettingsUi.enabled((View)joystickSwitch.getParent(),Control.desiredEnabled());
@@ -670,6 +689,9 @@ final class SettingsPanel {
         if(evolveTransferStages!=null)evolveTransferStages.setText("Evolve: "+(Control.evolveTransferStages()==2?"all available stages":"once"));
         if(evolveTransferMode!=null)evolveTransferMode.setText("Applies to: "+(Control.evolveTransferMode()==1?"selected species only":"current transfer rules"));
         if(evolveTransferList!=null){String sel=Control.evolveTransferSpecies();int n=sel.isEmpty()?0:sel.split(",").length;evolveTransferList.setText(n>0?"Selected species ("+n+")":"Selected species");}
+        if(showcaseKeepSwitch!=null)showcaseKeepSwitch.setChecked(Control.showcaseKeepEnabled());
+        if(showcaseKeepSlotsButton!=null)showcaseKeepSlotsButton.setText("Top "+Control.showcaseKeepSlots());
+        if(showcaseKeepStatus!=null){String s=Control.showcaseKeepStatus();showcaseKeepStatus.setText(s);showcaseKeepStatus.setVisibility(Control.showcaseKeepEnabled()&&!s.isEmpty()?View.VISIBLE:View.GONE);}
         transferStatus.setText(Control.transferStatus());
     }
 

@@ -80,6 +80,47 @@ Settings setters capture a snapshot under `Control`'s state lock and submit it t
 
 The map view owns projection, gestures, routes and selection. `MapTileSource` owns the bounded worker, viewport generation, retries and UI delivery; `MapTileCache` owns memory/disk bounds and tile validation. `MapPoiLayer` receives projection and snapshot interfaces and owns markers, hit testing and detail-dialog refresh. Closing the map closes both sources and suppresses stale callbacks. Tile cache code has no `Control` dependency.
 
+## Showcase keepers
+
+`native/showcase_host.cpp` ranks the current box with the game's validated
+`ContestService.bnen` routine. A locally constructed `ContestProto` with zero
+scalar-reference fields selects normal species/form scoring. These are predicted
+points; a contest with a different scalar reference can rank Pokemon differently.
+`showcase_inventory.cpp` copies the bag and validates identities and scoring
+inputs again after scoring. Temporary managed references are rooted and released
+on the proven Unity owner under the caller's original absolute lease. Transfer
+callbacks reuse the last owner lease rather than creating a fresh deadline.
+
+The pure policy selects the best 1-3 per elemental type, protecting the union for
+dual types. `showcase_retention.h` distinguishes observed catches from existing
+storage: enabling, importing or lowering the setting never queues an initial
+purge. Only a caught loser or a keeper displaced by confirmed new catches can
+enter the existing transfer path. Other keep rules still apply. Unknown rankings,
+pending inventory and unconfirmed tags veto transfers and automatic evolution.
+Deferred caught losers retain their original Keep All semantics: manual and
+research catches honor it; VGP catches follow the background policy. Displaced
+historical keepers conservatively honor Keep All because their catch origin is
+unknown. Turning transfer off clears pending cleanup eligibility.
+
+`ShowcaseTagStore` stores owned tag IDs per account in an atomic local file,
+excluded from exports. It never adopts tags by display name. A durable creation
+intent precedes AddTag; its returned ID is persisted before use. Interrupted,
+ambiguous creation is not replayed. Membership changes use SetPokemonTags for
+one Pokemon and one owned tag at a time; all new memberships must appear in the
+game cache before obsolete memberships are removed. Ownership acknowledgements
+can invalidate a scan; the next pulse resumes confirmation without redispatch.
+
+Settings default off and preserve the existing public Control bridges. Transport
+strings 23/24 carry settings/ownership, action 59 reports status, and action 19
+carries durable ownership commands. Idle ranking runs every 15 seconds; catches
+wake it immediately, pending tags poll separately, and transfer gates rescan.
+Catch cleanup eligibility is recorded only while automatic transfer is allowed
+and discarded when it is disabled. Scans are bounded at 25,000 entries and fail closed on lease expiry. Large-box
+frame time still needs device profiling. Moving-GC fixtures cover scoring,
+inventory and tag RPCs; policy, host phase and Java persistence fixtures cover
+selection, handoff and restart behavior. Device receipts belong in ignored
+artifacts, not public release notes.
+
 ## Verification map
 
 `python -B tools/check.py` is the device-free gate used by CI.

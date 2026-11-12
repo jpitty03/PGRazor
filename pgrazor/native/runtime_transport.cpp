@@ -87,7 +87,8 @@ constexpr ActionSchema kActions[PGR_TRANSPORT_ACTIONS] = {
   {4, 0, {ST_B, ST_D, ST_D, ST_B}}, // 55 setVgpTarget(boolean,double,double,boolean)
   {0, 1, {}},                       // 56 transferResult(String)
   {4, 0, {ST_D, ST_I, ST_B, ST_L}}, // 57 updateCameraHeadingAt(double,int,boolean,long)
-  {1, 1, {ST_B}}                    // 58 vgpResult(String,boolean)
+  {1, 1, {ST_B}},                   // 58 vgpResult(String,boolean)
+  {0, 1, {}}                       // 59 setShowcaseKeepStatus(String)
 };
 
 // Validate one scalar against its compiled type. Returns PGR_TRANSPORT_OK or PGR_TRANSPORT_ERR_DOMAIN. Longs are NOT bounded

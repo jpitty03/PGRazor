@@ -24,6 +24,18 @@ public final class ControlSettingsTest {
             Control.setEvolveTransferEnabled(true); Control.setEvolveTransferMode(1); Control.setEvolveTransferStages(2); Control.setEvolveTransferSpecies("4,25,1"); // canonicalizes to 1,4,25
             Control.setEvolveTransferMode(5); Control.setEvolveTransferStages(9); Control.setEvolveTransferSpecies("1,abc"); // invalid: all ignored, prior choices kept
             if(Control.evolveTransferMode()!=1||Control.evolveTransferStages()!=2||!Control.evolveTransferSpecies().equals("1,4,25"))throw new AssertionError("Invalid evolve-transfer setter input was not ignored");
+            Control.setShowcaseKeepEnabled(true);
+            Control.setShowcaseKeepSlots(5); // invalid -> defaults to 3
+            if(Control.showcaseKeepSlots()!=3)throw new AssertionError("Invalid Showcase keeper slot count was not defaulted to 3");
+            Control.setShowcaseKeepSlots(0); // invalid -> defaults to 3 (still 3, no-op)
+            if(Control.showcaseKeepSlots()!=3)throw new AssertionError("Zero Showcase keeper slot count was not defaulted to 3");
+            Control.setShowcaseKeepSlots(2); // settle on 2 for the persistence check
+            // Runtime-only status: reported while enabled, cleared on disable.
+            Control.setShowcaseKeepStatus("Tagged 7 types");
+            if(!Control.showcaseKeepStatus().equals("Tagged 7 types"))throw new AssertionError("Showcase keeper status not reported while enabled");
+            Control.setShowcaseKeepEnabled(false);
+            if(!Control.showcaseKeepStatus().isEmpty())throw new AssertionError("Showcase keeper status not cleared on disable");
+            Control.setShowcaseKeepEnabled(true);
             Control.setQuickBallEnabled(true); Control.setQuickSummaryEnabled(true);
             Control.setIvCatchEnabled(false); Control.setIvOwnedEnabled(true); Control.setStorageIvMode(3); Control.setStorageIvFormat(2); Control.setStorageIvEnabled(false); Control.setIvOwnedMode(3); Control.setIvCatchMode(1); Control.setIvCatchMode(0); Control.setCatchChanceShown(false); Control.setAutoBall(true); Control.setAutoBallTarget(85); Control.setPvpKeep(0,false); Control.setPvpKeep(2,true); Control.setPvpRank(1,25);
             Control.setThrowGrade(3); Control.setThrowCurve(true); Control.setMapTapMode(2);
@@ -48,6 +60,8 @@ public final class ControlSettingsTest {
             throw new AssertionError("Saved preferences bypassed runtime readiness");
         if(!Control.evolveTransferEnabled()||Control.evolveTransferMode()!=1||Control.evolveTransferStages()!=2||!Control.evolveTransferSpecies().equals("1,4,25")||!Control.evolveTransferConfig().equals("1|1|1|2|1,4,25"))
             throw new AssertionError("Evolve-before-transfer settings lost across process restart");
+        if(!Control.showcaseKeepEnabled()||Control.showcaseKeepSlots()!=2||!Control.showcaseKeepConfig().equals("S1|2"))
+            throw new AssertionError("Showcase keeper settings lost across process restart");
         if(Control.ivCatchEnabled()||!Control.ivOwnedEnabled()||Control.ivCatchMode()!=0||Control.ivOwnedMode()!=3||Control.nextIvMode(0)!=4||Control.nextIvMode(4)!=3||Control.nextIvMode(1)!=0)throw new AssertionError("IV display preferences lost across process restart");
         if(Control.storageIvEnabled()||Control.storageIvFormat()!=2||!Control.storageIvConfig().equals("S2|0|1|3"))throw new AssertionError("Storage IV setting lost across process restart");
         if(Control.catchChanceShown()||!Control.autoBall()||Control.autoBallTarget()!=85||!Control.catchChanceConfig().startsWith("C1|0|1|85|"))throw new AssertionError("Catch chance settings lost across process restart");

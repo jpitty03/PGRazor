@@ -11379,6 +11379,48 @@
         ],
         "purpose": "Niantic.Holoholo.Gym.GymBattleState.ExitBattleResultsState 0.435.2 first24bytes"
       }
+    },
+    "showcase_bindings_cpp": {
+      "score_rva": {
+        "kind": "rva",
+        "value": "177188704",
+        "purpose": "ContestService.bnen(PokemonProto,ContestProto) -> Single"
+      },
+      "score_fingerprint": {
+        "kind": "bytes",
+        "value": [
+          "0xfe",
+          "0xf",
+          "0x1b",
+          "0xf8",
+          "0xfa",
+          "0x67",
+          "0x1",
+          "0xa9",
+          "0xf8",
+          "0x5f",
+          "0x2",
+          "0xa9",
+          "0xf6",
+          "0x57",
+          "0x3",
+          "0xa9",
+          "0xf4",
+          "0x4f",
+          "0x4",
+          "0xa9",
+          "0x54",
+          "0x42",
+          "0x2",
+          "0x90"
+        ],
+        "purpose": "0.435.2 ContestService.bnen prologue"
+      },
+      "pokemon_id_offset": {
+        "kind": "offset",
+        "value": "32",
+        "purpose": "PokemonProto.id_ UInt64"
+      }
     }
   },
   "schemas": {

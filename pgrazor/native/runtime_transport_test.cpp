@@ -193,6 +193,8 @@ int main(int argc, char **argv) {
     s.strings[5] = "cmd";                    // accountCommandSnapshot[0]
     s.strings[6] = "18446744073709551615";   // accountCommandSnapshot[1] (beyond JS precision)
     s.strings[12] = "1|123|0|0|0|0|0|1";     // one-shot automation (frame v9)
+    s.strings[23] = "S1|3";                  // Showcase keepers (frame v21)
+    s.strings[24] = "T0";                    // tag ownership unavailable (frame v22)
     assert(push(s.frame()) == PGR_TRANSPORT_OK);
 
     int bv = 0; assert(api->get_bool(3, &bv) == PGR_TRANSPORT_OK && bv == 1);
@@ -206,6 +208,8 @@ int main(int argc, char **argv) {
     char buf[64]; uint32_t n = 0;
     assert(api->get_string(0, buf, sizeof(buf), &n) == PGR_TRANSPORT_OK && std::string(buf, n) == "signin");
     assert(api->get_string(12, buf, sizeof(buf), &n) == PGR_TRANSPORT_OK && std::string(buf, n) == s.strings[12]);
+    assert(api->get_string(23, buf, sizeof(buf), &n) == PGR_TRANSPORT_OK && std::string(buf, n) == "S1|3");
+    assert(api->get_string(24, buf, sizeof(buf), &n) == PGR_TRANSPORT_OK && std::string(buf, n) == "T0");
     assert(api->get_string(2, buf, sizeof(buf), &n) == PGR_TRANSPORT_OK && std::string(buf, n) == u8"berryÃ©");
     char cmd[32], tok[32]; uint32_t cl = 0, tl = 0;
     assert(api->get_command_snapshot(cmd, sizeof(cmd), &cl, tok, sizeof(tok), &tl) == PGR_TRANSPORT_OK);
@@ -326,14 +330,19 @@ int main(int argc, char **argv) {
     // updateCameraHeadingAt: double,int,boolean,long with a large exact long.
     int64_t heading[4] = {bits(20.0), 7, 1, 9007199254740991LL};
     assert(g_api->emit(57, heading, 4, nullptr, 0) == PGR_TRANSPORT_OK);
+    PgrRuntimeTransportString showcase_status{"Waiting for inventory", 21};
+    assert(g_api->emit(59, nullptr, 0, &showcase_status, 1) == PGR_TRANSPORT_OK);
+    assert(g_api->emit(59, heading, 1, &showcase_status, 1) == PGR_TRANSPORT_ERR_BAD_SCHEMA);
 
     auto evs = drain(4096);
-    assert(evs.size() == 3);
+    assert(evs.size() == 4);
     assert(evs[0].opcode == 10 && evs[0].scalars.size() == 5);
     double lat; uint64_t lb = static_cast<uint64_t>(evs[0].scalars[0]); std::memcpy(&lat, &lb, 8);
     assert(lat == 37.5 && evs[0].scalars[2] == 2 && evs[0].scalars[3] == 7);
     assert(evs[1].opcode == 0 && evs[1].strings.size() == 2 && evs[1].strings[0] == "idv" && evs[1].strings[1] == "name");
     assert(evs[2].opcode == 57 && evs[2].scalars[3] == 9007199254740991LL);
+    assert(evs[3].opcode == 59 && evs[3].scalars.empty() && evs[3].strings.size() == 1 &&
+           evs[3].strings[0] == "Waiting for inventory");
   }
 
   // 8. Drain cap of 128: 130 events -> 128 then 2; consume-before-dispatch means no replay.

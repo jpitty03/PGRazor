@@ -37,6 +37,10 @@ def control_shell():
     specs.append(('batteryConfig', '', 'String'))
     specs.append(('smartBattleConfig', '', 'String'))
     specs.append(('evolveTransferConfig', '', 'String'))
+    specs.append(('showcaseKeepConfig', '', 'String'))
+    specs.append(('showcaseOwnedTags', '', 'String'))
+    # Compiled-only action appended after the 59 legacy translated.js actions.
+    specs.append(('setShowcaseKeepStatus', 'String', 'void'))
     methods = []
     for name, params, expected_result in specs:
         actual = re.search(r'public static\s+(?:synchronized\s+)?([\w\[\]]+)\s+' + name + r'\(([^)]*)\)', source)
@@ -68,6 +72,12 @@ def control_shell():
             body = 'reads++;return "1|1|1|2|10,13";'
         elif name == 'smartBattleConfig':
             body = 'reads++;return "F1|1";'
+        elif name == 'showcaseOwnedTags':
+            body = 'reads++;return "T0";'
+        elif name == 'showcaseKeepConfig':
+            body = 'reads++;return "S1|3";'
+        elif name == 'setShowcaseKeepStatus':
+            body = 'lastStatus=a0;'
         elif name == 'storageIvConfig':
             body = 'reads++;return "S2|2|2|3";'
         elif name == 'researchConfig':
@@ -97,8 +107,8 @@ public final class Control {
  public static int reads,mutations; public static boolean pulse,throwMutation,gymRepeat;
  public static long timestamp;
  public static String[] snapshot={"command","18446744073709551615"};
- public static Runnable onMutation; public static String lastDiagnostic=""; public static String badBerry="";
- public static void reset(){reads=mutations=0;pulse=throwMutation=gymRepeat=false;timestamp=0;onMutation=null;lastDiagnostic="";badBerry="";snapshot=new String[]{"command","18446744073709551615"};}
+ public static Runnable onMutation; public static String lastDiagnostic=""; public static String badBerry=""; public static String lastStatus="";
+ public static void reset(){reads=mutations=0;pulse=throwMutation=gymRepeat=false;timestamp=0;onMutation=null;lastDiagnostic="";badBerry="";lastStatus="";snapshot=new String[]{"command","18446744073709551615"};}
 ''' + '\n'.join(methods) + '\n}\n'
 
 

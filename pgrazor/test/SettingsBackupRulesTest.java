@@ -106,12 +106,20 @@ public class SettingsBackupRulesTest {
         v=valid();v.getJSONObject("settings").put("evolveTransferStages","3");rejects(v);
         v=valid();v.getJSONObject("settings").put("evolveTransferSpecies","1,1");rejects(v);         // duplicate dex id
         v=valid();v.getJSONObject("settings").put("evolveTransferSpecies","2001");rejects(v);        // out of range (>2000)
+        // Showcase keepers: enable flag plus a bounded Top N slot count (1..3).
+        v=valid();v.getJSONObject("settings").put("showcaseKeepEnabled","true").put("showcaseKeepSlots","1");SettingsBackupRules.validate(v);
+        v=valid();v.getJSONObject("settings").put("showcaseKeepEnabled","false").put("showcaseKeepSlots","3");SettingsBackupRules.validate(v);
+        v=valid();v.getJSONObject("settings").put("showcaseKeepSlots","2");SettingsBackupRules.validate(v);
+        v=valid();v.getJSONObject("settings").put("showcaseKeepEnabled","maybe");rejects(v);
+        v=valid();v.getJSONObject("settings").put("showcaseKeepSlots","0");rejects(v);               // below range
+        v=valid();v.getJSONObject("settings").put("showcaseKeepSlots","4");rejects(v);               // above range
+        v=valid();v.getJSONObject("settings").put("showcaseKeepSlots","bad");rejects(v);             // non-numeric
         v=valid();v.getJSONObject("preferences").put("pgrazor-overlays",new JSONObject().put("transfer.fx",0.5).put("transfer.fy",0.25));SettingsBackupRules.validate(v);
         v=valid();v.getJSONObject("preferences").put("pgrazor-overlays",new JSONObject().put("transfer.fx",1.5));rejects(v);
         v=valid();v.getJSONObject("preferences").put("pgrazor-livefeed",new JSONObject().put("radius","2"));rejects(v);
         String places="[{\"id\":\"a\",\"name\":\"Home\",\"latitude\":40,\"longitude\":-70}]";
         v=valid();v.getJSONObject("preferences").put("pgrazor-saved-places-v1",new JSONObject().put("places",places));SettingsBackupRules.validate(v);
         v.getJSONObject("preferences").getJSONObject("pgrazor-saved-places-v1").put("places",places.replace("40","400"));rejects(v);
-        System.out.println("PASS settings backup: valid settings/favorites, schema, credential and VGP exclusion, bounds, IV display booleans, transfer keep list/Keep All/overlay validation, evolve-before-transfer enable/mode/stages/species validation and preference types");
+        System.out.println("PASS settings backup: valid settings/favorites, schema, credential and VGP exclusion, bounds, IV display booleans, transfer keep list/Keep All/overlay validation, evolve-before-transfer enable/mode/stages/species validation, Showcase keeper enable/slot-bound validation and preference types");
     }
 }

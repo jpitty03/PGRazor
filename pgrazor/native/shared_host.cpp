@@ -1,4 +1,5 @@
 #include "game_bindings.h"
+#include "showcase_host.h"
 #include "shared_host.h"
 #include "shared_catch.h"
 #include "summary_completion.h"
@@ -191,6 +192,7 @@ void hook_initialize(void *self,void *value,bool follows_disguise_reveal,const v
  if(field<void*>(target(r->state),f(4))!=target(r->proto)||(r->response&&target(r->response)!=target(r->proto))){cancel(*r);return;}
  if(!assign(r->dismissed,field<void*>(target(r->gui),f(2)))){fault(-12);return;}
  r->id=field<uint64_t>(target(r->proto),f(0));sh->mark(r->slot,PGR_SH_STAGE_INIT,1|(r->id?2:0),tid());emit(1,r->slot);
+ pgr_showcase_caught(r->id,tid());
  // Keep the successful catch summary hidden while its normal open/dismiss
  // lifecycle runs. The canvas lease restores visibility if Quick Catch stops.
  if((capabilities&PGR_SHH_CANVAS)&&(gate().flags&PGR_SHH_DISMISS)&&current(r->epoch)){
@@ -348,6 +350,7 @@ bool transfer(Record &r,bool direct=false){auto g=gate();if(!(capabilities&PGR_S
  if(direct){PgrCatchCompletionRequest q{1,sizeof(q),r.id,r.epoch,tid(),target(r.state),target(r.response),target(r.pokemon),target(r.dismissed)};if(cc->validate(&q)!=1)return false;}
  else {auto q=details_request(r);if(dc->validate(&q)!=1)return false;}
  if(!current(r.epoch))return false;
+ if(pgr_showcase_keep(r.id,tid())){publish(56,"Kept: Showcase keeper or ranking pending");return false;}
  PgrTransferExecRequest request{1,sizeof(request),r.id,r.epoch,tid(),bag.get(),pokemon.get(),{}};
  request.input={1,sizeof(PgrTransferInput),facts.attack,facts.defense,facts.stamina,facts.species,g.protect,facts.known,facts.flags,uint32_t((g.flags&PGR_SHH_KEEP_ALL)!=0),g.count,0,g.ids.data()};
  const int policy=transfer_policy->decide(&request.input);if(policy){emit(7,r.slot,policy);return false;}

@@ -1,5 +1,6 @@
 #include "game_bindings.h"
 #include "evolve_transfer.h"
+#include "showcase_host.h"
 #include "evolve_transfer_policy.h"
 #include "batch_evolution_policy.h"
 #include "batch_evolution.h"
@@ -143,6 +144,7 @@ bool safe_to_release(Root &p){
  void *args[]={&job.id};return !boxed<bool>(call(job.buddy.get(),"GetIsBuddy",1,args),"System.Boolean");
 }
 bool classify(Root &p,const Permission &settings,PgrTransferInput &input,std::vector<int32_t> &kept){
+ if(pgr_showcase_keep(job.id,owner))return false;
  if(!authorized(settings)||!safe_to_release(p))return false;
  auto facts=static_cast<const PgrTransferFactsApi*>(pgrazor_transfer_facts_api(1));
  auto policy=static_cast<const PgrTransferApi*>(pgrazor_transfer_policy_api(1));require(facts&&policy,"Transfer protections unavailable");

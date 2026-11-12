@@ -32,10 +32,10 @@ public final class NativeRuntimeTransport {
     private static final int MAX_BYTES = 1048576, MAX_CALLS = 128;
 
     // Wire constants, compiled identically in runtime_transport.h.
-    private static final int MAGIC_SNAPSHOT = 0x53524750, MAGIC_EVENTS = 0x45524750, FRAME_VERSION = 20, FLAG_INERT = 1;
+    private static final int MAGIC_SNAPSHOT = 0x53524750, MAGIC_EVENTS = 0x45524750, FRAME_VERSION = 22, FLAG_INERT = 1;
     private static final int OFF_MAGIC = 0, OFF_VERSION = 4, OFF_FRAME_SIZE = 8, OFF_FLAGS = 12, OFF_SEQ = 16,
         OFF_WALL = 24, OFF_BOOLS = 32, OFF_INTS = 80, OFF_DOUBLES = 120, OFF_PULSES = 136, OFF_STRINGS = 160;
-    private static final int EVENT_HEADER = 32, ACTION_COUNT = 59;
+    private static final int EVENT_HEADER = 32, ACTION_COUNT = 60;
 
     // Legacy translated.js reader order, split by compiled type group. Indices here equal the native field ids.
     private static final String[] BOOL_READERS = {
@@ -81,7 +81,8 @@ public final class NativeRuntimeTransport {
         "setSpawnRange:double,double:void", "setSpawnReady:boolean:void", "setThrowArReady:boolean:void",
         "setThrowAlwaysHitReady:boolean:void", "setThrowReady:boolean:void", "setVgpReady:boolean,String:void",
         "setVgpStatus:String:void", "setVgpTarget:boolean,double,double,boolean:void", "transferResult:String:void",
-        "updateCameraHeadingAt:double,int,boolean,long:void", "vgpResult:String,boolean:void"
+        "updateCameraHeadingAt:double,int,boolean,long:void", "vgpResult:String,boolean:void",
+        "setShowcaseKeepStatus:String:void"
     };
 
     /** The native exchange seam. Production wraps the RegisterNatives method; tests inject a pure-Java fake. */
@@ -95,7 +96,7 @@ public final class NativeRuntimeTransport {
     private final Exchange exchange;
     private final Method[] boolReaders, intReaders, doubleReaders, stringReaders, pulseReaders, actions;
     private final Class<?>[][] actionParams;
-    private final Method snapshotReader, smartCatchReader, gymAutomationReader, buddyEmotionReader, buddyEmotionHistoryReader, batchEvolutionReader, automationReader, researchReader, storageIvReader, catchChanceReader, pvpKeepReader, cutsceneSkipReader, healReader, shundoReader, batteryReader, smartBattleReader, evolveTransferReader, eventAction;
+    private final Method snapshotReader, smartCatchReader, gymAutomationReader, buddyEmotionReader, buddyEmotionHistoryReader, batchEvolutionReader, automationReader, researchReader, storageIvReader, catchChanceReader, pvpKeepReader, cutsceneSkipReader, healReader, shundoReader, batteryReader, smartBattleReader, evolveTransferReader, showcaseKeepReader, showcaseOwnedTagsReader, eventAction;
     private final long[] pulseCounts = new long[PULSE_READERS.length];
     private ByteBuffer snapshotBuffer, eventBuffer;
     private long seq;
@@ -135,6 +136,8 @@ public final class NativeRuntimeTransport {
         batteryReader = reader("batteryConfig", String.class);
         smartBattleReader = reader("smartBattleConfig", String.class);
         evolveTransferReader = reader("evolveTransferConfig", String.class);
+        showcaseKeepReader = reader("showcaseKeepConfig", String.class);
+        showcaseOwnedTagsReader = reader("showcaseOwnedTags", String.class);
         actions = new Method[ACTIONS.length];
         actionParams = new Class<?>[ACTIONS.length][];
         if (ACTIONS.length != ACTION_COUNT) throw invalid();
@@ -315,6 +318,8 @@ public final class NativeRuntimeTransport {
         putString(buffer, batteryReader.invoke(null)); // slot 20
         putString(buffer, smartBattleReader.invoke(null)); // slot 21
         putString(buffer, evolveTransferReader.invoke(null)); // slot 22
+        putString(buffer, showcaseKeepReader.invoke(null)); // slot 23
+        putString(buffer, showcaseOwnedTagsReader.invoke(null)); // slot 24
         int frameSize = buffer.position();
         buffer.putInt(OFF_MAGIC, MAGIC_SNAPSHOT);
         buffer.putInt(OFF_VERSION, FRAME_VERSION);

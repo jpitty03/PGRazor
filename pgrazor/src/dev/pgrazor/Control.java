@@ -135,6 +135,14 @@ public final class Control {
     private static volatile boolean evolveTransferEnabled;
     private static volatile int evolveTransferMode, evolveTransferStages=1;
     private static volatile String evolveTransferSpecies="";
+    // Showcase keepers (off by default): tag the highest Showcase scores in each of the 18 Pokemon types and
+    // keep the top N per type (1..3, default 3). The native coordinator ranks/tags winners; replaced Pokemon
+    // obey the existing transfer protections, which this never changes. showcaseKeepStatus is runtime only:
+    // the native module's last progress/error, cleared on disable and on a runtime restart.
+    private static volatile boolean showcaseKeepEnabled;
+    private static volatile int showcaseKeepSlots=3;
+    private static volatile String showcaseKeepStatus="";
+    private static volatile ShowcaseTagStore showcaseTagStore;
     private static volatile String quickSummaryStatus="";
     private static final Object quickBallLock=new Object();
     private static volatile boolean quickBallConfigured, quickBallReady, quickBallEnabled;
@@ -500,6 +508,29 @@ public final class Control {
     }
     /** "1|enabled|mode|stages|species" for the native evolve-before-transfer path (transport slot 22). */
     public static String evolveTransferConfig(){return "1|"+(evolveTransferEnabled?1:0)+"|"+evolveTransferMode+"|"+evolveTransferStages+"|"+evolveTransferSpecies;}
+    // Showcase keepers. Independent of the auto-transfer master: it only tags the best Showcase scores per
+    // type for the native coordinator, which never changes the keep rules or transfer protections. An invalid
+    // slot count defaults to 3; the status string is runtime only and is never persisted.
+    public static boolean showcaseKeepEnabled(){return showcaseKeepEnabled;}
+    public static void setShowcaseKeepEnabled(boolean enabled){
+        if(enabled==showcaseKeepEnabled)return;
+        showcaseKeepEnabled=enabled;if(!enabled)showcaseKeepStatus="";saveSettings();
+        event("showcase-keep",enabled?"ON; keep top "+showcaseKeepSlots+" Showcase scores per type":"OFF");
+    }
+    public static int showcaseKeepSlots(){return showcaseKeepSlots;}
+    public static void setShowcaseKeepSlots(int slots){
+        int bounded=slots>=1&&slots<=3?slots:3;
+        if(bounded==showcaseKeepSlots)return;
+        showcaseKeepSlots=bounded;saveSettings();
+        event("showcase-keep-slots","Keep top "+showcaseKeepSlots+" per type");
+    }
+    /** Runtime-only native progress/error; empty while the feature is off. Bounded to 320 characters. */
+    public static String showcaseKeepStatus(){return showcaseKeepEnabled?showcaseKeepStatus:"";}
+    public static void setShowcaseKeepStatus(String status){showcaseKeepStatus=status==null?"":status.substring(0,Math.min(status.length(),320));}
+    /** "S1|0" off, else "S1|<slots>" with slots 1..3 for the native Showcase keeper (transport slot 23). */
+    public static String showcaseKeepConfig(){return "S1|"+(showcaseKeepEnabled?showcaseKeepSlots:0);}
+    /** T0 means ownership unavailable; native must pause tagging. IDs are account-local, never exported. */
+    public static String showcaseOwnedTags(){ShowcaseTagStore store=showcaseTagStore;return store==null||!hostLive()?"T0":store.snapshot();}
     /** Keep All holds manual encounter catches; background catches use the main settings. */
     public static boolean transferKeepAll(){return transferKeepAll;}
     public static void setTransferKeepAll(boolean value){
@@ -959,6 +990,7 @@ public final class Control {
         invalidateCameraHeading("Adapter disconnected");
         cameraSampleRequest.set(false);
         cameraDiagnosticRunning = false;
+        showcaseKeepStatus = "";  // runtime-only: drop stale native progress across a runtime restart
         if (cameraDiagnosticsConfigured) cameraDiagnosticStatus = "Camera diagnostic unavailable: adapter disconnected";
         saveState();
         connection = "DISCONNECTED - location override off";
@@ -1105,6 +1137,27 @@ public final class Control {
         GiftBatchSettings.reset();
         BatchEvolutionSettings.reset();
         synchronized(stateLock) {
+            if(showcaseTagStore==null) {
+                final java.io.File base=AccountProfiles.file(app,"pgrazor-showcase-tags-v1.txt");
+                final AtomicFile target=new AtomicFile(base);
+                try {showcaseTagStore=new ShowcaseTagStore(new ShowcaseTagStore.Sink(){
+                    public String read() throws IOException {
+                        if(!base.exists()&&!new java.io.File(base.getPath()+".bak").exists())return null;
+                        try(FileInputStream in=target.openRead()) {
+                            byte[] bytes=new byte[513];int size=0,n;
+                            while(size<bytes.length&&(n=in.read(bytes,size,bytes.length-size))>0)size+=n;
+                            if(size>512)throw new IOException("Showcase tag ownership too large");
+                            return new String(bytes,0,size,java.nio.charset.StandardCharsets.UTF_8);
+                        }
+                    }
+                    public void write(String value)throws IOException {
+                        FileOutputStream out=null;
+                        try {out=target.startWrite();out.write(value.getBytes(java.nio.charset.StandardCharsets.UTF_8));out.getFD().sync();target.finishWrite(out);out=null;
+                            if(!value.equals(read()))throw new IOException("Showcase tag ownership write was not confirmed");}
+                        catch(IOException|RuntimeException failure){if(out!=null)target.failWrite(out);throw failure;}
+                    }
+                });}catch(IOException failure){showcaseKeepStatus="Showcase tag ownership could not be loaded";}
+            }
             if(settingsFile==null) {
                 // Create the destination and its writer once so the sink can close over a stable
                 // target; the file path never changes within a process.
@@ -1189,6 +1242,9 @@ public final class Control {
                 boolean[] evolveDamaged=new boolean[1];
                 evolveTransferSpecies=normalizeKeepSpecies(p.getProperty("evolveTransferSpecies",""),evolveDamaged);
                 if(evolveCorrupt||evolveDamaged[0]){evolveTransferEnabled=false;autoTransferEnabled=false;}
+                // Showcase keepers: off by default, slots bounded to 1..3 with 3 as the fail-safe default.
+                showcaseKeepEnabled=Boolean.parseBoolean(p.getProperty("showcaseKeepEnabled","false"));
+                int showcaseSlots=boundedSetting(p,"showcaseKeepSlots",3);showcaseKeepSlots=showcaseSlots>=1?showcaseSlots:3;
                 ivCatchEnabled=Boolean.parseBoolean(p.getProperty("ivCatch","true"));
                 ivOwnedEnabled=Boolean.parseBoolean(p.getProperty("ivOwned","false"));
                 int catchFormat=boundedSetting(p,"ivCatchFormat",4),ownedFormat=boundedSetting(p,"ivOwnedFormat",4);
@@ -1289,6 +1345,7 @@ public final class Control {
         p.setProperty("autoTransfer",String.valueOf(autoTransferEnabled)); p.setProperty("transferProtect",String.valueOf(transferProtect));
         p.setProperty("transferKeepAll",String.valueOf(transferKeepAll)); p.setProperty("transferOverlay",String.valueOf(transferOverlayEnabled)); p.setProperty("transferKeepSpecies",transferKeepSpecies);
         p.setProperty("evolveTransferEnabled",String.valueOf(evolveTransferEnabled)); p.setProperty("evolveTransferMode",String.valueOf(evolveTransferMode)); p.setProperty("evolveTransferStages",String.valueOf(evolveTransferStages)); p.setProperty("evolveTransferSpecies",evolveTransferSpecies);
+        p.setProperty("showcaseKeepEnabled",String.valueOf(showcaseKeepEnabled)); p.setProperty("showcaseKeepSlots",String.valueOf(showcaseKeepSlots));
         p.setProperty("ivCatch",String.valueOf(ivCatchEnabled)); p.setProperty("ivOwned",String.valueOf(ivOwnedEnabled)); p.setProperty("ivCatchFormat",String.valueOf(ivCatchFormat)); p.setProperty("ivOwnedFormat",String.valueOf(ivOwnedFormat)); p.setProperty("storageIv",String.valueOf(storageIvMode)); p.setProperty("storageIvFormat",String.valueOf(storageIvFormat));
         p.setProperty("catchChance",String.valueOf(catchChanceShown)); p.setProperty("autoBall",String.valueOf(autoBall)); p.setProperty("autoBallTarget",String.valueOf(autoBallTarget));
         p.setProperty("pvpKeepLeagues",String.valueOf(pvpKeepLeagues)); p.setProperty("skipCutscenes",String.valueOf(skipCutscenes));
@@ -1317,6 +1374,13 @@ public final class Control {
         if(writer!=null) writer.flush(timeoutMillis);
     }
     public static void event(String kind, String detail) {
+        if("showcase-owned-tag".equals(kind)) {
+            ShowcaseTagStore store=showcaseTagStore;
+            if(store!=null&&showcaseKeepEnabled&&hostLive()) {
+                try {if(!store.update(detail))showcaseKeepStatus="Showcase tag ownership changed; refreshing";}
+                catch(IOException failure){showcaseKeepStatus="Showcase tag ownership could not be saved";}
+            }
+        }
         if("gym-automation".equals(kind))GymAutomationSettings.publish(detail);
         if("gym-spin".equals(kind)&&SmartCatchSettings.gymSpinActive()){
             try{setVgpStatus(new org.json.JSONObject(detail).optString("message","Waiting for gym disc"));}catch(Exception ignored){}

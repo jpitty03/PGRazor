@@ -44,6 +44,7 @@
 #include "gym_automation.h"
 #include "batch_evolution.h"
 #include "evolve_transfer.h"
+#include "showcase_host.h"
 #include "heal.h"
 #include "shundo.h"
 #include "battery.h"
@@ -692,7 +693,7 @@ static void clear_active_vgp_transfer() {
   memset(&g_vgp_transfer, 0, sizeof(g_vgp_transfer));
 }
 
-static void handle_vgp_transfer_ready(const PgrVgpControllerOut &out, uint64_t tid, uint64_t lease_ms, int keep_all = 0, bool honor_keep_all = false) {
+static void handle_vgp_transfer_ready(const PgrVgpControllerOut &out, uint64_t tid, uint64_t lease_ms, int keep_all = 0, bool honor_keep_all = false, bool showcase_candidate = false) {
   clear_active_vgp_transfer();
   g_vgp_transfer.response_handle = reinterpret_cast<void *>(static_cast<uintptr_t>(out.response_handle));
   g_vgp_transfer.bag_handle = reinterpret_cast<void *>(static_cast<uintptr_t>(out.bag_handle));
@@ -700,6 +701,7 @@ static void handle_vgp_transfer_ready(const PgrVgpControllerOut &out, uint64_t t
   g_vgp_transfer.gm_handle = reinterpret_cast<void *>(static_cast<uintptr_t>(out.gm_handle));
   g_vgp_transfer.vgc_token = out.transfer_token;
   g_vgp_transfer.caught_id = out.caught_id;
+  if (!showcase_candidate) pgr_showcase_caught(out.caught_id, tid, honor_keep_all);
 
   if (!(g_active_caps & PGR_EH_CAP_TRANSFER) || !g_tf || !g_tp || !g_broker ||
       !g_opts.auto_transfer_allowed) {
@@ -711,6 +713,13 @@ static void handle_vgp_transfer_ready(const PgrVgpControllerOut &out, uint64_t t
   }
 
   g_sample.transfer_eval_serial++;
+
+  if (pgr_showcase_keep(out.caught_id, tid)) {
+    notify_transfer_result("Kept: Showcase keeper or ranking pending");
+    if (g_vgc && out.transfer_token) g_vgc->transfer_feedback(out.transfer_token, PGR_VGC_FB_KEPT, tid);
+    clear_active_vgp_transfer();
+    return;
+  }
 
   void *pk_obj = g_exp.gchandle_get_target ? g_exp.gchandle_get_target(g_vgp_transfer.pokemon_handle) : nullptr;
   void *gm_obj = g_exp.gchandle_get_target ? g_exp.gchandle_get_target(g_vgp_transfer.gm_handle) : nullptr;
@@ -849,6 +858,18 @@ extern "C" int pgr_research_transfer_caught(uint64_t caught_id, uint64_t respons
   out.pokemon_handle = pokemon;
   out.gm_handle = gm;
   handle_vgp_transfer_ready(out, tid, 2500, keep_all, true);
+  return 1;
+}
+
+// Deferred Showcase losers reuse the same classifier, protections and single
+// transfer slot. No fabricated catch response or additional release RPC path.
+extern "C" int pgr_showcase_transfer_candidate(uint64_t id,uint64_t bag,uint64_t pokemon,uint64_t gm,uint64_t tid,int honor_keep_all) {
+  if (!id||!bag||!pokemon||!gm||g_vgp_transfer.active||!g_opts.auto_transfer_allowed||tid!=proven_unity_tid())return 0;
+  PgrVgpControllerOut out{};out.caught_id=id;out.bag_handle=bag;out.pokemon_handle=pokemon;out.gm_handle=gm;
+  // Ownership has passed to this front-end. Never unwind an ambiguous adoption
+  // back to the caller, which would otherwise free the same handles twice.
+  try {handle_vgp_transfer_ready(out,tid,2500,g_opts.transfer_keep_all,honor_keep_all!=0,true);}
+  catch (...) {clear_active_vgp_transfer();notify_transfer_error("Showcase transfer outcome unknown");}
   return 1;
 }
 
@@ -2483,6 +2504,7 @@ static int api_tick(uint64_t proven_tid) {
   pump_berry_events_and_resume(os_tid, 0);
 
   // 2. VGP controller tick & transfer handoff
+  pgr_showcase_tick(os_tid, &g_md, g_lease_deadline_ms);
   tick_vgp_controller(os_tid, now, rem_lease);
 
   // 3. MapPOI snapshot scan
@@ -2521,6 +2543,7 @@ static int api_stop(uint64_t proven_tid) {
   if (!tid || (proven_tid && proven_tid != tid)) return PGR_EH_RETRY;
   g_stopped = true;
   if (tid != 0) {
+    pgr_showcase_stop(tid);
     if (g_berries && (g_active_caps & PGR_EH_CAP_BERRIES)) {
       g_berries->update(nullptr, 0, 0, tid);
       pump_berry_events_and_resume(tid, 1);

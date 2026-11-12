@@ -13,6 +13,9 @@ public final class ControlSettingsReloadTest {
         Method load=Control.class.getDeclaredMethod("loadSettings",android.app.Application.class);
         if(Control.gymRepeatEnabled())throw new AssertionError("Gym repeat should default off");
         if(Control.localTimeOverlay())throw new AssertionError("Local clock should default off");
+        if(Control.showcaseKeepEnabled())throw new AssertionError("Showcase keeper should default off");
+        if(Control.showcaseKeepSlots()!=3)throw new AssertionError("Showcase keeper slots should default to 3");
+        if(!Control.showcaseKeepConfig().equals("S1|0"))throw new AssertionError("Showcase keeper config should be S1|0 while off");
         load.setAccessible(true); load.invoke(null,app);
         Control.setGymRepeatEnabled(true);
         Control.setLocalTimeOverlay(true);
@@ -44,6 +47,13 @@ public final class ControlSettingsReloadTest {
         Control.importSettings(app,corruptEvolve,9.3); Control.flushSettings(5000);
         if(Control.autoTransferEnabled()||Control.evolveTransferEnabled()||Control.evolveTransferMode()!=0||Control.evolveTransferStages()!=2||!Control.evolveTransferSpecies().equals("1,4,25"))
             throw new AssertionError("Corrupt evolve-transfer mode did not fail safe to disabled on reload");
+        // Showcase keepers: an out-of-range persisted slot count must fail safe to 3 on reload, keeping the
+        // enabled flag the user chose.
+        Control.setShowcaseKeepEnabled(true); Control.setShowcaseKeepSlots(2);
+        java.util.Properties corruptShowcase=new java.util.Properties(); corruptShowcase.setProperty("showcaseKeepSlots","9");
+        Control.importSettings(app,corruptShowcase,9.3); Control.flushSettings(5000);
+        if(!Control.showcaseKeepEnabled()||Control.showcaseKeepSlots()!=3||!Control.showcaseKeepConfig().equals("S1|3"))
+            throw new AssertionError("Corrupt Showcase keeper slot count did not fail safe to 3 on reload");
         Control.setDarkTheme(false); Control.flushSettings(5000);
         Field writer=Control.class.getDeclaredField("settingsWriter"); writer.setAccessible(true);
         Object original=writer.get(null);

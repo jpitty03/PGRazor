@@ -11,7 +11,7 @@ import java.nio.charset.StandardCharsets;
  */
 public final class NativeRuntimeTransportTest {
     // Wire constants mirror runtime_transport.h / NativeRuntimeTransport.
-    private static final int MAGIC_SNAPSHOT = 0x53524750, MAGIC_EVENTS = 0x45524750, VERSION = 20;
+    private static final int MAGIC_SNAPSHOT = 0x53524750, MAGIC_EVENTS = 0x45524750, VERSION = 22;
     private static final int OFF_BOOLS = 32, OFF_INTS = 80, OFF_DOUBLES = 120, OFF_PULSES = 136, OFF_STRINGS = 160;
     private static final int EVENT_HEADER = 32;
 
@@ -83,7 +83,7 @@ public final class NativeRuntimeTransportTest {
         ByteBuffer snap = ByteBuffer.wrap(fake.lastSnapshot).order(ByteOrder.LITTLE_ENDIAN);
         require(snap.getInt(0) == MAGIC_SNAPSHOT && snap.getInt(4) == VERSION && snap.getInt(8) == fake.lastSnapshot.length);
         require(snap.get(OFF_BOOLS + 3) == 0);         // active default false
-        require(snap.get(OFF_BOOLS + 40) == 0);        // gymRepeatEnabled slot 40 (frame v20, 41 bools)
+        require(snap.get(OFF_BOOLS + 40) == 0);        // gymRepeatEnabled slot 40 (frame v21, 41 bools)
         for (int i = OFF_BOOLS + 41; i < OFF_INTS; i++) require(snap.get(i) == 0);  // 7 zero padding bytes after 41 bools
         require(snap.getInt(OFF_INTS) == 0);           // battleOptions default 0
         require(Double.isNaN(snap.getDouble(OFF_DOUBLES)));         // latitude NaN -> null coord
@@ -123,6 +123,10 @@ public final class NativeRuntimeTransportTest {
         at += 4 + "F1|1".length(); // Smart battling slot 21.
         require(readString(snap, at).equals("1|1|1|2|10,13"));
         at += 4 + "1|1|1|2|10,13".length(); // Evolve/transfer slot 22.
+        require(readString(snap, at).equals("S1|3"));
+        at += 4 + "S1|3".length(); // Showcase keepers slot 23 (appended in frame v21).
+        require(readString(snap, at).equals("T0"));
+        at += 4 + 2; // account-local tag ownership slot24, unavailable until loaded.
         require(at == fake.lastSnapshot.length);
 
         // The new setting must reach native as true, then clear on the following snapshot.
@@ -242,6 +246,15 @@ public final class NativeRuntimeTransportTest {
         t.tick();
         require(t.isStopped() && Control.lastDiagnostic.equals("native-transport-error"));
 
+        // 15. The appended Showcase-keeper status action (opcode 59, frame v21) dispatches its string arg into
+        // Control. It is a compiled-only action beyond the 59 legacy translated.js actions.
+        fake = new Fake();
+        t = fresh(fake);
+        fake.nextEvents = new FrameBuilder()
+            .event(59 /*setShowcaseKeepStatus: String*/, new long[0], new String[]{"Tagged 7 types"}).build();
+        t.tick();
+        require(Control.lastStatus.equals("Tagged 7 types") && !t.isStopped());
+
         // Compiled lifecycle has one owner and revokes immediately on transport failure.
         fake = new Fake(); t = fresh(fake);
         Control.connects = Control.renewals = Control.disconnects = 0;
@@ -259,7 +272,7 @@ public final class NativeRuntimeTransportTest {
             + "pulse/command-pair), valid batch dispatch + no replay, exact 64-bit scalars (incl. Long.MAX_VALUE), "
             + "type/domain/arity rejection, malformed-frame + negative-status fault, reentry guard, stop during "
             + "dispatch, snapshot shape, Java-owned start/stop cadence, event-frame generation-mismatch + "
-            + "replay-seq fault, strict UTF-8 encode fault");
+            + "replay-seq fault, strict UTF-8 encode fault, appended Showcase-keeper string slot 23 + status action 59");
     }
 
     private static void requireFault(int opcode, long[] scalars, String[] strings) throws Exception {
