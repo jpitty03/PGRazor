@@ -1,6 +1,7 @@
 #include "hook_engine.h"
 #include "dobby.h"
 #include <mutex>
+#include <android/log.h>
 #if defined(__aarch64__)
 #include <cstdint>
 #include <cstdio>
@@ -34,11 +35,15 @@ bool private_readable_range(uintptr_t begin, uintptr_t end) {
     if (!maps) return false;
     char line[1024], permissions[5];
     bool found = false;
+    uintptr_t cursor = begin;
     while (std::fgets(line, sizeof(line), maps)) {
         unsigned long long lo = 0, hi = 0;
-        if (std::sscanf(line, "%llx-%llx %4s", &lo, &hi, permissions) == 3 &&
-            begin >= lo && end <= hi && permissions[0] == 'r' &&
-            permissions[1] != 'w' && permissions[3] == 'p') { found = true; break; }
+        if (std::sscanf(line, "%llx-%llx %4s", &lo, &hi, permissions) != 3) continue;
+        if (hi <= cursor) continue;
+        if (lo > cursor || permissions[0] != 'r' || permissions[1] == 'w' ||
+            permissions[3] != 'p') break;
+        cursor = hi < end ? hi : end;
+        if (cursor == end) { found = true; break; }
     }
     std::fclose(maps);
     return found;
@@ -61,10 +66,19 @@ int padding_callback(dl_phdr_info *info, size_t, void *opaque) {
         const uintptr_t begin = info->dlpi_addr + ph.p_vaddr;
         if (ph.p_memsz > UINTPTR_MAX - begin) continue;
         const uintptr_t end = begin + ph.p_memsz;
-        if (end > UINTPTR_MAX - search.page_size + 1) continue;
+        // Honor the ELF's alignment (bounded to 16K), including on 4K hosts.
+        // New game builds can leave too little padding inside the last 4K page.
+        // All candidate bytes still require private read-only mappings and must
+        // lie outside every LOAD segment; never claim code/data or unmapped gaps.
+        uintptr_t alignment = search.page_size;
+        if (ph.p_align && !(ph.p_align & (ph.p_align - 1))) {
+            const uintptr_t elf_alignment = ph.p_align < 16384 ? ph.p_align : 16384;
+            if (elf_alignment > alignment) alignment = elf_alignment;
+        }
+        if (end > UINTPTR_MAX - alignment + 1) continue;
         const uintptr_t ranges[][2] = {
-            {begin & ~(search.page_size - 1), begin & ~uintptr_t(3)},
-            {(end + 3) & ~uintptr_t(3), (end + search.page_size - 1) & ~(search.page_size - 1)}
+            {begin & ~(alignment - 1), begin & ~uintptr_t(3)},
+            {(end + 3) & ~uintptr_t(3), (end + alignment - 1) & ~(alignment - 1)}
         };
         for (const auto &range : ranges) {
             const uintptr_t lo = range[0], hi = range[1];
@@ -140,8 +154,8 @@ void *near_island(void *address, void *replacement) {
         }
         std::fclose(maps);
         if (allocated == MAP_FAILED) {
-            // Restrict padding to at most a 4K boundary even on larger-page
-            // systems, minimizing the reserved part of an executable segment.
+            // Start with host-page alignment; the callback also considers the
+            // owning executable segment's bounded ELF alignment.
             PaddingSearch search{source, page_size < 4096 ? page_size : 4096, false};
             dl_iterate_phdr(padding_callback, &search);
             if (!search.found) return nullptr;
@@ -173,8 +187,14 @@ int pgrazor_hook(void *address, void *replacement, void **original) {
     // Passing an already-near destination prevents Dobby's near plugin from
     // silently falling back to a 12/16-byte patch over adjacent tiny methods.
     void *island = near_island(address, replacement);
-    if (!island) return -1;
-    return DobbyHook(address, island, original);
+    if (!island) {
+        __android_log_print(ANDROID_LOG_WARN, "PGRazor", "hook-install-failed target=%p reason=near-island", address);
+        return -1;
+    }
+    const int rc = DobbyHook(address, island, original);
+    if (rc != 0 || !*original)
+        __android_log_print(ANDROID_LOG_WARN, "PGRazor", "hook-install-failed target=%p reason=dobby rc=%d", address, rc);
+    return rc;
 #else
     return DobbyHook(address, replacement, original);
 #endif

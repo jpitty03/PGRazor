@@ -101,7 +101,22 @@ void pure_tests(){
  s=parse("2;1;2;701;1;1500;30;3;1;1;85;25");assert(s.enabled&&s.auto_ball==1&&s.auto_target==85&&s.species_count==1&&s.species[0]==25&&s.berry==701);
  s=parse("1;1;2;0;1;1500;30;3;1;");assert(s.enabled&&!s.auto_ball&&s.auto_target==75);
  for(const std::string &bad:{"2;1;1;0;1;1500;30;3;1;2;75;","2;1;1;0;1;1500;30;3;1;1;0;","2;1;1;0;1;1500;30;3;1;1;100;","1;1;1;0;1;1500;30;3;1;1;75;","2;1;1;0;1;1500;30;3;1;1;75;;","3;1;1;0;1;1500;30;3;1;1;75;"})assert(!parse(bad).enabled);
- s=parse("2;1;2;0;1;1500;30;3;1;1;75;");
+ // Version 3 appends the catch-only list; empty catches every species.
+ s=parse("3;1;2;0;1;1500;30;3;1;0;75;25;415,415,1");assert(s.enabled&&s.species_count==1&&s.catch_count==2&&s.catch_species[0]==1&&s.catch_species[1]==415);
+ assert(pgr_smart_catch_wanted(&s,415)&&pgr_smart_catch_wanted(&s,1)&&!pgr_smart_catch_wanted(&s,25));
+ s=parse("3;1;2;0;1;1500;30;3;1;0;75;;");assert(s.enabled&&s.catch_count==0&&pgr_smart_catch_wanted(&s,25));
+ assert(parse("3;1;2;0;1;1500;30;3;1;0;75;"+ids+";"+ids).catch_count==200);
+ for(const std::string &bad:{"3;1;2;0;1;1500;30;3;1;0;75;;0","3;1;2;0;1;1500;30;3;1;0;75;;2001","3;1;2;0;1;1500;30;3;1;0;75;;1,","3;1;2;0;1;1500;30;3;1;0;75;;;","2;1;2;0;1;1500;30;3;1;0;75;;415"})assert(!parse(bad).enabled);
+ assert(!parse("3;1;2;0;1;1500;30;3;1;0;75;;"+ids+",201").enabled);
+ // Version 4: throw variety appended; version 3 means variety off.
+ assert(parse("3;1;2;0;1;1500;30;3;1;0;75;;").variety==0);
+ s=parse("4;1;2;0;1;1500;30;3;1;0;75;25;415;2");assert(s.enabled&&s.variety==2&&s.catch_count==1&&s.species_count==1);
+ for(const std::string &bad:{"4;1;2;0;1;1500;30;3;1;0;75;;;4","4;1;2;0;1;1500;30;3;1;0;75;;;-1","4;1;2;0;1;1500;30;3;1;0;75;;","3;1;2;0;1;1500;30;3;1;0;75;;;1","4;1;2;0;1;1500;30;3;1;0;75;;;1;"})assert(!parse(bad).enabled);
+ for(int variety=1;variety<=3;++variety){
+  int seen[4]={};for(uint32_t r=0;r<1200;++r)++seen[pgr_smart_variety_grade(variety,r*2654435761u)];
+  for(int g=0;g<4;++g){const bool in=g>=3-variety;assert(in?seen[g]>=1200/(variety+1)/2:seen[g]==0);}
+ }
+ s=parse("2;1;2;0;1;1500;30;3;1;1;75;");assert(s.catch_count==0);
  pgr_smart_decide(&s,false,20,true,100,10,99,&d);assert(d.ball==1);       // auto ball starts from a Poke Ball
  pgr_smart_decide(&s,true,20,true,100,10,99,&d);assert(d.ball==3&&d.berry==706); // premium still Ultra
  pgr_smart_decide(&s,false,20,true,1500,10,99,&d);assert(d.ball==3);      // High CP rule still Ultra
@@ -155,6 +170,10 @@ int main(){
  source_ok=true;cp=2000;assert(pgr_smart_plan(&wild,&bag,tid,&d)==0&&d.ball==3);cp=100;          // High CP rule
  stock[1]=0;stock[2]=0;stock[3]=0;assert(pgr_smart_plan(&wild,&bag,tid,&d)==PGR_SMART_NO_BALLS);stock[1]=10;stock[2]=10;stock[3]=10;
  assert(roots.empty());pgr_smart_set_capture_source(nullptr);
+ // Catch-only list: an unlisted species is skipped before stock is read; a listed one is planned.
+ config="3;1;3;0;1;1500;30;3;1;0;75;;415";assert(pgr_smart_plan(&wild,&bag,tid,&d)==PGR_SMART_SKIP_SPECIES&&!d.enabled);assert(roots.empty());
+ stock[1]=0;stock[2]=0;stock[3]=0;assert(pgr_smart_plan(&wild,&bag,tid,&d)==PGR_SMART_SKIP_SPECIES);stock[1]=10;stock[2]=10;stock[3]=10;
+ config="3;1;3;0;1;1500;30;3;1;0;75;;25,415";assert(pgr_smart_plan(&wild,&bag,tid,&d)==0&&d.enabled&&d.ball==3);assert(roots.empty());
  response.value=1;assert(pgr_smart_berry_success(&response,tid)==1);response.value=0;assert(pgr_smart_berry_success(&response,tid)==PGR_SMART_NOT_SUCCESS);assert(pgr_smart_berry_success(&spawn,tid)==PGR_SMART_ERR_IDENTITY);
  std::cout<<"smart_catch parser, policy, auto ball, stock, RPC identity, revocation and GC fixture passed\n";
 }

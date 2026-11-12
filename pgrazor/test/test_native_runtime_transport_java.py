@@ -20,6 +20,7 @@ def control_shell():
     mailbox = (ROOT / 'src/dev/pgrazor/RuntimeMailbox.java').read_text(encoding='utf-8')
     specs = re.findall(r'^\s*"(\w+):([^":]*):([^":]+)"', mailbox, re.M)
     specs.append(('eventBoxesAllowed', '', 'boolean'))
+    specs.append(('gymRepeatEnabled', '', 'boolean'))
     specs.append(('smartCatchConfig', '', 'String'))
     specs.append(('gymAutomationConfig', '', 'String'))
     specs.append(('buddyEmotionConfig', '', 'String'))
@@ -33,6 +34,9 @@ def control_shell():
     specs.append(('cutsceneSkipConfig', '', 'String'))
     specs.append(('healConfig', '', 'String'))
     specs.append(('shundoConfig', '', 'String'))
+    specs.append(('batteryConfig', '', 'String'))
+    specs.append(('smartBattleConfig', '', 'String'))
+    specs.append(('evolveTransferConfig', '', 'String'))
     methods = []
     for name, params, expected_result in specs:
         actual = re.search(r'public static\s+(?:synchronized\s+)?([\w\[\]]+)\s+' + name + r'\(([^)]*)\)', source)
@@ -42,6 +46,8 @@ def control_shell():
         signature = ','.join(t + ' a' + str(i) for i, t in enumerate(types))
         if name == 'accountCommandSnapshot':
             body = 'reads++;return snapshot;'
+        elif name == 'gymRepeatEnabled':
+            body = 'reads++;return gymRepeat;'
         elif name == 'gymAutomationConfig':
             body = 'reads++;return "1;1;0;0;50;10";'
         elif name == 'oneShotAutomationConfig':
@@ -53,9 +59,15 @@ def control_shell():
         elif name == 'cutsceneSkipConfig':
             body = 'reads++;return "K1|1";'
         elif name == 'healConfig':
-            body = 'reads++;return "H1|1|2|75|1";'
+            body = 'reads++;return "H2|1|2|75|1|0";'
         elif name == 'shundoConfig':
             body = 'reads++;return "S1|7|123456789|0|1";'
+        elif name == 'batteryConfig':
+            body = 'reads++;return "B2|1|0|1|0";'
+        elif name == 'evolveTransferConfig':
+            body = 'reads++;return "1|1|1|2|10,13";'
+        elif name == 'smartBattleConfig':
+            body = 'reads++;return "F1|1";'
         elif name == 'storageIvConfig':
             body = 'reads++;return "S2|2|2|3";'
         elif name == 'researchConfig':
@@ -63,7 +75,7 @@ def control_shell():
         elif name in ('accountIdentity', 'accountSessionSaved'):
             body = 'mutations++;if(onMutation!=null)onMutation.run();if(throwMutation)throw new RuntimeException("id-secret");'
         elif name == 'event':
-            body = 'lastDiagnostic=a0;'
+            body = 'lastDiagnostic=a0;lastDiagnosticDetail=a1;diagnostics++;'
         elif name == 'effectiveBerryPriority':
             body = 'reads++;return badBerry;'  # settable so the fixture can drive a malformed-UTF-16 string
         elif name == 'updateCameraHeadingAt':
@@ -82,11 +94,11 @@ public final class Control {
  public static void connect(){connects++;}
  public static void renewLease(){renewals++;}
  public static void disconnect(){disconnects++;}
- public static int reads,mutations; public static boolean pulse,throwMutation;
+ public static int reads,mutations,diagnostics; public static boolean pulse,throwMutation,gymRepeat;
  public static long timestamp;
  public static String[] snapshot={"command","18446744073709551615"};
- public static Runnable onMutation; public static String lastDiagnostic=""; public static String badBerry="";
- public static void reset(){reads=mutations=0;pulse=throwMutation=false;timestamp=0;onMutation=null;lastDiagnostic="";badBerry="";snapshot=new String[]{"command","18446744073709551615"};}
+ public static Runnable onMutation; public static String lastDiagnostic="",lastDiagnosticDetail=""; public static String badBerry="";
+ public static void reset(){reads=mutations=diagnostics=0;pulse=throwMutation=gymRepeat=false;timestamp=0;onMutation=null;lastDiagnostic="";lastDiagnosticDetail="";badBerry="";snapshot=new String[]{"command","18446744073709551615"};}
 ''' + '\n'.join(methods) + '\n}\n'
 
 
@@ -99,6 +111,8 @@ class NativeRuntimeTransportJavaTests(unittest.TestCase):
             sources = [
                 work / 'Control.java',
                 ROOT / 'src/dev/pgrazor/NativeRuntimeTransport.java',
+                ROOT / 'src/dev/pgrazor/NativeCore.java',
+                ROOT / 'src/dev/pgrazor/RuntimeHealth.java',
                 ROOT / 'test/NativeRuntimeTransportTest.java',
             ]
             compiled = subprocess.run([str(compiler), '-encoding', 'UTF-8', '-d', str(work), *map(str, sources)],

@@ -4,7 +4,7 @@
 export const links = {
   releasesLatest: 'https://github.com/jpitty03/PGRazor/releases/latest',
   releasesCurrent:
-    'https://github.com/jpitty03/PGRazor/releases/tag/v0.2.2',
+    'https://github.com/jpitty03/PGRazor/releases/tag/v0.2.3',
   github: 'https://github.com/jpitty03/PGRazor',
   discord: 'https://discord.gg/9QqfkDSQX3',
   kofi: 'https://ko-fi.com/pgrazor',
@@ -71,6 +71,7 @@ export const settingGroups = [
       { name: 'Batch evolution', detail: 'Previews a tagged batch, then evolves each eligible Pokémon once without the cutscene; no automatic Lucky Egg. Find it as Mass Evolve under Settings or Quick Menu > Automation.' },
       { name: 'Friend gifts', detail: 'Open and send gifts, with optional stickers.' },
       { name: 'Battles', detail: 'Assist with Team Rocket, raids, gyms, and Dynamax / Max encounters; in Rocket battles the next Pokémon is picked automatically when one faints.' },
+      { name: 'Smart battling', detail: 'Fill your team with counters before gym, raid, and Rocket battles, and swap to your best counter during gym and Rocket battles.' },
       { name: 'Smart healing', detail: 'Heal damaged Pokémon after battles, periodically, or both, with the potion and revive mix that wastes the least — a Potion for 5 missing HP, not a Max Potion.' },
       { name: 'Research', detail: 'Auto-claim completed field research, delete the tasks you tick, and catch waiting research encounters without the encounter screen.' },
       { name: 'Events (Halloween 2026)', detail: 'Optionally open every visible map box and skip encounter screens; it does not catch the encounters. Experimental and off by default.' },

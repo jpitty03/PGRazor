@@ -1,0 +1,58 @@
+{
+  "name": "@photostructure/tz-lookup",
+  "version": "11.8.0",
+  "description": "fast time zone lookup",
+  "keywords": [
+    "timezone",
+    "time zone",
+    "tz",
+    "latitude",
+    "longitude",
+    "coordinates",
+    "geolocation",
+    "geo",
+    "iana"
+  ],
+  "license": "CC0-1.0",
+  "author": {
+    "email": "tzlookup@photostructure.com",
+    "name": "PhotoStructure, Inc."
+  },
+  "main": "tz.js",
+  "types": "index.d.ts",
+  "scripts": {
+    "test": "mocha",
+    "lint": "prettier --check package.json test.js tz_template.js pack.js",
+    "prettier": "prettier --write package.json test.js tz_template.js pack.js",
+    "install:pinact": "go install github.com/suzuki-shunsuke/pinact/v4/cmd/pinact@v4.1.0",
+    "update": "npm-check-updates --upgrade --install always && pinact run -u",
+    "preflight": "npm run update && npm run prettier && npm run lint && npm test"
+  },
+  "devDependencies": {
+    "geo-tz": "8.1.10",
+    "inhabited": "^2.0.3",
+    "luxon": "^3.7.2",
+    "mocha": "12.0.3",
+    "npm-check-updates": "23.1.1",
+    "prettier": "3.9.10",
+    "uglify-js": "^3.19.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/photostructure/tz-lookup.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "index.d.ts",
+    "tz.js"
+  ],
+  "devEngines": {
+    "packageManager": {
+      "name": "npm",
+      "version": ">=11.10.0",
+      "onFail": "error"
+    }
+  }
+}

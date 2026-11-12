@@ -36,6 +36,8 @@ namespace vgp_universe {
 }
 #undef main
 static const pgrazor_native_api_v2 *core;
+extern "C" const void *pgrazor_combat_host_api(uint32_t v){return core?core->query_feature(66,v):nullptr;}
+extern "C" const void *pgrazor_rocket_actions_api(uint32_t v){return core?core->query_feature(20,v):nullptr;}
 extern "C" const void *pgrazor_encounter_berries_api(uint32_t v){return core?core->query_feature(18,v):nullptr;}
 extern "C" const void *pgrazor_inventory_host_api(uint32_t v){return core?core->query_feature(65,v):nullptr;}
 extern "C" const void *pgrazor_items_api(uint32_t v){return core?core->query_feature(14,v):nullptr;}

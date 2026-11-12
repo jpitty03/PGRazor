@@ -438,6 +438,26 @@ export const featureGuides = [
     ],
   },
   {
+    id: 'smart-battling',
+    title: 'Smart battling',
+    category: 'Battles',
+    summary:
+      'Choose counters for the Pokémon you are fighting, before and during battles.',
+    where: 'Settings > Team Rocket, Gyms, Raids & Dynamax (top of the section).',
+    steps: [
+      'Turn on Smart battling. It is off by default and has no other settings.',
+      'Open a gym, raid, or typed Team GO Rocket grunt battle. The recommended team is filled with your best counters from storage.',
+      'During gym and Team GO Rocket battles, your best counter on the team is swapped in when a new opponent comes out or your Pokémon faints.',
+    ],
+    notes: [
+      'Counters are ranked by damage and survival from each Pokémon’s real moves, stats, and types. Weather is not counted.',
+      'It stays with the current Pokémon unless another team member is at least 30% better for that opponent, so it does not swap for tiny gains.',
+      'Eggs, fainted Pokémon, and gym or Power Spot defenders are never picked. In gyms and raids only the recommended team changes, so a saved team you pick yourself stays as it is.',
+      'Grunts without a type and Team GO Rocket leaders keep your usual team before battle, because their line-up is not known yet. Swaps during the battle still apply.',
+      'Raids get the counter team before the battle only, because the boss never changes.',
+    ],
+  },
+  {
     id: 'smart-healing',
     title: 'Smart healing',
     category: 'Battles',

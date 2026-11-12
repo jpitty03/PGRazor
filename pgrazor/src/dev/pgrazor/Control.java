@@ -49,9 +49,8 @@ public final class Control {
     static void flushAccountWrites() throws IOException { flushSettings(2500); Cooldown.flush(); }
     public static boolean adventureSyncDismissAllowed() {
         Application app=hostApplication;
-        return app!=null && hostLive() && desiredEnabled
-            && app.checkSelfPermission("android.permission.ACCESS_FINE_LOCATION")!=0
-            && app.checkSelfPermission("android.permission.ACCESS_COARSE_LOCATION")!=0;
+        // Spoofing owns this policy. Real Android location grants do not enable Adventure Sync.
+        return app!=null && hostLive() && desiredEnabled;
     }
     private static volatile boolean mapPoiOpen,autoWalkPlanning;
     private static volatile String mapPoiSnapshot="";
@@ -120,13 +119,22 @@ public final class Control {
     private static volatile boolean quickSummaryConfigured, quickSummaryReady, quickSummaryEnabled;
     private static volatile boolean quickSummaryAutoDismiss;
     private static volatile boolean autoTransferEnabled, autoTransferReady;
-    private static volatile int transferProtect=63;
+    private static volatile int transferProtect=127;
     private static volatile String transferStatus="Waiting for transfer support";
     // Custom keep list (canonical, sorted/de-duplicated positive dex IDs) plus the persistent Keep All
     // overlay. Keep All holds every catch regardless of the other rules; the keep list protects the
     // listed species. Both persist; Keep All active state is a normal saved preference (unlike VGP).
     private static volatile String transferKeepSpecies="";
     private static volatile boolean transferKeepAll, transferOverlayEnabled;
+    // Evolve before transferring (new catches only). Off by default; requires the auto-transfer
+    // master. Mode 0 uses the current transfer rules, 1 restricts the behavior to a separate
+    // selected-species list. Stages 1 evolves once, 2 evolves through all available candy-only
+    // stages. evolveTransferSpecies is a canonical keep-species string (same validation/format as
+    // the custom keep list, but an independent list). Existing favorites/keep/IV/PvP protections
+    // always apply; this never auto-enables the master and never changes the keep list.
+    private static volatile boolean evolveTransferEnabled;
+    private static volatile int evolveTransferMode, evolveTransferStages=1;
+    private static volatile String evolveTransferSpecies="";
     private static volatile String quickSummaryStatus="";
     private static final Object quickBallLock=new Object();
     private static volatile boolean quickBallConfigured, quickBallReady, quickBallEnabled;
@@ -134,7 +142,7 @@ public final class Control {
     private static volatile boolean throwReady, throwCurve, throwAr, throwArReady;
     // Independent of throw rating, curveball and Quick Catch. Defaults off.
     private static volatile boolean throwAlwaysHit, throwAlwaysHitReady;
-    private static volatile int throwGrade;
+    private static volatile int throwGrade, throwVariety;
     // Optional IV/level overlays rendered by the ball-animation agent. Catch screen
     // defaults ON (prior behavior); owned Pokemon details defaults OFF. ivOwnedReady
     // is runtime only: whether the agent resolved the owned-details metadata.
@@ -272,6 +280,11 @@ public final class Control {
     private static volatile String cooldownEncounter="";
     public static boolean cooldownOverlay(){return cooldownOverlay;}
     public static void setCooldownOverlay(boolean value){cooldownOverlay=value;saveSettings();}
+    // Small draggable overlay showing the local wall-clock time at the spoofed coordinates (never the
+    // device time). Off by default; the overlay view reads engine coordinates and formats time offline.
+    private static volatile boolean localTimeOverlay;
+    public static boolean localTimeOverlay(){return localTimeOverlay;}
+    public static void setLocalTimeOverlay(boolean value){localTimeOverlay=value;saveSettings();}
     public static void setCooldownEncounter(String value){cooldownEncounter=value==null?"":value.toLowerCase(java.util.Locale.US);}
     public static void cooldownAction(String action){
         if(!foreground||!backendReady||!connected())return;
@@ -306,6 +319,9 @@ public final class Control {
     public static void setBattlesReady(boolean ready,String status){battlesReady=ready;battleStatus=status;}
     public static void setBattleStatus(String status){battleStatus=status;}
     public static boolean battlesAllowed(){return battlesReady&&quickSummaryReady()&&hostLive();}
+    private static volatile boolean gymRepeatEnabled;
+    public static boolean gymRepeatEnabled(){return gymRepeatEnabled;}
+    public static void setGymRepeatEnabled(boolean enabled){gymRepeatEnabled=enabled;saveSettings();event("gym-repeat",enabled?"ON":"OFF");}
     private static volatile int rocketOptions;
     private static volatile boolean rocketReady;
     private static volatile String rocketStatus="Waiting for battle support";
@@ -436,7 +452,7 @@ public final class Control {
     public static int transferProtect(){return transferProtect;}
     public static String transferStatus(){return transferStatus;}
     public static void setAutoTransferEnabled(boolean enabled){invalidateQuickBallOutcome();autoTransferEnabled=enabled;saveSettings();event("auto-transfer-setting",enabled?"ON; new catches below90percent only":"OFF");}
-    public static void setTransferProtect(int mask){transferProtect=mask>=0&&mask<=63?mask:63;saveSettings();event("auto-transfer-protection",String.valueOf(transferProtect));}
+    public static void setTransferProtect(int mask){transferProtect=mask>=0&&mask<=127?mask:127;saveSettings();event("auto-transfer-protection",String.valueOf(transferProtect));}
     public static void setAutoTransferReady(boolean ready,String status){autoTransferReady=ready&&quickSummaryReady();transferStatus=status==null?"":status;}
     public static void transferResult(String status){transferStatus=status==null?"":status;}
     /** Main transfer permission; manual Keep All is applied only by the encounter consumer. */
@@ -451,6 +467,39 @@ public final class Control {
         transferKeepSpecies=canonical;saveSettings();
         event("transfer-keep-species",(canonical.isEmpty()?0:canonical.split(",").length)+" species kept");
     }
+    // Evolve before transferring. All setters ignore invalid input; a corrupt loaded config disables
+    // the feature (see loadSettings). The feature never enables the auto-transfer master on its own.
+    public static boolean evolveTransferEnabled(){return evolveTransferEnabled;}
+    public static int evolveTransferMode(){return evolveTransferMode;}
+    public static int evolveTransferStages(){return evolveTransferStages;}
+    /** Canonical selected-species list: sorted, de-duplicated positive dex IDs; empty when none. Independent of the keep list. */
+    public static String evolveTransferSpecies(){return evolveTransferSpecies;}
+    public static void setEvolveTransferEnabled(boolean enabled){
+        if(enabled==evolveTransferEnabled)return;
+        // Never flips the auto-transfer master; the UI explains the master is required.
+        evolveTransferEnabled=enabled;saveSettings();
+        event("evolve-transfer",enabled?"ON; new catches only; requires auto transfer master":"OFF");
+    }
+    public static void setEvolveTransferMode(int mode){
+        if(mode!=0&&mode!=1||mode==evolveTransferMode)return;
+        evolveTransferMode=mode;saveSettings();
+        event("evolve-transfer-mode",mode==1?"Selected species only":"Current transfer rules");
+    }
+    public static void setEvolveTransferStages(int stages){
+        if(stages!=1&&stages!=2||stages==evolveTransferStages)return;
+        evolveTransferStages=stages;saveSettings();
+        event("evolve-transfer-stages",stages==2?"All available stages":"Once");
+    }
+    public static void setEvolveTransferSpecies(String value){
+        boolean[] damaged={false};
+        String canonical=normalizeKeepSpecies(value,damaged);
+        if(damaged[0]){event("evolve-transfer-species","Invalid selection ignored; existing list preserved");return;}
+        if(canonical.equals(evolveTransferSpecies))return;
+        evolveTransferSpecies=canonical;saveSettings();
+        event("evolve-transfer-species",(canonical.isEmpty()?0:canonical.split(",").length)+" species selected");
+    }
+    /** "1|enabled|mode|stages|species" for the native evolve-before-transfer path (transport slot 22). */
+    public static String evolveTransferConfig(){return "1|"+(evolveTransferEnabled?1:0)+"|"+evolveTransferMode+"|"+evolveTransferStages+"|"+evolveTransferSpecies;}
     /** Keep All holds manual encounter catches; background catches use the main settings. */
     public static boolean transferKeepAll(){return transferKeepAll;}
     public static void setTransferKeepAll(boolean value){
@@ -564,13 +613,25 @@ public final class Control {
     public static boolean skipCutscenes(){return skipCutscenes;}
     public static void setSkipCutscenes(boolean on){skipCutscenes=on;saveSettings();event("skip-cutscenes",on?"ON":"OFF");}
     public static String cutsceneSkipStatus(){return skipCutscenes?cutsceneSkipStatus:"";}
-    /** "K1|on" for the native cutscene bypass (transport slot 17). */
-    public static String cutsceneSkipConfig(){return "K1|"+(skipCutscenes?1:0);}
+    /** Independent cutscene and auto-incubation screen policies (transport slot 17). */
+    public static String cutsceneSkipConfig(){return "K2|"+(skipCutscenes?1:0)+"|"+(autoIncubate?1:0);}
+    // Battery usage (each off by default): the native module draws the 3D view at a lower resolution, caps
+    // the game at 20 fps, and turns off shadows, anti-aliasing and far detail, putting the game's own
+    // values back when a setting is turned off.
+    private static volatile boolean batteryLowRes, batteryFps20, batteryLowQuality;
+    public static boolean batteryLowRes(){return batteryLowRes;}
+    public static boolean batteryFps20(){return batteryFps20;}
+    public static boolean batteryLowQuality(){return batteryLowQuality;}
+    public static void setBatteryLowRes(boolean on){batteryLowRes=on;saveSettings();event("battery","lower resolution "+(on?"ON":"OFF"));}
+    public static void setBatteryFps20(boolean on){batteryFps20=on;saveSettings();event("battery","20 fps cap "+(on?"ON":"OFF"));}
+    public static void setBatteryLowQuality(boolean on){batteryLowQuality=on;saveSettings();event("battery","low graphics quality "+(on?"ON":"OFF"));}
+    /** "B2|lowRes|fps20|lowQuality|blackScreen" for the native graphics module (transport slot 20). */
+    public static String batteryConfig(){return "B2|"+(batteryLowRes?1:0)+"|"+(batteryFps20?1:0)+"|"+(batteryLowQuality?1:0)+"|"+(ShundoSniper.dark()?1:0);}
     // Smart healing (off by default): the native module heals with the cheapest mix of potions and
     // revives. healWhen: 0 after battles, 1 periodically, 2 both. healThreshold: heal below this percent
     // of max HP, 100 = any missing HP. healStatus is the module's last problem or this session's items.
     public static final String[] HEAL_WHEN_LABELS={"After battles","Periodically","After battles & periodically"};
-    private static volatile boolean healEnabled,healRevive=true;
+    private static volatile boolean healEnabled,healRevive=true,healFull;
     private static volatile int healWhen,healThreshold=50;
     private static volatile String healStatus="";
     public static boolean healEnabled(){return healEnabled;}
@@ -582,9 +643,20 @@ public final class Control {
     public static void cycleHealThreshold(){healThreshold=healThreshold>=100?25:healThreshold+25;saveSettings();event("smart-heal","settings "+healConfig());}
     public static boolean healRevive(){return healRevive;}
     public static void setHealRevive(boolean on){healRevive=on;saveSettings();event("smart-heal","settings "+healConfig());}
+    /** Heal fully: use whatever items it takes, instead of saving big potions and revives for big wounds. */
+    public static boolean healFull(){return healFull;}
+    public static void setHealFull(boolean on){healFull=on;saveSettings();event("smart-heal","settings "+healConfig());}
     public static String healStatus(){return healEnabled?healStatus:"";}
-    /** "H1|enabled|when|threshold|revive" for the native healer (transport slot 18). */
-    public static String healConfig(){return "H1|"+(healEnabled?1:0)+"|"+healWhen+"|"+healThreshold+"|"+(healRevive?1:0);}
+    // Smart battling: one switch, off by default. Native smart_battle.cpp owns all of the behaviour.
+    private static volatile boolean smartBattle;
+    private static volatile String smartBattleStatus="";
+    public static boolean smartBattle(){return smartBattle;}
+    public static void setSmartBattle(boolean on){smartBattle=on;if(!on)smartBattleStatus="";saveSettings();event("smart-battle",on?"ON":"OFF");}
+    public static String smartBattleStatus(){return smartBattle?smartBattleStatus:"";}
+    /** "F1|enabled" for native Smart battling (transport slot 21). */
+    public static String smartBattleConfig(){return "F1|"+(smartBattle?1:0);}
+    /** "H2|enabled|when|threshold|revive|full" for the native healer (transport slot 18). */
+    public static String healConfig(){return "H2|"+(healEnabled?1:0)+"|"+healWhen+"|"+healThreshold+"|"+(healRevive?1:0)+"|"+(healFull?1:0);}
     public static void configureQuickBall(boolean configured) {
         synchronized(quickBallLock) {
             quickBallConfigured=configured; quickBallReady=false; ivOwnedReady=false; setThrowReady(false);setMapTapReady(false);
@@ -647,7 +719,13 @@ public final class Control {
     }
     public static boolean throwReady() { return quickBallReady() && throwReady; }
     public static void setThrowReady(boolean ready) { throwReady=ready; }
-    public static int throwGrade() { return throwGrade; }
+    /** The grade the native throw layer applies: the rating 0-3, or 4-6 while throw variety is on. */
+    public static int throwGrade() { return throwVariety>0 ? 3+throwVariety : throwGrade; }
+    /** The Throw rating setting: 0 off, 1 Nice, 2 Great, 3 Excellent. */
+    public static int throwRating() { return throwGrade; }
+    /** Throw variety: 0 off, 1 Excellent & Great, 2 Excellent, Great & Nice, 3 all (with a plain throw). */
+    public static int throwVariety() { return throwVariety; }
+    public static final String[] THROW_VARIETY_LABELS={"Off","Excellent & Great","Excellent, Great & Nice","All"};
     public static boolean throwCurve() { return throwCurve; }
     public static boolean throwAr() { return throwAr; }
     public static boolean throwArReady() { return throwArReady && throwReady(); }
@@ -655,6 +733,7 @@ public final class Control {
     public static void setThrowAr(boolean value) { throwAr=value; saveSettings(); }
 
     public static void setThrowGrade(int grade) { throwGrade=grade>=0 && grade<=3 ? grade : 0; saveSettings(); event("throw-grade",""+throwGrade); }
+    public static void setThrowVariety(int variety) { throwVariety=variety>=0 && variety<=3 ? variety : 0; saveSettings(); event("throw-variety",THROW_VARIETY_LABELS[throwVariety]); }
     public static void setThrowCurve(boolean enabled) { throwCurve=enabled; saveSettings(); event("throw-curve",""+throwCurve); }
     public static boolean throwAlwaysHitReady() { return throwReady() && throwAlwaysHitReady; }
     public static void setThrowAlwaysHitReady(boolean ready) { throwAlwaysHitReady=ready; }
@@ -1060,6 +1139,7 @@ public final class Control {
                 joystickVisible=Boolean.parseBoolean(p.getProperty("joystickVisible","true"));
                 idleWalking=Boolean.parseBoolean(p.getProperty("idleWalking","false"));engine.setIdleWalking(idleWalking);
                 cooldownOverlay=Boolean.parseBoolean(p.getProperty("cooldownOverlay","false"));
+                localTimeOverlay=Boolean.parseBoolean(p.getProperty("localTimeOverlay","false"));
                 quickSummaryEnabled=Boolean.parseBoolean(p.getProperty("autoDismiss","false"));
                 spawnBooster=Boolean.parseBoolean(p.getProperty("spawnBooster","false"));
                 try{giftOptions=Integer.parseInt(p.getProperty("giftOptions","0"));}catch(NumberFormatException ignored){giftOptions=0;}
@@ -1081,6 +1161,7 @@ public final class Control {
                 encounterBerryEnabled=Boolean.parseBoolean(p.getProperty("encounterBerry",String.valueOf(!berryPriority.isEmpty())));
                 try{battleOptions=Integer.parseInt(p.getProperty("battleOptions","0"));}catch(NumberFormatException ignored){battleOptions=0;}
                 if(battleOptions<0||battleOptions>1023)battleOptions=0;
+                gymRepeatEnabled=Boolean.parseBoolean(p.getProperty("gymRepeatEnabled","false"));
                 try{rocketOptions=Integer.parseInt(p.getProperty("rocketOptions","0"));}catch(NumberFormatException ignored){rocketOptions=0;}
                 if(rocketOptions<0||rocketOptions>7)rocketOptions=0;
                 itemTransferEnabled=Boolean.parseBoolean(p.getProperty("itemTransfer","false"));
@@ -1088,7 +1169,7 @@ public final class Control {
                 if(!validItemRules(itemRules)||!validItemRules(itemLimits)){itemTransferEnabled=false;itemRules="";itemLimits="";}
                 quickSpinEnabled=Boolean.parseBoolean(p.getProperty("quickSpin","false"));
                 autoTransferEnabled=Boolean.parseBoolean(p.getProperty("autoTransfer","false"));
-                try { transferProtect=Integer.parseInt(p.getProperty("transferProtect","63")); if(transferProtect<0||transferProtect>63)transferProtect=63; } catch(NumberFormatException e){transferProtect=63;}
+                try { transferProtect=Integer.parseInt(p.getProperty("transferProtect","127")); if(transferProtect<0||transferProtect>127)transferProtect=127; } catch(NumberFormatException e){transferProtect=127;}
                 transferKeepAll=Boolean.parseBoolean(p.getProperty("transferKeepAll","false"));
                 transferOverlayEnabled=Boolean.parseBoolean(p.getProperty("transferOverlay","false"));
                 boolean[] keepDamaged=new boolean[1];
@@ -1096,6 +1177,18 @@ public final class Control {
                 // Fail safe: a corrupt keep list must not let auto transfer drop a species the user meant
                 // to keep. Disable the master even with Keep All on, so toggling it off stays safe.
                 if(keepDamaged[0])autoTransferEnabled=false;
+                // Evolve before transferring. A corrupt mode/stages/species disables the feature so a
+                // damaged config can never auto-evolve or transfer against the user's intent.
+                evolveTransferEnabled=Boolean.parseBoolean(p.getProperty("evolveTransferEnabled","false"));
+                String evolveEnabledText=p.getProperty("evolveTransferEnabled","false");
+                boolean evolveCorrupt=!(evolveEnabledText.equals("true")||evolveEnabledText.equals("false"));
+                try{evolveTransferMode=Integer.parseInt(p.getProperty("evolveTransferMode","0"));}catch(NumberFormatException invalid){evolveTransferMode=0;evolveCorrupt=true;}
+                if(evolveTransferMode!=0&&evolveTransferMode!=1){evolveTransferMode=0;evolveCorrupt=true;}
+                try{evolveTransferStages=Integer.parseInt(p.getProperty("evolveTransferStages","1"));}catch(NumberFormatException invalid){evolveTransferStages=1;evolveCorrupt=true;}
+                if(evolveTransferStages!=1&&evolveTransferStages!=2){evolveTransferStages=1;evolveCorrupt=true;}
+                boolean[] evolveDamaged=new boolean[1];
+                evolveTransferSpecies=normalizeKeepSpecies(p.getProperty("evolveTransferSpecies",""),evolveDamaged);
+                if(evolveCorrupt||evolveDamaged[0]){evolveTransferEnabled=false;autoTransferEnabled=false;}
                 ivCatchEnabled=Boolean.parseBoolean(p.getProperty("ivCatch","true"));
                 ivOwnedEnabled=Boolean.parseBoolean(p.getProperty("ivOwned","false"));
                 int catchFormat=boundedSetting(p,"ivCatchFormat",4),ownedFormat=boundedSetting(p,"ivOwnedFormat",4);
@@ -1105,8 +1198,13 @@ public final class Control {
                 int target=boundedSetting(p,"autoBallTarget",99);autoBallTarget=target>0?target:75;
                 pvpKeepLeagues=p.getProperty("pvpKeepLeagues")==null?3:boundedSetting(p,"pvpKeepLeagues",7);
                 skipCutscenes=Boolean.parseBoolean(p.getProperty("skipCutscenes","false"));
+                batteryLowRes=Boolean.parseBoolean(p.getProperty("batteryLowRes","false"));
+                batteryFps20=Boolean.parseBoolean(p.getProperty("batteryFps20","false"));
+                batteryLowQuality=Boolean.parseBoolean(p.getProperty("batteryLowQuality","false"));
                 healEnabled=Boolean.parseBoolean(p.getProperty("smartHealEnabled","false"));
+                smartBattle=Boolean.parseBoolean(p.getProperty("smartBattle","false"));
                 healRevive=Boolean.parseBoolean(p.getProperty("smartHealRevive","true"));
+                healFull=Boolean.parseBoolean(p.getProperty("smartHealFull","false"));
                 healWhen=boundedSetting(p,"smartHealWhen",2);
                 int threshold=boundedSetting(p,"smartHealThreshold",100);healThreshold=threshold==25||threshold==50||threshold==75||threshold==100?threshold:50;
                 for(int i=0;i<3;i++){int rank=boundedSetting(p,PVP_RANK_KEYS[i],4096);pvpRanks[i]=rank>0?rank:PVP_DEFAULT_RANKS[i];}
@@ -1116,8 +1214,8 @@ public final class Control {
                 throwCurve=Boolean.parseBoolean(p.getProperty("curve","false"));
                 throwAlwaysHit=Boolean.parseBoolean(p.getProperty("throwAlwaysHit","false"));
                 throwAr=Boolean.parseBoolean(p.getProperty("throwAr","false"));
-                throwGrade=boundedSetting(p,"grade",3); mapTapMode=boundedSetting(p,"mapTap",3);
-                event("settings-restored","dismiss="+quickSummaryEnabled+" fastBall="+quickBallEnabled+" grade="+throwGrade+" curve="+throwCurve+" mapTap="+mapTapMode+" cameraRelative=true heal="+healConfig());
+                throwGrade=boundedSetting(p,"grade",3); throwVariety=boundedSetting(p,"throwVariety",3); mapTapMode=boundedSetting(p,"mapTap",3);
+                event("settings-restored","dismiss="+quickSummaryEnabled+" fastBall="+quickBallEnabled+" grade="+throwGrade+" variety="+throwVariety+" curve="+throwCurve+" mapTap="+mapTapMode+" cameraRelative=true heal="+healConfig());
             } catch(FileNotFoundException missing) {
                 // Defaults apply only until the user first saves a choice.
             } catch(IOException | RuntimeException error) { event("settings-load-error",error.toString()); }
@@ -1127,6 +1225,16 @@ public final class Control {
     private static int boundedSetting(Properties p,String key,int max) {
         try { int n=Integer.parseInt(p.getProperty(key,"0")); return n>=0&&n<=max?n:0; }
         catch(NumberFormatException invalid) { return 0; }
+    }
+    /** Constructed preference snapshot only: no account stores, saved places or location state. */
+    static Properties diagnosticSettings() {
+        synchronized(stateLock) {
+            Properties result=settingsSnapshot();
+            result.remove("itemCatalog"); // Derived inventory catalog, not a user preference.
+            result.remove("researchCatalog");
+            result.remove("researchCatalogFormat");
+            return result;
+        }
     }
     static Properties exportSettings() throws IOException {
         synchronized(stateLock) {
@@ -1181,22 +1289,26 @@ public final class Control {
         p.setProperty("buddyBerry",String.valueOf(buddyBerry));
         p.setProperty("autoIncubate",String.valueOf(autoIncubate));
         p.setProperty("incubateLongest",String.valueOf(incubateLongest));
-        p.setProperty("cooldownOverlay",String.valueOf(cooldownOverlay));p.setProperty("berryPriority",berryPriority);
+        p.setProperty("cooldownOverlay",String.valueOf(cooldownOverlay));p.setProperty("localTimeOverlay",String.valueOf(localTimeOverlay));p.setProperty("berryPriority",berryPriority);
         p.setProperty("encounterBerry",String.valueOf(encounterBerryEnabled));
         p.setProperty("battleOptions",String.valueOf(battleOptions));
+        p.setProperty("gymRepeatEnabled",String.valueOf(gymRepeatEnabled));
         p.setProperty("rocketOptions",String.valueOf(rocketOptions));
         p.setProperty("itemTransfer",String.valueOf(itemTransferEnabled));p.setProperty("itemRules",itemRules);p.setProperty("itemLimits",itemLimits);p.setProperty("itemCatalog",itemCatalog);
         p.setProperty("quickSpin",String.valueOf(quickSpinEnabled));
         p.setProperty("autoTransfer",String.valueOf(autoTransferEnabled)); p.setProperty("transferProtect",String.valueOf(transferProtect));
         p.setProperty("transferKeepAll",String.valueOf(transferKeepAll)); p.setProperty("transferOverlay",String.valueOf(transferOverlayEnabled)); p.setProperty("transferKeepSpecies",transferKeepSpecies);
+        p.setProperty("evolveTransferEnabled",String.valueOf(evolveTransferEnabled)); p.setProperty("evolveTransferMode",String.valueOf(evolveTransferMode)); p.setProperty("evolveTransferStages",String.valueOf(evolveTransferStages)); p.setProperty("evolveTransferSpecies",evolveTransferSpecies);
         p.setProperty("ivCatch",String.valueOf(ivCatchEnabled)); p.setProperty("ivOwned",String.valueOf(ivOwnedEnabled)); p.setProperty("ivCatchFormat",String.valueOf(ivCatchFormat)); p.setProperty("ivOwnedFormat",String.valueOf(ivOwnedFormat)); p.setProperty("storageIv",String.valueOf(storageIvMode)); p.setProperty("storageIvFormat",String.valueOf(storageIvFormat));
         p.setProperty("catchChance",String.valueOf(catchChanceShown)); p.setProperty("autoBall",String.valueOf(autoBall)); p.setProperty("autoBallTarget",String.valueOf(autoBallTarget));
         p.setProperty("pvpKeepLeagues",String.valueOf(pvpKeepLeagues)); p.setProperty("skipCutscenes",String.valueOf(skipCutscenes));
-        p.setProperty("smartHealEnabled",String.valueOf(healEnabled)); p.setProperty("smartHealRevive",String.valueOf(healRevive));
+        p.setProperty("batteryLowRes",String.valueOf(batteryLowRes)); p.setProperty("batteryFps20",String.valueOf(batteryFps20)); p.setProperty("batteryLowQuality",String.valueOf(batteryLowQuality));
+        p.setProperty("smartBattle",String.valueOf(smartBattle));
+        p.setProperty("smartHealEnabled",String.valueOf(healEnabled)); p.setProperty("smartHealRevive",String.valueOf(healRevive)); p.setProperty("smartHealFull",String.valueOf(healFull));
         p.setProperty("smartHealWhen",String.valueOf(healWhen)); p.setProperty("smartHealThreshold",String.valueOf(healThreshold));
         for(int i=0;i<3;i++)p.setProperty(PVP_RANK_KEYS[i],String.valueOf(pvpRanks[i]));
         p.setProperty("autoDismiss",String.valueOf(quickSummaryEnabled)); p.setProperty("fastBall",String.valueOf(quickBallEnabled));
-        p.setProperty("throwAr",String.valueOf(throwAr)); p.setProperty("curve",String.valueOf(throwCurve)); p.setProperty("grade",String.valueOf(throwGrade));
+        p.setProperty("throwAr",String.valueOf(throwAr)); p.setProperty("curve",String.valueOf(throwCurve)); p.setProperty("grade",String.valueOf(throwGrade)); p.setProperty("throwVariety",String.valueOf(throwVariety));
         p.setProperty("throwAlwaysHit",String.valueOf(throwAlwaysHit));
         p.setProperty("mapTap",String.valueOf(mapTapMode));
         return p;
@@ -1214,6 +1326,19 @@ public final class Control {
         // Flush off stateLock: the writer never needs it, so a timed wait must not pin it either.
         if(writer!=null) writer.flush(timeoutMillis);
     }
+    // Small fixed-key startup summary survives rotation; original timestamps distinguish it from new events.
+    private static final Map<String,String> logContext=new LinkedHashMap<>();
+    private static boolean retainLogContext(String kind) {
+        switch(kind) {
+            case "account-native-gate":case "account-storage":case "account-support":case "account-state":case "account-command":
+            case "rooted-native-state":case "native-runtime-health":case "native-bootstrap-pending":case "native-scheduler-pending":
+            case "runtime-gates":case "session-start":case "session-root":case "session-environment":case "bootstrap":case "native-process-abi":
+            case "native-bootstrap-ready":case "native-bootstrap-unavailable":
+            case "native-scheduler-ready":case "native-scheduler-unavailable":
+            case "compiled-gameplay-armed":case "native-transport-error":case "native-runtime-start":return true;
+            default:return false;
+        }
+    }
     public static void event(String kind, String detail) {
         if("gym-automation".equals(kind))GymAutomationSettings.publish(detail);
         if("gym-spin".equals(kind)&&SmartCatchSettings.gymSpinActive()){
@@ -1226,6 +1351,15 @@ public final class Control {
         if("research".equals(kind))ResearchSettings.publish(detail);
         if("shundo-sniper".equals(kind)&&detail.startsWith("{"))ShundoSniper.publish(detail);
         if("catch-chance".equals(kind))CatchChance.publish(detail);
+        if("smart-battle".equals(kind)&&detail.startsWith("{")){
+            try{org.json.JSONObject o=new org.json.JSONObject(detail);String phase=o.optString("phase");
+                if("error".equals(phase))smartBattleStatus=o.optString("message","");
+                else if("ready".equals(phase))smartBattleStatus="";
+                else if("team".equals(phase))smartBattleStatus="Team set to counter "+o.optInt("foes")+(o.optInt("foes")==1?" opponent":" opponents");
+                else if("swapped".equals(phase))smartBattleStatus="Swapped to your best counter";
+                else if("swap-refused".equals(phase))smartBattleStatus="The game refused a swap; staying in";
+            }catch(Exception ignored){}
+        }
         if("smart-heal".equals(kind)){
             try{org.json.JSONObject o=new org.json.JSONObject(detail);String phase=o.optString("phase");
                 if("error".equals(phase)||"warning".equals(phase))healStatus=o.optString("message","");
@@ -1252,21 +1386,29 @@ public final class Control {
             catch(Exception ignored) {}
             dev.pgrazor.events.EventSettings.publishBoxCollectorCapability(available);
         }
+        if("runtime-gates".equals(kind)||"state-activation".equals(kind)||"panel-closed".equals(kind)||"disconnected".equals(kind)||"heartbeat-expired".equals(kind))
+            detail+="; foreground="+foreground+" backendReady="+backendReady+" connected="+connected()+" accountAllowed="+AccountProfiles.allowed();
         synchronized (logLock) {
             String line = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.US).format(new Date()) + " [" + kind + "] " + detail;
+            byte[] encoded=(line+"\n").getBytes(StandardCharsets.UTF_8);
+            // Apply the same bound to logcat and disk before deciding whether to rotate.
+            if(encoded.length>65536){line=line.substring(0,Math.min(line.length(),16000))+" [truncated]";encoded=(line+"\n").getBytes(StandardCharsets.UTF_8);}
+            if(retainLogContext(kind))logContext.put(kind,line.substring(0,Math.min(line.length(),2048)));
             Log.i("PGRazor", line);
             if (log != null && !interactionMetadataRow(kind,detail)) {
                 try {
-                    byte[] encoded=(line+"\n").getBytes(java.nio.charset.StandardCharsets.UTF_8);
                     if(logBytes+encoded.length>1048576L){
                         log.close();
                         logFile=new File(logFile.getParentFile(),new SimpleDateFormat("yyyyMMdd-HHmmss-SSS",Locale.US).format(new Date())+"-"+(++logSegment)+".txt");
                         log=new PrintWriter(new FileOutputStream(logFile),true);logBytes=0;
+                        for(String retained:logContext.values()) {
+                            String contextLine="[retained-context] "+retained;
+                            log.println(contextLine);logBytes+=(contextLine+"\n").getBytes(StandardCharsets.UTF_8).length;
+                        }
                         pruneLogs(logFile.getParentFile(),logFile,6);
                     }
-                    // Bound an exceptional single event as well as ordinary segments.
-                    if(encoded.length>65536){line=line.substring(0,Math.min(line.length(),16000))+" [truncated]";encoded=(line+"\n").getBytes(java.nio.charset.StandardCharsets.UTF_8);}
                     log.println(line);logBytes+=encoded.length;
+                    if(log.checkError()){log.close();throw new IOException("File logging write failed");}
                 }catch(IOException error){log=null;Log.e("PGRazor","File logging unavailable",error);}
             }
         }

@@ -77,9 +77,32 @@ def main(argv=None):
             extra_flags = []
             if source.stem == 'runtime_bootstrap_namespace_test':
                 entry['included_source_sha256'] = native_build.sha256(root/'native/runtime_bootstrap.cpp')
+            if source.stem == 'unity_scheduler_diag_test':
+                if args.abi != 'x86_64':
+                    raise RuntimeError('unity_scheduler_diag uses an x86_64 hook seam; ARM veneer execution is covered by unity_scheduler')
+                vendor = native_build.ensure_dobby(root, download=False)
+                extra_flags = ['-fexceptions', '-I'+str(vendor/'include')]
+                entry['included_source_sha256'] = native_build.sha256(root/'native/unity_scheduler.cpp')
             if source.stem == 'gift_batch_test':
                 extra_flags = ['-rdynamic', '-fexceptions']
                 entry['included_source_sha256'] = native_build.sha256(root/'native/gift_batch.cpp')
+            if source.stem in ('evolve_transfer_runtime_test','batch_evolution_runtime_test','gym_repeat_runtime_test','heal_runtime_test'):
+                extra_flags = ['-fexceptions','-llog']
+                entry['included_source_sha256'] = native_build.sha256(root/'native'/source.name.replace('_runtime_test.cpp','.cpp'))
+            if source.stem == 'gym_repeat_runtime_test':
+                vendor = native_build.ensure_dobby(root, download=False)
+                extra_flags += ['-I'+str(vendor/'include')]
+            if source.stem == 'max_orbs_test':
+                extra_flags = ['-fexceptions']
+                entry['included_source_sha256'] = native_build.sha256(root/'native/max_orbs.cpp')
+            if source.stem == 'cutscene_skip_test':
+                vendor = native_build.ensure_dobby(root, download=False)
+                extra_flags = ['-fexceptions', '-I'+str(vendor/'include')]
+                entry['included_source_sha256'] = native_build.sha256(root/'native/cutscene_skip.cpp')
+            if source.stem == 'smart_catch_test':
+                owner = root / 'native/smart_catch.cpp'
+                extra_flags = [owner]
+                entry['owner_sha256'] = native_build.sha256(owner)
             if source.stem == 'smart_catch_controller_test':
                 controller = root / 'native/vgp_controller.cpp'
                 extra_flags = [controller]
@@ -122,10 +145,10 @@ def main(argv=None):
                 entry['dobby_sha256'] = native_build.sha256(dobby)
                 if source.stem == 'encounter_host_test':
                     dependencies = ('hook_engine.cpp', 'incense_guard.cpp', 'gift_batch.cpp', 'remote_gym.cpp',
-                                    'gym_runtime.cpp', 'gym_automation.cpp', 'batch_evolution.cpp',
+                                    'gym_runtime.cpp', 'gym_automation.cpp', 'batch_evolution.cpp', 'evolve_transfer.cpp',
                                     'buddy_emotion.cpp', 'profile_scroll.cpp', 'vgp_controller.cpp', 'smart_catch.cpp',
                                     'smart_catch_binding.cpp', 'vgp_discovery.cpp', 'research.cpp', 'storage_iv.cpp',
-                                    'ar_values.cpp', 'ar_throw.cpp', 'catch_chance.cpp', 'cutscene_skip.cpp', 'catch_presentation.cpp', 'rocket_swap.cpp', 'rocket_combat.cpp', 'heal.cpp', 'shundo.cpp')
+                                    'ar_values.cpp', 'ar_throw.cpp', 'catch_chance.cpp', 'cutscene_skip.cpp', 'catch_presentation.cpp', 'rocket_swap.cpp', 'smart_battle.cpp', 'rocket_combat.cpp', 'heal.cpp', 'shundo.cpp', 'battery.cpp')
                     extra_flags[:0] = [root/'native'/name for name in dependencies]
                     entry['linked_sources_sha256'] = {name: native_build.sha256(root/'native'/name)
                                                      for name in dependencies}
@@ -137,7 +160,10 @@ def main(argv=None):
                 target = remote + '/' + source.stem
                 run(adb + ['push', executable, target])
                 run(adb + ['shell', 'chmod', '700', target])
-                entry['run_output'] = run(adb + ['shell', target, remote + '/core.so'])
+                if source.stem == 'unity_scheduler_diag_test':
+                    entry['run_output'] = ''.join(run(adb + ['shell', target, str(scenario)]) for scenario in range(5))
+                else:
+                    entry['run_output'] = run(adb + ['shell', target, remote + '/core.so'])
                 print(entry['run_output'].strip())
             else:
                 print('Compiled ' + source.stem + ' (' + args.abi + ')')

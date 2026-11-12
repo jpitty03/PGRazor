@@ -37,8 +37,8 @@ export default function GetStarted() {
       <p className="cta__release">
         <span className="cta__badge">Stable</span>
         The published{' '}
-        <a href={links.releasesCurrent}>v0.2.2 release</a> adds the experimental Shundo Sniper,
-        Skip cutscenes and Smart healing.
+        <a href={links.releasesCurrent}>v0.2.3 release</a> adds Battery usage, Throw variety
+        and a VGP+ catch-only list.
       </p>
 
       <div className="faq">

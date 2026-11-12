@@ -83,7 +83,8 @@ Config config(){
  int show=0,autoball=0,target=0,berry=0;if(std::sscanf(s+3,"%d|%d|%d|%d",&show,&autoball,&target,&berry)<3||target<1||target>99)return c;
  c.valid=true;c.show=show==1;c.autoball=autoball==1;c.target=target;c.berry=berry>=701&&berry<=799?berry:0;
  int allowed=0,curve=0;int32_t grade=0;
- if(tr->get_bool(29,&allowed)==0&&allowed==1){if(tr->get_int(7,&grade)==0&&grade>=0&&grade<=3)c.grade=grade;if(tr->get_bool(34,&curve)==0)c.curve=curve==1;}
+ // Throw variety (4-6) counts as its lowest grade: Great, Nice, or a plain throw.
+ if(tr->get_bool(29,&allowed)==0&&allowed==1){if(tr->get_int(7,&grade)==0&&grade>=0&&grade<=6)c.grade=grade>3?6-grade:grade;if(tr->get_bool(34,&curve)==0)c.curve=curve==1;}
  return c;
 }
 double berry_multiplier(int item){return item==701?1.5:item==706?2.5:item==708?1.8:1.0;}

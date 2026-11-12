@@ -17,6 +17,15 @@ bool installed=false,poisoned=false;
 std::atomic<uint64_t> active{0},sequence{0};
 uint64_t next_generation=0;
 std::atomic<int32_t> owner{0};
+// Latched install/hook diagnostic. Only ever written while state_mutex is held
+// (install path); read under the same lock by diagnostics(). Default: no failure.
+PgrUnitySchedulerDiag diag{4,sizeof(PgrUnitySchedulerDiag),PGR_US_OK,PGR_US_STAGE_NONE,0,0,0,0,0,0};
+void record_diag(int32_t result,uint32_t stage,int32_t invoke_rc,int32_t convert_rc,
+                 uint64_t invoke_target,uint64_t convert_target){
+ // Called with state_mutex held. Pure bookkeeping; no managed call, no hook.
+ diag.last_result=result;diag.failed_stage=stage;diag.invoke_hook_rc=invoke_rc;diag.convert_hook_rc=convert_rc;
+ if(invoke_target)diag.invoke_body=invoke_target;if(convert_target)diag.convert_body=convert_target;
+}
 thread_local uint32_t depth=0;
 thread_local uint32_t original_depth=0;
 thread_local uint64_t original_generation=0;
@@ -150,13 +159,13 @@ int install(const PgrUnitySchedulerConfig *value){
  std::lock_guard<std::mutex> lock(state_mutex);
  if(poisoned)return PGR_US_POISONED;
  if(installed)return same(config,*value)?PGR_US_OK:PGR_US_REBIND;
- if(value->verify_metadata(value)!=1)return PGR_US_BAD_CONFIG;
+ if(value->verify_metadata(value)!=1){record_diag(PGR_US_BAD_CONFIG,PGR_US_STAGE_VERIFY,0,0,0,0);return PGR_US_BAD_CONFIG;}
  void *invoke_target=value->runtime_invoke,*convert_target=value->runtime_invoke_convert_args;
 #if defined(__aarch64__)
  invoke_target=invoke_body(invoke_target);convert_target=invoke_body(convert_target);
- if(!invoke_target||!convert_target)return PGR_US_BAD_CONFIG;
+ if(!invoke_target||!convert_target){record_diag(PGR_US_BAD_CONFIG,PGR_US_STAGE_RESOLVE,0,0,uintptr_t(invoke_target),uintptr_t(convert_target));return PGR_US_BAD_CONFIG;}
  const auto a=reinterpret_cast<uintptr_t>(invoke_target),b=reinterpret_cast<uintptr_t>(convert_target);
- if((a>b?a-b:b-a)<16)return PGR_US_BAD_CONFIG;
+ if((a>b?a-b:b-a)<16){record_diag(PGR_US_BAD_CONFIG,PGR_US_STAGE_RESOLVE,0,0,a,b);return PGR_US_BAD_CONFIG;}
 #endif
  config=*value;
  void *first=nullptr;
@@ -164,7 +173,9 @@ int install(const PgrUnitySchedulerConfig *value){
  original_invoke.store(reinterpret_cast<PgrUnityInvoke>(first),std::memory_order_release);
  if(rc||!first){
  // Retain every published trampoline: an in-flight replacement may still need it.
- poisoned=true;return PGR_US_HOOK_FAILED;
+ poisoned=true;diag.poisoned=1;
+ record_diag(PGR_US_HOOK_FAILED,PGR_US_STAGE_INVOKE_HOOK,rc,0,uintptr_t(invoke_target),uintptr_t(convert_target));
+ return PGR_US_HOOK_FAILED;
  }
  void *second=nullptr;
  rc=pgrazor_hook(convert_target,reinterpret_cast<void *>(&convert),&second);
@@ -172,10 +183,13 @@ int install(const PgrUnitySchedulerConfig *value){
  if(rc||!second){
  // Remain passive and retain both originals until process exit. Never destroy
  // a trampoline that an already-entered replacement may still be forwarding to.
- poisoned=true;
+ poisoned=true;diag.poisoned=1;
+ record_diag(PGR_US_HOOK_FAILED,PGR_US_STAGE_CONVERT_HOOK,0,rc,uintptr_t(invoke_target),uintptr_t(convert_target));
  return PGR_US_HOOK_FAILED;
  }
- installed=true;return PGR_US_OK;
+ installed=true;diag.installed=1;
+ record_diag(PGR_US_OK,PGR_US_STAGE_NONE,0,0,uintptr_t(invoke_target),uintptr_t(convert_target));
+ return PGR_US_OK;
 }
 uint64_t activate(){
  std::lock_guard<std::mutex> lock(state_mutex);
@@ -192,9 +206,16 @@ int snapshot(PgrUnitySchedulerSnapshot *out){
  std::lock_guard<std::mutex> lock(state_mutex);
  *out={active.load(),sequence.load(),owner.load(),uint32_t(installed),uint32_t(poisoned),0};return PGR_US_OK;
 }
+int diagnostics(PgrUnitySchedulerDiag *out){
+ if(!out)return PGR_US_BAD_CONFIG;
+ std::lock_guard<std::mutex> lock(state_mutex);
+ *out=diag;out->version=4;out->size=sizeof(PgrUnitySchedulerDiag);
+ out->installed=uint32_t(installed);out->poisoned=uint32_t(poisoned);return PGR_US_OK;
+}
 const PgrUnitySchedulerApi api{2,sizeof(PgrUnitySchedulerApi),install,activate,revoke,valid,snapshot};
 const PgrUnitySchedulerApi3 api3{3,sizeof(PgrUnitySchedulerApi3),install,activate,revoke,valid,snapshot,executing_generation};
+const PgrUnitySchedulerApi4 api4{4,sizeof(PgrUnitySchedulerApi4),install,activate,revoke,valid,snapshot,executing_generation,diagnostics};
 }
 extern "C" const void *pgrazor_unity_scheduler_api(uint32_t version){
- if(version==2)return &api;if(version==3)return &api3;return nullptr;
+ if(version==2)return &api;if(version==3)return &api3;if(version==4)return &api4;return nullptr;
 }

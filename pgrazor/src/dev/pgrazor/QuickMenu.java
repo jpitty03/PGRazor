@@ -14,7 +14,7 @@ import java.util.Locale;
 
 /**
  * Compact vertical icon+text quick menu toggled by the R launcher (PGSharp-style).
- * Icons are drawn as canvas vectors so nothing depends on an emoji font. Theme and the
+ * Icons use canvas vectors and the shared routes asset, independent of emoji fonts. Theme and the
  * walking-speed caption follow {@link Control}; map/autowalk/location actions are delegated
  * to the host through {@link Listener} so map handling is never duplicated here.
  */
@@ -35,7 +35,7 @@ public final class QuickMenu {
         void onHideOverlays();
     }
 
-    static final int MAP = 0, WALK = 1, AUTOWALK = 2, FEEDS = 3, FAVORITES = 4, TELEPORT = 5, ACCOUNTS = 6, SETTINGS = 7, EVENTS = 8, AUTOMATION = 9, HIDE = 10;
+    static final int MAP = 0, WALK = 1, AUTOWALK = 2, FEEDS = 3, FAVORITES = 4, TELEPORT = 5, ACCOUNTS = 6, SETTINGS = 7, EVENTS = 8, AUTOMATION = 9, HIDE = 10, ROUTES = 11;
 
     // Append-only order: persisted visibility bits must not follow icon IDs (some are shared).
     static final String[] CUSTOMIZABLE = {"Map", "Walking speed", "Autowalk", "In-game Routes", "Feeds", "Favorites", "Hotspots", "Teleport", "Switch account", "Events", "Automation", "Research", "Hide overlay"};
@@ -66,7 +66,7 @@ public final class QuickMenu {
         LinearLayout walkRow = (LinearLayout) row(WALK, "Walk", true, this::onWalk, 2); walkLabel = (TextView) walkRow.getChildAt(1);
         card.addView(walkRow);
         card.addView(row(AUTOWALK, "Autowalk", true, listener::onAutoWalk, 4));
-        card.addView(row(AUTOWALK, "In-game Routes", true, listener::onGameRoutes, 8));
+        card.addView(row(ROUTES, "In-game Routes", true, listener::onGameRoutes, 8));
         card.addView(row(FEEDS, "Feeds", true, listener::onFeeds, 16));
         card.addView(row(FAVORITES, "Favorites", true, listener::onFavorites, 32));
         card.addView(row(MAP, "Hotspots", true, listener::onHotspots, 64));
@@ -170,17 +170,41 @@ public final class QuickMenu {
         GradientDrawable d = new GradientDrawable(); d.setColor(color); d.setCornerRadius(dp(radius)); return d;
     }
 
-    /** Small theme-aware vector glyph; disabled rows are drawn muted. */
+    /** Small menu glyph; Routes shares its image with GameRoutesOverlay. */
     private final class Icon extends View {
         private final int kind;
         boolean disabled;
-        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        Icon(Context c, int kind) { super(c); this.kind = kind; setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO); }
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+        private final Bitmap routeIcon;
+        Icon(Context c, int kind) {
+            super(c); this.kind = kind; setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            Bitmap decoded = null;
+            if (kind == ROUTES) {
+                try (java.io.InputStream in = PgAssets.open(c,"pgrazor/map-icons/routes.png")) {
+                    decoded = BitmapFactory.decodeStream(in);
+                } catch (Exception ignored) { }
+            }
+            routeIcon = decoded;
+        }
         protected void onDraw(Canvas canvas) {
             super.onDraw(canvas);
             float scale = Math.min(getWidth(), getHeight()) / 24f; canvas.save(); canvas.scale(scale, scale);
             paint.setColor(disabled ? muted() : ink()); paint.setStrokeCap(Paint.Cap.ROUND); paint.setStrokeJoin(Paint.Join.ROUND);
             switch (kind) {
+                case ROUTES: {
+                    if (routeIcon != null) {
+                        float ratio = Math.min(22f / routeIcon.getWidth(), 22f / routeIcon.getHeight());
+                        float w = routeIcon.getWidth() * ratio, h = routeIcon.getHeight() * ratio;
+                        paint.setColorFilter(new PorterDuffColorFilter(paint.getColor(), PorterDuff.Mode.SRC_IN));
+                        canvas.drawBitmap(routeIcon, null, new RectF(12-w/2, 12-h/2, 12+w/2, 12+h/2), paint);
+                        paint.setColorFilter(null);
+                    } else {
+                        paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(1.5f);
+                        Path path = new Path(); path.moveTo(7,16); path.lineTo(16,16); path.lineTo(16,8.5f); path.lineTo(8.5f,8.5f);
+                        canvas.drawPath(path,paint); canvas.drawCircle(7,16,1.5f,paint); canvas.drawCircle(8.5f,8.5f,1.5f,paint);
+                    }
+                    break;
+                }
                 case EVENTS: {
                     paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(1.8f);
                     canvas.drawRoundRect(4, 5, 20, 21, 2, 2, paint);

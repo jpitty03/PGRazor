@@ -47,21 +47,25 @@ final class SettingsPanel {
     private Button uiScale;
     private TextView incubatorStatus;
     // Primary action and cycle/dialog rows.
-    private Button mapTap, throwGrade, storageIv, ivCatchMode, ivOwnedMode, itemSettings, cameraSample, interactionCapture, transferKeepList;
+    private Button mapTap, throwGrade, throwVariety, storageIv, ivCatchMode, ivOwnedMode, itemSettings, cameraSample, interactionCapture, transferKeepList;
+    // Evolve-before-transfer rows: enable switch, stages cycle, selection-mode cycle, selected-species picker.
+    private Switch evolveTransferSwitch;
+    private Button evolveTransferStages, evolveTransferMode, evolveTransferList;
     // Boolean settings use proper switches.
-    private Switch idleWalkSwitch, locationSwitch, vgpSwitch, joystickSwitch, cooldownSwitch, spawnSwitch, autoTransferSwitch,
-        quickSpinSwitch, berrySwitch, quickSummarySwitch, curveSwitch, alwaysHitSwitch, arSwitch, transferOverlaySwitch, catchChanceSwitch, autoBallSwitch, skipCutscenesSwitch;
+    private Switch idleWalkSwitch, locationSwitch, vgpSwitch, joystickSwitch, cooldownSwitch, localTimeSwitch, spawnSwitch, autoTransferSwitch,
+        quickSpinSwitch, berrySwitch, quickSummarySwitch, curveSwitch, alwaysHitSwitch, arSwitch, transferOverlaySwitch, catchChanceSwitch, autoBallSwitch, skipCutscenesSwitch,
+        batteryResSwitch, batteryFpsSwitch, batteryQualitySwitch;
     private Button autoBallTarget;
-    private TextView quickSummaryLabel, vgpStatus, cutsceneStatus, healStatus;
-    private Switch healSwitch, healReviveSwitch;
-    private Button healWhen, healThreshold;
+    private TextView quickSummaryLabel, vgpStatus, cutsceneStatus, healStatus, smartBattleStatus;
+    private Switch healSwitch, healReviveSwitch, smartBattleSwitch, gymRepeatSwitch;
+    private Button healWhen, healThreshold, healItems;
     private final CheckBox[] vgpChoices=new CheckBox[3];
     private CheckBox vgpCooldownStop;
     // Status / caption lines (muted, readiness driven).
     private TextView state, steeringStatus, spawnStatus, quickSummaryStatus, transferStatus, quickSpinStatus,
         buddyStatus, giftStatus, itemStatus, rocketStatus, battleStatus, quickBallStatus, ivStatus, cameraStatus, interactionStatus;
     // Multi-option groups keep checkboxes / radios.
-    private final CheckBox[] transferProtection=new CheckBox[6];
+    private final CheckBox[] transferProtection=new CheckBox[7];
     private final Switch[] pvpKeep=new Switch[3];
     private final Button[] pvpRank=new Button[3];
     private final CheckBox[] giftChoices=new CheckBox[3];
@@ -215,6 +219,9 @@ final class SettingsPanel {
         cooldownSwitch = switchRow(loc, "Cooldown overlay"); cooldownSwitch.setChecked(Control.cooldownOverlay());
         cooldownSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.cooldownOverlay())return; Control.setCooldownOverlay(cooldownSwitch.isChecked()); host.refresh(); });
         Button history = button("Cooldown history"); loc.addView(history); history.setOnClickListener(v -> Cooldown.show(activity));
+        localTimeSwitch = switchRow(loc, "Show local time"); localTimeSwitch.setChecked(Control.localTimeOverlay());
+        localTimeSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.localTimeOverlay())return; Control.setLocalTimeOverlay(localTimeSwitch.isChecked()); host.refresh(); });
+        caption(loc, "Time at your spoofed location.");
         idleWalkSwitch = switchRow(loc, "Idle walking");idleWalkSwitch.setChecked(Control.idleWalking());
         idleWalkSwitch.setOnCheckedChangeListener((v,checked)->{if(checked!=Control.idleWalking())Control.setIdleWalking(checked);});
         caption(loc, "When idle, start walking in a circle. Speed 0 pauses it.");
@@ -223,6 +230,16 @@ final class SettingsPanel {
         skipCutscenesSwitch = switchRow(loc, "Skip cutscenes"); skipCutscenesSwitch.setChecked(Control.skipCutscenes());
         skipCutscenesSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.skipCutscenes())return; Control.setSkipCutscenes(checked); });
         cutsceneStatus = caption(loc, "");  // shown only when the native module reports an error
+        LinearLayout battery = section(loc, "Battery usage", false);
+        caption(battery, "Lower graphics to save battery and keep the phone cooler. Each turns back to the game's own setting when switched off.");
+        batteryResSwitch = switchRow(battery, "Lower resolution"); batteryResSwitch.setChecked(Control.batteryLowRes());
+        batteryResSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked!=Control.batteryLowRes())Control.setBatteryLowRes(checked); });
+        caption(battery, "Draws the map and Pokémon at half resolution. Menus and text stay sharp.");
+        batteryFpsSwitch = switchRow(battery, "Limit to 20 FPS"); batteryFpsSwitch.setChecked(Control.batteryFps20());
+        batteryFpsSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked!=Control.batteryFps20())Control.setBatteryFps20(checked); });
+        batteryQualitySwitch = switchRow(battery, "Low graphics quality"); batteryQualitySwitch.setChecked(Control.batteryLowQuality());
+        batteryQualitySwitch.setOnCheckedChangeListener((v,checked) -> { if(checked!=Control.batteryLowQuality())Control.setBatteryLowQuality(checked); });
+        caption(battery, "Turns off shadows, fog, water reflections, grass in encounters, HDR and anti-aliasing, and shows less far detail.");
 
     }
 
@@ -251,8 +268,8 @@ final class SettingsPanel {
         LinearLayout txC = section(catchC, "Transfer on catch", false);
         autoTransferSwitch = switchRow(txC, "Transfer below 90% IV"); autoTransferSwitch.setChecked(Control.autoTransferEnabled());
         autoTransferSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.autoTransferEnabled())return; Control.setAutoTransferEnabled(autoTransferSwitch.isChecked()); host.refresh(); });
-        String[] protections={"Keep legendary / mythical / Ultra Beasts","Keep shiny Pokemon","Keep event / costume Pokemon","Keep background Pokemon","Keep XXS","Keep XXL"};
-        for(int i=0;i<6;i++){final int bit=1<<i;CheckBox box=new CheckBox(activity);box.setText(protections[i]);box.setChecked((Control.transferProtect()&bit)!=0);transferProtection[i]=box;txC.addView(box);
+        String[] protections={"Keep legendary / mythical / Ultra Beasts","Keep shiny Pokemon","Keep event / costume Pokemon","Keep background Pokemon","Keep XXS","Keep XXL","Keep 0% IV (0/0/0)"};
+        for(int i=0;i<protections.length;i++){final int bit=1<<i;CheckBox box=new CheckBox(activity);box.setText(protections[i]);box.setChecked((Control.transferProtect()&bit)!=0);transferProtection[i]=box;txC.addView(box);
             box.setOnClickListener(v->Control.setTransferProtect(box.isChecked()?Control.transferProtect()|bit:Control.transferProtect()&~bit));}
         // One row per league: its switch, then the rank it keeps (tap to cycle).
         for(int i=0;i<3;i++){final int league=i;
@@ -274,6 +291,16 @@ final class SettingsPanel {
         transferOverlaySwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.transferOverlayEnabled())return; Control.setTransferOverlayEnabled(transferOverlaySwitch.isChecked()); host.refresh(); });
         caption(txC, "Kept species are never auto-transferred, across all forms. The floating button holds every catch (Keep All) or follows the rules above.");
         caption(txC, "Transfers are permanent. Favorites and unknown data are always kept.");
+        evolveTransferSwitch = switchRow(txC, "Evolve before transferring");
+        evolveTransferSwitch.setChecked(Control.evolveTransferEnabled());
+        evolveTransferSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.evolveTransferEnabled())return; Control.setEvolveTransferEnabled(evolveTransferSwitch.isChecked()); host.refresh(); });
+        evolveTransferStages = button("Evolve: once"); txC.addView(evolveTransferStages);
+        evolveTransferStages.setOnClickListener(v -> { Control.setEvolveTransferStages(Control.evolveTransferStages()==2?1:2); host.refresh(); });
+        evolveTransferMode = button("Applies to: current transfer rules"); txC.addView(evolveTransferMode);
+        evolveTransferMode.setOnClickListener(v -> { Control.setEvolveTransferMode(Control.evolveTransferMode()==1?0:1); host.refresh(); });
+        evolveTransferList = button("Selected species"); txC.addView(evolveTransferList);
+        evolveTransferList.setOnClickListener(v -> TransferKeepDialog.show(activity, "Selected species", "species selected", Control::evolveTransferSpecies, Control::setEvolveTransferSpecies, host::refresh));
+        caption(txC, "New catches only; requires Transfer above. Uses candy for ordinary evolutions, without items or special conditions. Keep rules always apply. If evolution is unavailable, transfer normally. Selected species mode keeps every species outside its list.");
         transferStatus = caption(txC, "");
         quickSpinSwitch = switchRow(catchC, "Quick spin"); quickSpinSwitch.setChecked(Control.quickSpinEnabled());
         quickSpinSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.quickSpinEnabled())return; Control.setQuickSpinEnabled(quickSpinSwitch.isChecked()); });
@@ -362,6 +389,7 @@ final class SettingsPanel {
 
     private void buildBattlesSection() {
         LinearLayout battleC = section(body, "Team Rocket, Gyms, Raids & Dynamax", false); battleRoot = (View)battleC.getParent();
+        buildSmartBattle(battleC);
         buildHealing(battleC);
         buildRocketSection(battleC);
         LinearLayout gymC = section(battleC, "Gyms", false);
@@ -370,6 +398,9 @@ final class SettingsPanel {
         battleChoice(gymC,2,"Auto quick attack");
         battleChoice(gymC,3,"Auto charged attack");
         battleChoice(gymC,8,"Auto dodge");
+        gymRepeatSwitch = switchRow(gymC, "Battle until defeated"); gymRepeatSwitch.setChecked(Control.gymRepeatEnabled());
+        gymRepeatSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.gymRepeatEnabled())return; Control.setGymRepeatEnabled(checked); });
+        caption(gymC, "After you start a gym battle, automatically starts the next full round from the same gym screen until defeated. Uses your attack settings and waits for Smart healing when set to After battle or Both. Turn off or leave manually to stop.");
 
         LinearLayout raidC = section(battleC, "Raids", false);
         battleChoice(raidC,0,"Auto quick attack");
@@ -381,7 +412,22 @@ final class SettingsPanel {
         battleChoice(maxC,5,"Auto charged attack");
         battleChoice(maxC,6,"Auto Max attack");
         battleChoice(maxC,9,"Auto dodge");
+        caption(maxC,"Automatically moves toward nearby Max energy orbs during battle while PGRazor is active.");
         battleStatus = caption(battleC, "");
+    }
+
+    private void buildSmartBattle(LinearLayout owner) {
+        smartBattleSwitch = switchRow(owner, "Smart battling"); smartBattleSwitch.setChecked(Control.smartBattle());
+        smartBattleSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.smartBattle())return; Control.setSmartBattle(checked); refreshSmartBattle(); });
+        caption(owner, "Picks counters for the Pokémon you are fighting: fills your team before gym, raid and Rocket battles, and swaps to your best counter during gym and Rocket battles.");
+        smartBattleStatus = caption(owner, "");
+        refreshSmartBattle();
+    }
+
+    private void refreshSmartBattle() {
+        if(smartBattleSwitch==null)return;
+        smartBattleSwitch.setChecked(Control.smartBattle());
+        String status=Control.smartBattleStatus(); smartBattleStatus.setText(status); smartBattleStatus.setVisibility(status.isEmpty()?View.GONE:View.VISIBLE);
     }
 
     private void buildHealing(LinearLayout owner) {
@@ -391,6 +437,8 @@ final class SettingsPanel {
         healWhen.setOnClickListener(v -> { Control.setHealWhen((Control.healWhen()+1)%3); refreshHealing(); });
         healThreshold = button(""); owner.addView(healThreshold);
         healThreshold.setOnClickListener(v -> { Control.cycleHealThreshold(); refreshHealing(); });
+        healItems = button(""); owner.addView(healItems);
+        healItems.setOnClickListener(v -> { Control.setHealFull(!Control.healFull()); refreshHealing(); });
         healReviveSwitch = switchRow(owner, "Revive fainted Pokémon"); healReviveSwitch.setChecked(Control.healRevive());
         healReviveSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.healRevive())return; Control.setHealRevive(checked); });
         healStatus = caption(owner, "");
@@ -402,8 +450,9 @@ final class SettingsPanel {
         healSwitch.setChecked(Control.healEnabled()); healReviveSwitch.setChecked(Control.healRevive());
         healWhen.setText("Heal: "+Control.HEAL_WHEN_LABELS[Control.healWhen()]);
         healThreshold.setText(Control.healThreshold()>=100?"Heal when: Any HP missing":"Heal when: Below "+Control.healThreshold()+"% HP");
+        healItems.setText(Control.healFull()?"Items: Always heal fully":"Items: Smart (saves big potions)");
         boolean on=Control.healEnabled();
-        SettingsUi.enabled(healWhen,on); SettingsUi.enabled(healThreshold,on); SettingsUi.enabled(healReviveSwitch,on);
+        SettingsUi.enabled(healWhen,on); SettingsUi.enabled(healThreshold,on); SettingsUi.enabled(healItems,on); SettingsUi.enabled(healReviveSwitch,on);
         String status=Control.healStatus(); healStatus.setText(status); healStatus.setVisibility(status.isEmpty()?View.GONE:View.VISIBLE);
     }
 
@@ -420,7 +469,10 @@ final class SettingsPanel {
         LinearLayout throwC = section(body, "Throws", false); quickBallRoot = (View)throwC.getParent();
 
         throwGrade = button("Throw rating: OFF"); throwC.addView(throwGrade);
-        throwGrade.setOnClickListener(v -> { Control.setThrowGrade((Control.throwGrade()+1)%4); host.refresh(); });
+        throwGrade.setOnClickListener(v -> { Control.setThrowGrade((Control.throwRating()+1)%4); host.refresh(); });
+        throwVariety = button("Throw variety: Off"); throwC.addView(throwVariety);
+        throwVariety.setOnClickListener(v -> { Control.setThrowVariety((Control.throwVariety()+1)%4); host.refresh(); });
+        caption(throwC, "Throw variety picks a rating at random for each throw, with even odds. All includes a plain throw. It replaces the throw rating while on.");
         curveSwitch = switchRow(throwC, "Always curveball"); curveSwitch.setChecked(Control.throwCurve());
         curveSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.throwCurve())return; Control.setThrowCurve(curveSwitch.isChecked()); host.refresh(); });
         alwaysHitSwitch = switchRow(throwC, "Always hit"); alwaysHitSwitch.setChecked(Control.throwAlwaysHit());
@@ -555,8 +607,10 @@ final class SettingsPanel {
         refreshLocationOptions();
         refreshThrows();
         skipCutscenesSwitch.setChecked(Control.skipCutscenes());cutsceneStatus.setText(Control.cutsceneSkipStatus());
+        batteryResSwitch.setChecked(Control.batteryLowRes());batteryFpsSwitch.setChecked(Control.batteryFps20());batteryQualitySwitch.setChecked(Control.batteryLowQuality());
         cutsceneStatus.setVisibility(Control.cutsceneSkipStatus().isEmpty()?View.GONE:View.VISIBLE);
         refreshHealing();
+        refreshSmartBattle();
         refreshDependencies();
     }
 
@@ -566,6 +620,13 @@ final class SettingsPanel {
         for(CheckBox box:transferProtection)SettingsUi.enabled(box,Control.autoTransferEnabled());
         SettingsUi.enabled(transferKeepList,Control.autoTransferEnabled());
         SettingsUi.enabled((View)transferOverlaySwitch.getParent(),Control.autoTransferEnabled());
+        // Evolve before transferring needs the auto-transfer master; its options need the feature on, and
+        // the selected-species list only matters in "Selected species only" mode.
+        SettingsUi.enabled((View)evolveTransferSwitch.getParent(),Control.autoTransferEnabled());
+        boolean evolveOn=Control.autoTransferEnabled()&&Control.evolveTransferEnabled();
+        SettingsUi.enabled(evolveTransferStages,evolveOn);
+        SettingsUi.enabled(evolveTransferMode,evolveOn);
+        SettingsUi.enabled(evolveTransferList,evolveOn&&Control.evolveTransferMode()==1);
         SettingsUi.enabled(incubatorPriority,Control.autoIncubate()&&Control.incubatorAvailable());
         SettingsUi.enabled(giftChoices[2],(Control.giftOptions()&2)!=0);
         SettingsUi.enabled((View)joystickSwitch.getParent(),Control.desiredEnabled());
@@ -604,10 +665,14 @@ final class SettingsPanel {
     private void refreshTransfer() {
         quickSummaryStatus.setText(Control.quickSummaryStatus());
         autoTransferSwitch.setChecked(Control.autoTransferEnabled());
-        for(int i=0;i<6;i++)transferProtection[i].setChecked((Control.transferProtect()&(1<<i))!=0);
+        for(int i=0;i<transferProtection.length;i++)transferProtection[i].setChecked((Control.transferProtect()&(1<<i))!=0);
         for(int i=0;i<3;i++){pvpKeep[i].setChecked(Control.pvpKeep(i));pvpRank[i].setText("Top "+Control.pvpRank(i));pvpRank[i].setEnabled(Control.pvpKeep(i));}
         if(transferKeepList!=null){String kept=Control.transferKeepSpecies();int n=kept.isEmpty()?0:kept.split(",").length;transferKeepList.setText(n>0?"Custom keep list ("+n+")":"Custom keep list");}
         if(transferOverlaySwitch!=null){transferOverlaySwitch.setChecked(Control.transferOverlayEnabled());transferOverlaySwitch.setEnabled(Control.autoTransferEnabled());transferOverlaySwitch.setAlpha(1f);}
+        if(evolveTransferSwitch!=null)evolveTransferSwitch.setChecked(Control.evolveTransferEnabled());
+        if(evolveTransferStages!=null)evolveTransferStages.setText("Evolve: "+(Control.evolveTransferStages()==2?"all available stages":"once"));
+        if(evolveTransferMode!=null)evolveTransferMode.setText("Applies to: "+(Control.evolveTransferMode()==1?"selected species only":"current transfer rules"));
+        if(evolveTransferList!=null){String sel=Control.evolveTransferSpecies();int n=sel.isEmpty()?0:sel.split(",").length;evolveTransferList.setText(n>0?"Selected species ("+n+")":"Selected species");}
         transferStatus.setText(Control.transferStatus());
     }
 
@@ -635,6 +700,7 @@ final class SettingsPanel {
 
     private void refreshBattles() {
         for(int i=0;i<10;i++)battleChoices[i].setChecked((Control.battleOptions()&(1<<i))!=0);battleStatus.setText(Control.battleStatus());
+        gymRepeatSwitch.setChecked(Control.gymRepeatEnabled());
     }
 
     private void refreshRocket() {
@@ -660,14 +726,17 @@ final class SettingsPanel {
         mapTap.setText("Game map tap: "+new String[]{"Do nothing","Walk","Teleport","Walk / double tap teleport"}[Control.mapTapMode()]);
         mapTap.setEnabled(Control.quickBallConfigured());
         spawnSwitch.setChecked(Control.spawnBooster());spawnSwitch.setEnabled(Control.spawnAllowed());spawnStatus.setText(Control.spawnStatus());
+        localTimeSwitch.setChecked(Control.localTimeOverlay());
     }
 
     // Indexed by IV mode: 0 off, 1 level and attack/defense/stamina, 2 level and percent, 3 all three.
     private static final String[] IV_MODES={"Off","Lv · 15/14/12","Lv · IV","Lv · IV · 15/14/12","Lv · IV · 15/14/12 · PvP"};
 
     private void refreshThrows() {
-        throwGrade.setText("Throw rating: "+new String[]{"OFF","Nice","Great","Excellent"}[Control.throwGrade()]);
-        throwGrade.setEnabled(Control.quickBallConfigured());
+        throwGrade.setText("Throw rating: "+new String[]{"OFF","Nice","Great","Excellent"}[Control.throwRating()]);
+        throwGrade.setEnabled(Control.quickBallConfigured()&&Control.throwVariety()==0);
+        throwVariety.setText("Throw variety: "+Control.THROW_VARIETY_LABELS[Control.throwVariety()]);
+        throwVariety.setEnabled(Control.quickBallConfigured());
         curveSwitch.setChecked(Control.throwCurve());curveSwitch.setEnabled(Control.quickBallConfigured());
         alwaysHitSwitch.setChecked(Control.throwAlwaysHit());alwaysHitSwitch.setEnabled(Control.throwAlwaysHitReady() || Control.throwAlwaysHit());
         arSwitch.setChecked(Control.throwAr());arSwitch.setEnabled(Control.throwArReady());

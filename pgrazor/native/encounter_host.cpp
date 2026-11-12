@@ -43,14 +43,17 @@
 #include "vgp_results.h"
 #include "gym_automation.h"
 #include "batch_evolution.h"
+#include "evolve_transfer.h"
 #include "heal.h"
 #include "shundo.h"
+#include "battery.h"
 #include "remote_gym.h"
 #include "gift_batch.h"
 #include "research.h"
 #include "storage_iv.h"
 #include "cutscene_skip.h"
 #include "rocket_swap.h"
+#include "smart_battle.h"
 #include "ar_values.h"
 #include "catch_chance.h"
 #include "incense_guard.h"
@@ -363,7 +366,7 @@ static void notify_transfer_result(const char *summary) {
 
 static void notify_transfer_outcome(const char *outcome){const char *strings[]={outcome};transport_emit_op(22,nullptr,0,strings,1);}
 static void notify_transfer_error(const char *reason){char text[256];snprintf(text,sizeof(text),"Transfer Error: %s",reason);notify_transfer_result(text);notify_transfer_outcome("transfer-error");}
-static const char *transfer_reason(int code){static const char *reasons[]={"","keep-all","invalid-keep-list","unknown-species","custom-keep-list","unknown-iv","unknown-category","unknown-size","favorite-or-egg","iv-at-least-90","protected-rare","protected-shiny","protected-event","protected-background","protected-xxs","protected-xxl","invalid-input","invalid-input","pvp-rank"};return code>0&&code<19?reasons[code]:"invalid-input";}
+static const char *transfer_reason(int code){static const char *reasons[]={"","keep-all","invalid-keep-list","unknown-species","custom-keep-list","unknown-iv","unknown-category","unknown-size","favorite-or-egg","iv-at-least-90","protected-rare","protected-shiny","protected-event","protected-background","protected-xxs","protected-xxl","invalid-input","invalid-input","pvp-rank","protected-zero-iv"};return code>0&&code<20?reasons[code]:"invalid-input";}
 
 static void notify_map_poi_snapshot(const char *json_array) {
   if (!json_array) return;
@@ -689,7 +692,7 @@ static void clear_active_vgp_transfer() {
   memset(&g_vgp_transfer, 0, sizeof(g_vgp_transfer));
 }
 
-static void handle_vgp_transfer_ready(const PgrVgpControllerOut &out, uint64_t tid, uint64_t lease_ms, int keep_all = 0) {
+static void handle_vgp_transfer_ready(const PgrVgpControllerOut &out, uint64_t tid, uint64_t lease_ms, int keep_all = 0, bool honor_keep_all = false) {
   clear_active_vgp_transfer();
   g_vgp_transfer.response_handle = reinterpret_cast<void *>(static_cast<uintptr_t>(out.response_handle));
   g_vgp_transfer.bag_handle = reinterpret_cast<void *>(static_cast<uintptr_t>(out.bag_handle));
@@ -711,7 +714,7 @@ static void handle_vgp_transfer_ready(const PgrVgpControllerOut &out, uint64_t t
 
   void *pk_obj = g_exp.gchandle_get_target ? g_exp.gchandle_get_target(g_vgp_transfer.pokemon_handle) : nullptr;
   void *gm_obj = g_exp.gchandle_get_target ? g_exp.gchandle_get_target(g_vgp_transfer.gm_handle) : nullptr;
-  uint32_t protect_mask = g_opts.transfer_protect >= 0 ? static_cast<uint32_t>(g_opts.transfer_protect) : 63u;
+  uint32_t protect_mask = g_opts.transfer_protect >= 0 ? static_cast<uint32_t>(g_opts.transfer_protect&127) : 127u;
 
   PgrTransferFactsRequest req = {};
   req.version = PGR_TF_REQUEST_VERSION;
@@ -800,6 +803,10 @@ static void handle_vgp_transfer_ready(const PgrVgpControllerOut &out, uint64_t t
   tx_req.pokemon = pk_obj;
   tx_req.input = tp_in;
 
+  if (pgr_evolve_transfer_offer(&tx_req, honor_keep_all) != 0) {
+    if (g_vgc && out.transfer_token) g_vgc->transfer_feedback(out.transfer_token,PGR_VGC_FB_KEPT,tid);
+    clear_active_vgp_transfer();return;
+  }
   uint64_t tx_tok = 0;
   int sub_rc = g_broker->submit(&tx_req, &tx_tok);
   if(sub_rc==0 && !tx_tok){
@@ -841,7 +848,7 @@ extern "C" int pgr_research_transfer_caught(uint64_t caught_id, uint64_t respons
   out.bag_handle = bag;
   out.pokemon_handle = pokemon;
   out.gm_handle = gm;
-  handle_vgp_transfer_ready(out, tid, 2500, keep_all);
+  handle_vgp_transfer_ready(out, tid, 2500, keep_all, true);
   return 1;
 }
 
@@ -1077,16 +1084,24 @@ static void tick_vgp_controller(uint64_t tid, uint64_t now_ms, uint64_t lease_ms
 
   PgrVgpControllerOut out = {};
   int rc = g_vgc->tick(&in, &out);
+  static int last_tick_error=0;
   if (rc < 0) {
     g_sample.last_error = rc;
+    if(rc!=last_tick_error)emit_eventf("vgp-tick-error","{\"error\":%d,\"leaseMs\":%llu,\"capabilities\":%u}",rc,(unsigned long long)lease_ms,g_active_caps);
+    last_tick_error=rc;
     return;
   }
+  if(last_tick_error){emit_event("vgp-tick-recovered","{}");last_tick_error=0;}
   g_sample.vgp_tick_serial++;
 
   if (static_cast<int32_t>(out.status) != g_last_vgp_status) {
     g_last_vgp_status = static_cast<int32_t>(out.status);
     const char *st = vgp_status_string(out.status);
-    emit_eventf("vgp-status", "{\"message\":\"%s\",\"code\":%u,\"error\":%d}", st, out.status,out.error);
+    emit_eventf("vgp-status", "{\"message\":\"%s\",\"code\":%u,\"error\":%d,\"allowed\":%s,\"enabled\":%s,\"leaseMs\":%llu,\"mapVisible\":%s,\"manualReady\":%s,\"manualError\":%d,\"phase\":%u,\"mask\":%u,\"capabilities\":%u}",
+        st,out.status,out.error,g_opts.vgp_allowed?"true":"false",g_opts.vgp_enabled?"true":"false",
+        (unsigned long long)lease_ms,g_opts.vgp_map_visible?"true":"false",
+        (flags&PGR_VGC_TF_MANUAL_READY)?"true":"false",quick_state.error?quick_state.error:quick_state.metadata_error,
+        out.phase,in.mask,g_active_caps);
     notify_vgp_status(st);
   }
 
@@ -1412,7 +1427,7 @@ static void sync_from_transport(uint64_t tid) {
     next_opts = {};
     next_opts.version = PGR_EH_API_VERSION;
     next_opts.size = sizeof(PgrEncounterHostOptions);
-    next_opts.transfer_protect = 63;
+    next_opts.transfer_protect = 127;
     next_opts.lease_remaining_ms = 0ULL;
     g_opts = next_opts;
     g_lease_deadline_ms = 0ULL;
@@ -2485,13 +2500,16 @@ static int api_tick(uint64_t proven_tid) {
   pgr_storage_iv_tick(os_tid, &g_md);
   pgr_cutscene_skip_tick(os_tid, &g_md);
   pgr_rocket_swap_tick(os_tid);
+  pgr_smart_battle_tick(os_tid, &g_md);
   pgr_ar_values_tick(os_tid, &g_md);
   pgr_catch_chance_tick(os_tid, &g_md);
   pgr_remote_gym_tick(os_tid, &g_md);
   pgr_gym_tick(os_tid, &g_md);
   pgr_evolution_tick(os_tid, &g_md);
+  pgr_evolve_transfer_tick(os_tid, &g_md);
   pgr_heal_tick(os_tid, &g_md);
   pgr_shundo_tick(os_tid, &g_md);
+  pgr_battery_tick(os_tid, &g_md);
   pgr_buddy_emotion_tick(os_tid, &g_md);
 
 
@@ -2521,13 +2539,16 @@ static int api_stop(uint64_t proven_tid) {
       pgr_storage_iv_stop();
       pgr_cutscene_skip_stop(tid);
       pgr_rocket_swap_stop();
+      pgr_smart_battle_stop(tid);
       pgr_catch_chance_stop();
       pgr_remote_gym_stop(tid);
       pgr_incense_guard_stop(tid);
       pgr_gym_stop(tid);
       pgr_evolution_stop(tid);
+      pgr_evolve_transfer_stop(tid);
       pgr_heal_stop(tid);
       pgr_shundo_stop(tid);
+      pgr_battery_stop(tid);
       pgr_buddy_emotion_stop(tid);
       g_vgc->stop(tid);
       notify_vgp_target(0, 0.0, 0.0, 0);

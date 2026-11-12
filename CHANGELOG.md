@@ -5,12 +5,64 @@
 ### New features
 
 - **PGRazor Root (development):** A separate installer loads PGRazor into the official game through a Zygisk module. It includes in-game logs, settings backups, and account-switch restart support.
+- **Rooted log + settings export:** Save the current log and a single-line settings snapshot together as a ZIP from the in-game Run log dialog.
 
 ### Improvements & fixes
 
+- Brought the rooted build up to date with v0.2.5 features and Pokémon GO 0.435.2 support, including hook/readiness diagnostics and phone details. Rooted startup logs distinguish waiting for Unity rendering from native library loading.
 - Added more cutscene skips
 - Shundo Sniper: stops and asks you to restart the game when the map stops loading Pokémon, instead of teleporting with no results. It also uses less data and searches the map less often while waiting.
 - Run logs keep more history, and PGRazor no longer leaves 5 MB of old files behind each time the game starts.
+
+## v0.2.5
+
+[Full release notes](docs/releases/v0.2.5.md)
+
+### Improvements & fixes
+
+- More useful diagnostics for failed hooks, account readiness waits and VGP+ readiness, with clearer startup failure reasons and background/resume tracking.
+- Logs include phone manufacturer/model, Android version
+- Reduced repetitive logging and retained key startup diagnostics when logs rotate.
+
+## v0.2.4
+
+[Full release notes](docs/releases/v0.2.4.md)
+
+### New features
+
+- **Local time:** optional draggable clock in General Settings showing the time at your spoofed location.
+- **Gym battles:** new "Battle until defeated" toggle to repeat full rounds from the same gym screen, with Smart healing between rounds when enabled for after battle. Uses your existing battle settings; off by default.
+- **Evolve before transferring:** evolve new catches once or through all available stages before transferring. Use your current transfer rules or a separate species list; keep protections still apply.
+- **Smart battling:** picks counters for the Pokémon you are fighting. It builds your team before gym, raid, and Rocket grunt battles, and swaps to your best counter during gym and Rocket battles. Off by default.
+
+### Improvements & fixes
+
+- Auto incubate dismisses the Eggs page opened after a hatch.
+- Adventure Sync prompts are dismissed...hopefully.
+- Skip cutscenes fixes
+- During Dyndmax battles, Max energy orbs are automatically grabbed.
+- Updated to latest game version (0.435.2)
+- UI and performance updates
+
+## v0.2.3
+
+[Full release notes](docs/releases/v0.2.3.md)
+
+### New features
+
+- **Battery usage:** lower resolution, 20 FPS cap, or fewer effects (General Settings).
+- **Throw variety:** random throw ratings from the ones you pick, under Throws and in VGP+. Off by default.
+- **VGP+ catch-only list:** VGP+ catches only the species you choose.
+- **Shundo Sniper black screen:** tap Dark on its card; tap the screen to return.
+
+### Improvements & fixes
+
+- Smart healing: new "Always heal fully" item choice.
+- Shundo Sniper: starts sooner, moves on faster when its target doesn't appear, and shows missed checks.
+- Transfer on catch: new "Keep 0% IV (0/0/0)" option.
+- Gym Slotter and Berry Feeder: placing a defender now comes before feeding.
+- World map tiles load faster.
+- More cutscene skips.
 
 ## v0.2.2
 

@@ -52,7 +52,9 @@ These harnesses do not operate the game. Their receipts record the actual librar
 
 ## Rooted UI
 
-Run log opens inside the game and can save a copy to the game's external files folder. Settings backup also uses that folder, at `PGRazor-settings.json`; copy the file elsewhere before uninstalling the game. Import reads the same path and asks before replacing settings.
+Run log opens inside the game and saves the current log segment to the game's external files folder. **Save log + settings (.zip)** includes that log and a single-line `settings.json` snapshot of feature preferences; plain-text export is also available. The settings snapshot excludes login tokens, account data and saved locations. Logs include hook failure reasons, account and VGP+ readiness, native execution health, phone details and passive root indicators. Hidden root may not be detected; the session also identifies the rooted runtime explicitly.
+
+Settings backup also uses the external files folder, at `PGRazor-settings.json`; copy the file elsewhere before uninstalling the game. Import reads the same path and asks before replacing settings.
 
 Account switches are queued durably and applied before Unity starts in the next process. The installer provides a foreground restart helper so it can reopen the game after the old process exits. Module-only installs without the installer require manually closing and reopening the game. The helper accepts only requests whose calling package is the official game and performs no root or account-data operations. The game's official APK does not need PGRazor activities added to its manifest.
 

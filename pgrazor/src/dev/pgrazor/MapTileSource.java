@@ -17,10 +17,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /** Fetches OpenStreetMap tiles for the current viewport and hands decoded bitmaps back to the map.
  *  Owns HTTP retrieval, the two-tier cache, bounded worker scheduling and viewport/generation gating.
@@ -47,8 +51,10 @@ final class MapTileSource {
     private final TextView status;
     private final MapTileCache cache;
     private final Handler main = new Handler(Looper.getMainLooper());
-    // A single worker and a single replaceable viewport task bound network and queued work.
+    // A single worker and a single replaceable viewport task bound queued work. The worker and one helper
+    // download that task's tiles two at a time, the most the OpenStreetMap tile policy allows a client.
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(1, 1, 0, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>(1));
+    private final ExecutorService helper = Executors.newSingleThreadExecutor();
     private final Map<String, Long> failures = new HashMap<>();
     private final Runnable request = this::loadVisible;
 
@@ -95,34 +101,47 @@ final class MapTileSource {
         }
         status.setText(wanted.isEmpty() ? (blocked > 0 ? "Map unavailable in some areas. Check internet, then Retry." : "Zoom " + host.zoom() + " · Tap map to select") : "Loading map…");
         if (wanted.isEmpty()) return;
+        // Middle of the screen first: tiles nearest the centre of the placed ones load before the edges.
+        float cx = 0, cy = 0; for (Tile tile : visible) { cx += tile.left; cy += tile.top; }
+        final float midX = cx / visible.size(), midY = cy / visible.size();
+        Collections.sort(wanted, (a, b) -> Float.compare(distance(a, midX, midY), distance(b, midX, midY)));
         final int blockedTiles = blocked;
         worker.purge();
         pending = worker.submit(() -> {
-            int errors = 0;
+            final AtomicInteger errors = new AtomicInteger(), next = new AtomicInteger();
             try {
                 cache.ensureDirectory();
-                for (Tile tile : wanted) {
-                    if (!visibleKeys.contains(tile.key)) continue;
-                    if (closed || Thread.currentThread().isInterrupted()) return;
-                    try {
-                        Bitmap bitmap = readTile(tile);
-                        main.post(() -> {
-                            if (closed) { bitmap.recycle(); return; }
-                            cache.remember(tile.key, bitmap); failures.remove(tile.key); host.onTilesChanged();
-                        });
-                    } catch (IOException | RuntimeException e) {
+                Runnable drain = () -> {
+                    for (int i; (i = next.getAndIncrement()) < wanted.size(); ) {
+                        Tile tile = wanted.get(i);
+                        if (!visibleKeys.contains(tile.key)) continue;
                         if (closed || Thread.currentThread().isInterrupted()) return;
-                        errors++;
-                        main.post(() -> {
-                            if (!closed) {
-                                if (failures.size() >= 128) failures.clear();
-                                failures.put(tile.key, SystemClock.elapsedRealtime());
-                            }
-                        });
+                        try {
+                            Bitmap bitmap = readTile(tile);
+                            main.post(() -> {
+                                if (closed) { bitmap.recycle(); return; }
+                                cache.remember(tile.key, bitmap); failures.remove(tile.key); host.onTilesChanged();
+                            });
+                        } catch (IOException | RuntimeException e) {
+                            if (closed || Thread.currentThread().isInterrupted()) return;
+                            errors.incrementAndGet();
+                            main.post(() -> {
+                                if (!closed) {
+                                    if (failures.size() >= 128) failures.clear();
+                                    failures.put(tile.key, SystemClock.elapsedRealtime());
+                                }
+                            });
+                        }
                     }
-                }
+                };
+                Future<?> second = helper.submit(drain);
+                drain.run();
+                try { second.get(); }
+                catch (InterruptedException e) { second.cancel(true); Thread.currentThread().interrupt(); return; }
+                catch (ExecutionException e) { errors.incrementAndGet(); }
+                if (closed || Thread.currentThread().isInterrupted()) return;
                 cache.trim();
-                final int finalErrors = errors + blockedTiles;
+                final int finalErrors = errors.get() + blockedTiles;
                 main.post(() -> { if (!closed && revision == generation) status.setText(finalErrors == 0 ? "Zoom " + host.zoom() + " · Tap map to select" : "Map unavailable in some areas. Check internet, then Retry."); });
             } catch (IOException | RuntimeException e) {
                 main.post(() -> { if (!closed && revision == generation) status.setText("Map cache unavailable. Close map and retry."); });
@@ -130,11 +149,16 @@ final class MapTileSource {
         });
     }
 
+    private static float distance(Tile tile, float x, float y) { float dx = tile.left - x, dy = tile.top - y; return dx * dx + dy * dy; }
+
     private Bitmap readTile(Tile tile) throws IOException {
         Bitmap cached = cache.readDisk(tile.key);
         if (cached != null) return cached;
         if (closed) throw new IOException("Map closed");
         HttpURLConnection request = (HttpURLConnection) new URL("https://tile.openstreetmap.org/" + tile.zoom + "/" + tile.x + "/" + tile.y + ".png").openConnection();
+        // A tile read to the end returns its connection to the pool for the next tile (each new one costs a
+        // TLS handshake, about 3x the tile itself); only a failed request is disconnected.
+        boolean reusable = false;
         try {
             request.setConnectTimeout(8000); request.setReadTimeout(8000);
             request.setInstanceFollowRedirects(false);
@@ -146,8 +170,9 @@ final class MapTileSource {
             Bitmap bitmap = MapTileCache.decode(bytes);
             if (closed) { bitmap.recycle(); throw new IOException("Map closed"); }
             cache.writeDisk(tile.key, bytes);
+            reusable = true;
             return bitmap;
-        } finally { request.disconnect(); }
+        } finally { if (!reusable) request.disconnect(); }
     }
 
     void close() {
@@ -155,7 +180,7 @@ final class MapTileSource {
         closed = true; generation++;
         main.removeCallbacksAndMessages(null);
         if (pending != null) pending.cancel(true);
-        worker.shutdownNow();
+        worker.shutdownNow(); helper.shutdownNow();
         failures.clear();
     }
 }

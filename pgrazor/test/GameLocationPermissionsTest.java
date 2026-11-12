@@ -59,15 +59,18 @@ public class GameLocationPermissionsTest {
         check(last.closed, "denied Final dialog closed");
         check(Control.events.size() == 3, "one dismissal event each");
 
-        // A real grant on either axis leaves the dialog untouched: OS checks are read, never changed.
+        // Real location grants must not block dismissal while spoofing is enabled.
         InitialDialog fineGranted = new InitialDialog();
         fineGranted.fine = 0;
         helper.dismissAdventureSync(fineGranted, "onClickCancel");
-        check(!fineGranted.cancelled, "fine granted -> not dismissed");
+        check(fineGranted.cancelled && fineGranted.fine == 0, "fine granted -> dismissed, grant unchanged");
         InitialDialog coarseGranted = new InitialDialog();
         coarseGranted.coarse = 0;
         helper.dismissAdventureSync(coarseGranted, "onClickCancel");
-        check(!coarseGranted.cancelled, "coarse granted -> not dismissed");
+        check(coarseGranted.cancelled && coarseGranted.coarse == 0, "coarse granted -> dismissed, grant unchanged");
+        InitialDialog bothGranted = new InitialDialog(); bothGranted.fine = bothGranted.coarse = 0;
+        helper.dismissAdventureSync(bothGranted, "onClickCancel");
+        check(bothGranted.cancelled && bothGranted.fine == 0 && bothGranted.coarse == 0, "both granted -> dismissed, grants unchanged");
 
         // Finishing activities, mismatched actions and non-whitelisted callers are all left alone.
         InitialDialog finishing = new InitialDialog();
@@ -102,7 +105,7 @@ public class GameLocationPermissionsTest {
             "reflection failure contained and logged");
 
         System.out.println("PASS game location permissions: exact fine/coarse gating, flag->status mapping with "
-            + "disabled/shutdown fallback, enum init forced, Adventure Sync dismissal only on denied OS grant for "
+            + "disabled/shutdown fallback, enum init forced, Adventure Sync dismissal while spoofing for "
             + "whitelisted dialogs/actions, OS checks untouched, reflection errors contained");
     }
 }

@@ -2,7 +2,7 @@
 // No listening socket, desktop controller, root command, or mock-flag hooks.
 let bootParameters = {}, control = null, javaControl = null, timer = null;
 let diagnosticTimer = null, diagnostic = null, disposed = false;
-let diagnosticRunning = false, cameraReading = '', lastHeadingLog = 0;
+let diagnosticRunning = false, cameraReading = '', lastHeadingLog = -Infinity;
 let interactionTimer = null, interaction = null, interactionRunning = false;
 const hooks = [];
 let googleSignInPending = null, googleSignInTimer = null;
@@ -134,7 +134,7 @@ function runDiagnostic() {
                         }
                         control.updateCameraHeadingAt(event.yawDegrees, event.cameraId, event.mapVisible === true,
                             Math.floor(event.timeMs));
-                        if (event.timeMs - lastHeadingLog >= 1000) {
+                        if (event.timeMs - lastHeadingLog >= 60000) {  // once a minute keeps the log long
                             lastHeadingLog = event.timeMs;
                             control.event('camera-heading', JSON.stringify(event));
                         }

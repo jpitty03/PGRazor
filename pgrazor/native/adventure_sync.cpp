@@ -154,6 +154,8 @@ inline void invoke_managed(void *method, void *obj) {
     reinterpret_cast<void *(*)(void *, void *, void **, void **)>(g_config.runtime_invoke)(
         method, obj, nullptr, &exc);
     if (exc != nullptr) logw("managed exception from auto-dismiss (handled)");
+    else __android_log_write(ANDROID_LOG_INFO, "PGRazorAdvSync",
+        method == g_config.method_on_decline ? "Adventure Sync prompt declined" : "Adventure Sync result acknowledged");
 }
 
 inline bool on_unity_thread() {

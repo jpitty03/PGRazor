@@ -17,7 +17,7 @@ Download the installable **PGRazor.apk** from [Releases](https://github.com/jpit
 3. Transfer it to your ARM64 Android phone, allow installation from your chosen file manager, and open the APK.
 4. Launch **Pokémon GO** (the installed app name) and tap the small **R** icon to open the quick menu. Choose **Settings** for the full-screen controls.
 
-Pre-releases are test candidates; check their release notes for device-validation status. The source build targets **Pokémon GO 0.435.1 / 2026102802**. Native hooks are version-specific. A different game version can leave features unavailable.
+Pre-releases are test candidates; check their release notes for device-validation status. The source build targets **Pokémon GO 0.435.2 / 2026110702**. Native hooks are version-specific. A different game version can leave features unavailable.
 
 The Android package identity stays compatible with the game. An official-store installation uses a different signing certificate and cannot be updated in place with a PGRazor build. See [installation and builds](docs/BUILDING.md).
 

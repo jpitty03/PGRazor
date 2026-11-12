@@ -37,6 +37,9 @@ public final class ShundoSniper {
     private ShundoSniper() {}
     static final long MIN_LEFT_MS = 150_000, RESULT_TIMEOUT_MS = 180_000, LIVE_MIN_MS = 15_000, POGO_MS = 30_000,
         SETTLE_MS = 2_000, RETRY_MS = 60_000;
+    // Every start waits this long before the first teleport, whatever the gap, so the card can show where
+    // the first spawn is (and the player can stop) before anything moves.
+    static final long START_DELAY_MS = 3_000;
     static final int MAX_CANDIDATES = 6000, RECENT = 8, MAX_SPECIES = 500;
     // The shortest time between two teleports, chosen by the user (seconds; 0 = right away).
     static final int[] GAPS = {0, 30, 60, 90};
@@ -63,6 +66,9 @@ public final class ShundoSniper {
     private static final java.util.TreeSet<Integer> species = new java.util.TreeSet<>();
     private static int gapSeconds;
     private static long lastTeleport;  // when the last teleport was made, ms
+    // Where the player was when this run found the map, and when its first teleport may happen.
+    private static double startLat = Double.NaN, startLon = Double.NaN;
+    private static long startAt;
     private static volatile String feedNote = "";
     // The spawn being checked: the request number and encounter id native reads, and when it was sent.
     private static long request, targetSince, nextPick, nextLive, nextPogo, lastFeed;
@@ -179,6 +185,15 @@ public final class ShundoSniper {
         synchronized (LOCK) { return "Species: " + (species.isEmpty() ? "All" : species.size() + " selected"); }
     }
     public static boolean active() { return enabled; }
+    /** The card's black screen: it covers the game (PGRazor's overlays stay on top) while the sniper runs. */
+    private static volatile boolean dark;
+    static boolean dark() { return dark && enabled; }
+    static void setDark(boolean on) {
+        if (on && !enabled) on = false;
+        if (dark == on) return;
+        dark = on;
+        Control.event("shundo-sniper", "black screen " + (on ? "ON" : "OFF"));
+    }
 
     /**
      * "S1|<request>|<encounter id>|<go>|<running>" while a spawn is being checked, else "S1|0|0|0|<running>"
@@ -191,8 +206,9 @@ public final class ShundoSniper {
     static void setEnabled(Context context, boolean on) {
         synchronized (LOCK) {
             if (on == enabled) return;
-            enabled = on;
+            enabled = on; dark = false;
             target = null; teleporting = false; candidates.clear(); nextPick = nextLive = nextPogo = lastFeed = 0; feedFailed = false;
+            startLat = startLon = Double.NaN; startAt = 0;
             status = on ? looking() : "";
             if (on) overlayShown = true;
             if (on) {
@@ -282,7 +298,10 @@ public final class ShundoSniper {
             if (!enabled) return;
             long now = System.currentTimeMillis();
             if (!Control.canEnable() || !Control.locationKnown()) { synchronized (LOCK) { status = "Waiting for the game map"; } return; }
+            double lat = Control.currentLatitude(), lon = Control.currentLongitude();
             synchronized (LOCK) {
+                // The start delay counts from when the map is ready, not from the tap.
+                if (!CooldownState.valid(startLat, startLon) && CooldownState.valid(lat, lon)) { startLat = lat; startLon = lon; startAt = now + START_DELAY_MS; }
                 if (teleporting) return;
                 if (target != null) {
                     if (holding) { hold(now); return; }
@@ -290,14 +309,19 @@ public final class ShundoSniper {
                     else return;
                 }
             }
-            double lat = Control.currentLatitude(), lon = Control.currentLongitude();
             fetch(now, lat, lon);
             if (now >= nextPick) {
-                // The user's minimum time between teleports, counted from the last one.
+                // The user's minimum time between teleports, counted from the last one, and the start delay.
                 long wait;
                 synchronized (LOCK) {
-                    wait = lastTeleport + gapSeconds * 1000L - now;
-                    if (wait > 0) status = "Next teleport in " + (wait + 999) / 1000 + " s";
+                    wait = Math.max(lastTeleport + gapSeconds * 1000L, startAt) - now;
+                    if (wait > 0) {
+                        double[] km = {0};
+                        Target next = nearest(now, lat, lon, km, null);
+                        long seconds = (wait + 999) / 1000;
+                        status = next == null ? "Next teleport in " + seconds + " s"
+                            : "Next: " + next.name + " · " + km(km[0]) + " away · in " + seconds + " s";
+                    }
                 }
                 if (wait <= 0) pick(now, lat, lon);
             }
@@ -453,15 +477,10 @@ public final class ShundoSniper {
     // The nearest unchecked spawn with time left to reach and check it.
     // None located yet: reveal one PoGoCoordinates row (they come nearest first) when its quota allows.
     private static void pick(long now, double lat, double lon) {
-        Target best = null, locked = null; double bestKm = Double.MAX_VALUE;
+        Target best, locked; double bestKm;
         synchronized (LOCK) {
-            for (Iterator<Target> it = candidates.values().iterator(); it.hasNext(); ) {
-                Target t = it.next();
-                if (attempted.containsKey(t.encounter) || !wanted(t.dex) || (t.expiresAt > 0 && t.expiresAt - now < MIN_LEFT_MS)) { it.remove(); continue; }
-                if (!t.located()) { if (locked == null && t.revealCode != null) locked = t; continue; }
-                double km = CooldownState.distance(lat, lon, t.lat, t.lon);
-                if (km < bestKm) { bestKm = km; best = t; }
-            }
+            double[] km = {0}; Target[] reveal = {null};
+            best = nearest(now, lat, lon, km, reveal); bestKm = km[0]; locked = reveal[0];
             if (best == null) {
                 status = looking();
                 if (locked == null) return;
@@ -486,6 +505,21 @@ public final class ShundoSniper {
             Control.event("shundo-sniper", String.format(Locale.US, "target %s %s %.6f,%.6f from %s, %.1f km, %s left", chosen.encounter, chosen.name, chosen.lat, chosen.lon, chosen.source, km, chosen.expiresAt > 0 ? (chosen.expiresAt - System.currentTimeMillis()) / 1000 + " s" : "unknown"));
         });
     }
+    // Under LOCK: drops spawns that can no longer be used and returns the nearest located one, its distance
+    // in km[0]. reveal, when given, gets the first PoGoCoordinates row whose location is still hidden.
+    private static Target nearest(long now, double lat, double lon, double[] km, Target[] reveal) {
+        Target best = null; double bestKm = Double.MAX_VALUE;
+        for (Iterator<Target> it = candidates.values().iterator(); it.hasNext(); ) {
+            Target t = it.next();
+            if (attempted.containsKey(t.encounter) || !wanted(t.dex) || (t.expiresAt > 0 && t.expiresAt - now < MIN_LEFT_MS)) { it.remove(); continue; }
+            if (!t.located()) { if (reveal != null && reveal[0] == null && t.revealCode != null) reveal[0] = t; continue; }
+            double d = CooldownState.distance(lat, lon, t.lat, t.lon);
+            if (d < bestKm) { bestKm = d; best = t; }
+        }
+        km[0] = bestKm;
+        return best;
+    }
+    static String km(double km) { return km < 100 ? String.format(Locale.US, "%.1f km", km) : String.format(Locale.US, "%,.0f km", km); }
     private static void reveal(Target t) {
         PogoFeedClient client; synchronized (LOCK) { client = pogo; }
         if (client == null || client.revealWaitMs() > 0) return;
@@ -515,7 +549,9 @@ public final class ShundoSniper {
             if (!enabled) return status.startsWith("Stopped") ? status : "Stopped";
             if (target != null && !holding) {
                 long s = Math.max(0, (System.currentTimeMillis() - targetSince) / 1000);
-                return String.format(Locale.US, "Checking %s · %.1f km · %d s", target.name, targetKm, s);
+                // How far the player now is from where this run started.
+                String away = CooldownState.valid(startLat, startLon) ? km(CooldownState.distance(startLat, startLon, target.lat, target.lon)) + " from start" : km(targetKm);
+                return String.format(Locale.US, "Checking %s · %s · %d s", target.name, away, s);
             }
             return status.isEmpty() ? looking() : status;
         }

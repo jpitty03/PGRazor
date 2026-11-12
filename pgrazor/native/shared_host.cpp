@@ -9,6 +9,7 @@
 #include "catch_completion.h"
 #include "catch_presentation.h"
 #include "transfer_execution.h"
+#include "evolve_transfer.h"
 #include "transfer_facts.h"
 #include "transfer_observers.h"
 #include "pvp_keep.h"
@@ -94,7 +95,7 @@ bool scheduler_current(){return !pulse_generation||table<PgrUnitySchedulerApi>(p
 bool transport_current(){if(!(cfg.transport_flags&1))return true;PgrRuntimeTransportSample s{};return transport->sample(&s)==0&&s.snapshot_fresh&&!s.fault&&s.snapshot_seq==transport_sequence&&s.generation==transport_generation;}
 bool refresh_transport_current();
 bool current(uint64_t epoch){if(!owned()||!scheduler_current()||!refresh_transport_current())return false;const auto g=gate();return g.remaining&&g.epoch==epoch;}
-const char *keep_reason(int code){static const char *reasons[]={"none","keep-all","invalid-keep-list","unknown-species","custom-keep-list","unknown-iv","unknown-category","unknown-size","favorite-or-egg","iv-at-least-90","protected-rare","protected-shiny","protected-event","protected-background","protected-xxs","protected-xxl","invalid-native-input","native-transfer-blocked","pvp-rank"};return code>=0&&code<19?reasons[code]:"native-transfer-blocked";}
+const char *keep_reason(int code){static const char *reasons[]={"none","keep-all","invalid-keep-list","unknown-species","custom-keep-list","unknown-iv","unknown-category","unknown-size","favorite-or-egg","iv-at-least-90","protected-rare","protected-shiny","protected-event","protected-background","protected-xxs","protected-xxl","invalid-native-input","native-transfer-blocked","pvp-rank","protected-zero-iv"};return code>=0&&code<20?reasons[code]:"native-transfer-blocked";}
 bool publish(uint32_t opcode,const char *text=nullptr,int boolean=-1){PgrRuntimeTransportString s{text,text?uint32_t(std::strlen(text)):0};const int64_t value=boolean;const int rc=transport->emit(opcode,boolean<0?nullptr:&value,boolean<0?0:1,text?&s:nullptr,text?1:0);if(rc!=0&&rc!=PGR_TRANSPORT_STOPPED){failed=true;stopping=true;return false;}return true;}
 void transport_event(uint32_t kind,uint64_t slot,int status,uint32_t flags,int before,int after,int reason){
  const char *name="native-shared-event",*why="";
@@ -113,13 +114,13 @@ void transport_event(uint32_t kind,uint64_t slot,int status,uint32_t flags,int b
 }
 bool parse_keep(const char *text,uint32_t bytes,std::array<int32_t,2000>&ids,uint32_t &count){count=0;if(bytes>10000)return false;std::array<bool,2001> seen{};uint32_t at=0;while(at<bytes){if(text[at]<'1'||text[at]>'9')return false;int value=0;unsigned digits=0;while(at<bytes&&text[at]>='0'&&text[at]<='9'){if(++digits>4)return false;value=value*10+text[at++]-'0';}if(value>2000||seen[value]||count==2000)return false;seen[value]=true;ids[count++]=value;if(at==bytes)break;if(text[at++]!=','||at==bytes)return false;}std::sort(ids.begin(),ids.begin()+count);return true;}
 int update(const PgrSharedHostOptions*);
-void poll_transport(){if(!(cfg.transport_flags&1))return;PgrRuntimeTransportSample start{},end{};int dismiss=0,allow_transfer=0,keep_all=0;int32_t protect=63;char text[10000];uint32_t len=0,count=0;std::array<int32_t,2000> ids{};
+void poll_transport(){if(!(cfg.transport_flags&1))return;PgrRuntimeTransportSample start{},end{};int dismiss=0,allow_transfer=0,keep_all=0;int32_t protect=127;char text[10000];uint32_t len=0,count=0;std::array<int32_t,2000> ids{};
  bool fresh=transport->sample(&start)==0&&start.snapshot_fresh&&!start.fault;
  if(fresh)fresh=transport->get_bool(25,&dismiss)==0&&transport->get_bool(5,&allow_transfer)==0&&transport->get_bool(35,&keep_all)==0&&transport->get_int(8,&protect)==0;
  bool valid_keep=true;if(fresh){const int rc=transport->get_string(4,text,sizeof(text),&len);if(rc==PGR_TRANSPORT_ERR_RANGE){valid_keep=false;len=0;}else if(rc)fresh=false;else valid_keep=parse_keep(text,len,ids,count);}
  if(fresh)fresh=transport->sample(&end)==0&&end.snapshot_fresh&&!end.fault&&end.snapshot_seq==start.snapshot_seq&&end.generation==start.generation;
- if(!fresh){dismiss=allow_transfer=keep_all=0;count=0;protect=63;valid_keep=true;transport_sequence=transport_generation=0;}else {transport_sequence=start.snapshot_seq;transport_generation=start.generation;}
- if(protect<0||protect>63)protect=63;
+ if(!fresh){dismiss=allow_transfer=keep_all=0;count=0;protect=127;valid_keep=true;transport_sequence=transport_generation=0;}else {transport_sequence=start.snapshot_seq;transport_generation=start.generation;}
+ if(protect<0||protect>127)protect=127;
  // The overlay's Keep All flag gates manual catches below, not the VGP broker.
  const bool enabled=allow_transfer&&valid_keep&&(capabilities&PGR_SHH_TRANSFER);
  const uint32_t flags=(dismiss||allow_transfer?PGR_SHH_ALLOWED:0)|(dismiss?PGR_SHH_DISMISS:0)|(enabled?PGR_SHH_TRANSFER_ENABLED:0)|(keep_all?PGR_SHH_KEEP_ALL:0);
@@ -130,7 +131,7 @@ void poll_transport(){if(!(cfg.transport_flags&1))return;PgrRuntimeTransportSamp
 struct Record {
  uint64_t key=0,slot=0,epoch=0,id=0,canvas=0,transfer_token=0;
  void *gui=nullptr,*state=nullptr,*proto=nullptr,*response=nullptr,*dismissed=nullptr,*data=nullptr,*pokemon=nullptr;
- bool details=false,cancelled=false,invoked=false,transfer_checked=false,transfer_complete=false,transfer_failed=false,opening=false;
+ bool details=false,cancelled=false,invoked=false,transfer_checked=false,evolve_queued=false,transfer_complete=false,transfer_failed=false,opening=false;
 };
 std::array<Record,4> records{};
 struct Pending {void *response=nullptr,*layer=nullptr;uint64_t id=0,epoch=0,expires=0;bool returned=false;} pending;
@@ -298,9 +299,10 @@ void *invoke(const void *method,void *receiver,void **args,bool *ok){void *excep
 void transfer_drain(){if(!(capabilities&PGR_SHH_TRANSFER))return;PgrTransferExecEvent e{};while(tx->next_event(&e)==1){
  auto external=std::find(external_tokens.begin(),external_tokens.end(),e.token);
  if(e.token&&external!=external_tokens.end()){
+  if(e.kind!=PGR_TX_EVENT_REQUEST)*external=0;
+  if(pgr_evolve_transfer_event(&e))continue;
   if(external_count==external_events.size()){fault(-30);return;}
   external_events[(external_head+external_count++)%external_events.size()]=e;
-  if(e.kind!=PGR_TX_EVENT_REQUEST)*external=0;
   continue;
  }
  Record *matched=nullptr;for(auto &r:records)if(r.slot&&r.transfer_token==e.token){matched=&r;break;}
@@ -352,6 +354,8 @@ bool transfer(Record &r,bool direct=false){auto g=gate();if(!(capabilities&PGR_S
  // PvP keep runs only when every other rule would transfer.
  if(pgr_pvp_keep){char pvp[96];if(pgr_pvp_keep(pokemon.get(),facts.attack,facts.defense,facts.stamina,facts.species,tid(),pvp,sizeof(pvp))>0){
   emit(7,r.slot,18);char message[128];std::snprintf(message,sizeof(message),"Kept: %s",pvp);publish(56,message);return false;}}
+ const int evolve=pgr_evolve_transfer_offer(&request,true);
+ if(evolve!=0){r.evolve_queued=evolve==1;return false;}
  if(r.slot)sh->transfer_bind(r.slot,r.key,tid());
  // No tick/event drain can reenter this owner while submit calls managed code.
  // The compiled observer can synchronously enqueue COMPLETE; correlate before draining.
@@ -424,7 +428,7 @@ void complete_summary(Record &r){if(capabilities&PGR_SHH_CANVAS){PgrCatchCanvasS
 }
 void complete_details(Record &r){auto q=details_request(r);if(dc->validate(&q)!=1){cancel(r);return;}if(field<int32_t>(target(r.gui),f(1))!=2){cancel(r);return;}
  if(!current(r.epoch)||opener_depth)return;if(transfer(r))return;
- if(!(gate().flags&PGR_SHH_DISMISS)&&!r.transfer_complete){cancel(r);return;}
+ if(!(gate().flags&PGR_SHH_DISMISS)&&!r.transfer_complete&&!r.evolve_queued){cancel(r);return;}
  if(!current(r.epoch))return;r.invoked=true;invoking=true;invoking_gui=target(r.gui);uint64_t token=0;dc->acquire(r.epoch,tid(),&token);PgrDetailsCompletionOutput out{};int rc=0;
  try{if(token)rc=dc->complete(&q,token,&out);}catch(...){invoking=false;invoking_gui=nullptr;fault(-11);throw;}invoking=false;invoking_gui=nullptr;
  const bool advanced=(out.flags&2)||((out.flags&4)&&out.after!=2);hide_after(r,out.flags,out.after,rc);emit(4,r.slot,rc,out.flags,out.before,out.after);sh->finish(r.slot,advanced?1:0,tid());release(r);
@@ -511,7 +515,7 @@ int configure(const PgrSharedHostConfig *input){
  int rc=table<PgrSharedMetadataApi>(pgrazor_shared_metadata_api(2))->resolve(&cfg.metadata,&md);if(rc)return rc;
  owner=tid();rc=install_leaves();if(rc){failed=true;return rc;}rc=install_hooks();if(rc){failed=true;return rc;}installed=true;accepted_config=*input;ready=true;emit(9);return 0;
 }
-int update(const PgrSharedHostOptions *input){if(!input||input->version!=1||input->size!=sizeof(*input)||input->flags&~15u||input->protect&~63u||input->reserved||input->keep_count>keep.size()||(input->keep_count&&!input->keep_ids)||!input->epoch)return -1;
+int update(const PgrSharedHostOptions *input){if(!input||input->version!=1||input->size!=sizeof(*input)||input->flags&~15u||input->protect&~127u||input->reserved||input->keep_count>keep.size()||(input->keep_count&&!input->keep_ids)||!input->epoch)return -1;
  for(uint32_t i=0;i<input->keep_count;++i)if(input->keep_ids[i]<1||input->keep_ids[i]>2000)return -1;
  {std::lock_guard<std::mutex> lock(options_mutex);if(input->epoch<options.epoch)return -2;options=*input;options.keep_ids=nullptr;if(input->keep_count)std::copy_n(input->keep_ids,input->keep_count,keep.begin());const auto n=now();deadline=n&&(input->flags&1)?n+std::min<uint64_t>(2500,input->remaining_ms):0;}
  if(!(input->flags&1)){sh->update(0,0,input->epoch,0);sc->update(0,0,input->epoch,0);dc->update(0,0,input->epoch,0);cv->update(0,0,input->epoch,0);tx->update(0,0,input->epoch,0);cc->update(0,0,input->epoch,0);}return 0;

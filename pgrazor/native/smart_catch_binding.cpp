@@ -40,6 +40,9 @@ struct SpawnFreshState {
   void *f_wild_proto = nullptr;        // WildMapPokemon.eluo -> WildPokemonProto (ref)
   void *f_last_modified = nullptr;     // WildPokemonProto.LastModifiedMs (long)
   void *f_time_till_hidden = nullptr;  // WildPokemonProto.TimeTillHiddenMs (int)
+  void *f_wild_pokemon = nullptr;      // WildPokemonProto.Pokemon -> PokemonProto (optional: map species)
+  void *class_pokemon_proto = nullptr; // exact PokemonProto class
+  void *f_proto_id = nullptr;          // PokemonProto.pokemonId_ (int)
   void *object_get_class = nullptr;    // il2cpp_object_get_class
   void *field_get_value = nullptr;     // il2cpp_field_get_value
 } g_fresh;
@@ -334,6 +337,11 @@ int pgr_smart_ensure_bound(uint64_t owner) {
       validate_field(md, class_wild_proto, PGR_GAME_SMART_CATCH_BINDING_CPP_LASTMODIFIEDMS_NAME, PGR_GAME_SMART_CATCH_BINDING_CPP_LASTMODIFIEDMS_OFFSET, PGR_MD_FIELD_VALUE, 8, "System.Int64", &f_last, nullptr) ||
       validate_field(md, class_wild_proto, PGR_GAME_SMART_CATCH_BINDING_CPP_TIMETILLHIDDENMS_NAME, PGR_GAME_SMART_CATCH_BINDING_CPP_TIMETILLHIDDENMS_OFFSET, PGR_MD_FIELD_VALUE, 4, "System.Int32", &f_hidden, nullptr))
     return PGR_SMARTBIND_ERR_FIELD;
+  // Map species for the catch-only list. Optional: without it every spawn is encountered and the list is
+  // applied to the encounter's Pokemon instead.
+  void *f_wild_pokemon = nullptr;
+  if (validate_field(md, class_wild_proto, PGR_GAME_SMART_CATCH_BINDING_CPP_POKEMON_NAME, PGR_GAME_SMART_CATCH_BINDING_CPP_WILD_POKEMON_OFFSET, PGR_MD_FIELD_REF, 0, "Holoholo.Rpc.PokemonProto", &f_wild_pokemon, nullptr))
+    f_wild_pokemon = nullptr;
 
   int rc=pgr_smart_bind(&b);
   if(rc!=PGR_SMART_OK)return PGR_SMARTBIND_ERR_BIND;
@@ -356,6 +364,9 @@ int pgr_smart_ensure_bound(uint64_t owner) {
   g_fresh.f_wild_proto = f_wild_proto;
   g_fresh.f_last_modified = f_last;
   g_fresh.f_time_till_hidden = f_hidden;
+  g_fresh.f_wild_pokemon = f_wild_pokemon;
+  g_fresh.class_pokemon_proto = b.class_pokemon_proto;
+  g_fresh.f_proto_id = b.f_proto_id;
   g_fresh.object_get_class = rt.object_get_class;
   g_fresh.field_get_value = rt.field_get_value;
   g_bound = true;
@@ -461,6 +472,28 @@ int pgr_smart_spawn_fresh(void *rootedWild, uint64_t owner) {
   const int64_t hidden_at = last_modified + time_till_hidden;  // server epoch ms
   const int64_t remaining = hidden_at - now;
   return remaining < PGR_SMARTBIND_FRESH_MIN_MS ? PGR_SMARTBIND_FRESH_FILTER : PGR_SMARTBIND_FRESH_PASS;
+}
+
+int pgr_smart_map_species(void *rootedWild, uint64_t owner) {
+  std::unique_lock<std::mutex> lock(g_bind_mutex, std::try_to_lock);
+  if (!lock.owns_lock()) return 0;  // unknown; the encounter check still applies
+  if (!g_bound || !rootedWild || owner == 0 || owner != g_fresh.owner) return PGR_SMARTBIND_ERR_IDENTITY;
+  if (owner != static_cast<uint64_t>(gettid())) return PGR_SMARTBIND_ERR_IDENTITY;
+  auto get_class = reinterpret_cast<void *(*)(void *)>(g_fresh.object_get_class);
+  auto get_value = reinterpret_cast<void (*)(void *, void *, void *)>(g_fresh.field_get_value);
+  void *klass = get_class(rootedWild);
+  // Incense spawns carry no map proto; their species is checked after the encounter.
+  if (pgr_vgp_incense_class(klass) || !g_fresh.f_wild_pokemon) return 0;
+  if (klass != g_fresh.class_wildmap) return PGR_SMARTBIND_ERR_IDENTITY;
+  // Plain field reads with no managed call or allocation in between, as in pgr_smart_spawn_fresh.
+  void *wild_proto = nullptr, *pokemon = nullptr;
+  get_value(rootedWild, g_fresh.f_wild_proto, &wild_proto);
+  if (!wild_proto) return 0;
+  get_value(wild_proto, g_fresh.f_wild_pokemon, &pokemon);
+  if (!pokemon || get_class(pokemon) != g_fresh.class_pokemon_proto) return 0;
+  int32_t species = 0;
+  get_value(pokemon, g_fresh.f_proto_id, &species);
+  return species >= 1 && species <= 2000 ? species : 0;
 }
 
 int pgr_smart_encounter_success(void *target,void *response,uint64_t owner){

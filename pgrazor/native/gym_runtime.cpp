@@ -177,6 +177,8 @@ void validate_bindings(){
  field_info(cls("Holoholo.Rpc","GymDefenderProto"),"MotivatedPokemon","Holoholo.Rpc.MotivatedPokemonProto");
  field_info(cls("Holoholo.Rpc","MotivatedPokemonProto"),"Pokemon","Holoholo.Rpc.PokemonProto");
  method(cls("Niantic.Holoholo.Gym","MapGym"),"GetGymDetailsFromServer",0);
+ field_info(cls("Holoholo.Rpc","PokemonFortProto"),"GymDisplay","Holoholo.Rpc.GymDisplayProto");
+ field_info(cls("Holoholo.Rpc","GymDisplayProto"),"SlotsAvailable","System.Int32");
  Root bag=resolve("Niantic.Holoholo","IItemBag");require(bool(bag),"item bag not ready");field_info(klass(bag.get()),PGR_GAME_GYM_RUNTIME_CPP_ERHP_NAME,"Niantic.Holoholo.Rpc.IRpcHandler");
  event("Gym request bindings validated");
 }
@@ -286,6 +288,28 @@ void act(const Permission &p){
  if(p.settings.feed&&!rows.empty()&&issue_feed(p))return;
  if(status!="Berry reserves reached")event("No eligible gym action; retrying shortly");retry_no_action(clock_ms());
 }
+// After a search found no defender to place, free slots stop taking priority for a while so feeding goes on.
+uint64_t no_defender_until=0;
+// Free slots the map shows for a gym (its GymDisplay), or -1 when unknown.
+int open_slots(Root &gym){
+ Root f=fort(gym);if(!f)return -1;
+ Root display(field<void*>(f.get(),"GymDisplay","Holoholo.Rpc.GymDisplayProto"));if(!display)return -1;
+ int n=field<int>(display.get(),"SlotsAvailable","System.Int32");return n>=0&&n<=6?n:-1;
+}
+// A nearby friendly gym with a free slot that a defender can be placed in now, other than skip. Placing a
+// defender comes before feeding berries anywhere.
+bool find_open_gym(const Permission &p,uint64_t now,const std::string &skip,Root *out,std::string *out_id){
+ if(!p.settings.deploy||now<no_defender_until)return false;
+ Root type=type_object(cls("Niantic.Holoholo.Gym","MapGym"));void *args[]={type.get()};Root gyms(invoke(h(H_VGP_M_FIND_ALL),nullptr,args));if(!gyms)return false;
+ size_t n=fn<size_t(*)(void*)>(exp("array_length"))(gyms.get());require(n<=2048,"gym array bound");
+ for(size_t i=0;i<n;i++){Root gym(*reinterpret_cast<void**>(static_cast<char*>(gyms.get())+32+i*8));
+  if(!gym_valid(gym,p,nullptr,nullptr,true))continue;
+  Root f=fort(gym);std::string id=string(field<void*>(f.get(),"FortId","System.String"));
+  if(id.empty()||id==skip||inspected.count(id)||!deploy_first(p.settings,open_slots(gym),history.deploy_allowed(id,now)))continue;
+  *out=std::move(gym);*out_id=id;return true;
+ }
+ return false;
+}
 bool observe_feed_stock(int stock,uint64_t now){
  pgr_gym_feed::observe_stock(pending.stock_seen,pending.stock_before,stock);
  if(pending.stock_seen){pending.await_stock=false;event("Berry inventory synchronized");return true;}
@@ -304,7 +328,7 @@ void poll(const Permission &p){
   unsigned steps=0;while(steps++<128){bool more=boxed<bool>(virtual_call(pending.enumerator,h(H_INC_M_MOVE)),"System.Boolean");if(!more){
     virtual_call(pending.enumerator,h(H_INC_M_DISPOSE));pending.enumerator.reset();std::vector<int> species;for(auto d:defenders())species.push_back(d.species);
     uint64_t id=choose(pending.candidates,species,p.settings.fallback);pending.phase=0;
-    if(id)issue_deploy(id,p);
+    if(id)issue_deploy(id,p);else no_defender_until=now+600000;
     if(!pending.promise){if(p.settings.feed&&issue_feed(p))return;if(status!="Berry reserves reached")event("No eligible defender; retrying shortly");retry_no_action(now,10000);}return;
    }
    require(++pending.scanned<=25000,"inventory capacity bound");Root pokemon(virtual_call(pending.enumerator,h(H_INC_M_CURRENT)));if(pokemon)pending.candidates.push_back(candidate(pokemon));
@@ -315,7 +339,14 @@ void poll(const Permission &p){
   if(pending.await_stock){Root bag=resolve("Niantic.Holoholo","IItemBag");int stock=pending.stock_before;
    if(bag){void *a[]={&pending.last_item};stock=boxed<int>(call(bag.get(),"GetItemCount",1,a),"System.Int32");}
    if(!observe_feed_stock(stock,now))return;}
-  if(pending.canceled){clear_pending();return;}if(now<next_scan)return;
+  if(pending.canceled){clear_pending();return;}
+  // Feeding a gym with no room for a defender: move on as soon as a nearby gym has a free slot.
+  static uint64_t open_check=0;
+  if(p.settings.deploy&&now>=open_check&&(defenders().size()>=6||!history.deploy_allowed(pending.id,now))){
+   open_check=now+3000;Root open;std::string open_id;
+   if(find_open_gym(p,now,pending.id,&open,&open_id)){clear_pending();next_scan=now;event("Gym with a free slot nearby; placing a defender first");return;}
+  }
+  if(now<next_scan)return;
   act(p);return;}
  if(now-pending.since>15000){paused=true;event("Paused: gym request timed out; toggle off to resume");clear_pending();return;}
  auto vr=static_cast<const PgrVgpResultsApi*>(pgrazor_vgp_results_api(1));PgrVgpResultsResult out{};int rc=vr->poll(pending.promise.get(),1,owner,&out);if(!rc)return;
@@ -366,6 +397,13 @@ void issue_spin(const Permission &p){
 }
 void discover(const Permission &p){
  auto now=clock_ms();for(auto it=inspected.begin();it!=inspected.end();)if(it->second<=now)it=inspected.erase(it);else ++it;
+ // Placing a defender comes before feeding: read a nearby gym with a free slot first.
+ {Root open;std::string open_id;
+  if(inspected.size()<512&&find_open_gym(p,now,std::string(),&open,&open_id)){
+   pending.gym=std::move(open);pending.id=open_id;pending.config=p.config;pending.phase=1;pending.since=clock_ms();
+   inspected[open_id]=now+60000;
+   pending.promise=Root(call(pending.gym.get(),"GetGymDetailsFromServer"));require(bool(pending.promise),"gym details promise");event("Reading nearby gym with a free slot");return;
+  }}
  Root type=type_object(cls("Niantic.Holoholo.Gym","MapGym"));void *args[]={type.get()};Root gyms(invoke(h(H_VGP_M_FIND_ALL),nullptr,args));if(!gyms)return;
  size_t n=fn<size_t(*)(void*)>(exp("array_length"))(gyms.get());require(n<=2048,"gym array bound");
  std::string nearest_reason;double nearest=1e30;bool nearby_waiting=false;
@@ -398,7 +436,7 @@ void pgr_gym_tick(uint64_t tid,const PgrSharedMetadataOutput *metadata){
   if(!initialized){if(!p.allowed||paused)return;auto api=static_cast<const PgrBootApi*>(pgrazor_runtime_bootstrap_api(1));boot.version=1;boot.size=sizeof(boot);require(api&&api->snapshot(&boot)==0,"runtime bootstrap");md=metadata;require(md,"shared metadata");owner=tid;validate_bindings();initialized=true;}
   require(fn<void*(*)()>(boot.runtime.thread_current)()!=nullptr,"owner not attached");
   if(p.allowed){Root player=resolve("Niantic.Holoholo","IPlayerService");if(!player){if(pending.phase)pending.canceled=true;return;}std::string id=string(call(player.get(),"get_PlayerId"));if(id.empty())return;
-   if(account!=id){clear_pending();account=id;history=History{};inspected.clear();reserved.clear();}}
+   if(account!=id){clear_pending();account=id;history=History{};inspected.clear();reserved.clear();no_defender_until=0;}}
   if(pending.phase){poll(p);return;}
   if(paused)return;if(!p.allowed){event(p.settings.deploy||p.settings.feed||p.settings.spin?"Waiting for map readiness":"Off");return;}
   auto now=clock_ms();if(now<next_scan)return;next_scan=now+3000;

@@ -28,7 +28,8 @@
 
 static_assert(sizeof(pgr_battle_scope_desc) == 16, "scope desc must be 16 bytes");
 static_assert(sizeof(pgr_battle_swap_desc) == 24, "swap desc must be 24 bytes");
-static_assert(sizeof(pgr_battle_config_v1) == 512, "config must be 512 bytes");
+static_assert(sizeof(pgr_battle_config_v1) == 520, "config must be 520 bytes");
+static_assert(offsetof(pgr_battle_config_v1,max_orb_direction)==512,"optional config extension");
 static_assert(sizeof(pgr_battle_sample_v1) == 64, "sample must be 64 bytes");
 static_assert(sizeof(pgr_battle_event_v1) == 16, "event must be 16 bytes");
 static_assert(sizeof(pgr_battle_api_v1) == 72, "table must be 72 bytes");
@@ -366,15 +367,17 @@ int api_install(const pgr_battle_config_v1 *config) {
   if (config == nullptr) return PGR_BATTLE_ERR_NULL_ARG;
   std::lock_guard<std::mutex> lock(g_install_mutex);
   if (config->version != PGR_BATTLE_API_VERSION ||
-      config->size != sizeof(pgr_battle_config_v1) || !config_ok(config))
+      (config->size != 512 && config->size != sizeof(pgr_battle_config_v1)) || !config_ok(config))
     return PGR_BATTLE_ERR_BAD_CONFIG;
+  pgr_battle_config_v1 normalized{};
+  std::memcpy(&normalized,config,config->size);normalized.size=sizeof(normalized);
   if (g_installed.load(std::memory_order_acquire))
-    return (std::memcmp(&g_cfg, config, sizeof(g_cfg)) == 0) ? PGR_BATTLE_OK
+    return (std::memcmp(&g_cfg, &normalized, sizeof(g_cfg)) == 0) ? PGR_BATTLE_OK
                                                              : PGR_BATTLE_ERR_ALREADY_BOUND;
   if (g_install_attempted) return g_install_error;
   g_install_attempted = true;
   if (boottime_ms() == 0) return g_install_error = PGR_BATTLE_ERR_NO_CLOCK;
-  g_cfg = *config;
+  g_cfg = normalized;
   g_installed.store(true, std::memory_order_release);
   push_event(PGR_BATTLE_EVT_READY, 0, 1);
   return g_install_error = PGR_BATTLE_OK;
@@ -640,6 +643,7 @@ void run_tick_body(uint64_t now) {
 
   // (2) Live Active-status gate (non-legacy only). A battle scope survives the victory animation;
   // require BattleStatus.Active before any action. UI active/enabled alone is insufficient.
+  Root state_r;
   if (!g_legacy) {
     if (g_gesture_handle == nullptr) return;
     Root g_r; g_r.acquire(gc_target(g_gesture_handle), &err);
@@ -652,11 +656,10 @@ void run_tick_body(uint64_t now) {
     if (err) return;
     void *state = invoke(g_cfg.m_current_state, dir_r.target(), nullptr, &err);
     if (err) { if(stale(local_epoch)) return; g_failed = true; note_fault(g_mode); refresh_root_count(); return; }
-    Root state_r; state_r.acquire(state, &err);
+    state_r.acquire(state, &err);
     int32_t status = 0;
     bool is_state = !err && exact(state_r.target(), g_cfg.class_battlestate);
     if (is_state) status = read_s32(state_r.target(), g_cfg.f_battle_status);
-    state_r.reset();
     if (err || !is_state) return;
     // A reentrant exit / new scope during the getter cancels the stale decision WITHOUT clearing
     // the newer state (do not battle_clear a scope we no longer own).
@@ -676,7 +679,29 @@ void run_tick_body(uint64_t now) {
   if(stale(local_epoch)) return;
   g_swap_blocked_pub.store(0, std::memory_order_release);
 
-  // (4) Dodge (highest priority once cued).
+  // Max orbs run independently of the attack/dodge switches, within the same
+  // active-scope/lease/manual-menu gates. The probe only reads current state;
+  // this controller owns the final mutation and re-checks after all callbacks.
+  if(g_mode==PGR_BATTLE_MODE_MAX && g_cfg.max_orb_direction && state_r.target() &&
+     now>=g_next_ms && now>=g_dodge_next_ms && g_gesture_handle){
+    int32_t direction=g_cfg.max_orb_direction(state_r.target(),g_cfg.m_dodge);
+    if(stale(local_epoch))return;
+    if(direction){
+      Root g_r;g_r.acquire(gc_target(g_gesture_handle),&err);
+      bool active=!err&&m_is_alive(g_r.target(),&err)&&!err&&m_is_active(g_r.target(),&err);
+      bool enabled=!err&&active&&field_present(g_r.target(),g_cfg.f_vnext_enabled);
+      if(err){if(!stale(local_epoch)){g_failed=true;note_fault(g_mode);}return;}
+      if(!enabled||!g_r.target()||!final_ok(now,local_epoch))return;
+      g_dodge_until_ms=0;g_dodge_next_ms=now+kDodgeNextMs;g_next_ms=now+kDodgeGapMs;
+      void *args[]={&direction};invoke(g_cfg.m_dodge,g_r.target(),args,&err);
+      if(err){if(!stale(local_epoch)){g_failed=true;note_fault(g_mode);}return;}
+      g_action_serial.fetch_add(1,std::memory_order_release);
+      push_event(PGR_BATTLE_EVT_ACTION,g_mode,PGR_BATTLE_ACT_MAX_ORB);
+      return;
+    }
+  }
+
+  // (4) Warning dodge.
   if (g_dodge_until_ms != 0 && g_gesture_handle) {
     Root g_r; g_r.acquire(gc_target(g_gesture_handle), &err);
     if (err) return;

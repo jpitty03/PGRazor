@@ -63,7 +63,7 @@ void setup(){
  for(unsigned i=0;i<4;i++){const auto &s=kMethods[i];methods[i]={};auto &m=methods[i];m.name=s.name;m.klass=&klass[s.owner];m.ret=i==0?&bool_type:(i==1?&float_type:&void_type);m.code=module+s.rva;g_methods.push_back(&m);std::memcpy(module+s.rva,s.prologue,s.prologue_size);}
  for(const auto &s:{kYieldTailSite,kYieldReturnSite,kStepSite})std::memcpy(module+s.rva,s.bytes,s.size);
  // Independent source-known constants guard accidental descriptor drift.
- assert(field[0].name=="drru"&&field[0].offset==0x10&&field[4].offset==0x60&&methods[0].code==module+0xac35a94);
+ assert(field[0].name=="drsb"&&field[0].offset==0x10&&field[4].offset==0x60&&methods[0].code==module+0xac36484);
  binding.version=1;binding.size=sizeof(binding);binding.module_base=module;binding.module_size=module_size;binding.domain=&g_domain_tok;binding.meta=make_exports();
  binding.meta.class_get_nested_types=reinterpret_cast<void *>(nested_class);binding.meta.class_get_declaring_type=reinterpret_cast<void *>(declaring);
  binding.runtime.thread_current=reinterpret_cast<void *>(current);binding.runtime.object_get_class=reinterpret_cast<void *>(object_class);
@@ -87,7 +87,7 @@ int main(int argc,char **argv){using namespace cw;assert(argc==2);auto lib=dlope
  run("status offset bound",[]{field[6].offset=4097;assert(api->install(&config)<0);});
  run("generic method",[]{methods[0].generic=true;assert(api->install(&config)<0);});
  run("method return",[]{methods[0].ret=&void_type;assert(api->install(&config)<0);});
- run("code fingerprint",[]{module[0xac38220]^=1;assert(api->install(&config)<0);});
+ run("code fingerprint",[]{module[0xac38c10]^=1;assert(api->install(&config)<0);});
  run("success off on stop",[]{install();invoke();assert(duration()==5.0f&&sample().observed==1&&sample().shortened==0);assert(api->update(1,2500)==0);invoke();assert(std::fabs(duration()-0.1f)<1e-6&&sample().shortened==1);PgrCatchWaitEvent e{};assert(api->next_event(&e)==1&&e.kind==1&&e.status==73);assert(api->stop()==0);reset_objects();invoke();assert(duration()==5.0f&&api->update(1,2500)<0);});
  run("failed status",[]{install();api->update(1,2500);put(response,0x30,int32_t(74));invoke();assert(duration()==5.0f&&sample().observed==0);});
  run("non yield",[]{install();api->update(1,2500);original_result=0;invoke();assert(sample().observed==0);original_result=1;put(coroutine,0x10,int32_t(6));invoke();assert(sample().observed==0);});

@@ -9358,6 +9358,11 @@
         "value": "0x18",
         "purpose": "Field IncenseEncounterOutProto.Pokemon"
       },
+      "wild_pokemon_offset": {
+        "kind": "offset",
+        "value": "0x38",
+        "purpose": "Field WildPokemonProto.Pokemon"
+      },
       "embt_offset": {
         "kind": "offset",
         "value": "0x280",
@@ -10082,6 +10087,38 @@
         "purpose": "PokemonInventoryCellView.Initialize prologue (stack setup only)"
       }
     },
+    "battery_cpp": {
+      "shadow_pass_rva": {
+        "kind": "rva",
+        "value": "168036568",
+        "purpose": "AngledGradientShadowScriptableRenderFeature.AddRenderPasses method address"
+      },
+      "shadow_pass_fingerprint": {
+        "kind": "bytes",
+        "value": ["0xfe", "0x5f", "0xbd", "0xa9", "0xf6", "0x57", "0x01", "0xa9", "0xf4", "0x4f", "0x02", "0xa9", "0xb6", "0x88", "0x02", "0xb0", "0xf5", "0x03", "0x02", "0xaa", "0xf3", "0x03", "0x01", "0xaa"],
+        "purpose": "AngledGradientShadowScriptableRenderFeature.AddRenderPasses prologue"
+      },
+      "water_reflection_rva": {
+        "kind": "rva",
+        "value": "173437536",
+        "purpose": "Vista.WaterReflection.UpdateRenderTexture method address"
+      },
+      "water_reflection_fingerprint": {
+        "kind": "bytes",
+        "value": ["0xfe", "0x0f", "0x1d", "0xf8", "0xf6", "0x57", "0x01", "0xa9", "0xf4", "0x4f", "0x02", "0xa9", "0xd3", "0x5e", "0x02", "0xb0", "0xf5", "0x03", "0x00", "0xaa", "0x68", "0xc2", "0x6e", "0x39"],
+        "purpose": "Vista.WaterReflection.UpdateRenderTexture prologue"
+      },
+      "ground_cover_rva": {
+        "kind": "rva",
+        "value": "181116212",
+        "purpose": "Encounter.DenseGroundCoverRenderer.RenderDenseGroundCover method address"
+      },
+      "ground_cover_fingerprint": {
+        "kind": "bytes",
+        "value": ["0xe8", "0x0f", "0x1a", "0xfc", "0xfe", "0x6f", "0x01", "0xa9", "0xfa", "0x67", "0x02", "0xa9", "0xf8", "0x5f", "0x03", "0xa9", "0xf6", "0x57", "0x04", "0xa9", "0xf4", "0x4f", "0x05", "0xa9"],
+        "purpose": "Encounter.DenseGroundCoverRenderer.RenderDenseGroundCover prologue"
+      }
+    },
     "cutscene_skip_cpp": {
       "evolve_rva": {
         "kind": "rva",
@@ -10767,6 +10804,148 @@
         "kind": "name",
         "value": "cift",
         "purpose": "Obfuscated name of the PokemonInfoPanel method that handles UpgradePokemonOutProto and starts the power-up animation"
+      }
+    },
+    "smart_battle_cpp": {
+      "construct_party_rva": {
+        "kind": "rva",
+        "value": "182737076",
+        "purpose": "BattlePartyService.ConstructPartyAgainst method address"
+      },
+      "construct_party_fingerprint": {
+        "kind": "bytes",
+        "value": [
+          "0xff",
+          "0x83",
+          "0x03",
+          "0xd1",
+          "0xea",
+          "0x33",
+          "0x00",
+          "0xfd",
+          "0xe9",
+          "0x23",
+          "0x07",
+          "0x6d",
+          "0xfd",
+          "0x7b",
+          "0x08",
+          "0xa9",
+          "0xfc",
+          "0x6f",
+          "0x09",
+          "0xa9",
+          "0xfa",
+          "0x67",
+          "0x0a",
+          "0xa9"
+        ],
+        "purpose": "BattlePartyService.ConstructPartyAgainst prologue"
+      },
+      "find_grunt_party_rva": {
+        "kind": "rva",
+        "value": "182754600",
+        "purpose": "BattlePartyService.FindGruntParty method address"
+      },
+      "find_grunt_party_fingerprint": {
+        "kind": "bytes",
+        "value": [
+          "0xfe",
+          "0x0f",
+          "0x1d",
+          "0xf8",
+          "0xf6",
+          "0x57",
+          "0x01",
+          "0xa9",
+          "0xf4",
+          "0x4f",
+          "0x02",
+          "0xa9",
+          "0xd5",
+          "0x17",
+          "0x02",
+          "0xd0",
+          "0xf4",
+          "0x03",
+          "0x01",
+          "0x2a",
+          "0xf3",
+          "0x03",
+          "0x00",
+          "0xaa"
+        ],
+        "purpose": "BattlePartyService.FindGruntParty prologue"
+      },
+      "swap_ui_start_rva": {
+        "kind": "rva",
+        "value": "183227824",
+        "purpose": "Niantic.Holoholo.Battle.SwapUI.Start method address"
+      },
+      "swap_ui_start_fingerprint": {
+        "kind": "bytes",
+        "value": [
+          "0xfe",
+          "0x5f",
+          "0xbd",
+          "0xa9",
+          "0xf6",
+          "0x57",
+          "0x01",
+          "0xa9",
+          "0xf4",
+          "0x4f",
+          "0x02",
+          "0xa9",
+          "0x34",
+          "0x14",
+          "0x02",
+          "0xd0",
+          "0xf3",
+          "0x03",
+          "0x00",
+          "0xaa",
+          "0x88",
+          "0x7e",
+          "0x7c",
+          "0x39"
+        ],
+        "purpose": "Niantic.Holoholo.Battle.SwapUI.Start prologue"
+      },
+      "swap_ui_vnext_start_rva": {
+        "kind": "rva",
+        "value": "155766064",
+        "purpose": "Niantic.Holoholo.VNext.SwapUIVNext.Start method address"
+      },
+      "swap_ui_vnext_start_fingerprint": {
+        "kind": "bytes",
+        "value": [
+          "0xfe",
+          "0x57",
+          "0xbe",
+          "0xa9",
+          "0xf4",
+          "0x4f",
+          "0x01",
+          "0xa9",
+          "0x74",
+          "0xe5",
+          "0x02",
+          "0xf0",
+          "0xf3",
+          "0x03",
+          "0x00",
+          "0xaa",
+          "0x88",
+          "0x3a",
+          "0x52",
+          "0x39",
+          "0x48",
+          "0x02",
+          "0x00",
+          "0x37"
+        ],
+        "purpose": "Niantic.Holoholo.VNext.SwapUIVNext.Start prologue"
       }
     },
     "rocket_swap_cpp": {

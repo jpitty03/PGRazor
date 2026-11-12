@@ -18,14 +18,18 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.TreeSet;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 import org.json.JSONObject;
 
 /**
- * Searchable species picker for the custom transfer keep list. Selected species are never
- * auto-transferred: the native transfer path reads {@link Control#transferKeepSpecies()} and applies
- * the protection to every form of each listed base dex id. This dialog only edits a local selection
- * set and commits the canonical comma-separated string via {@link Control#setTransferKeepSpecies} on
- * Save; Cancel discards without touching saved settings.
+ * Searchable species picker reused for any canonical comma-separated dex-id list. The custom
+ * transfer keep list is one such list: kept species are never auto-transferred, and the picker edits
+ * a local selection set and commits the canonical string via {@link Control#setTransferKeepSpecies}
+ * on Save, leaving saved settings untouched on Cancel. The generalized {@link #show(Activity, String,
+ * String, Supplier, Consumer, Runnable)} entry point drives any other list (for example the
+ * evolve-before-transfer selected species) through its own seed/commit pair without changing or
+ * sharing the keep list's saved value.
  *
  * <p>Rows are drawn by a recycling {@link BaseAdapter} over a bounded id list, so typing in the
  * search box only rebuilds a small list of integers and never instantiates a view per species. The
@@ -41,14 +45,30 @@ public final class TransferKeepDialog {
     private static final String NAMES_ASSET = "pgrazor/map-icons/pokemon-names.json";
     private static final int NAMES_LIMIT = 2 * 1024 * 1024;
 
+    /** Opens the custom transfer keep list (unchanged behavior and saved value). */
     public static void show(Activity activity, Runnable onSaved) {
+        show(activity, "Custom keep list", "species kept",
+            Control::transferKeepSpecies, Control::setTransferKeepSpecies, onSaved);
+    }
+
+    /**
+     * Opens the picker for an arbitrary list. {@code seed} supplies the saved canonical string to
+     * pre-select; {@code commit} receives the new canonical comma-separated string on Save. The keep
+     * list is only touched when its own entry point is used.
+     */
+    public static void show(Activity activity, String title, String countNoun,
+            Supplier<String> seed, Consumer<String> commit, Runnable onSaved) {
         if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
-        new Picker(activity, onSaved).open();
+        new Picker(activity, title, countNoun, seed, commit, onSaved).open();
     }
 
     private static final class Picker {
         private final Activity activity;
         private final Context ui;
+        private final String title;
+        private final String countNoun;
+        private final Supplier<String> seed;
+        private final Consumer<String> commit;
         private final Runnable onSaved;
         private final TreeSet<Integer> selected = new TreeSet<>();
         private final List<Integer> all = new ArrayList<>();
@@ -60,15 +80,18 @@ public final class TransferKeepDialog {
         private AlertDialog dialog;
         private boolean closed;
 
-        Picker(Activity activity, Runnable onSaved) {
-            this.activity = activity; this.ui = MapTheme.wrap(activity); this.onSaved = onSaved;
+        Picker(Activity activity, String title, String countNoun,
+                Supplier<String> seed, Consumer<String> commit, Runnable onSaved) {
+            this.activity = activity; this.ui = MapTheme.wrap(activity);
+            this.title = title; this.countNoun = countNoun;
+            this.seed = seed; this.commit = commit; this.onSaved = onSaved;
         }
 
         private int dp(float v) { return MapTheme.dp(ui, v); }
 
         void open() {
             // Seed from the saved canonical list (already validated and bounded by Control).
-            String saved = Control.transferKeepSpecies();
+            String saved = seed.get();
             if (!saved.isEmpty()) for (String token : saved.split(",")) {
                 try { int id = Integer.parseInt(token.trim()); if (id >= 1 && id <= 2000) selected.add(id); }
                 catch (NumberFormatException ignored) {}
@@ -105,7 +128,7 @@ public final class TransferKeepDialog {
             });
 
             dialog = new AlertDialog.Builder(ui)
-                .setTitle("Custom keep list")
+                .setTitle(title)
                 .setView(body)
                 .setPositiveButton("Save", (d, w) -> commit())
                 .setNeutralButton("Clear all", null)   // click overridden below so it does not dismiss
@@ -136,12 +159,12 @@ public final class TransferKeepDialog {
             adapter.notifyDataSetChanged();
         }
 
-        private void updateCount() { count.setText(selected.size() + " species kept"); }
+        private void updateCount() { count.setText(selected.size() + " " + countNoun); }
 
         private void commit() {
             StringBuilder sb = new StringBuilder();
             for (int id : selected) { if (sb.length() > 0) sb.append(','); sb.append(id); }
-            Control.setTransferKeepSpecies(sb.toString());
+            commit.accept(sb.toString());
             if (onSaved != null) onSaved.run();
         }
 

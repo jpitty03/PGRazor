@@ -50,6 +50,8 @@ struct PgrThrowSample {       // 24 bytes: pull-only telemetry snapshot
 struct PgrThrowApi {          // 40 bytes: ordered, read-only table
     uint32_t version, size;   // 0  { version==1, size==sizeof }
     int (*install)(const PgrThrowConfig *config);
+    // grade: 0 off, 1 Nice, 2 Great, 3 Excellent; 4-6 throw variety, one grade per throw at even odds
+    // from Excellent & Great (4), Excellent, Great & Nice (5), or those and a plain throw (6).
     int (*update)(int grade, int curve, int allowed, uint64_t lease_ms, uint64_t unity_tid);
     int (*sample)(PgrThrowSample *out);
     int (*rewrite_submit)(void *self, PgrThrowValue *value);

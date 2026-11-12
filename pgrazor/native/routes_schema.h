@@ -32,8 +32,8 @@ inline constexpr size_t kClassCount=sizeof(kClasses)/sizeof(kClasses[0]);
 inline constexpr FieldSpec kFields[] = {
   {9u,"Status",0x14ULL,3u,nullptr,4u}, // 0: progress.Status
   {10u,"currentState",0x70ULL,3u,nullptr,4u}, // 1: gui.currentState
-  {2u,"dimj",0x210ULL,1u,nullptr,0u}, // 2: routes.dimj
-  {2u,"dikx",0x80ULL,1u,nullptr,0u}, // 3: routes.dikx
+  {2u,"dimq",0x210ULL,1u,nullptr,0u}, // 2: routes.dimq
+  {2u,"dile",0x80ULL,1u,nullptr,0u}, // 3: routes.dile
   {3u,"<Routes>k__BackingField",0x10ULL,1u,nullptr,0u}, // 4: nearby.<Routes>k__BackingField
   {4u,"PublishedRouteProto",0x10ULL,1u,nullptr,0u}, // 5: startData.PublishedRouteProto
   {4u,"Reversed",0x18ULL,2u,"System.Boolean",1u}, // 6: startData.Reversed

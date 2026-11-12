@@ -11,7 +11,7 @@ import java.nio.charset.StandardCharsets;
  */
 public final class NativeRuntimeTransportTest {
     // Wire constants mirror runtime_transport.h / NativeRuntimeTransport.
-    private static final int MAGIC_SNAPSHOT = 0x53524750, MAGIC_EVENTS = 0x45524750, VERSION = 16;
+    private static final int MAGIC_SNAPSHOT = 0x53524750, MAGIC_EVENTS = 0x45524750, VERSION = 20;
     private static final int OFF_BOOLS = 32, OFF_INTS = 80, OFF_DOUBLES = 120, OFF_PULSES = 136, OFF_STRINGS = 160;
     private static final int EVENT_HEADER = 32;
 
@@ -20,6 +20,8 @@ public final class NativeRuntimeTransportTest {
     /** Captures the pushed snapshot and serves a single preloaded event frame (then empty), emulating consume. */
     private static final class Fake implements NativeRuntimeTransport.Exchange {
         byte[] lastSnapshot; byte[] nextEvents; int exchanges; boolean stopped; int ret;
+        boolean healthThrows;int healthCalls;
+        public long[] health(){healthCalls++;if(healthThrows)throw new UnsatisfiedLinkError("secret-diagnostic-detail");return null;}
         public int exchange(ByteBuffer snapshot, int length, ByteBuffer events) {
             exchanges++;
             lastSnapshot = new byte[length];
@@ -76,6 +78,18 @@ public final class NativeRuntimeTransportTest {
         NativeRuntimeTransport t = fresh(fake);
         require(Control.reads == 0 && Control.mutations == 0 && fake.exchanges == 0 && fake.lastSnapshot == null);
 
+        t.tick();require(Control.lastDiagnostic.equals("runtime-gates") && Control.lastDiagnosticDetail.contains("hook execution unverified"));
+        int healthCount=Control.diagnostics;
+        for(int n=0;n<100;n++)t.tick();
+        require(Control.diagnostics==healthCount); // idle transport must not flood logs at its 50ms cadence
+        fake=new Fake();t=fresh(fake);
+
+        fake.healthThrows=true;t.tick();
+        for(int n=0;n<100;n++)t.tick();
+        require(!t.isStopped() && fake.healthCalls==1); // optional diagnostic failure never revokes gameplay or loops
+        require(!Control.lastDiagnosticDetail.contains("secret"));
+        fake=new Fake();t=fresh(fake);
+
         // 2. First tick builds a well-formed typed snapshot from the Control getters.
         Control.pulse = true;
         t.tick();
@@ -83,6 +97,8 @@ public final class NativeRuntimeTransportTest {
         ByteBuffer snap = ByteBuffer.wrap(fake.lastSnapshot).order(ByteOrder.LITTLE_ENDIAN);
         require(snap.getInt(0) == MAGIC_SNAPSHOT && snap.getInt(4) == VERSION && snap.getInt(8) == fake.lastSnapshot.length);
         require(snap.get(OFF_BOOLS + 3) == 0);         // active default false
+        require(snap.get(OFF_BOOLS + 40) == 0);        // gymRepeatEnabled slot 40 (frame v20, 41 bools)
+        for (int i = OFF_BOOLS + 41; i < OFF_INTS; i++) require(snap.get(i) == 0);  // 7 zero padding bytes after 41 bools
         require(snap.getInt(OFF_INTS) == 0);           // battleOptions default 0
         require(Double.isNaN(snap.getDouble(OFF_DOUBLES)));         // latitude NaN -> null coord
         require(Double.isNaN(snap.getDouble(OFF_DOUBLES + 8)));     // longitude NaN
@@ -111,11 +127,25 @@ public final class NativeRuntimeTransportTest {
         at += 4 + "P2|50|10|0|150".length(); // PvP keep slot 16.
         require(readString(snap, at).equals("K1|1"));
         at += 4 + "K1|1".length(); // Skip cutscenes slot 17.
-        require(readString(snap, at).equals("H1|1|2|75|1"));
-        at += 4 + "H1|1|2|75|1".length(); // Smart healing slot 18.
+        require(readString(snap, at).equals("H2|1|2|75|1|0"));
+        at += 4 + "H2|1|2|75|1|0".length(); // Smart healing slot 18.
         require(readString(snap, at).equals("S1|7|123456789|0|1"));
         at += 4 + "S1|7|123456789|0|1".length(); // Shundo Sniper slot 19.
+        require(readString(snap, at).equals("B2|1|0|1|0"));
+        at += 4 + "B2|1|0|1|0".length(); // Battery usage slot 20.
+        require(readString(snap, at).equals("F1|1"));
+        at += 4 + "F1|1".length(); // Smart battling slot 21.
+        require(readString(snap, at).equals("1|1|1|2|10,13"));
+        at += 4 + "1|1|1|2|10,13".length(); // Evolve/transfer slot 22.
         require(at == fake.lastSnapshot.length);
+
+        // The new setting must reach native as true, then clear on the following snapshot.
+        Control.gymRepeat = true;
+        t.tick();
+        require(fake.lastSnapshot[OFF_BOOLS + 40] == 1);
+        Control.gymRepeat = false;
+        t.tick();
+        require(fake.lastSnapshot[OFF_BOOLS + 40] == 0);
 
         // 3. A valid event batch dispatches to Control exactly once (no replay on the next tick).
         fake.nextEvents = new FrameBuilder()
@@ -151,6 +181,7 @@ public final class NativeRuntimeTransportTest {
         fake.ret = -14;  // negative transport status
         t.tick();
         require(t.isStopped());
+        require(Control.lastDiagnosticDetail.contains("stage=native-exchange") && Control.lastDiagnosticDetail.contains("nativeStatus=-14"));
         fake.ret = 0;
 
         // 7. Reentry: a Control setter that re-enters tick() is guarded (no double dispatch, no corruption).
@@ -225,6 +256,15 @@ public final class NativeRuntimeTransportTest {
         Control.badBerry = "\uD800";  // lone high surrogate -> malformed UTF-16
         t.tick();
         require(t.isStopped() && Control.lastDiagnostic.equals("native-transport-error"));
+
+        require(Control.lastDiagnosticDetail.contains("stage=snapshot") && Control.lastDiagnosticDetail.contains("method=effectiveBerryPriority"));
+        fake=new Fake(); t=fresh(fake);Control.throwMutation=true;
+        fake.nextEvents=new FrameBuilder().event(0,new long[0],new String[]{"id-secret","name-secret"}).build();
+        t.tick();
+        require(t.isStopped() && Control.lastDiagnosticDetail.contains("stage=event-dispatch")
+            && Control.lastDiagnosticDetail.contains("method=accountIdentity")
+            && Control.lastDiagnosticDetail.contains("exception=RuntimeException")
+            && !Control.lastDiagnosticDetail.contains("secret"));
 
         // Compiled lifecycle has one owner and revokes immediately on transport failure.
         fake = new Fake(); t = fresh(fake);

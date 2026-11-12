@@ -259,7 +259,7 @@ void build_fixture() {
   assert(!std::strcmp(kClasses[C_RESPONSE].canonical, "Holoholo.Rpc.CatchPokemonOutProto"));
   assert(kFields[0].owner == C_BALL && kFields[0].offset == 0xb0);
   assert(kFields[2].owner == C_RESPONSE && !std::strcmp(kFields[2].name, "Status") && kFields[2].kind == PGR_MD_FIELD_ENUM_I32);
-  assert(kMethods[1].owner == C_BALL && !std::strcmp(kMethods[1].name, "btqu") && kMethods[1].rva == 0xaccfdecULL);
+  assert(kMethods[1].owner == C_BALL && !std::strcmp(kMethods[1].name, "btqu") && kMethods[1].rva == 0xacd07dcULL);
   assert(kMethods[4].is_static == 1 && !std::strcmp(kMethods[4].name, "op_Implicit"));
 
   // Size the virtual module to cover the highest pinned RVA + prologue, caller check, and GC handle blocks.

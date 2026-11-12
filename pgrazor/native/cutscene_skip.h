@@ -1,7 +1,10 @@
 #pragma once
 #include <stdint.h>
 struct PgrSharedMetadataOutput;
-// Skip cutscenes. Transport string slot 17 carries "K1|<0 off, 1 on>". When on, the game's
+// Slot 17: "K2|<skip cutscenes>|<auto incubate>" (legacy K1 is accepted).
+// Auto incubate closes only the Eggs inventory opened by hatch-result dismissal, through
+// ClickDismiss after it settles. Manually opened Eggs pages remain accessible.
+// When Skip cutscenes is on, the game's
 // Pokemon cutscenes (evolve, Mega, egg hatch, egg incubate, purify, fusion, unfusion, form change,
 // new species / Pokedex) and a Team GO Rocket member's spoken lines are never created: the hooked
 // entry points return what the game would get after the cutscene ends, without building its GUI.

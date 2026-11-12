@@ -1,5 +1,7 @@
 #include "game_bindings.h"
 #include "combat_host.h"
+#include "gym_repeat.h"
+#include "max_orbs.h"
 
 #include "battles.h"
 #include "hook_engine.h"
@@ -149,6 +151,13 @@ std::atomic<uint32_t> g_mini_active{0};
 std::atomic<uint64_t> g_owner_tid{0};
 std::atomic<uint64_t> g_ticks{0};
 std::atomic<uint64_t> g_gym_cooldown_serial{0};
+
+// Gym "Battle until defeated" leaf (gym_repeat.cpp). The host owns its scope/leave
+// hooks and drives its tick/stop; the leaf owns its own re-entry lifecycle hooks.
+const PgrGymRepeatApi *g_gym_repeat = nullptr;
+bool g_gym_repeat_configured = false;
+void gym_repeat_scope(int entered, uint64_t tid) { if (g_gym_repeat) g_gym_repeat->observe_scope(entered, tid); }
+void gym_repeat_leave(uint64_t tid) { if (g_gym_repeat) g_gym_repeat->observe_leave(tid); }
 
 // Guarded by g_options_mutex
 PgrCombatHostOptions g_opts{};
@@ -471,10 +480,10 @@ void drain_leaf_events(uint64_t tid) {
                     queue_event(PGR_CBH_EV_BATTLE_DODGE_CUE, bev.id, 0, tid, buf);
                     break;
                 case PGR_BATTLE_EVT_ACTION: {
-                    static const char *const kActions[4] = {
-                        "quick", "charged", "dodge", "max-attack"
+                    static const char *const kActions[5] = {
+                        "quick", "charged", "dodge", "max-attack", "max-orb-move"
                     };
-                    const char *act = (bev.aux >= 0 && bev.aux < 4) ? kActions[bev.aux] : "unknown";
+                    const char *act = (bev.aux >= 0 && bev.aux < 5) ? kActions[bev.aux] : "unknown";
                     std::snprintf(buf, sizeof(buf), "{\"mode\":%d,\"action\":\"%s\"}",
                                   bev.id, act);
                     queue_event(PGR_CBH_EV_BATTLE_ACTION, bev.id, bev.aux, tid, buf);
@@ -641,7 +650,11 @@ void hook_shared_vn_observe(void *self,void *battle_state,void *method){
 template<HookSlot SLOT,uint32_t KIND,int DESC> void hook_bt_2arg(void *self,void *method){
  auto orig=reinterpret_cast<Fn2Ptr>(load_original(SLOT));FrameGuard frame;uint64_t tid=0;
  if(!battle_gate(&tid)){orig(self,method);return;}PinnedArgs pins{self};
- if(pins.valid&&battle_gate(&tid)){g_battles->observe(KIND,pins.get(0),DESC,tid);drain_leaf_events(tid);}orig(pins.get(0),method);
+ if(pins.valid&&battle_gate(&tid)){g_battles->observe(KIND,pins.get(0),DESC,tid);drain_leaf_events(tid);
+  // Forward the GymBattleState scope lifecycle to the gym-repeat leaf (owner thread).
+  if constexpr(SLOT==HK_BT_SC1_ENTER)gym_repeat_scope(1,tid);
+  else if constexpr(SLOT==HK_BT_SC1_EXIT)gym_repeat_scope(0,tid);
+ }orig(pins.get(0),method);
 }
 template<HookSlot SLOT,uint32_t KIND,int DESC> void hook_bt_3arg(void *self,void *a1,void *method){
  auto orig=reinterpret_cast<Fn3Ptr>(load_original(SLOT));FrameGuard frame;uint64_t tid=0;
@@ -712,7 +725,11 @@ void hook_gym_next_init(void *self,void *defender,int seconds,void *method){
 }
 template<HookSlot SLOT> void hook_gym_next_close(void *self,void *method){
  auto orig=reinterpret_cast<Fn2Ptr>(load_original(SLOT));FrameGuard frame;
- if(self_tid()==g_owner_tid.load()&&thread_attached())clear_gym_next_if(self);
+ if(self_tid()==g_owner_tid.load()&&thread_attached()){
+  clear_gym_next_if(self);
+  // LeaveBattle is a genuine manual cancel; forward it to the gym-repeat session.
+  if constexpr(SLOT==HK_GYM_NEXT_LEAVE)gym_repeat_leave(g_owner_tid.load());
+ }
  orig(self,method);
 }
 void tick_gym_next(){
@@ -1053,6 +1070,8 @@ bool configure_and_install_battles() {
     bt_cfg.max_attack    = g_md.opt_ints[I_BAT_MAX_ATTACK];
     bt_cfg.reserved0     = 0;
     bt_cfg.reserved1     = 0;
+    bt_cfg.max_orb_direction = pgr_max_orb_direction;
+    pgr_max_orbs_prepare(bt_cfg.m_dodge);
 
     if (g_battles->install(&bt_cfg) != PGR_BATTLE_OK) {
         return false;
@@ -1313,6 +1332,22 @@ int finish_setup_locked(uint64_t tid) {
         queue_event(PGR_CBH_EV_BATTLE_ACTION,1,0,owner,next_ready?
           "{\"gymNextReady\":true}":"{\"gymNextReady\":false}");
     }
+    // Gym "Battle until defeated" leaf: best-effort. A binding/hook failure leaves it
+    // inert and never fails host setup or disturbs the existing battle hooks. Gated to
+    // the production default-bind path exactly like install_gym_next above.
+    if(g_default_bind_mode&&(caps&PGR_CBH_CAP_BATTLES)&&!g_gym_repeat_configured) {
+        g_gym_repeat=static_cast<const PgrGymRepeatApi*>(pgrazor_gym_repeat_api(PGR_GYM_REPEAT_API_VERSION));
+        bool repeat_ready=false;
+        if(g_gym_repeat&&g_gym_repeat->version==PGR_GYM_REPEAT_API_VERSION&&
+           g_gym_repeat->size==sizeof(PgrGymRepeatApi)&&g_gym_repeat->configure) {
+            PgrGymRepeatConfig rc{};rc.version=PGR_GYM_REPEAT_API_VERSION;rc.size=sizeof(rc);
+            rc.owner_tid=owner;rc.metadata=&g_md;
+            repeat_ready=(g_gym_repeat->configure(&rc)==PGR_GR_OK);
+            g_gym_repeat_configured=true;
+        }
+        queue_event(PGR_CBH_EV_BATTLE_ACTION,1,0,owner,repeat_ready?
+          "{\"gymRepeatReady\":true}":"{\"gymRepeatReady\":false}");
+    }
     g_accepted_cfg     = g_cfg;
     g_has_accepted_cfg = true;
     g_configured.store(true, std::memory_order_release);
@@ -1417,7 +1452,7 @@ int api_update(const PgrCombatHostOptions *opts) {
                                 ? opts->rocket_mask
                                 : (opts->rocket_mask & PGR_CBH_ROCKET_MASK_ALL);
 
-    const uint64_t b_lease = (active && (opts->flags & PGR_CBH_OPT_BATTLES_ALLOWED) && b_mask != 0)
+    const uint64_t b_lease = (active && (opts->flags & PGR_CBH_OPT_BATTLES_ALLOWED))
                                  ? std::min<uint64_t>(PGR_CBH_MAX_LEASE_MS, opts->battle_lease_ms)
                                  : 0;
     const uint64_t r_lease = (active && (opts->flags & PGR_CBH_OPT_ROCKET_ALLOWED) && r_mask != 0)
@@ -1502,7 +1537,7 @@ void poll_transport_options() {
     if (rocket_allowed)  opts.flags |= PGR_CBH_OPT_ROCKET_ALLOWED;
     opts.battle_mask     = b_mask;
     opts.rocket_mask     = r_mask;
-    opts.battle_lease_ms = (active && battles_allowed && b_mask > 0) ? PGR_CBH_MAX_LEASE_MS : 0;
+    opts.battle_lease_ms = (active && battles_allowed) ? PGR_CBH_MAX_LEASE_MS : 0;
     opts.rocket_lease_ms = (active && rocket_allowed && r_mask > 0) ? PGR_CBH_MAX_LEASE_MS : 0;
     opts.epoch           = a.snapshot_seq;
     api_update(&opts);
@@ -1546,6 +1581,7 @@ int api_tick(uint64_t proven_tid) {
     if((caps&PGR_CBH_CAP_ROCKET_MINIGAME)&&g_rocket_mini){refresh_leaf_gates();if(terminal())g_rocket_mini->restore();g_rocket_mini->tick(1);}
     if((caps&PGR_CBH_CAP_BATTLES)&&g_battles){refresh_leaf_gates();g_battles->tick(proven_tid,terminal()?1:0);}
     tick_gym_next();
+    if(g_gym_repeat){if(terminal())g_gym_repeat->stop(proven_tid);else g_gym_repeat->tick(proven_tid);}
     g_leaves_latched.store(true, std::memory_order_release);
     drain_leaf_events(proven_tid);
     return PGR_CBH_OK;
@@ -1555,6 +1591,7 @@ int api_stop(uint64_t proven_tid) {
     if (!g_configured.load(std::memory_order_acquire)) return PGR_CBH_ERR_NOT_CONFIGURED;
     g_stopping.store(true, std::memory_order_release);
     if(self_tid()==g_owner_tid.load()&&thread_attached())clear_gym_next();
+    if(g_gym_repeat)g_gym_repeat->stop(proven_tid?proven_tid:g_owner_tid.load());
     api_revoke();
 
     const uint32_t caps  = g_capabilities.load(std::memory_order_acquire);

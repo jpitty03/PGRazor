@@ -70,6 +70,11 @@ int main(int argc,char **argv){
  api3=static_cast<const PgrUnitySchedulerApi3 *>(core->query_feature(48,3));
  assert(api3&&api3->version==3&&api3->size==56&&api3->size==sizeof(*api3));
  assert(api3->executing_generation(gettid())==0);
+ auto api4=static_cast<const PgrUnitySchedulerApi4 *>(core->query_feature(48,4));
+ assert(api4&&api4->version==4&&api4->size==64&&api4->size==sizeof(*api4));
+ assert(api4->diagnostics(nullptr)==PGR_US_BAD_CONFIG);
+ PgrUnitySchedulerDiag diag{};
+ assert(!api4->diagnostics(&diag)&&diag.version==4&&diag.size==sizeof(diag)&&!diag.installed&&!diag.poisoned&&diag.failed_stage==PGR_US_STAGE_NONE);
  PgrUnitySchedulerConfig c{};c.version=2;c.size=sizeof(c);
  c.runtime_invoke=reinterpret_cast<void *>(&fixture_invoke);c.runtime_invoke_convert_args=reinterpret_cast<void *>(&fixture_convert);
  c.execute_tasks=&execute_token;c.thread_current=thread_current;c.verify_metadata=verify;
@@ -82,7 +87,11 @@ int main(int argc,char **argv){
  bad=c;bad.reserved=1;assert(api->install(&bad)==PGR_US_BAD_CONFIG);
  // No hooked target is running during install/rollback (required contract).
  call_invoke=fixture_invoke;call_convert=fixture_convert;
+ // The &other_token verify rejection above latched the VERIFY stage; a successful
+ // install clears it to NONE/installed so a feature70 diagnostic reports a true
+ // hook outcome (the resolved invoke/convert veneer bodies handed to Dobby).
  assert(api->install(&c)==0);assert(api->install(&c)==0);
+ {PgrUnitySchedulerDiag d{};assert(!api4->diagnostics(&d)&&d.installed&&!d.poisoned&&d.failed_stage==PGR_US_STAGE_NONE&&d.last_result==PGR_US_OK&&d.invoke_body&&d.convert_body);}
  bad=c;bad.subscribers[0].context=&other_token;assert(api->install(&bad)==PGR_US_REBIND);
  invoke();assert(calls==1&&begins==0&&ends==0);
  generation=api->activate();assert(generation);

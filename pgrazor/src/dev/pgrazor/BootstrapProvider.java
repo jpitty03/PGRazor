@@ -19,6 +19,7 @@ public final class BootstrapProvider extends ContentProvider {
         if (rootedNativeStart == null) return;
         Runnable start = rootedNativeStart;
         rootedNativeStart = null;
+        Control.event("rooted-native-state", "stage=loading reason=unity-render-observed");
         new Thread(start, "pgrazor-loader").start();
     }
     public boolean onCreate() { return start(getContext()); }
@@ -39,6 +40,16 @@ public final class BootstrapProvider extends ContentProvider {
         try { sessionRecovered=AccountSessions.recover(context); }
         catch(IOException failure) { throw new IllegalStateException("Saved account session could not be restored; game startup stopped",failure); }
         Control.embedded("Embedded controls - starting"); Control.begin(app);
+        try {
+            android.content.pm.PackageInfo game=context.getPackageManager().getPackageInfo(context.getPackageName(),0);
+            Control.event("session-environment","diagnostics=2 module="+BuildVersion.NAME
+                +" runtime="+(PgAssets.rooted()?"rooted":"patched")
+                +" game="+game.versionName+" gameCode="+game.getLongVersionCode()
+                +" android="+Build.VERSION.RELEASE+" sdk="+Build.VERSION.SDK_INT
+                +" manufacturer="+Build.MANUFACTURER+" model="+Build.MODEL
+                +" brand="+Build.BRAND+" device="+Build.DEVICE+" hardware="+Build.HARDWARE
+                +" process64Bit="+android.os.Process.is64Bit());
+        } catch(Exception failure) { Control.event("session-environment","unavailable="+failure.getClass().getSimpleName()); }
         // DEX bridges receive service callbacks before the script loader is ready.
         // Resolve delivery on main now: ContextService's verified initializer creates
         // only its HandlerThread and handlers; it invokes no game-native method.
@@ -59,12 +70,17 @@ public final class BootstrapProvider extends ContentProvider {
         if (PgAssets.rooted()) {
             synchronized (BootstrapProvider.class) { rootedNativeStart = () -> load(context); }
             Control.event("rooted-native-deferred", "Waiting for Unity render before loading gameplay libraries");
+            Control.event("rooted-native-state", "stage=waiting reason=unity-render-not-observed");
         } else {
             new Thread(() -> load(context),"pgrazor-loader").start();
         }
         return true;
     }
     private static void load(Context context) {
+        // Filesystem observations stay off the main startup thread and never run su.
+        try {Control.event("session-root",RootDiagnostics.inspect(android.os.Process.myUid(),Build.TAGS,
+            path -> new File(path).exists()));}
+        catch(Exception failure){Control.event("session-root","rootStatus=unknown exception="+failure.getClass().getSimpleName());}
         try {
             JSONObject mode = new JSONObject(readAsset(context,"pgrazor/mode.json"));
             boolean compiledHost=mode.optBoolean("compiledJavaBridges",false)
@@ -317,7 +333,7 @@ public final class BootstrapProvider extends ContentProvider {
         Control.event("compiled-host-ready","Java lifecycle, Location and settings transport initialized");
         // Attest exclusive gameplay ownership; the compiled DEX render bridge drives onRendered().
         NativeRuntimeBootstrap.startGameplay();
-        Control.event("compiled-gameplay-ready","Compiled-only gameplay armed; no Frida or PGRazor scripts packaged; abi="+abi);
+        Control.event("compiled-gameplay-armed","Awaiting Unity bootstrap and scheduler installation; abi="+abi);
     }
     /**
      * A new folder for this run's native libraries, after removing the folders earlier runs left behind

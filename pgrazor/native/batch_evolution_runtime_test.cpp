@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include "batch_evolution.cpp"
+bool pgr_evolve_transfer_busy(){return false;}
 
 namespace {
 std::map<uintptr_t,void*> roots;

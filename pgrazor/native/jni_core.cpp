@@ -1,9 +1,7 @@
 // JNI glue for dev.pgrazor.NativeCore.
 //
-// Binds the two host-side validation methods with RegisterNatives from JNI_OnLoad so
-// no mangled JNI_* symbols are exported; the version script publishes only JNI_OnLoad
-// and pgrazor_native_api. Host-only policy self-check: no Dobby, no device, no process
-// image mutation here.
+// RegisterNatives binds validation, owner-thread bootstrap and read-only health methods.
+// The version script publishes only JNI_OnLoad and pgrazor_native_api.
 
 #include <jni.h>
 
@@ -37,6 +35,18 @@ jint JNICALL jni_runtime_start(JNIEnv *,jclass,jint exclusive_owner){
     return api->configure(&config);
 }
 
+// Read-only atomic host counters; no IL2CPP/managed calls from Java's transport thread.
+jlongArray JNICALL jni_runtime_health(JNIEnv *env,jclass){
+    const auto *api=static_cast<const PgrRuntimeHostApi *>(pgrazor_runtime_host_api(1));
+    PgrRuntimeHostSample sample{};
+    if(!api||api->sample(&sample))return nullptr;
+    const jlong values[]={jlong(sample.installed),jlong(sample.stopping),jlong(sample.fault),
+        jlong(sample.pulses),jlong(sample.generation),jlong(sample.owner_tid),jlong(sample.ready_mask)};
+    jlongArray result=env->NewLongArray(7);
+    if(result)env->SetLongArrayRegion(result,0,7,values);
+    return result;
+}
+
 const JNINativeMethod kMethods[] = {
     {const_cast<char *>("apiVersion"), const_cast<char *>("()I"),
      reinterpret_cast<void *>(&jni_api_version)},
@@ -44,6 +54,7 @@ const JNINativeMethod kMethods[] = {
      reinterpret_cast<void *>(&jni_policy_selfcheck)},
     {const_cast<char *>("bootstrapProbe"),const_cast<char *>("()J"),reinterpret_cast<void *>(&jni_bootstrap_probe)},
     {const_cast<char *>("runtimeStart"),const_cast<char *>("(I)I"),reinterpret_cast<void *>(&jni_runtime_start)},
+    {const_cast<char *>("runtimeHealth"),const_cast<char *>("()[J"),reinterpret_cast<void *>(&jni_runtime_health)},
 };
 
 } // namespace

@@ -46,7 +46,8 @@ class NativeRuntimeBootstrapJavaTests(unittest.TestCase):
                                        *map(str, sources)], capture_output=True, text=True, timeout=60)
             self.assertEqual(compiled.returncode, 0, compiled.stdout + compiled.stderr)
             for scenario in ('unarmed', 'ready', 'retry', 'error', 'throwable',
-                             'event-throwable', 'reentry', 'concurrent', 'gameplay', 'gameplay-error'):
+                             'event-throwable', 'reentry', 'concurrent', 'gameplay', 'gameplay-error',
+                             'pending'):
                 with self.subTest(scenario=scenario):
                     tested = subprocess.run([str(runtime), '-ea', '-cp', str(classes),
                                              'dev.pgrazor.NativeRuntimeBootstrapTest', scenario],

@@ -62,8 +62,11 @@ final class RootedLogDialog {
         refresh.setText("Refresh");
         actions.addView(refresh, new LinearLayout.LayoutParams(0, -2, 1));
         Button save = new Button(ui);
-        save.setText("Save copy");
+        save.setText("Save .txt");
         actions.addView(save, new LinearLayout.LayoutParams(0, -2, 1));
+        Button bundle=new Button(ui);
+        bundle.setText("Save log + settings (.zip)");
+        body.addView(bundle);
 
         Runnable reload = () -> load(hint, text);
         refresh.setOnClickListener(v -> reload.run());
@@ -77,25 +80,29 @@ final class RootedLogDialog {
         // Export off the main thread; the copy re-reads and digests the whole file.
         Context app = activity.getApplicationContext();
         Handler handler = new Handler(Looper.getMainLooper());
-        save.setOnClickListener(v -> {
+        View.OnClickListener export = v -> {
             File file = Control.currentLog();
             if (file == null) { Toast.makeText(activity, "No log file to save", Toast.LENGTH_SHORT).show(); return; }
             save.setEnabled(false);
+            bundle.setEnabled(false);
+            boolean includeSettings=v==bundle;
             new Thread(() -> {
                 try {
-                    File saved = LogExport.copyToExternal(app, file);
+                    File saved = LogExport.copyToExternal(app, file,includeSettings);
                     handler.post(() -> {
-                        if (dialog.isShowing()) save.setEnabled(true);
+                        if (dialog.isShowing()) {save.setEnabled(true);bundle.setEnabled(true);}
                         Toast.makeText(app, "Saved to " + saved.getAbsolutePath(), Toast.LENGTH_LONG).show();
                     });
                 } catch (IOException error) {
                     handler.post(() -> {
-                        if (dialog.isShowing()) save.setEnabled(true);
+                        if (dialog.isShowing()) {save.setEnabled(true);bundle.setEnabled(true);}
                         Toast.makeText(app, "Save failed: " + error.getMessage(), Toast.LENGTH_LONG).show();
                     });
                 }
             }, "pgrazor-log-export").start();
-        });
+        };
+        save.setOnClickListener(export);
+        bundle.setOnClickListener(export);
 
         dialog.setOnShowListener(d -> {
             MapTheme.fullScreen(dialog);
@@ -119,9 +126,8 @@ final class RootedLogDialog {
             input.seek(start);
             byte[] bytes = new byte[(int) (input.length() - start)];
             input.readFully(bytes);
-            hint.setText(start > 0
-                    ? "Showing the latest 64 KiB. Save copy writes the complete run to this device."
-                    : "Save copy writes the complete run to this device.");
+            hint.setText((start > 0 ? "Showing the latest 64 KiB. " : "")
+                    + "Save exports the current log segment with retained startup diagnostics to this device. ZIP also includes a single-line settings.json; the settings snapshot excludes login tokens, account data and saved locations.");
             text.setText(new String(bytes, StandardCharsets.UTF_8));
         } catch (IOException error) {
             hint.setText("");
