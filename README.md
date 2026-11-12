@@ -4,7 +4,7 @@
 
 PGRazor adds an in-game menu, independent joystick, encounter controls, and optional automation. Settings persist across restarts, with light and dark themes.
 
-[PGRazor Root](docs/ROOTED.md) is the development installer for rooted devices using the official game. It requires a supported root manager and Zygisk; the existing patched APK remains available for non-rooted devices.
+[PGRazor Root](docs/ROOTED.md) is the experimental installer for rooted devices using the official game. It requires a supported root manager and Zygisk; the existing patched APK remains available for non-rooted devices.
 
 Explore [the PGRazor website](https://jpitty03.github.io/PGRazor/) for screenshots, a settings guide, and installation steps.
 
@@ -114,7 +114,7 @@ Development production builds use compiled native/Java gameplay and stripped nat
 python -B tools/check.py
 ```
 
-Source CI runs device-free checks and compiles the Android controls. Its downloadable artifact contains **source and tools only**, not a playable APK. Playable releases are produced separately by the manually triggered **Playable APK release** workflow. See the [changelog](CHANGELOG.md).
+Source CI runs device-free checks and compiles both the Android controls and Root installer. Its downloadable artifact contains **source and tools only**, not a playable APK. Playable releases are produced separately by the manually triggered **Android release (non-root and rooted)** workflow. See the [changelog](CHANGELOG.md).
 
 ## Repository layout
 
