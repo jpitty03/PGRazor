@@ -37,7 +37,7 @@ class RootedCleanupTests(unittest.TestCase):
         return project, runs
 
     def invoke(self, project, apply=False):
-        return subprocess.run(['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', str(project / 'cleanup-rooted.ps1'), *(['-Apply'] if apply else [])], capture_output=True, text=True, timeout=30)
+        return subprocess.run([shutil.which('pwsh') or 'powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', str(project / 'cleanup-rooted.ps1'), *(['-Apply'] if apply else [])], capture_output=True, text=True, timeout=30)
 
     def test_pins_completed_latest_and_versioned_installer(self):
         (ROOT / 'build').mkdir(exist_ok=True)

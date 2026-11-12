@@ -198,7 +198,7 @@ def package(source, download=False, installer=True):
     print('Packaged:', module_zip, flush=True)
     if os.name == 'nt':
         try:
-            subprocess.run(['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass',
+            subprocess.run([shutil.which('pwsh') or 'powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass',
                             '-File', str(ROOT / 'cleanup.ps1'), '-RootedOnly', '-Apply'],
                            check=True, timeout=300)
         except (OSError, subprocess.SubprocessError) as error:

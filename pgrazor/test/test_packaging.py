@@ -55,6 +55,7 @@ class PackageTests(unittest.TestCase):
     def test_research_zip_preserves_game_and_bundles_only_retained_probes(self):
         with tempfile.TemporaryDirectory(dir=ROOT/'build') as temp:
             work=Path(temp);source=work/'game.apk';dex=work/'module.dex'
+            (work/'VERSION').write_text('v0.2.5', encoding='utf-8')
             dex.write_bytes(b'dex fixture')
             with zipfile.ZipFile(source,'w') as archive:
                 archive.writestr('AndroidManifest.xml',b'manifest')

@@ -58,6 +58,7 @@ class CompiledGameplayPackageTests(unittest.TestCase):
         import dex_bridges
         with tempfile.TemporaryDirectory(dir=ROOT / 'build') as temp:
             work = Path(temp)
+            (work / 'VERSION').write_text('v0.2.5', encoding='utf-8')
             source = work / 'game.apk'; dex = work / 'module.dex'; dex.write_bytes(b'dex\nfixture')
             with zipfile.ZipFile(source, 'w') as archive:
                 archive.writestr('AndroidManifest.xml', b'manifest')

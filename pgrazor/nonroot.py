@@ -45,7 +45,7 @@ def cleanup_generated_builds():
             completed=sorted(p.parent for p in (ROOT/'build/nonroot').glob('*/report.json') if re.fullmatch(r'\d{8}-\d{6}-[0-9a-f]{8}',p.parent.name))
             if completed: config['pinnedRuns']=[{'run':completed[-1].name,'reason':'Initial local candidate; not device-tested. Add deployed and tested rollback pins before replacing.'}]
             retention.write_text(json.dumps(config,indent=2)+'\n',encoding='utf8')
-        subprocess.run(['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass',
+        subprocess.run([shutil.which('pwsh') or 'powershell.exe','-NoProfile','-ExecutionPolicy','Bypass',
             '-File',str(ROOT/'cleanup.ps1'),'-Apply'],check=True,timeout=300)
     except (OSError,subprocess.SubprocessError) as error:
         print('WARNING: APK packaging succeeded, but automatic cleanup did not finish: '+str(error),file=sys.stderr,flush=True)
