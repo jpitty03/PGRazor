@@ -1,10 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.3.0
+
+[Full release notes](docs/releases/v0.3.0.md)
 
 ### New features
 
-- **Auto Throw:** Throws has a default-off toggle for automatic throws using your throw settings, selected ball and berry, with Always Hit, plus optional Catch on map for tapped wild Pokémon with a small catching indicator. Auto-Raid shares the throwing logic and always uses it, even when the toggle is off, with built-in Excellent curveballs.
+- **Auto Throw:** Throws has a default-off toggle for automatic throws using your throw settings, selected ball and berry, with Always Hit, plus optional Catch on map for tapped wild, lure and incense Pokémon, with a pin above the one being caught. A tap made while VGP+ is busy waits for it, caught Pokémon are removed from the map, and reward Pokémon from Go Pass and research are left for manual throws. Auto-Raid shares the throwing logic and always uses it, even when the toggle is off, with built-in Excellent curveballs.
 - **Go Wild November 2026:** Events has separate, default-off Safari Ball preferences for Mighty Pokémon in VGP+ and Auto Ball. Normal ball settings apply when Safari Balls are unavailable or the encounter is ineligible.
 - **Auto-Raid:** Automation can find nearby matching raids, travel to them, wait for enough players, battle using your auto-attack settings, and attempt the bonus catch. Run it by going to Automation -> Auto-Raid
 - **PGRazor Root (experimental):** A separate installer loads PGRazor into the official game with logs, settings backups, account switching, an on/off switch that takes effect on the next game launch, and an always-available Reboot button. This update needs one reboot to install the new loader; switching afterward needs no reboot, and the choice survives updates.
@@ -20,7 +22,8 @@
 - Account restoration waits briefly for the game activity to resume before requesting its restart, avoiding a blocked handoff during sign-in transitions.
 - Shundo Sniper waits for account and gameplay readiness before teleporting and shows the blocking reason instead of continuing to display “Checking”.
 - Brought the rooted build up to date with v0.2.5 features and Pokémon GO 0.435.2 support, including hook/readiness diagnostics and phone details. Rooted startup logs distinguish waiting for Unity rendering from native library loading.
-- Added more cutscene skips
+- Added more cutscene skips, including the "New level unlocks" and other feature-unlock cards. A hidden level-up screen no longer blocks taps for up to 30 seconds.
+- Added a startup fallback for phones where features sometimes did not load until the game was restarted. Exported logs now record the reason if it still happens, plus more account and settings details.
 - Shundo Sniper: stops and asks you to restart the game when the map stops loading Pokémon, instead of teleporting with no results. It also uses less data and searches the map less often while waiting.
 - Run logs keep more history, and PGRazor no longer leaves 5 MB of old files behind each time the game starts.
 
