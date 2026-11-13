@@ -53,9 +53,10 @@ final class SettingsPanel {
     private Button evolveTransferStages, evolveTransferMode, evolveTransferList;
     // Boolean settings use proper switches.
     private Switch idleWalkSwitch, locationSwitch, vgpSwitch, joystickSwitch, cooldownSwitch, localTimeSwitch, spawnSwitch, autoTransferSwitch,
-        quickSpinSwitch, berrySwitch, quickSummarySwitch, curveSwitch, alwaysHitSwitch, arSwitch, transferOverlaySwitch, catchChanceSwitch, autoBallSwitch, skipCutscenesSwitch,
+        quickSpinSwitch, berrySwitch, quickSummarySwitch, curveSwitch, alwaysHitSwitch, arSwitch, transferOverlaySwitch, catchChanceSwitch, autoBallSwitch, autoThrowSwitch, autoThrowMapSwitch, skipCutscenesSwitch,
         batteryResSwitch, batteryFpsSwitch, batteryQualitySwitch;
-    private Button autoBallTarget;
+    private Button autoBallTarget, berryPriority;
+    private BerryPriorityPicker berryPicker;
     private TextView quickSummaryLabel, vgpStatus, cutsceneStatus, healStatus, smartBattleStatus;
     private Switch healSwitch, healReviveSwitch, smartBattleSwitch, gymRepeatSwitch;
     private Button healWhen, healThreshold, healItems;
@@ -305,8 +306,11 @@ final class SettingsPanel {
         quickSpinSwitch = switchRow(catchC, "Quick spin"); quickSpinSwitch.setChecked(Control.quickSpinEnabled());
         quickSpinSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.quickSpinEnabled())return; Control.setQuickSpinEnabled(quickSpinSwitch.isChecked()); });
         quickSpinStatus = caption(catchC, "");
-        berrySwitch = switchRow(catchC, "Catching berry overlay"); berrySwitch.setChecked(Control.encounterBerryEnabled());
+        berrySwitch = switchRow(catchC, "Catch berries & overlay"); berrySwitch.setChecked(Control.encounterBerryEnabled());
         berrySwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.encounterBerryEnabled())return; Control.setEncounterBerryEnabled(berrySwitch.isChecked()); host.refresh(); });
+        berryPicker = new BerryPriorityPicker(activity, host::refresh);
+        berryPriority = button("Berry priority: "+BerryPriorityPicker.summary()); catchC.addView(berryPriority);
+        berryPriority.setOnClickListener(v -> berryPicker.show());
     }
 
     private void buildVgpSection() {
@@ -492,6 +496,11 @@ final class SettingsPanel {
             for(int i=0;i<targets.length;i++)if(targets[i]==Control.autoBallTarget()){next=targets[(i+1)%targets.length];break;}
             Control.setAutoBallTarget(next); host.refresh(); });
         caption(throwC, "Manual encounters. The chance uses the server's catch rate for each ball with your berry, throw rating and curveball; the server's rate already includes your type medal bonus. Auto ball picks the cheapest Poké, Great or Ultra Ball that reaches the target, when the encounter opens and after each escape; a ball you pick by hand is kept until the next escape. It never uses a Master Ball.");
+        autoThrowSwitch = switchRow(throwC, "Auto throw"); autoThrowSwitch.setChecked(Control.autoThrow());
+        autoThrowSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.autoThrow())return; Control.setAutoThrow(autoThrowSwitch.isChecked()); host.refresh(); });
+        autoThrowMapSwitch = switchRow(throwC, "Catch on map (tap Pok\u00e9mon)");
+        autoThrowMapSwitch.setChecked(Control.autoThrowOnMap());
+        autoThrowMapSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.autoThrowOnMap())return; Control.setAutoThrowOnMap(checked); host.refresh(); });
         quickBallStatus = caption(throwC, "");
     }
 
@@ -537,6 +546,7 @@ final class SettingsPanel {
     void hide(){panel.setVisibility(View.GONE);}
     /** Release this panel's dialog polling when its owning activity panel is detached. */
     void close(){
+        if(berryPicker!=null)berryPicker.close();
         for(AlertDialog dialog:new java.util.ArrayList<>(itemDialogs))dialog.dismiss();
         itemDialogs.clear();handler.removeCallbacksAndMessages(null);
     }
@@ -714,6 +724,9 @@ final class SettingsPanel {
     }
 
     private void refreshQuickCatch() {
+        berrySwitch.setChecked(Control.encounterBerryEnabled());
+        berryPriority.setText("Berry priority: "+BerryPriorityPicker.summary());
+        berryPicker.refresh();
         quickSpinSwitch.setChecked(Control.quickSpinEnabled());quickSpinStatus.setText(Control.quickSpinStatus());
         quickSummaryLabel.setText(Control.quickSummaryAutoDismiss() ? "Quick catch" : "Faster catch summary");
         quickSummarySwitch.setChecked(Control.quickSummaryEnabled());
@@ -744,6 +757,9 @@ final class SettingsPanel {
         arSwitch.setChecked(Control.throwAr());arSwitch.setEnabled(Control.throwArReady());
         catchChanceSwitch.setChecked(Control.catchChanceShown());autoBallSwitch.setChecked(Control.autoBall());
         autoBallTarget.setText("Auto ball target: "+Control.autoBallTarget()+"%");autoBallTarget.setEnabled(Control.autoBall());
+        autoThrowSwitch.setChecked(Control.autoThrow());
+        autoThrowMapSwitch.setChecked(Control.autoThrowOnMap());
+        autoThrowMapSwitch.setEnabled(Control.autoThrow());
         ivCatchMode.setText("Encounter: "+IV_MODES[Control.ivCatchMode()]);ivCatchMode.setEnabled(Control.quickBallConfigured());
         ivOwnedMode.setText("Pokémon stats screen: "+IV_MODES[Control.ivOwnedMode()]);ivOwnedMode.setEnabled(Control.quickBallConfigured());
         storageIv.setText("Pokémon storage list: "+IV_MODES[Control.storageIvMode()]);

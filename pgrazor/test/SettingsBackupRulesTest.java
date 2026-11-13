@@ -14,6 +14,11 @@ public class SettingsBackupRulesTest {
     }
     public static void main(String[] args)throws Exception{
         SettingsBackupRules.validate(valid());
+        JSONObject autoThrow=valid();autoThrow.getJSONObject("settings").put("autoThrow","true").put("autoThrowOnMap","true");
+        SettingsBackupRules.validate(autoThrow);
+        autoThrow.getJSONObject("settings").put("autoThrowOnMap","false");SettingsBackupRules.validate(autoThrow);
+        autoThrow.getJSONObject("settings").put("autoThrowOnMap","yes");rejects(autoThrow);
+
         JSONObject raids=valid();raids.getJSONObject("settings").put("autoRaidTierMask","127").put("autoRaidBosses","150,384")
             .put("autoRaidMaxRaids","5").put("autoRaidMinPlayers","3").put("autoRaidWaitSeconds","60")
             .put("autoRaidFreePass","true").put("autoRaidPremiumPass","false")

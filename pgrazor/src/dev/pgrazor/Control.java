@@ -394,6 +394,10 @@ public final class Control {
         main, () -> pad==null ? null : pad.activity,
         Control::quickBallAllowed, Control::autoTransferAllowed,
         detail -> event("quick-ball-toast",detail));
+    private static final CatchOutcomeController mapThrowOutcome = new CatchOutcomeController(
+        main, () -> pad==null ? null : pad.activity,
+        () -> autoThrow() && autoThrowOnMap() && hostLive(), () -> false,
+        detail -> event("map-throw-toast",detail));
     private static final Object stateLock = new Object();
     private static final Object logLock = new Object();
     private static AtomicFile stateFile, settingsFile;
@@ -599,24 +603,35 @@ public final class Control {
     private static volatile boolean catchChanceShown=true, autoBall;
     private static volatile int autoBallTarget=75;
     static final int[] AUTO_BALL_TARGETS={50,65,75,85,95};
+    // Auto Throw (off by default) uses the current Throws preferences and selected ball,
+    // with Always Hit intrinsic. Auto-Raid keeps its own Excellent/curve policy.
+    // Persisted; surfaced to the native owner via C4. Never uses a Master Ball.
+    private static volatile boolean autoThrow, autoThrowOnMap;
     public static boolean catchChanceShown(){return catchChanceShown;}
     public static void setCatchChanceShown(boolean shown){catchChanceShown=shown;saveSettings();event("catch-chance-overlay",shown?"ON":"OFF");}
     public static boolean autoBall(){return autoBall;}
     public static void setAutoBall(boolean on){autoBall=on;saveSettings();event("auto-ball",on?"ON":"OFF");}
     public static int autoBallTarget(){return autoBallTarget;}
     public static void setAutoBallTarget(int percent){autoBallTarget=percent>=1&&percent<=99?percent:75;saveSettings();}
+    public static boolean autoThrow(){return autoThrow;}
+    public static void setAutoThrow(boolean on){autoThrow=on;if(!on){mapThrowOutcome.invalidate();mapCatchStatus.clear();}saveSettings();event("auto-throw",on?"ON":"OFF");}
+    public static boolean autoThrowOnMap(){return autoThrowOnMap;}
+    public static void setAutoThrowOnMap(boolean on){autoThrowOnMap=on;if(!on){mapThrowOutcome.invalidate();mapCatchStatus.clear();}saveSettings();event("auto-throw-map",on?"ON":"OFF");}
     /**
-     * "C2|show|auto|target|berry|safari". berry is the one PGRazor's berry picker will feed on the
-     * next throw (0 when the picker is off); the game only sees it at release, so the chance needs it
-     * from here. While the overlay is hidden the chance line is off; auto ball keeps running. The
-     * trailing safari flag (0/1) is the Go Wild November 2026 "Use Safari Balls in Auto Ball" toggle;
-     * it applies only to Mighty Pokemon and the native owner falls back to the normal Auto Ball rules
-     * when a permitted Safari Ball is unavailable. Null host application => flag off; C2 always emitted.
+     * "C4|show|autoBall|target|berry|safari|autoThrow|cooldownMs|onMap". The first six fields keep their C2
+     * meaning: berry is the one PGRazor's berry picker will feed on the next throw (0 when the picker is
+     * off); the game only sees it at release, so the chance needs it from here. While the overlay is
+     * hidden the chance line is off; auto ball keeps running. The safari flag (0/1) is the Go Wild
+     * November 2026 "Use Safari Balls in Auto Ball" toggle; it applies only to Mighty Pokemon and the
+     * native owner falls back to the normal Auto Ball rules when a permitted Safari Ball is unavailable
+     * (null host application => flag off). autoThrow (0/1) is the Auto Throw preference. cooldownMs is
+     * the live throw cooldown remaining in milliseconds (Math.max(0, Cooldown.remaining())). onMap applies only while Auto Throw is enabled. C4 is always emitted.
      */
     public static String catchChanceConfig(){
         Application app=hostApplication;
         boolean safari=app!=null&&dev.pgrazor.events.EventSettings.wildAutoBallSafari(app);
-        return "C2|"+(catchChanceShown&&!overlaysHidden?1:0)+"|"+(autoBall?1:0)+"|"+autoBallTarget+"|"+autoBerry()+"|"+(safari?1:0);
+        long cooldownMs=Math.max(0,Cooldown.remaining());
+        return "C4|"+(catchChanceShown&&!overlaysHidden?1:0)+"|"+(autoBall?1:0)+"|"+autoBallTarget+"|"+autoBerry()+"|"+(safari?1:0)+"|"+(autoThrow?1:0)+"|"+cooldownMs+"|"+(autoThrowOnMap?1:0);
     }
     // PvP keep for auto-transfer, per league (0 Great, 1 Ultra, 2 Master): a catch is kept when its
     // stat-product rank is at or below that league's rank for a species in PvPoke's top PVP_META.
@@ -775,7 +790,7 @@ public final class Control {
      * readiness, background or connection change discards queued work via {@link #invalidateQuickBallOutcome()}.
      */
     public static boolean quickBallOutcome(String outcome) { return catchOutcome.request(outcome); }
-    private static void invalidateQuickBallOutcome() { catchOutcome.invalidate(); }
+    private static void invalidateQuickBallOutcome() { catchOutcome.invalidate(); mapThrowOutcome.invalidate(); mapCatchStatus.clear(); }
     public static void configureInteractionDiagnostics(boolean configured) {
         interactionDiagnosticsConfigured=configured; interactionDiagnosticRunning=false;
         interactionTraceRequest.set(false); interactionStopRequest.set(false);
@@ -1230,6 +1245,8 @@ public final class Control {
                 ivCatchFormat=catchFormat>0?catchFormat:2;ivOwnedFormat=ownedFormat>0?ownedFormat:2;
                 storageIvMode=boundedSetting(p,"storageIv",4);
                 catchChanceShown=Boolean.parseBoolean(p.getProperty("catchChance","true"));autoBall=Boolean.parseBoolean(p.getProperty("autoBall","false"));
+                autoThrow=Boolean.parseBoolean(p.getProperty("autoThrow","false"));
+                autoThrowOnMap=Boolean.parseBoolean(p.getProperty("autoThrowOnMap","false"));
                 int target=boundedSetting(p,"autoBallTarget",99);autoBallTarget=target>0?target:75;
                 pvpKeepLeagues=p.getProperty("pvpKeepLeagues")==null?3:boundedSetting(p,"pvpKeepLeagues",7);
                 skipCutscenes=Boolean.parseBoolean(p.getProperty("skipCutscenes","false"));
@@ -1336,7 +1353,7 @@ public final class Control {
         p.setProperty("transferKeepAll",String.valueOf(transferKeepAll)); p.setProperty("transferOverlay",String.valueOf(transferOverlayEnabled)); p.setProperty("transferKeepSpecies",transferKeepSpecies);
         p.setProperty("evolveTransferEnabled",String.valueOf(evolveTransferEnabled)); p.setProperty("evolveTransferMode",String.valueOf(evolveTransferMode)); p.setProperty("evolveTransferStages",String.valueOf(evolveTransferStages)); p.setProperty("evolveTransferSpecies",evolveTransferSpecies);
         p.setProperty("ivCatch",String.valueOf(ivCatchEnabled)); p.setProperty("ivOwned",String.valueOf(ivOwnedEnabled)); p.setProperty("ivCatchFormat",String.valueOf(ivCatchFormat)); p.setProperty("ivOwnedFormat",String.valueOf(ivOwnedFormat)); p.setProperty("storageIv",String.valueOf(storageIvMode)); p.setProperty("storageIvFormat",String.valueOf(storageIvFormat));
-        p.setProperty("catchChance",String.valueOf(catchChanceShown)); p.setProperty("autoBall",String.valueOf(autoBall)); p.setProperty("autoBallTarget",String.valueOf(autoBallTarget));
+        p.setProperty("catchChance",String.valueOf(catchChanceShown)); p.setProperty("autoBall",String.valueOf(autoBall)); p.setProperty("autoBallTarget",String.valueOf(autoBallTarget)); p.setProperty("autoThrow",String.valueOf(autoThrow)); p.setProperty("autoThrowOnMap",String.valueOf(autoThrowOnMap));
         p.setProperty("pvpKeepLeagues",String.valueOf(pvpKeepLeagues)); p.setProperty("skipCutscenes",String.valueOf(skipCutscenes));
         p.setProperty("batteryLowRes",String.valueOf(batteryLowRes)); p.setProperty("batteryFps20",String.valueOf(batteryFps20)); p.setProperty("batteryLowQuality",String.valueOf(batteryLowQuality));
         p.setProperty("smartBattle",String.valueOf(smartBattle));
@@ -1397,8 +1414,21 @@ public final class Control {
             }
         }catch(Exception ignored){return null;}
     }
+    private static final MapCatchStatus mapCatchStatus = new MapCatchStatus();
+    public static String mapCatchLabel(){return autoThrow && autoThrowOnMap && hostLive() ? mapCatchStatus.label(android.os.SystemClock.elapsedRealtime()) : "";}
     public static void event(String kind, String detail) {
         if("auto-raid".equals(kind))AutoRaid.publish(detail);
+        if("map-auto-throw".equals(kind)){
+            try{org.json.JSONObject result=new org.json.JSONObject(detail);
+                mapCatchStatus.event(result.optString("phase"),result.optInt("value"),android.os.SystemClock.elapsedRealtime());
+                if("catch-result".equals(result.optString("phase"))){
+                    int status=result.optInt("value");
+                    if(status==1)mapThrowOutcome.request("caught");
+                    else if(status==2)mapThrowOutcome.request("broke-free");
+                    else if(status==3)mapThrowOutcome.request("fled");
+                }
+            }catch(Exception ignored){}
+        }
         if("gym-automation".equals(kind))GymAutomationSettings.publish(detail);
         if("gym-spin".equals(kind)&&SmartCatchSettings.gymSpinActive()){
             try{setVgpStatus(new org.json.JSONObject(detail).optString("message","Waiting for gym disc"));}catch(Exception ignored){}

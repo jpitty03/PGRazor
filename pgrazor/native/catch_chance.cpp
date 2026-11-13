@@ -77,11 +77,11 @@ void status(const char *phase,const std::string &message){event(std::string("{\"
 uint64_t clock_ms(){timespec t{};clock_gettime(CLOCK_BOOTTIME,&t);return uint64_t(t.tv_sec)*1000+t.tv_nsec/1000000;}
 
 struct Config : PgrCatchChanceOptions {int grade=0;bool curve=false;};
-// "C2|show|auto|target|berry|safari" (C1 remains accepted) plus the throw settings
+// "C3|show|auto|target|berry|safari|autoThrow|cooldownMs" (C1/C2 accepted) plus throw settings
 // (throw allowed bool 29, curve bool 34, grade int 7).
 Config config(){
  Config c;auto tr=transport();PgrRuntimeTransportSample a{};if(!tr||tr->sample(&a)||!a.snapshot_fresh||a.fault)return c;
- char s[48];uint32_t n=0;if(tr->get_string(15,s,sizeof(s),&n)||n<8||n>=sizeof(s))return c;s[n]=0;
+ char s[96];uint32_t n=0;if(tr->get_string(15,s,sizeof(s),&n)||n<8||n>=sizeof(s))return c;s[n]=0;
  static_cast<PgrCatchChanceOptions&>(c)=pgr_parse_catch_chance(s);if(!c.valid)return c;
  int allowed=0,curve=0;int32_t grade=0;
  // Throw variety (4-6) counts as its lowest grade: Great, Nice, or a plain throw.

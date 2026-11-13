@@ -92,6 +92,15 @@ def main(argv=None):
                 vendor = native_build.ensure_dobby(root, download=False)
                 extra_flags = ['-fexceptions', '-I'+str(vendor/'include')]
                 entry['included_source_sha256'] = native_build.sha256(root/'native/unity_scheduler.cpp')
+            if source.stem in ('auto_throw_controller_test','auto_raid_runtime_test','throws_test'):
+                entry['auto_throw_values_sha256'] = native_build.sha256(root/'native/auto_throw_values.h')
+            if source.stem == 'auto_throw_controller_test':
+                extra_flags = ['-fexceptions']
+                entry['included_source_sha256'] = native_build.sha256(root/'native/auto_throw_controller.inc')
+            if source.stem == 'map_auto_throw_controller_test':
+                extra_flags = ['-fexceptions']
+                entry['included_source_sha256'] = native_build.sha256(root/'native/map_auto_throw_controller.inc')
+                entry['safari_policy_sha256'] = native_build.sha256(root/'native/safari_ball_policy.h')
             if source.stem == 'gift_batch_test':
                 extra_flags = ['-rdynamic', '-fexceptions']
                 entry['included_source_sha256'] = native_build.sha256(root/'native/gift_batch.cpp')
@@ -100,7 +109,7 @@ def main(argv=None):
                 entry['included_source_sha256'] = native_build.sha256(root/'native'/source.name.replace('_runtime_test.cpp','.cpp'))
             if source.stem in ('auto_raid_runtime_test','auto_raid_policy_test'):
                 names=['auto_raid_policy.h']
-                if source.stem=='auto_raid_runtime_test': names+=['auto_raid_game_map.inc','auto_raid_game_catch.inc']
+                if source.stem=='auto_raid_runtime_test': names+=['auto_raid_game_map.inc','auto_raid_game_catch.inc','auto_throw_game.inc','auto_throw_controller.inc','map_auto_throw_controller.inc','map_auto_throw_game.inc','safari_ball_policy.h']
                 entry['included_contract_sha256']={name:native_build.sha256(root/'native'/name) for name in names}
             if source.stem == 'gym_repeat_runtime_test':
                 vendor = native_build.ensure_dobby(root, download=False)
@@ -157,7 +166,7 @@ def main(argv=None):
                 extra_flags = ['-fexceptions', '-I'+str(vendor/'include'), dobby, '-llog']
                 entry['dobby_sha256'] = native_build.sha256(dobby)
                 if source.stem == 'encounter_host_test':
-                    dependencies = ('hook_engine.cpp', 'auto_raid.cpp', 'incense_guard.cpp', 'gift_batch.cpp', 'remote_gym.cpp',
+                    dependencies = ('hook_engine.cpp', 'throws.cpp', 'auto_raid.cpp', 'incense_guard.cpp', 'gift_batch.cpp', 'remote_gym.cpp',
                                     'gym_runtime.cpp', 'gym_automation.cpp', 'batch_evolution.cpp', 'evolve_transfer.cpp',
                                     'buddy_emotion.cpp', 'profile_scroll.cpp', 'vgp_controller.cpp', 'smart_catch.cpp',
                                     'smart_catch_binding.cpp', 'vgp_discovery.cpp', 'research.cpp', 'storage_iv.cpp',

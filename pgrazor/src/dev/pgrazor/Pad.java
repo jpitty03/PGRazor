@@ -46,6 +46,7 @@ public final class Pad {
     private OverlayDrag automationDrag;
     private OverlayDrag gymFeedDrag, shundoDrag;
     private VgpMarker vgpMarker;
+    private MapCatchBadge mapCatchBadge;
     // Draggable, position-persisting handles for the cooldown and VGP overlays.
     private OverlayDrag cooldownDrag, vgpDrag;
     private OverlayDrag localTimeDrag;
@@ -167,6 +168,7 @@ public final class Pad {
         overlays.addView(catchChance,catchLayout);catchChance.setVisibility(View.GONE);catchChanceDrag=OverlayDrag.attach(overlays,catchChance,"catch-chance");
         // The toggle is the drag handle; the status pill follows it as one coherent unit. Tap still flips VGP.
         vgpDrag=OverlayDrag.attach(overlays,vgpToggle,vgpActivity,"vgp");
+        mapCatchBadge=new MapCatchBadge(host);FrameLayout.LayoutParams mapCatchLayout=new FrameLayout.LayoutParams(dp(54),dp(54),Gravity.TOP|Gravity.LEFT);mapCatchLayout.leftMargin=dp(72);mapCatchLayout.topMargin=dp(100);overlays.addView(mapCatchBadge,mapCatchLayout);mapCatchBadge.setVisibility(View.GONE);
         vgpMarker=new VgpMarker(host);overlays.addView(vgpMarker,new FrameLayout.LayoutParams(dp(38),dp(46)));vgpMarker.setVisibility(View.GONE);
         // Compact Keep All / transfer-rules overlay; tap toggles Keep All, drag repositions (persists transfer.fx/fy).
         // Shundo Sniper card: status, counts and Start/Stop; drag to move it.
@@ -270,7 +272,7 @@ public final class Pad {
         Rect previousSafe=appliedWindowBounds.isEmpty()?safe:new Rect(appliedWindowBounds);
         appliedWindowBounds.set(safe);appliedWindowWidth=parent.getWidth();appliedWindowHeight=parent.getHeight();
         appliedUiScale=percent;float scale=percent/100f;
-        for(View view:new View[]{launcher,joystickOverlay,cooldownTimer,localTime,vgpToggle,vgpActivity,vgpMarker,transferToggle,gameRoutesOverlay,gymFeedOverlay,gymAutomationStatus,shundoOverlay}){
+        for(View view:new View[]{launcher,joystickOverlay,cooldownTimer,localTime,vgpToggle,vgpActivity,vgpMarker,mapCatchBadge,transferToggle,gameRoutesOverlay,gymFeedOverlay,gymAutomationStatus,shundoOverlay}){
             if(view==null)continue;
             float x=view.getX(),y=view.getY();
             int oldWidth=OverlayDrag.visualWidth(view),oldHeight=OverlayDrag.visualHeight(view);
@@ -303,6 +305,7 @@ public final class Pad {
         if(catchChance!=null){catchChance.setVisibility(CatchChance.visible()&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);setTextIfChanged(catchChance,CatchChance.text());catchChance.setTextColor(ink());}
         if(automationStatus!=null){automationStatus.setVisibility((OneShotAutomation.overlayVisible()||AutoRaid.running())&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);setTextIfChanged(automationStatus,AutoRaid.running()?"Auto-Raid | "+AutoRaid.status():OneShotAutomation.overlayStatus());automationStatus.setTextColor(ink());automationDrag.refreshBounds();}
         if(vgpActivity!=null){vgpActivity.setVisibility(Control.vgpOverlayVisible()&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);setTextIfChanged(vgpActivity,"VGP  |  "+Control.vgpStatus());vgpActivity.setTextColor(ink());}
+        if(mapCatchBadge!=null)mapCatchBadge.refresh(!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())&&!Control.catchScreenVisible());
         if(vgpMarker!=null){boolean show=Control.vgpTargetVisible()&&!settings.isVisible();vgpMarker.setVisibility(show?View.VISIBLE:View.GONE);if(show){vgpMarker.setX(Control.vgpTargetX()*parent.getWidth()-dp(19)*vgpMarker.getScaleX());vgpMarker.setY(Control.vgpTargetY()*parent.getHeight()-dp(36)-dp(46)*vgpMarker.getScaleY());vgpMarker.invalidate();}}
         if(transferToggle!=null){transferToggle.setVisibility(Control.transferOverlayVisible()&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);transferToggle.setContentDescription(transferToggleDescription());transferToggle.invalidate();}
 
@@ -529,7 +532,7 @@ public final class Pad {
         if(gymAutomationStatus!=null){overlays.removeView(gymAutomationStatus);gymAutomationStatus=null;}
         if(gymFeedOverlay!=null){gymFeedOverlay.close();overlays.removeView(gymFeedOverlay);gymFeedOverlay=null;}
         settings.close();if(hideOverlaysDialog!=null)hideOverlaysDialog.dismiss();
-        parent.removeView(settings.view());overlays.removeView(launcher);overlays.removeView(joystickOverlay);if(encounterBerry!=null){encounterBerry.close();overlays.removeView(encounterBerry);}if(cooldownTimer!=null)overlays.removeView(cooldownTimer);if(vgpToggle!=null)overlays.removeView(vgpToggle);if(vgpActivity!=null)overlays.removeView(vgpActivity);if(vgpMarker!=null)overlays.removeView(vgpMarker);if(transferToggle!=null)overlays.removeView(transferToggle);if(gameRoutesOverlay!=null){gameRoutesOverlay.close();overlays.removeView(gameRoutesOverlay);}
+        parent.removeView(settings.view());overlays.removeView(launcher);overlays.removeView(joystickOverlay);if(encounterBerry!=null){encounterBerry.close();overlays.removeView(encounterBerry);}if(cooldownTimer!=null)overlays.removeView(cooldownTimer);if(vgpToggle!=null)overlays.removeView(vgpToggle);if(vgpActivity!=null)overlays.removeView(vgpActivity);if(vgpMarker!=null)overlays.removeView(vgpMarker);if(mapCatchBadge!=null){overlays.removeView(mapCatchBadge);mapCatchBadge=null;}if(transferToggle!=null)overlays.removeView(transferToggle);if(gameRoutesOverlay!=null){gameRoutesOverlay.close();overlays.removeView(gameRoutesOverlay);}
         parent.removeView(overlays);if(unhideWatcher!=null)parent.removeView(unhideWatcher);
         if(blackScreen!=null){blackScreen.setOnClickListener(null);parent.removeView(blackScreen);blackScreen=null;blackHint=null;}
         ShundoSniper.setDark(false);  // leaving the game ends the black screen; it is not brought back on return

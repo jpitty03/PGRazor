@@ -286,7 +286,7 @@ bool fake_poll_raid_encounter(Root& io_coord, Root& io_pk, bool& out_shiny, int&
 }
 
 Root fake_submit_raid_throw(void*, void*, int ball) {
-    auto value = raid_throw_value(ball);
+    auto value = pgr_raid_throw_value(ball);
     assert(value.item == ball && value.radius == 0.1f && value.bullseye == 1 && value.spinning == 1 && value.missed == 0);
     assert(!session.berry_promise);
     ++world.throws_submitted;
@@ -837,3 +837,13 @@ int main() {
     std::puts("PASS auto_raid runtime: lifecycle, immutable policy, catch flow, berry fallback/acknowledgement/exhaustion/revocation and excellent curve Always Hit values");
     return 0;
 }
+
+void pgr_catch_chance_enter(void*) {}
+
+const void* pgrazor_throws_api(uint32_t) {return nullptr;}
+
+const void* pgrazor_vgp_controller_api(uint32_t){return nullptr;}
+bool pgr_map_throw_value(PgrThrowValue*){return false;}
+bool pgr_catch_chance_base(void*,double*){return false;}
+bool pgr_catch_chance_offers_ball(void*,int){return false;}
+int pgrazor_hook(void*,void*,void**){return -1;}

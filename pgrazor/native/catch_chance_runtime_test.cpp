@@ -108,6 +108,9 @@ int main(){
  reset();settings="C2|1|0|75|0|1";step();assert(selections==0);
  reset();settings="C2|1|1|75|0|0";step();assert(current_ball==3&&!logged("safari-selected"));
  settings="C2|1|1|75|0|1";step();assert(current_ball==7&&selections==2);
+ reset();settings="C3|1|1|75|0|1|1|0";step();assert(current_ball==7&&selections==1);
+ assert(config().grade==0&&!config().curve); // Auto Throw does not override configured throw bonuses.
+ for(const char* bad:{"C3|1|1|75|0|1|2|0","C3|1|1|75|0|1|1|-1","C3|1|1|75|0|1|1|7200001","C3|1|1|75|0|1|1|0x"})assert(!pgr_parse_catch_chance(bad).valid);
  reset();settings="C1|1|1|75|0";step();assert(current_ball==3);
  reset();fresh=false;step();assert(selections==0);
  reset();in_play=true;step();assert(selections==0);

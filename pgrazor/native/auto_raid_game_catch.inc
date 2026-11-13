@@ -141,32 +141,12 @@ bool real_poll_raid_encounter(Root& io_state, Root& io_pokemon, bool& shiny, int
     return true;
 }
 
-PgrThrowValue raid_throw_value(int ball) {
-    PgrThrowValue value{};
-    value.item=ball;value.radius=0.1f;value.bullseye=1;value.spinning=1;value.missed=0;
-    return value; // Same Excellent curveball values as VGP+, submitted as a non-missed hit.
-}
-
 Root real_submit_raid_throw(void* state, void* pokemon, int ball) {
     require(state && state==session.coord_encounter.get() && pokemon==session.raid_map_pokemon.get()
             && unity_obj_alive(pokemon),"Raid catch owner unavailable");
     require(ball>0 && (ball==g_premier_ball || ball==g_beast_ball),"Raid ball not authorized");
     require(unbox_val<int32_t>(call_obj(state,"get_RaidBallCount",0))>0,"No bonus balls remain; check encounter");
-    Root strategy(call_obj(state,"get_Strategy",0));
-    require(bool(strategy),"Raid encounter strategy unavailable");
-    void* om=require_method_ret(obj_klass(strategy.get()),"get_OverridesAttemptCapture",0,"System.Boolean");
-    bool overrides=unbox_val<bool>(invoke_method(om,strategy.get(),nullptr));
-    void* capture=require_method_ret(overrides?obj_klass(strategy.get()):obj_klass(pokemon),
-        overrides?"AttemptCapture":"TryCapture",overrides?1:2,
-        "Niantic.Promises.IPromise<Holoholo.Rpc.CatchPokemonOutProto>");
-    require(type_name_of(catch_method_param_type(capture,0))=="Niantic.Holoholo.Encounter.PokeballThrow","Raid throw ABI mismatch");
-    alignas(8) PgrThrowValue tv=raid_throw_value(ball);
-    // NotifyThrown decrements supplied balls. NotifyHit dispatches capture listeners;
-    // do not send it as well as TryCapture and risk a duplicate request.
-    void* thrown_args[]={&ball};call_obj(state,"NotifyPokeballThrown",1,thrown_args);
-    void* args[]={&tv,nullptr};
-    Root promise(invoke_method(capture,overrides?strategy.get():pokemon,args));
-    require(bool(promise),"Raid capture returned no promise; check encounter (not retried)");
+    Root promise=submit_auto_throw(session.coord_encounter,session.raid_map_pokemon,pgr_raid_throw_value(ball));
     emit_raw_event("{\"token\":"+json_quote(std::to_string(session.command.token))+
         ",\"phase\":\"throw\",\"throw\":"+std::to_string(session.throws_made)+
         ",\"ball\":"+std::to_string(ball)+",\"grade\":\"excellent\",\"curve\":true,\"alwaysHit\":true,\"missed\":false,\"reticle\":0.1}");

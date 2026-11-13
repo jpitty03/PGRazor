@@ -60,3 +60,8 @@ struct PgrThrowApi {          // 40 bytes: ordered, read-only table
 // Hidden getter. NOT exported by the version script; the coordinator registers it in the
 // core getter registry under feature id 1, which answers only on an exact version match.
 const void *pgrazor_throws_api(uint32_t version);
+
+// Native map Auto Throw: same rating/variety RNG and lease, with no scene ball.
+bool pgr_map_throw_value(PgrThrowValue* value);
+
+struct PgrMapThrowApi {uint32_t version,size;bool (*value)(PgrThrowValue*);};

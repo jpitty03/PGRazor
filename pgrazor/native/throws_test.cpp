@@ -1,5 +1,6 @@
 // Standalone Android test. Exercises the actual native policy and hit trampoline.
 #include "throws.h"
+#include "auto_throw_values.h"
 #include "pgrazor_native_api.h"
 #include <dlfcn.h>
 #include <unistd.h>
@@ -26,7 +27,8 @@ int main(int argc,char **argv){
  auto get=reinterpret_cast<const void *(*)(uint32_t)>(dlsym(lib,"pgrazor_native_api"));
  auto core=get?static_cast<const pgrazor_native_api_v2 *>(get(2)):nullptr;
  auto api=core?static_cast<const PgrThrowApi *>(core->query_feature(1,1)):nullptr;
- if(!api||api->size!=40)return 3;
+ auto map_api=core?static_cast<const PgrMapThrowApi*>(core->query_feature(1,2)):nullptr;
+ if(!api||api->size!=40||!map_api||map_api->size!=sizeof(PgrMapThrowApi))return 3;
  PgrThrowConfig config{1,sizeof(config),reinterpret_cast<void *>(&submit),reinterpret_cast<void *>(&hit),
   &ball_class,&owner_class,reinterpret_cast<void *>(&klass),reinterpret_cast<void *>(&assignable),reinterpret_cast<void *>(&field),&bread_field};
  if(api->install(&config)||api->install(&config))return 4;
@@ -71,6 +73,42 @@ int main(int argc,char **argv){
  api->update(3,1,1,2500,gettid());if(api->update(99,1,1,2500,gettid())==0)return 18;
  value=original;api->rewrite_submit(&ball,&value);if(value.bullseye)return 19;
  api->update(3,1,1,2500,gettid());api->update(0,0,0,0,0);call(&owner,original,&config);if(std::memcmp(&last,&original,12))return 20;
- std::puts("PASS native throws: ABI chaining, paired jitter, all bands, exclusions, thread/lease gates and invalid-update disable");
+ // Auto Throw uses this same live policy, starting plain and always hitting.
+ for(int setting=0;setting<=6;++setting)for(int curve=0;curve<=1;++curve){
+  if(api->update(setting,curve,1,2500,gettid()))return 30;
+  int seen[4]={};
+  for(int i=0;i<256;++i){
+   if(!pgr_manual_throw_value(api,&ball,2,value))return 31;
+   if(value.item!=2||value.missed||value.spinning!=curve)return 32;
+   int grade=-1;
+   if(!value.bullseye&&value.radius==1.0f)grade=0;
+   else for(int g=1;g<=3;++g)if(value.bullseye&&value.radius>=low[g]&&value.radius<=high[g])grade=g;
+   if(grade<0||(setting<=3?grade!=setting:grade<6-setting))return 33;
+   ++seen[grade];
+   const auto raid=pgr_raid_throw_value(5);
+   if(raid.item!=5||raid.radius!=0.1f||!raid.bullseye||!raid.spinning||raid.missed)return 34;
+  }
+  if(setting>=4)for(int g=6-setting;g<=3;++g)if(!seen[g])return 35;
+ }
+ if(pgr_manual_throw_value(nullptr,&ball,1,value))return 36;
+ // Map Auto Throw has no scene ball but must apply the identical live policy.
+ for(int setting=0;setting<=6;++setting)for(int curve=0;curve<=1;++curve){
+  if(api->update(setting,curve,1,2500,gettid()))return 37;
+  int seen[4]={};
+  for(int i=0;i<256;++i){
+   if(!map_api->value(&value)||value.item!=1||value.missed||value.spinning!=curve)return 38;
+   int grade=-1;
+   if(!value.bullseye&&value.radius==1.0f)grade=0;
+   else for(int g=1;g<=3;++g)if(value.bullseye&&value.radius>=low[g]&&value.radius<=high[g])grade=g;
+   if(grade<0||(setting<=3?grade!=setting:grade<6-setting))return 39;
+   ++seen[grade];
+  }
+  if(setting>=4)for(int g=6-setting;g<=3;++g)if(!seen[g])return 40;
+ }
+ api->update(3,1,0,0,gettid());if(map_api->value(&value))return 41;
+ api->update(3,1,1,2500,gettid()+1);if(map_api->value(&value))return 42;
+ api->update(3,1,1,1,gettid());nanosleep(&pause,nullptr);if(map_api->value(&value))return 43;
+
+ std::puts("PASS native throws: ABI chaining, paired jitter, all bands, exclusions, thread/lease gates, invalid-update disable, Auto Throw settings/variety and independent raid defaults");
  return 0;
 }

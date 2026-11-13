@@ -50,6 +50,8 @@
 #include "remote_gym.h"
 #include "gift_batch.h"
 #include "auto_raid.h"
+#include "auto_throw.h"
+#include "map_auto_throw.h"
 #include "research.h"
 #include "storage_iv.h"
 #include "cutscene_skip.h"
@@ -475,7 +477,7 @@ static void hook_berry_enter(void *scope, void *method_info) {
   if (tid != 0 && !g_stopped && g_berries && (g_active_caps & PGR_EH_CAP_BERRIES)) {
     g_berries->observe_enter(pin_scope.get(), tid);
   }
-  if (tid != 0 && !g_stopped) pgr_catch_chance_enter(pin_scope.get());
+  if (tid != 0 && !g_stopped) {pgr_catch_chance_enter(pin_scope.get());pgr_auto_throw_enter(pin_scope.get());}
   if (g_orig_berry_enter) {
     g_orig_berry_enter(pin_scope.get(), method_info);
   }
@@ -490,7 +492,7 @@ static void hook_berry_exit(void *scope, void *method_info) {
   if (tid != 0 && !g_stopped && g_berries && (g_active_caps & PGR_EH_CAP_BERRIES)) {
     g_berries->observe_exit(pin_scope.get(), tid);
   }
-  if (tid != 0 && !g_stopped) pgr_catch_chance_exit(pin_scope.get());
+  if (tid != 0 && !g_stopped) {pgr_catch_chance_exit(pin_scope.get());pgr_auto_throw_exit(pin_scope.get());}
   if (g_orig_berry_exit) {
     g_orig_berry_exit(pin_scope.get(), method_info);
   }
@@ -552,6 +554,7 @@ static void hook_pokeball_submit(void *ball, uint64_t first, uint64_t second, vo
   StateGuard state;
   if (!state || !g_installed || g_stopped || g_stop_requested.load(std::memory_order_acquire) || !proven_unity_tid()) { if (g_orig_pokeball_submit) g_orig_pokeball_submit(ball, first, second, method_info); return; }
   struct Frame { Frame(){++g_hook_frames;} ~Frame(){--g_hook_frames;} } frame;
+  if (pgr_auto_throw_pending()) return; // A direct capture is already awaiting its result.
   PinnedArg pin_ball(ball);
   uint64_t tid = pin_ball.valid() ? proven_unity_tid() : 0;
   if (tid != 0 && !g_stopped && g_berries && (g_active_caps & PGR_EH_CAP_BERRIES)) {
@@ -2485,15 +2488,18 @@ static int api_tick(uint64_t proven_tid) {
 
   // Observe before automatic gameplay work; revoke before opening the manual encounter.
   pgr_profile_scroll_install();
-  const bool raid_block=pgr_auto_raid_tick(os_tid,&g_md);
+  const bool map_block=pgr_map_auto_throw_active();
+  const bool raid_block=map_block||pgr_auto_raid_tick(os_tid,&g_md);
   const bool bird_block=!raid_block&&pgr_incense_guard_tick(os_tid,&g_md);
-  if(bird_block||raid_block){g_opts.vgp_enabled=0;if(g_vgc&&g_last_vgp_enabled){g_vgc->revoke();clear_active_vgp_transfer();g_last_vgp_enabled=false;++g_vgp_epoch;}}
+  if(bird_block||(raid_block&&!map_block)){g_opts.vgp_enabled=0;if(g_vgc&&g_last_vgp_enabled){g_vgc->revoke();clear_active_vgp_transfer();g_last_vgp_enabled=false;++g_vgp_epoch;}}
+  // Publish exclusive ownership before the bird guard can invoke OnTap.
+  pgr_map_auto_throw_tick(os_tid,&g_md,(!map_block&&raid_block)||bird_block);
   if(!raid_block)pgr_incense_guard_open(os_tid);
   // 1. Berries tick, resume & event drain
   pump_berry_events_and_resume(os_tid, 0);
 
   // 2. VGP controller tick & transfer handoff
-  tick_vgp_controller(os_tid, now, rem_lease);
+  if(!map_block&&!pgr_map_auto_throw_active())tick_vgp_controller(os_tid, now, rem_lease);
 
   // 3. MapPOI snapshot scan
   tick_map_poi(os_tid, now, rem_lease);
@@ -2507,6 +2513,7 @@ static int api_tick(uint64_t proven_tid) {
   pgr_smart_battle_tick(os_tid, &g_md);
   pgr_ar_values_tick(os_tid, &g_md);
   pgr_catch_chance_tick(os_tid, &g_md);
+  pgr_auto_throw_tick(os_tid, &g_md, raid_block);
   if(!raid_block){
     pgr_remote_gym_tick(os_tid, &g_md);
     pgr_gym_tick(os_tid, &g_md);
@@ -2536,6 +2543,7 @@ static int api_stop(uint64_t proven_tid) {
   g_stopped = true;
   if (tid != 0) {
     pgr_auto_raid_stop(tid);
+    pgr_map_auto_throw_stop();
     if (g_berries && (g_active_caps & PGR_EH_CAP_BERRIES)) {
       g_berries->update(nullptr, 0, 0, tid);
       pump_berry_events_and_resume(tid, 1);
@@ -2548,6 +2556,7 @@ static int api_stop(uint64_t proven_tid) {
       pgr_rocket_swap_stop();
       pgr_smart_battle_stop(tid);
       pgr_catch_chance_stop();
+  pgr_auto_throw_stop();
       pgr_remote_gym_stop(tid);
       pgr_incense_guard_stop(tid);
       pgr_gym_stop(tid);

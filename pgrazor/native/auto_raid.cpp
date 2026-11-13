@@ -1,4 +1,11 @@
 #include "auto_raid.h"
+#include "auto_throw.h"
+#include "map_auto_throw.h"
+#include "vgp_controller.h"
+extern int pgrazor_hook(void*,void*,void**);
+#include "auto_throw_values.h"
+#include "catch_chance.h"
+#include "safari_ball_policy.h"
 #include "auto_raid_policy.h"
 #include "game_bindings.h"
 #include "runtime_bootstrap.h"
@@ -26,7 +33,9 @@
 // settings and movement; this controller owns discovery, authorized local pass selection,
 // lobby decisions and confirmed battle/catch outcomes. Transport/account/lifecycle loss
 // revokes game work. Managed objects are rooted only for the active session.
-// The game adapters live in auto_raid_game_map.inc and auto_raid_game_catch.inc;
+// Game adapters live in auto_raid_game_map.inc and auto_raid_game_catch.inc.
+// auto_throw_game.inc shares the capture primitive with the separately controlled
+// manual encounter loop in auto_throw_controller.inc, using these same rooted helpers.
 // fixture tests replace those adapters and do not establish live binding correctness.
 
 namespace {
@@ -730,6 +739,7 @@ Root find_live_unity_object(void* klass) {
 
 void real_validate_catch_bindings();
 #include "auto_raid_game_map.inc"
+#include "auto_throw_game.inc"
 #include "auto_raid_game_catch.inc"
 
 RuntimeAdapter kRealAdapter = {
@@ -1500,6 +1510,10 @@ bool step_controller(uint64_t tid) {
     return session.active;
 }
 
+#include "auto_throw_controller.inc"
+#include "map_auto_throw_controller.inc"
+#include "map_auto_throw_game.inc"
+
 } // namespace
 
 bool pgr_auto_raid_tick(uint64_t tid, const PgrSharedMetadataOutput* metadata) {
@@ -1551,3 +1565,47 @@ void pgr_auto_raid_stop(uint64_t tid) {
         session.reset();
     }
 }
+
+
+void pgr_auto_throw_tick(uint64_t tid,const PgrSharedMetadataOutput* metadata,bool raid_owns_game) {
+    if(busy||!tid||tid!=static_cast<uint64_t>(gettid())||(owner&&owner!=tid))return;
+    struct Guard {Guard(){busy=true;}~Guard(){busy=false;}} guard;
+    owner=tid;md=metadata;
+    try {
+        if(!boot_ready){
+            const auto* api=static_cast<const PgrBootApi*>(pgrazor_runtime_bootstrap_api(1));
+            boot.version=1;boot.size=sizeof(boot);
+            if(!md||!api||api->snapshot(&boot)!=0)return;
+            boot_ready=true;
+        }
+        step_manual_throw(tid,raid_owns_game);
+    } catch(const Failure& f){throw_block(f.where);}
+    catch(...){throw_block("Unexpected native failure; no automatic retry");}
+}
+void pgr_auto_throw_enter(void* interaction) {
+    if(!boot_ready||!interaction||owner!=static_cast<uint64_t>(gettid()))return;
+    if(manual_throw.interaction.get()==interaction)return;
+    ++manual_throw_generation;manual_throw=ManualThrowSession{};
+    manual_throw.interaction=Root(interaction);manual_throw.next_ms=clock_ms()+1200;
+}
+void pgr_auto_throw_exit(void* interaction) {
+    if(!boot_ready||owner!=static_cast<uint64_t>(gettid()))return;
+    if(manual_throw.interaction.get()==interaction){++manual_throw_generation;manual_throw=ManualThrowSession{};}
+}
+void pgr_auto_throw_stop() {
+    if(owner&&owner==static_cast<uint64_t>(gettid())){++manual_throw_generation;manual_throw=ManualThrowSession{};}
+}
+bool pgr_auto_throw_pending() {return manual_throw.uncertain&&!manual_throw.blocked;}
+
+void pgr_map_auto_throw_tick(uint64_t tid,const PgrSharedMetadataOutput* metadata,bool blocked) {
+    if(!tid||tid!=uint64_t(gettid())||(owner&&owner!=tid)||busy)return;
+    owner=tid;md=metadata;map_gate=!blocked;
+    struct Guard{Guard(){busy=true;}~Guard(){busy=false;}} guard;
+    try{
+        if(!boot_ready){auto api=static_cast<const PgrBootApi*>(pgrazor_runtime_bootstrap_api(1));boot.version=1;boot.size=sizeof(boot);if(!api||api->snapshot(&boot)!=0)return;boot_ready=true;}
+        if(map_mode_on(map_permission()))map_install_hook();
+        step_map_auto_throw(tid,blocked||!map_command_free());
+    }catch(const Failure& f){map_block(f.where);}catch(...){map_block("Unexpected native failure; not retried");}
+}
+bool pgr_map_auto_throw_active(){return bool(map_tap.target);}
+void pgr_map_auto_throw_stop(){if(owner==uint64_t(gettid())){map_gate=false;if(map_tap.target)map_block("Runtime stopped; no retry");}}

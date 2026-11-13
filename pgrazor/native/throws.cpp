@@ -319,5 +319,14 @@ static_assert(sizeof(PgrThrowApi) == 40, "throw API ABI");
 }  // namespace
 
 const void *pgrazor_throws_api(uint32_t version) {
-    return version == 1 ? &g_api : nullptr;
+    static const PgrMapThrowApi map_api{2,sizeof(PgrMapThrowApi),pgr_map_throw_value};
+    return version==1?static_cast<const void*>(&g_api):version==2?static_cast<const void*>(&map_api):nullptr;
+}
+
+bool pgr_map_throw_value(PgrThrowValue* value) {
+    if(!value||!g_installed.load()||!g_allowed.load()||uint64_t(gettid())!=g_unity_tid.load())return false;
+    const uint64_t now=now_ns();if(!now||now>=g_deadline_ns.load())return false;
+    PgrThrowValue plain{};plain.item=1;plain.radius=1.0f;
+    *value=transform(plain,g_grade.load(),g_curve.load(),ROUTE_SUBMIT,now);
+    value->missed=0;return true;
 }
