@@ -11,7 +11,7 @@ public final class OneShotAutomationTest {
     private static void clean(){
         OneShotAutomation.reset();Control.engine=new MotionEngine();Control.ready=true;
         Control.gameRoute=Control.planning=false;Control.vgp=true;Control.saves=Control.walks=0;
-        BatchEvolutionSettings.active=GymAutomationSettings.active=SmartCatchSettings.active=false;
+        AutoRaid.active=BatchEvolutionSettings.active=GymAutomationSettings.active=SmartCatchSettings.active=false;
         SystemClock.now=1000;
     }
     private static String token(){return OneShotAutomation.config().split("\\|")[1];}
@@ -25,7 +25,10 @@ public final class OneShotAutomationTest {
         require(Control.walks==0&&!OneShotAutomation.enabled(),"invalid headings must not mutate movement");
         Control.ready=false;rejects(IllegalStateException.class,()->OneShotAutomation.startIncense(0));
         rejects(IllegalStateException.class,()->OneShotAutomation.startRemoteFeed(0,0,false,0));
-        Control.ready=true;BatchEvolutionSettings.active=true;
+        Control.ready=true;AutoRaid.active=true;
+        rejects(IllegalStateException.class,()->OneShotAutomation.startIncense(0));
+        rejects(IllegalStateException.class,()->OneShotAutomation.startRemoteFeed(0,0,false,0));
+        AutoRaid.active=false;BatchEvolutionSettings.active=true;
         rejects(IllegalStateException.class,()->OneShotAutomation.startIncense(0));
         rejects(IllegalStateException.class,()->OneShotAutomation.startRemoteFeed(0,0,false,0));
         BatchEvolutionSettings.active=false;Control.gameRoute=true;

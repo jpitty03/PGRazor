@@ -9,13 +9,18 @@ public class ControlLogRetentionTest {
    for(int i=0;i<9;i++)Files.write(new File(dir,"20261030-120000-00"+i+".txt").toPath(),new byte[]{1});
    Control.event("native-scheduler-unavailable","status=-3 retained startup reason");
    Control.event("session-root","rootStatus=not-detected retained root evidence");
+   Control.event("cutscene-skip","{\"phase\":\"post-hatch-eggs-waiting\",\"reason\":\"covered-by-another-gui\"}");
+   Control.event("cutscene-skip","{\"phase\":\"post-hatch-eggs-released\",\"reason\":\"readiness-timeout\"}");
+   Control.event("cutscene-skip","{\"phase\":\"skipped\",\"kind\":\"egg-inventory\",\"reason\":\"hatch-completed-without-inventory\"}");
+   for(int i=0;i<50;i++)Control.event("cutscene-skip","{\"phase\":\"gui-open\",\"class\":\"trace-only-"+i+"\"}");
    File current=new File(dir,"20261031-120000-000.txt");set("logFile",current);set("log",new PrintWriter(new FileOutputStream(current),true));set("logBytes",1048576L);
    Control.event("test","latest marker");
    File active=Control.currentLog();if(active.equals(current)||active.length()>1048576||!unrelated.exists())throw new AssertionError("rotation");
    File[] logs=dir.listFiles((d,n)->!n.equals("evidence.txt"));if(logs.length!=6)throw new AssertionError("retention "+logs.length);
    String big=new String(new char[100000]).replace('\0','x');Control.event("test",big);
-   if(active.length()>65536+1000)throw new AssertionError("event cap");
+   if(active.length()>65536+2048)throw new AssertionError("event cap");
    String tail=new String(Files.readAllBytes(active.toPath()),"UTF-8");if(!tail.contains("[retained-context]")||!tail.contains("retained startup reason")||!tail.contains("retained root evidence")||!tail.contains("latest marker")||!tail.contains("[truncated]"))throw new AssertionError("tail content");
+   if(!tail.contains("covered-by-another-gui")||!tail.contains("readiness-timeout")||!tail.contains("hatch-completed-without-inventory")||tail.contains("trace-only-"))throw new AssertionError("egg context survives GUI trace and rotation");
    Field writer=Control.class.getDeclaredField("log");writer.setAccessible(true);((PrintWriter)writer.get(null)).close();
    set("log",new PrintWriter(new OutputStream(){public void write(int b)throws IOException{throw new IOException("fixture disk full");}},true));
    // The JVM Log.e fixture throws; require the expected disk-write error, not silent PrintWriter failure.

@@ -33,7 +33,7 @@ public final class OneShotAutomation {
     public static synchronized String remoteFeedStatus(){return remoteMessage;}
     private static void ready(){
         if(!Control.automationReady())throw new IllegalStateException("Wait for the game and location to be ready.");
-        if(incense||remote||BatchEvolutionSettings.enabled()||GiftBatchSettings.running())throw new IllegalStateException("Finish or stop the current automation first.");
+        if(AutoRaid.running()||incense||remote||BatchEvolutionSettings.enabled()||GiftBatchSettings.running())throw new IllegalStateException("Finish or stop the current automation first.");
     }
     public static synchronized void startIncense(double heading){
         if(!Double.isFinite(heading)||heading<0||heading>=360)throw new IllegalArgumentException("Heading must be 0–359 degrees.");

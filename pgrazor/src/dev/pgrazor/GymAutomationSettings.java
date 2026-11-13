@@ -65,6 +65,7 @@ public final class GymAutomationSettings {
     /** Tap control for both selected actions; no automatic resume after cooldown. */
     public static boolean toggleRunning(){return setRunning(!running());}
     private static boolean setRunning(boolean on){
+        if(on&&AutoRaid.running()){guardReason="Stop Auto-Raid before starting Gym automation.";return false;}
         stopForCooldown();
         boolean cooldownActive=Cooldown.remaining()>0;
         synchronized(lock){

@@ -36,6 +36,7 @@ public final class AutomationPanel {
         body.addView(intro);
         final AlertDialog[] holder = new AlertDialog[1];
         entry(ui, body, "Shundo Sniper (Experimental)", () -> { if (holder[0] != null) holder[0].dismiss(); ShundoSniper.show(activity); });
+        entry(ui, body, "Auto-Raid", () -> { if (holder[0] != null) holder[0].dismiss(); AutoRaidDialog.show(activity); });
         entry(ui, body, "Daily Incense Session", () -> { if (holder[0] != null) holder[0].dismiss(); showIncense(activity); });
         entry(ui, body, "Remote Gym Feeding", () -> { if (holder[0] != null) holder[0].dismiss(); showRemoteFeed(activity); });
         entry(ui, body, "Send & Open Gifts", () -> { if (holder[0] != null) holder[0].dismiss(); GiftBatchDialog.show(activity); });

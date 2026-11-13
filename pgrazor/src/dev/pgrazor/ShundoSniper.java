@@ -205,6 +205,7 @@ public final class ShundoSniper {
     }
 
     static void setEnabled(Context context, boolean on) {
+        if(on&&AutoRaid.running()){Toast.makeText(context,"Stop Auto-Raid first.",Toast.LENGTH_SHORT).show();return;}
         synchronized (LOCK) {
             if (on == enabled) return;
             enabled = on; dark = false; readinessWait = "";

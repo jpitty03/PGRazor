@@ -4,11 +4,14 @@
 
 ### New features
 
-- **PGRazor Root (experimental):** A separate installer loads PGRazor into the official game through a Zygisk module. It includes in-game logs, settings backups, and account-switch restart support. Native hook installation can still fail on some Samsung devices.
-- **Rooted log + settings export:** Save the current log and a single-line settings snapshot together as a ZIP from the in-game Run log dialog.
+- **Auto-Raid:** Automation can find nearby matching raids, travel to them, wait for enough players, battle using your auto-attack settings, and attempt the bonus catch. Run it by going to Automation -> Auto-Raid
+- **PGRazor Root (experimental):** A separate installer loads PGRazor into the official game through a Zygisk/Magisk module. It includes in-game logs, settings backups, and account-switch restart support. Native hook installation can still fail on some Samsung devices.
 
 ### Improvements & fixes
 
+- Pokémon lists support relevant category filters, including Legendary, Mega-capable, and second- or third-stage evolutions, with selection by name.
+- Auto incubate or Skip cutscenes now skips the post-hatch Eggs page by completing the hatch directly. Manually opened Eggs pages remain accessible.
+- Hatch outcomes and page-dismissal failure reasons are retained when run logs rotate.
 - Rooted startup can resolve Android's loader through its loaded system libraries when the default symbol lookup is unavailable, with more specific failure diagnostics.
 - Account restoration waits briefly for the game activity to resume before requesting its restart, avoiding a blocked handoff during sign-in transitions.
 - Shundo Sniper waits for account and gameplay readiness before teleporting and shows the blocking reason instead of continuing to display “Checking”.

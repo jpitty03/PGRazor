@@ -1531,7 +1531,13 @@ public final class PogoFeedDialog {
 
         private void trackOwn(AlertDialog d) {
             children.add(d);
-            d.setOnDismissListener(x -> children.remove(d));
+            // Keep the child's own dismissal/lifecycle cleanup intact.
+            d.getWindow().getDecorView().addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+                public void onViewAttachedToWindow(View v) {}
+                public void onViewDetachedFromWindow(View v) {
+                    children.remove(d); v.removeOnAttachStateChangeListener(this);
+                }
+            });
         }
 
         private void toast(String message) {

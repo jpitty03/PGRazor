@@ -11,11 +11,11 @@ struct Obj {
  int state=2,result=1,taps=0;Obj *canvas=nullptr,*base=nullptr,*anim=nullptr,*action=nullptr,*target=nullptr;
  void *method=nullptr,*cls=nullptr;
  Obj *confirm=nullptr,*rowroot=nullptr,*button=nullptr,*summary=nullptr,*rewards=nullptr,*visibility=nullptr;
- Obj *egg=nullptr,*tabs=nullptr,*content=nullptr,*page_transform=nullptr,*selected=nullptr;
+ Obj *egg=nullptr,*tabs=nullptr,*content=nullptr,*page_transform=nullptr,*selected=nullptr,*completion=nullptr;
  int context=0,index=2,children=3;bool dragging=false,top=true,visible=true;float distance=0;
 };
-int egg_ids[16];
-enum{E_PAGE,E_TABS,E_CONTEXT,E_CLOSE,E_TRANSFORM,E_CONTENT,E_INDEX,E_DRAG,E_DISTANCE,E_COUNT,E_CHILD,E_IS_CHILD,E_TOP,E_VISIBLE,E_SERVICE,E_CURRENT};
+int egg_ids[17];
+enum{E_PAGE,E_TABS,E_CONTEXT,E_CLOSE,E_TRANSFORM,E_CONTENT,E_INDEX,E_DRAG,E_DISTANCE,E_COUNT,E_CHILD,E_IS_CHILD,E_TOP,E_VISIBLE,E_SERVICE,E_CURRENT,E_COMPLETE};
 Obj gui,canvas,base,anim,action,confirm,rowroot,button;
 int ids[40];
 enum{ALIVE,ROOT,ALPHA,RAY_GET,RAY_SET,SPEED_GET,SPEED_SET,TAP,LEADER,METHOD,TARGET,INVOKE,
@@ -23,6 +23,23 @@ enum{ALIVE,ROOT,ALPHA,RAY_GET,RAY_SET,SPEED_GET,SPEED_SET,TAP,LEADER,METHOD,TARG
  SUMMARY,REWARDS,VISIBILITY,ALPHA_GET,CLAIM,REWARD_CLICK,GUI_DISMISS};
 std::map<uintptr_t,void*> roots;uintptr_t serial=0;int allocations=0,frees=0;
 std::vector<std::string> events;
+std::string policy_text;
+int flow_ids[3],intro_calls=0,hatch_calls=0,evolve_calls=0;
+Obj completed,original_result;
+bool result_bypassed=false;
+Obj *reenter_hatch=nullptr;
+bool throw_after_completion=false;
+int policy_sample(PgrRuntimeTransportSample *out){*out={};out->snapshot_fresh=1;return 0;}
+int policy_string(uint32_t field,char *out,uint32_t cap,uint32_t *len){
+ assert(field==17&&cap>=policy_text.size());
+ *len=uint32_t(policy_text.size());std::memcpy(out,policy_text.data(),*len);return 0;
+}
+void *fixture_new(void*){return &completed;}
+void *fixture_method(void*,const char *name,int){assert(std::strcmp(name,"Invoke")==0);return &flow_ids[2];}
+void fixture_intro(void*,void*,const void*){++intro_calls;}
+void *fixture_hatch(void*,void*,float,void*,const void*){++hatch_calls;return &original_result;}
+void *fixture_evolve(void*,void*,void*,const void*){++evolve_calls;return &original_result;}
+void fixture_result(void*,void *callback,const void*){result_bypassed=bypass_show_info(nullptr,nullptr,nullptr,callback);}
 void *fail_method=nullptr;void *fail_object=nullptr;int failures=0;
 bool fail_reveal=false;
 uintptr_t new_root(void *o,int){++allocations;roots[++serial]=o;return serial;}
@@ -43,10 +60,18 @@ void get_field(void *o,void *f,void *out){
  else if(f==&ids[VISIBILITY])*static_cast<void**>(out)=x->visibility;
  else if(f==&egg_ids[E_PAGE])*static_cast<void**>(out)=x->egg;
  else if(f==&egg_ids[E_TABS])*static_cast<void**>(out)=x->tabs;
+ else if(f==&egg_ids[E_COMPLETE])*static_cast<void**>(out)=x->completion;
  else assert(false);
 }
 void *call(void *m,void *o,void **args,void **ex){
  auto x=static_cast<Obj*>(o);*ex=nullptr;static bool boxed;
+ if(m==&flow_ids[0]||m==&flow_ids[1])return nullptr; // Promise / dismiss-parameters constructors and Complete
+ if(m==&flow_ids[2]){
+  ++x->taps;
+  if(reenter_hatch){Obj *state=reenter_hatch;reenter_hatch=nullptr;hook_hatch_dismiss(state,nullptr,nullptr);}
+  if(throw_after_completion)*ex=&flow_ids[2];
+  return nullptr;
+ } // hatch reveal, result-dismiss or state-completion callback
  if((m==fail_method&&(!fail_object||o==fail_object)&&failures-->0)||
     (fail_reveal&&m==&ids[ALPHA]&&*static_cast<float*>(args[0])==1.f)){
   *ex=&ids[19];return nullptr;
@@ -284,10 +309,10 @@ int main(){
  assert(gym_open_calls==1&&pending_popup_count==0&&plain_canvas.alpha==1&&plain.taps==0);
  cleared();
  std::puts("PASS gym badge modal: classified and dismissed once, delayed open waits, disabled preserves original, other GUI untouched");
- // Egg inventory is an independent Auto incubate policy, never a blanket inventory dismiss.
- assert(parse_policy("K1|1",4).cutscenes&&!parse_policy("K1|1",4).inventory);
+ // Either setting enables hatch cleanup, never a blanket inventory dismiss.
+ assert(parse_policy("K1|1",4).cutscenes&&parse_policy("K1|1",4).inventory);
  assert(!parse_policy("K2|0|1",6).cutscenes&&parse_policy("K2|0|1",6).inventory);
- assert(parse_policy("K2|1|0",6).cutscenes&&!parse_policy("K2|1|0",6).inventory);
+ assert(parse_policy("K2|1|0",6).cutscenes&&parse_policy("K2|1|0",6).inventory);
  assert(parse_policy("K2|1|1",6).cutscenes&&parse_policy("K2|1|1",6).inventory);
  assert(!parse_policy("K2|1|x",6).cutscenes&&!parse_policy("K2|1|1x",7).inventory);
  Obj inv,egg,tab,content,page_transform,selected,other,hatch_state,inventory_service;int inventory_type;
@@ -313,6 +338,84 @@ int main(){
   assert(inv.taps==0&&inv.alpha==1&&inv.raycasts);
  };
  auto settle_inventory=[&](){advance_inventory();if(inventory_settled)inventory_settled=clock_ms()-251;advance_inventory();};
+ // Drive real transport -> tick -> hooks for all four settings, not just parser assertions.
+ struct Case{const char *config;bool eggs,other_cutscenes;};
+ for(const Case &c: {Case{"K2|0|0",false,false},Case{"K2|0|1",true,false},
+                     Case{"K2|1|0",true,true},Case{"K2|1|1",true,true}}){
+  wire_inventory(false);
+  policy_text=c.config;transport_mock.sample=policy_sample;transport_mock.get_string=policy_string;
+  tried=true;faulted.store(false);pgr_cutscene_skip_tick(gettid(),nullptr);
+  // Manual access stays interactive even when either or both settings are on.
+  hook_gui_open(&inv,nullptr);settle_inventory();assert(!pending_inventory&&inv.taps==0);
+  boot.runtime.object_new=reinterpret_cast<void*>(fixture_new);
+  boot.meta.class_get_method_from_name=reinterpret_cast<void*>(fixture_method);
+  promise_class=&completed;promise_ctor=&flow_ids[0];promise_complete=&flow_ids[1];
+  dismiss_class=&completed;dismiss_ctor=&flow_ids[0];
+  egg_click=&ids[TAP];egg_is_open=&ids[ACTIVE];
+  original[K_EGG_INTRO].store(reinterpret_cast<void*>(fixture_intro));
+  original[K_HATCH].store(reinterpret_cast<void*>(fixture_hatch));
+  original[K_EVOLVE].store(reinterpret_cast<void*>(fixture_evolve));
+  original[K_HATCH_RESULT].store(reinterpret_cast<void*>(fixture_result));
+  intro_calls=hatch_calls=evolve_calls=0;result_bypassed=false;
+  Obj intro,reveal,dismiss;
+  hook_egg_intro(&intro,nullptr,nullptr);assert(intro_calls==1&&bool(pending_egg)==c.eggs);
+  pgr_cutscene_skip_tick(gettid(),nullptr);assert(!pending_egg&&intro.taps==int(c.eggs));
+  void *hatch=hook_hatch(nullptr,nullptr,1.f,&reveal,nullptr);
+  assert(hatch==(c.eggs?&completed:&original_result));
+  assert(hatch_calls==int(!c.eggs)&&reveal.taps==int(c.eggs));
+  // Non-hatch Pokemon details are never captured.
+  assert(!bypass_show_info(nullptr,nullptr,nullptr,&dismiss));
+  hook_hatch_result(nullptr,&dismiss,nullptr);assert(result_bypassed==c.eggs&&hatch_result_depth==0);
+  pgr_cutscene_skip_tick(gettid(),nullptr);assert(!pending_dismiss&&dismiss.taps==int(c.eggs));
+  void *evolved=hook_evolve(nullptr,nullptr,nullptr,nullptr);
+  assert(evolved==(c.other_cutscenes?&completed:&original_result));
+  assert(evolve_calls==int(!c.other_cutscenes));
+  hook_hatch_dismiss(&hatch_state,&inv,nullptr);
+  assert(hatch_dismiss_calls==1&&bool(pending_inventory)==c.eggs);
+  settle_inventory();assert(inv.taps==int(c.eggs));
+  assert(contains("post-hatch-egg-skip")==c.eggs);
+  release_inventory();cleared();
+  hook_gui_open(&inv,nullptr);settle_inventory();assert(!pending_inventory&&inv.taps==int(c.eggs));
+  cleared();
+ }
+ std::puts("PASS egg setting matrix: real policy tick, intro, hatch/reveal callback, result/dismiss callback, post-hatch close; both off and manual pages preserved; auto-only leaves evolution alone");
+ // Completion is the primary path: no follow-up inventory is created or tapped at all.
+ // The existing matrix above deliberately covers the fallback with its binding unavailable.
+ for(const Case &c: {Case{"K2|0|0",false,false},Case{"K2|0|1",true,false},
+                     Case{"K2|1|0",true,true},Case{"K2|1|1",true,true}}){
+  wire_inventory(false);policy_text=c.config;pgr_cutscene_skip_tick(gettid(),nullptr);
+  Obj complete;hatch_state.completion=&complete;hatch_complete_field=&egg_ids[E_COMPLETE];
+  hook_hatch_dismiss(&hatch_state,&inv,nullptr);
+  assert(complete.taps==int(c.eggs)&&hatch_dismiss_calls==int(!c.eggs));
+  assert(!pending_inventory&&inv.taps==0);
+  assert(contains("hatch-completed-without-inventory")==c.eggs);
+  hook_gui_open(&inv,nullptr);settle_inventory();assert(!pending_inventory&&inv.taps==0);
+  hatch_complete_field=nullptr;cleared();
+ }
+ // Missing callback uses the existing game path exactly once and retains fallback diagnostics.
+ wire_inventory(false);hatch_complete_field=&egg_ids[E_COMPLETE];
+ hook_hatch_dismiss(&hatch_state,&inv,nullptr);
+ assert(hatch_dismiss_calls==1&&pending_inventory&&contains("Hatch completion callback missing"));
+ settle_inventory();assert(inv.taps==1);release_inventory();hatch_complete_field=nullptr;cleared();
+ // Synchronous reentry and a callback throwing AFTER state advancement must never run original.
+ for(bool fail: {false,true}){
+  wire_inventory(false);Obj complete;hatch_state.completion=&complete;hatch_complete_field=&egg_ids[E_COMPLETE];
+  reenter_hatch=&hatch_state;throw_after_completion=fail;
+  hook_hatch_dismiss(&hatch_state,&inv,nullptr);
+  assert(complete.taps==1&&hatch_dismiss_calls==0&&!pending_inventory&&!completing_hatch);
+  assert(contains("reentry ignored"));
+  assert(contains("not repeated")==fail);
+  assert(contains("hatch-completed-without-inventory")==!fail);
+  throw_after_completion=false;hatch_complete_field=nullptr;cleared();
+ }
+ // Independent later hatch batches are not suppressed by the reentry guard.
+ wire_inventory(false);hatch_complete_field=&egg_ids[E_COMPLETE];
+ Obj first_complete,second_complete;
+ hatch_state.completion=&first_complete;hook_hatch_dismiss(&hatch_state,&inv,nullptr);
+ hatch_state.completion=&second_complete;hook_hatch_dismiss(&hatch_state,&inv,nullptr);
+ assert(first_complete.taps==1&&second_complete.taps==1&&hatch_dismiss_calls==0&&!pending_inventory);
+ hatch_complete_field=nullptr;cleared();
+ std::puts("PASS direct hatch completion: OR settings, no inventory, manual pages preserved, null fallback, reentry/throw-after-transition exactly once, later hatch batches");
  wire_inventory();inv.state=1;settle_inventory();assert(inv.taps==0);
  inv.state=2;settle_inventory();assert(inv.taps==1&&contains("egg-inventory"));
  advance_inventory();assert(inv.taps==1);inv.state=0;advance_inventory();cleared();
@@ -335,7 +438,8 @@ int main(){
  // Slow initialization is tied to this controller; timed-out captures cannot close later visits.
  wire_inventory();inv.state=0;settle_inventory();assert(pending_inventory&&inv.taps==0);
  inv.state=2;settle_inventory();assert(inv.taps==1);release_inventory();cleared();
- wire_inventory();inventory_since=clock_ms()-3001;settle_inventory();assert(!pending_inventory&&inv.taps==0);cleared();
+ wire_inventory();inv.top=false;advance_inventory();inventory_since=clock_ms()-3001;settle_inventory();
+ assert(!pending_inventory&&inv.taps==0&&contains("readiness-timeout")&&contains("covered-by-another-gui"));cleared();
  wire_inventory();content.selected=&other;settle_inventory();assert(inv.taps==0); // Pokemon/Tags
  content.selected=&selected;settle_inventory();assert(!pending_inventory&&inv.taps==0);cleared();
  wire_inventory();tab.dragging=true;settle_inventory();assert(!pending_inventory&&inv.taps==0);cleared();
@@ -350,7 +454,8 @@ int main(){
  inv.top=true;inv.visible=false;settle_inventory();assert(inv.taps==0);
  inv.visible=true;tab.index=9;settle_inventory();assert(inv.taps==0);
  release_inventory();cleared();
- wire_inventory();settle_inventory();inventory_clicked_at=clock_ms()-3001;advance_inventory();cleared();assert(inv.taps==1);
+ wire_inventory();settle_inventory();inventory_clicked_at=clock_ms()-3001;inventory_since=clock_ms()-3500;
+ advance_inventory();cleared();assert(inv.taps==1&&contains("close-not-confirmed"));
  wire_inventory();fail_method=&egg_ids[E_CLOSE];failures=1;settle_inventory();cleared();assert(inv.taps==0&&inv.raycasts&&inv.alpha==1);
  wire_inventory();pgr_cutscene_skip_stop(gettid());cleared();assert(inv.taps==0);
  inventory_class=nullptr;egg_inventory_enabled.store(false);

@@ -10880,6 +10880,11 @@
         "kind": "name",
         "value": "bnag",
         "purpose": "EggHatchState inventory service getter"
+      },
+      "hatch_complete_field_name": {
+        "kind": "name",
+        "value": "dmfq",
+        "purpose": "EggHatchState completion System.Action, invoked by bnaj no-inventory branch and bnal inventory-dismiss continuation; distinct from OutOfScope"
       }
     },
     "smart_battle_cpp": {

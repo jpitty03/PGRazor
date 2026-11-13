@@ -4,24 +4,18 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.text.Editable;
 import android.text.InputType;
-import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
-import android.view.ViewGroup;
-import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
-import android.widget.ListView;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.TreeSet;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -260,101 +254,41 @@ public final class LiveFeedFilterDialog {
 
         // ------------------------------------------------------------------ species picker
 
+        /** Opens the shared species allowlist picker, wiring it to the working filter JSON. */
         private void openSpeciesPicker() {
-            final TreeSet<Integer> selected = new TreeSet<>();
+            PokemonSpeciesDialog.show(activity, "Species allowlist", "species", MAX_SPECIES_ID,
+                this::loadSpeciesCsv, this::saveSpeciesCsv, this::refreshSpeciesMode,
+                "No species selected", sink == null ? null : sink::track);
+        }
+
+        /** Canonical sorted comma-separated IDs from the working allowlist, restricted to the selectable range. */
+        private String loadSpeciesCsv() {
+            TreeSet<Integer> selected = new TreeSet<>();
             JSONArray list = working.optJSONArray("species_filter_list");
             if (list != null) for (int i = 0; i < list.length(); i++) {
                 int id = list.optInt(i, -1);
                 if (id >= MIN_SPECIES_ID && id <= MAX_SPECIES_ID) selected.add(id);
             }
-            final List<Integer> all = new ArrayList<>();
-            for (int id = MIN_SPECIES_ID; id <= MAX_SPECIES_ID; id++) all.add(id);
-            final List<Integer> shown = new ArrayList<>(all);
-
-            LinearLayout body = new LinearLayout(ui);
-            body.setOrientation(LinearLayout.VERTICAL);
-            int pad = dp(14);
-            body.setPadding(pad, dp(8), pad, 0);
-            final EditText search = new EditText(ui);
-            search.setHint("Search name or #id");
-            search.setSingleLine(true);
-            search.setInputType(InputType.TYPE_CLASS_TEXT);
-            body.addView(search, new LinearLayout.LayoutParams(-1, dp(48)));
-            final TextView count = label("", 12);
-            body.addView(count);
-            ListView listView = new ListView(ui);
-            final SpeciesAdapter adapter = new SpeciesAdapter(shown, selected);
-            listView.setAdapter(adapter);
-            listView.setOnItemClickListener((p, v, pos, idv) -> {
-                int id = shown.get(pos);
-                if (selected.contains(id)) selected.remove(id); else selected.add(id);
-                adapter.notifyDataSetChanged();
-                count.setText(selected.size() + " selected");
-            });
-            body.addView(listView, new LinearLayout.LayoutParams(-1, 0, 1));
-            count.setText(selected.size() + " selected");
-
-            search.addTextChangedListener(new TextWatcher() {
-                public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
-                public void onTextChanged(CharSequence s, int a, int b, int c) {}
-                public void afterTextChanged(Editable e) {
-                    String q = e.toString().trim().toLowerCase(Locale.US);
-                    shown.clear();
-                    for (int id : all) {
-                        if (q.isEmpty()) { shown.add(id); continue; }
-                        String name = speciesName(id).toLowerCase(Locale.US);
-                        if (name.contains(q) || Integer.toString(id).contains(q)) shown.add(id);
-                    }
-                    adapter.notifyDataSetChanged();
-                }
-            });
-
-            AlertDialog picker = new AlertDialog.Builder(ui)
-                .setTitle("Species allowlist")
-                .setView(body)
-                .setPositiveButton("Done", (d, w) -> {
-                    JSONArray out = new JSONArray();
-                    for (int id : selected) out.put(id);
-                    put("species_filter_list", out);
-                    if (!selected.isEmpty()) put("species_filter_mode", "allowlist");
-                    refreshSpeciesMode();
-                })
-                .setNeutralButton("Clear", (d, w) -> {
-                    put("species_filter_list", new JSONArray());
-                    refreshSpeciesMode();
-                })
-                .setNegativeButton("Cancel", null)
-                .create();
-            if (sink != null) sink.track(picker);
-            picker.setOnShowListener(d -> { MapTheme.style(body); MapTheme.styleButtons(picker); });
-            picker.show();
+            StringBuilder sb = new StringBuilder();
+            for (int id : selected) { if (sb.length() > 0) sb.append(','); sb.append(id); }
+            return sb.toString();
         }
 
-        private final class SpeciesAdapter extends BaseAdapter {
-            private final List<Integer> ids; private final TreeSet<Integer> selected;
-            SpeciesAdapter(List<Integer> ids, TreeSet<Integer> selected) { this.ids = ids; this.selected = selected; }
-            public int getCount() { return ids.size(); }
-            public Object getItem(int position) { return ids.get(position); }
-            public long getItemId(int position) { return ids.get(position); }
-            public View getView(int position, View convertView, ViewGroup parent) {
-                CheckBox cb = convertView instanceof CheckBox ? (CheckBox) convertView : new CheckBox(ui);
-                if (convertView == null) {
-                    cb.setTextColor(MapTheme.ink());
-                    cb.setButtonTintList(android.content.res.ColorStateList.valueOf(MapTheme.accent()));
-                    cb.setClickable(false); cb.setFocusable(false); // row click owns the toggle
-                    cb.setPadding(dp(8), dp(8), dp(8), dp(8));
-                }
-                int id = ids.get(position);
-                cb.setText("#" + id + "  " + speciesName(id));
-                cb.setChecked(selected.contains(id));
-                return cb;
+        /** Writes the picked IDs back as a JSONArray of ints; a nonempty save enables the allowlist,
+         *  an empty save leaves the current mode untouched (an empty allowlist matches no species). */
+        private void saveSpeciesCsv(String csv) {
+            JSONArray out = new JSONArray();
+            boolean any = false;
+            if (csv != null) for (String part : csv.split(",")) {
+                part = part.trim();
+                if (part.isEmpty()) continue;
+                try {
+                    int id = Integer.parseInt(part);
+                    if (id >= MIN_SPECIES_ID && id <= MAX_SPECIES_ID) { out.put(id); any = true; }
+                } catch (NumberFormatException ignored) { }
             }
-        }
-
-        private String speciesName(int id) {
-            if (speciesNames == null) return "#" + id;
-            String name = speciesNames.optString(Integer.toString(id), "");
-            return name.isEmpty() ? "#" + id : name;
+            put("species_filter_list", out);
+            if (any) put("species_filter_mode", "allowlist");
         }
 
         // ------------------------------------------------------------------ presets (Nearby only, local)

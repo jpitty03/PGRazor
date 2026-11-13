@@ -86,9 +86,13 @@ def main(argv=None):
             if source.stem == 'gift_batch_test':
                 extra_flags = ['-rdynamic', '-fexceptions']
                 entry['included_source_sha256'] = native_build.sha256(root/'native/gift_batch.cpp')
-            if source.stem in ('evolve_transfer_runtime_test','batch_evolution_runtime_test','gym_repeat_runtime_test','heal_runtime_test'):
+            if source.stem in ('auto_raid_runtime_test','evolve_transfer_runtime_test','batch_evolution_runtime_test','gym_repeat_runtime_test','heal_runtime_test'):
                 extra_flags = ['-fexceptions','-llog']
                 entry['included_source_sha256'] = native_build.sha256(root/'native'/source.name.replace('_runtime_test.cpp','.cpp'))
+            if source.stem in ('auto_raid_runtime_test','auto_raid_policy_test'):
+                names=['auto_raid_policy.h']
+                if source.stem=='auto_raid_runtime_test': names+=['auto_raid_game_map.inc','auto_raid_game_catch.inc']
+                entry['included_contract_sha256']={name:native_build.sha256(root/'native'/name) for name in names}
             if source.stem == 'gym_repeat_runtime_test':
                 vendor = native_build.ensure_dobby(root, download=False)
                 extra_flags += ['-I'+str(vendor/'include')]
@@ -144,7 +148,7 @@ def main(argv=None):
                 extra_flags = ['-fexceptions', '-I'+str(vendor/'include'), dobby, '-llog']
                 entry['dobby_sha256'] = native_build.sha256(dobby)
                 if source.stem == 'encounter_host_test':
-                    dependencies = ('hook_engine.cpp', 'incense_guard.cpp', 'gift_batch.cpp', 'remote_gym.cpp',
+                    dependencies = ('hook_engine.cpp', 'auto_raid.cpp', 'incense_guard.cpp', 'gift_batch.cpp', 'remote_gym.cpp',
                                     'gym_runtime.cpp', 'gym_automation.cpp', 'batch_evolution.cpp', 'evolve_transfer.cpp',
                                     'buddy_emotion.cpp', 'profile_scroll.cpp', 'vgp_controller.cpp', 'smart_catch.cpp',
                                     'smart_catch_binding.cpp', 'vgp_discovery.cpp', 'research.cpp', 'storage_iv.cpp',

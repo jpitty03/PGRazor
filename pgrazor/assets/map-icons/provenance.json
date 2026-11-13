@@ -190,8 +190,113 @@
     "commit": "c2a686eb08ace6e890d8fe3d2134c76988db87b5",
     "source": "Texts/Latest APK/English.txt",
     "source_sha256": "1f9b1ff0b456498e542f1b222df94ae20ab76bc8ce53775c0ca64911b707e79b",
-    "output_sha256": "67c93dea3c31368c64cb2134e8bd421b8bd976311acfcff6f68d24b52224555f",
-    "entries": 1009,
-    "selection": "Exact pokemon_name_NNNN keys; base species only, no inferred forms"
+    "output_sha256": "769d9d90207def665020023acaa134851228d057b31ceafc2ab9aad42f8d3d5c",
+    "entries": 1026,
+    "selection": "Exact pokemon_name_NNNN keys; base species only, no inferred forms; missing Dex 1009-1025 supplemented from the official English Pokedex, cross-checked against Game Master species symbols",
+    "base_output_sha256": "67c93dea3c31368c64cb2134e8bd421b8bd976311acfcff6f68d24b52224555f",
+    "supplemental_names": [
+      {
+        "dex": 1009,
+        "name": "Walking Wake",
+        "url": "https://sg.portal-pokemon.com/pokedex/1009/",
+        "source_sha256": "a0f15fc08c3009d222dd6e6c8c49c6a9deff4ebb3d874a0793e123d828c12b47"
+      },
+      {
+        "dex": 1010,
+        "name": "Iron Leaves",
+        "url": "https://sg.portal-pokemon.com/pokedex/1010/",
+        "source_sha256": "52be46509b446a2888087651b08abf3f38a9f63342bf3ab2389090912d577a27"
+      },
+      {
+        "dex": 1011,
+        "name": "Dipplin",
+        "url": "https://sg.portal-pokemon.com/pokedex/1011/",
+        "source_sha256": "0af7b3a8a4db216f12b1cb558e02660f1658781a88d3915b9e46954269fff78c"
+      },
+      {
+        "dex": 1012,
+        "name": "Poltchageist",
+        "url": "https://sg.portal-pokemon.com/pokedex/1012/",
+        "source_sha256": "79b5a48f47df69ccae57c5881b98f0744e2bd7954f9ae0d06bb5792da9861ad2"
+      },
+      {
+        "dex": 1013,
+        "name": "Sinistcha",
+        "url": "https://sg.portal-pokemon.com/pokedex/1013/",
+        "source_sha256": "9812e8cfee517545fa1f29beab0ffe3cba7e0306c9c2cdd944ceb897faeead3a"
+      },
+      {
+        "dex": 1014,
+        "name": "Okidogi",
+        "url": "https://sg.portal-pokemon.com/pokedex/1014/",
+        "source_sha256": "febc26e154bd09d7a4155b0afde216845103c669c5af52f6d61cab5357b548bd"
+      },
+      {
+        "dex": 1015,
+        "name": "Munkidori",
+        "url": "https://sg.portal-pokemon.com/pokedex/1015/",
+        "source_sha256": "bd1b025a3634251bc098bc543358952240b4c636a5a5391837cf2f23f19ddc3e"
+      },
+      {
+        "dex": 1016,
+        "name": "Fezandipiti",
+        "url": "https://sg.portal-pokemon.com/pokedex/1016/",
+        "source_sha256": "c48eef6d2bce9189567c13a3152a339e16c2d566db96ffd4c0ce46f69d115ecf"
+      },
+      {
+        "dex": 1017,
+        "name": "Ogerpon",
+        "url": "https://sg.portal-pokemon.com/pokedex/1017/",
+        "source_sha256": "7538e84f4984812a4f35d9d86466a4b68d927d37a6c4f9d9a1f0bcb8361145f7"
+      },
+      {
+        "dex": 1018,
+        "name": "Archaludon",
+        "url": "https://sg.portal-pokemon.com/pokedex/1018/",
+        "source_sha256": "785ee900e74ad397cc66d37ca16a38be8106237382bb8f09b196a9ff7a742936"
+      },
+      {
+        "dex": 1019,
+        "name": "Hydrapple",
+        "url": "https://sg.portal-pokemon.com/pokedex/1019/",
+        "source_sha256": "1140fbae9c41c1af5b155a2a55f191cda8d77b3607b802b2d617ce4897725202"
+      },
+      {
+        "dex": 1020,
+        "name": "Gouging Fire",
+        "url": "https://sg.portal-pokemon.com/pokedex/1020/",
+        "source_sha256": "baa79195d74aaab449af9f69a48b9457c13f2d3d77f7f6d3767c22282b19e152"
+      },
+      {
+        "dex": 1021,
+        "name": "Raging Bolt",
+        "url": "https://sg.portal-pokemon.com/pokedex/1021/",
+        "source_sha256": "1bbf0e06e0d3b9e3b3bdcc84d3d5a2200fdcc1b16feb39dd9c255389005fc5ef"
+      },
+      {
+        "dex": 1022,
+        "name": "Iron Boulder",
+        "url": "https://sg.portal-pokemon.com/pokedex/1022/",
+        "source_sha256": "1a6c07ec2f30ab849b7372fcef83bed7e78fb68fb55603b33aa4126d474e1d94"
+      },
+      {
+        "dex": 1023,
+        "name": "Iron Crown",
+        "url": "https://sg.portal-pokemon.com/pokedex/1023/",
+        "source_sha256": "04d742fac2214d9cf2b4610fdf2fa8ce889a8f6668c5e727d834a26c44a4ceb2"
+      },
+      {
+        "dex": 1024,
+        "name": "Terapagos",
+        "url": "https://sg.portal-pokemon.com/pokedex/1024/",
+        "source_sha256": "128a5025718f3c05927adc3877903ff47645aaebe0f581b1bc51cda5f4983efb"
+      },
+      {
+        "dex": 1025,
+        "name": "Pecharunt",
+        "url": "https://sg.portal-pokemon.com/pokedex/1025/",
+        "source_sha256": "0a7ad3db38daf7ed4d29d583c6604cbb3f82a0179ce672185f9bd9f5298b6d72"
+      }
+    ]
   }
 }

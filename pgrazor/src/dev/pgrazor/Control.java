@@ -39,6 +39,7 @@ public final class Control {
     static Activity accountActivity(){return pad==null?null:pad.activity;}
     static void quiesceAccounts() throws IOException {
         OneShotAutomation.reset();
+        AutoRaid.reset();
         GiftBatchSettings.reset();
         gameRoutes.stop("Account switch"); gameRoutesPlanning=false; gameRoutes.setPlanning(false); autoWalkPlanning=false;
         vgp.suspend();
@@ -234,7 +235,7 @@ public final class Control {
     public static float vgpTargetY(){return vgp.targetY();}
     public static boolean vgpTargetSpin(){return vgp.targetSpin();}
 
-    public static boolean vgpAllowed(){if(!locationKnown())return false;guardVgpCooldown();return vgpEnabled&&vgpReady&&itemAccessAllowed()&&!ShundoSniper.active();}  // Shundo Sniper pauses VGP+
+    public static boolean vgpAllowed(){if(!locationKnown())return false;guardVgpCooldown();return vgpEnabled&&vgpReady&&itemAccessAllowed()&&!ShundoSniper.active()&&!AutoRaid.running();}  // Shundo Sniper pauses VGP+
     public static void vgpResult(String action,boolean success){vgp.result(action,success);}
     private static volatile boolean autoIncubate, incubateLongest, incubatorReady;
     private static volatile String incubatorStatus="Waiting for incubation support";
@@ -269,7 +270,7 @@ public final class Control {
     public static String buddyEmotionConfig(){return BuddyEmotionSettings.config();}
     public static boolean automationReady(){return hostLive()&&active()&&itemAccessAllowed();}
     public static boolean automationPlanning(){return autoWalkPlanning||gameRoutesPlanning;}
-    public static String oneShotAutomationConfig(){String gift=GiftBatchSettings.config();return gift!=null?gift:OneShotAutomation.config();}
+    public static String oneShotAutomationConfig(){String raid=AutoRaid.config();if(raid!=null)return raid;String gift=GiftBatchSettings.config();return gift!=null?gift:OneShotAutomation.config();}
     public static String batchEvolutionConfig(){return BatchEvolutionSettings.config();}
     public static String researchConfig(){return ResearchSettings.config();}
     public static String shundoConfig(){return ShundoSniper.config();}
@@ -623,7 +624,7 @@ public final class Control {
     public static boolean skipCutscenes(){return skipCutscenes;}
     public static void setSkipCutscenes(boolean on){skipCutscenes=on;saveSettings();event("skip-cutscenes",on?"ON":"OFF");}
     public static String cutsceneSkipStatus(){return skipCutscenes?cutsceneSkipStatus:"";}
-    /** Independent cutscene and auto-incubation screen policies (transport slot 17). */
+    /** Raw settings for slot 17; native egg presentation uses skipCutscenes OR autoIncubate. */
     public static String cutsceneSkipConfig(){return "K2|"+(skipCutscenes?1:0)+"|"+(autoIncubate?1:0);}
     // Battery usage (each off by default): the native module draws the 3D view at a lower resolution, caps
     // the game at 20 fps, and turns off shadows, anti-aliasing and far detail, putting the game's own
@@ -975,6 +976,9 @@ public final class Control {
         event("disconnected", "Runtime suspended; saved enabled preference unchanged");
     }
 
+    static void autoRaidTravel(long session,long travel,double latitude,double longitude) {
+        synchronized(stateLock) { AutoRaid.travel(session,travel,latitude,longitude); }
+    }
     public static void teleport(double latitude, double longitude) {
         gameRoutes.stop("Destination changed");
         engine.position(latitude, longitude); engine.stop();
@@ -1011,6 +1015,7 @@ public final class Control {
         gameRoutesPlanning=false;gameRoutes.setPlanning(false);
         requestInteractionStop();
         OneShotAutomation.reset();
+        AutoRaid.reset();
         GiftBatchSettings.reset();
         foreground = false; autoWalkPlanning=false;mapPoiOpen=false;mapPoiSnapshot="";mapPoiAt=0; mapTapEpoch++; invalidateQuickBallOutcome(); cameraSampleRequest.set(false); invalidateCameraHeading("App backgrounded");
         // Losing the foreground switches VGP off, clears any target, and never auto-resumes.
@@ -1102,7 +1107,8 @@ public final class Control {
     /** Idle motion shares the same location integrator and never owns an active route. */
     public static void stepMotion(double seconds,boolean joystickHeld){
         OneShotAutomation.tick(joystickHeld);
-        engine.setIdleWalkingAllowed(hostLive()&&desiredEnabled&&!joystickHeld&&!OneShotAutomation.idleBlocked()
+        AutoRaid.tick(joystickHeld);
+        engine.setIdleWalkingAllowed(hostLive()&&desiredEnabled&&!joystickHeld&&!OneShotAutomation.idleBlocked()&&!AutoRaid.running()
             &&!autoWalkPlanning&&!gameRoutesPlanning&&!gameRoutes.running()
             &&!cameraSamplePending()&&!interactionDiagnosticRunning());
         engine.step(seconds);
@@ -1112,6 +1118,7 @@ public final class Control {
     public static void setJoystickVisible(boolean value){joystickVisible=value;saveSettings();}
     private static void loadSettings(Application app) {
         OneShotAutomation.reset();
+        AutoRaid.reset();
         GiftBatchSettings.reset();
         BatchEvolutionSettings.reset();
         synchronized(stateLock) {
@@ -1131,6 +1138,7 @@ public final class Control {
             idleWalking=false;engine.setIdleWalking(false);
             SmartCatchSettings.read(new Properties());
             GymAutomationSettings.read(new Properties());
+            AutoRaid.read(new Properties());
             BuddyEmotionSettings.read(new Properties());
             ResearchSettings.read(new Properties());
             ShundoSniper.read(new Properties());
@@ -1138,6 +1146,7 @@ public final class Control {
                 Properties p=new Properties(); p.load(in);
                 SmartCatchSettings.read(p);
                 GymAutomationSettings.read(p);
+                AutoRaid.read(p);
                 BuddyEmotionSettings.read(p);
                 ResearchSettings.read(p);
                 ShundoSniper.read(p);
@@ -1283,6 +1292,7 @@ public final class Control {
         Properties p=new Properties();
         SmartCatchSettings.write(p);
         GymAutomationSettings.write(p);
+        AutoRaid.write(p);
         BuddyEmotionSettings.write(p);
         ResearchSettings.write(p);
         ShundoSniper.write(p);
@@ -1349,7 +1359,30 @@ public final class Control {
             default:return false;
         }
     }
+    // Fixed keys retain the latest hatch outcome across rotation without retaining every GUI trace.
+    private static String eggLogContextKey(String kind,String detail) {
+        if(!"cutscene-skip".equals(kind))return null;
+        try {
+            org.json.JSONObject o=new org.json.JSONObject(detail);
+            String phase=o.optString("phase"),item=o.optString("kind");
+            if("skipped".equals(phase)) {
+                switch(item) {
+                    case "egg-hatch-intro":case "egg-hatch":case "hatched-pokemon":case "egg-inventory":return "egg/"+item;
+                    default:return null;
+                }
+            }
+            switch(phase) {
+                case "post-hatch-eggs-ready":case "post-hatch-eggs-tracked":
+                case "post-hatch-eggs-waiting":case "post-hatch-eggs-released":return "egg/"+phase;
+                case "warning":case "error":
+                    String message=o.optString("message","").toLowerCase(Locale.US);
+                    return message.contains("hatch")||message.contains("egg inventory")?"egg/"+phase:null;
+                default:return null;
+            }
+        }catch(Exception ignored){return null;}
+    }
     public static void event(String kind, String detail) {
+        if("auto-raid".equals(kind))AutoRaid.publish(detail);
         if("gym-automation".equals(kind))GymAutomationSettings.publish(detail);
         if("gym-spin".equals(kind)&&SmartCatchSettings.gymSpinActive()){
             try{setVgpStatus(new org.json.JSONObject(detail).optString("message","Waiting for gym disc"));}catch(Exception ignored){}
@@ -1404,6 +1437,8 @@ public final class Control {
             // Apply the same bound to logcat and disk before deciding whether to rotate.
             if(encoded.length>65536){line=line.substring(0,Math.min(line.length(),16000))+" [truncated]";encoded=(line+"\n").getBytes(StandardCharsets.UTF_8);}
             if(retainLogContext(kind))logContext.put(kind,line.substring(0,Math.min(line.length(),2048)));
+            String eggKey=eggLogContextKey(kind,detail);
+            if(eggKey!=null)logContext.put(eggKey,line.substring(0,Math.min(line.length(),2048)));
             Log.i("PGRazor", line);
             if (log != null && !interactionMetadataRow(kind,detail)) {
                 try {

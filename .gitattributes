@@ -7,6 +7,7 @@
 *.yml text eol=lf
 *.svg text eol=lf
 *.cmd text eol=crlf
+pgrazor/assets/map-icons/pokemon-names.json text eol=lf
 # These vendored bytes are checksum-pinned; never normalize their line endings.
 pgrazor/vendor/frida-java-bridge*.js -text
 pgrazor/vendor/COPYING.frida-tools -text

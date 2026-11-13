@@ -12,6 +12,6 @@ public final class ControlEggInventoryTest {
             if(!Control.cutsceneSkipConfig().equals(expected))throw new AssertionError(expected);
             if(Control.incubatorAllowed())throw new AssertionError("Fixture must not be map-ready");
         }
-        System.out.println("PASS egg inventory policy: independent Auto incubate and Skip cutscenes, no map-ready dependency");
+        System.out.println("PASS egg policy transport: both raw setting flags preserved, no map-ready dependency");
     }
 }

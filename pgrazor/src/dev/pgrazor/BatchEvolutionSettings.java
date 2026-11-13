@@ -180,7 +180,7 @@ public final class BatchEvolutionSettings {
             refreshControls(status,tagInput,remove,preview,start,stop);
         });
         preview.setOnClickListener(v->{
-            if(OneShotAutomation.enabled()||GiftBatchSettings.running()){android.widget.Toast.makeText(activity,"Stop the current Automation task first.",android.widget.Toast.LENGTH_SHORT).show();return;}
+            if(AutoRaid.running()||OneShotAutomation.enabled()||GiftBatchSettings.running()){android.widget.Toast.makeText(activity,"Stop the current Automation task first.",android.widget.Toast.LENGTH_SHORT).show();return;}
             String value;
             try {value=normalizedTag(tagInput.getText().toString());}
             catch(IllegalArgumentException e){tagInput.setError(e.getMessage());return;}

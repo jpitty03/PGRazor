@@ -366,6 +366,8 @@ final class SettingsPanel {
         LinearLayout autoC = section(body, "Automation", false);
         Button shundo = button("Shundo Sniper (Experimental)"); autoC.addView(shundo);
         shundo.setOnClickListener(v -> ShundoSniper.show(activity));
+        Button autoRaid = button("Auto-Raid"); autoC.addView(autoRaid);
+        autoRaid.setOnClickListener(v -> AutoRaidDialog.show(activity));
         Button incense = button("Daily Incense Session"); autoC.addView(incense);
         incense.setOnClickListener(v -> AutomationPanel.showIncense(activity));
         Button remoteFeed = button("Remote Gym Feeding"); autoC.addView(remoteFeed);

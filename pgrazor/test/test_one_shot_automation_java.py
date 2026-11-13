@@ -11,6 +11,7 @@ from test_control_java import java_tools
 
 ROOT = Path(__file__).resolve().parents[1]
 STUBS = {
+    "dev/pgrazor/AutoRaid.java": "package dev.pgrazor; public class AutoRaid {public static boolean active;public static boolean running(){return active;}}",
     'android/os/SystemClock.java': 'package android.os; public class SystemClock {public static long now=1000; public static long elapsedRealtime(){return now;}}',
     'android/os/Looper.java': 'package android.os; public class Looper {public static Looper getMainLooper(){return new Looper();}}',
     'android/os/Handler.java': 'package android.os; public class Handler {public Handler(Looper l){} public boolean post(Runnable r){r.run();return true;} public boolean postDelayed(Runnable r,long ms){r.run();return true;}}',

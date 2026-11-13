@@ -79,7 +79,7 @@ public final class GiftBatchSettings {
         // Do not hold our lock while consulting another automation's synchronized state.
         if (!Control.giftsAllowed())
             throw new IllegalStateException("Wait until the game is ready and gifts are available.");
-        if (OneShotAutomation.enabled() || BatchEvolutionSettings.enabled())
+        if (AutoRaid.running() || OneShotAutomation.enabled() || BatchEvolutionSettings.enabled())
             throw new IllegalStateException("Finish or stop the current Automation task first.");
         synchronized (LOCK) {
             if (running || stopping) return;

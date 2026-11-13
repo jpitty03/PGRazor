@@ -49,6 +49,7 @@
 #include "battery.h"
 #include "remote_gym.h"
 #include "gift_batch.h"
+#include "auto_raid.h"
 #include "research.h"
 #include "storage_iv.h"
 #include "cutscene_skip.h"
@@ -2484,9 +2485,10 @@ static int api_tick(uint64_t proven_tid) {
 
   // Observe before automatic gameplay work; revoke before opening the manual encounter.
   pgr_profile_scroll_install();
-  const bool bird_block=pgr_incense_guard_tick(os_tid,&g_md);
-  if(bird_block){g_opts.vgp_enabled=0;if(g_vgc&&g_last_vgp_enabled){g_vgc->revoke();clear_active_vgp_transfer();g_last_vgp_enabled=false;++g_vgp_epoch;}}
-  pgr_incense_guard_open(os_tid);
+  const bool raid_block=pgr_auto_raid_tick(os_tid,&g_md);
+  const bool bird_block=!raid_block&&pgr_incense_guard_tick(os_tid,&g_md);
+  if(bird_block||raid_block){g_opts.vgp_enabled=0;if(g_vgc&&g_last_vgp_enabled){g_vgc->revoke();clear_active_vgp_transfer();g_last_vgp_enabled=false;++g_vgp_epoch;}}
+  if(!raid_block)pgr_incense_guard_open(os_tid);
   // 1. Berries tick, resume & event drain
   pump_berry_events_and_resume(os_tid, 0);
 
@@ -2495,22 +2497,26 @@ static int api_tick(uint64_t proven_tid) {
 
   // 3. MapPOI snapshot scan
   tick_map_poi(os_tid, now, rem_lease);
-  pgr_gift_batch_tick(os_tid, &g_md);
-  pgr_research_tick(os_tid, &g_md);
+  if(!raid_block){
+    pgr_gift_batch_tick(os_tid, &g_md);
+    pgr_research_tick(os_tid, &g_md);
+  }
   pgr_storage_iv_tick(os_tid, &g_md);
   pgr_cutscene_skip_tick(os_tid, &g_md);
   pgr_rocket_swap_tick(os_tid);
   pgr_smart_battle_tick(os_tid, &g_md);
   pgr_ar_values_tick(os_tid, &g_md);
   pgr_catch_chance_tick(os_tid, &g_md);
-  pgr_remote_gym_tick(os_tid, &g_md);
-  pgr_gym_tick(os_tid, &g_md);
-  pgr_evolution_tick(os_tid, &g_md);
-  pgr_evolve_transfer_tick(os_tid, &g_md);
-  pgr_heal_tick(os_tid, &g_md);
-  pgr_shundo_tick(os_tid, &g_md);
+  if(!raid_block){
+    pgr_remote_gym_tick(os_tid, &g_md);
+    pgr_gym_tick(os_tid, &g_md);
+    pgr_evolution_tick(os_tid, &g_md);
+    pgr_evolve_transfer_tick(os_tid, &g_md);
+    pgr_heal_tick(os_tid, &g_md);
+    pgr_shundo_tick(os_tid, &g_md);
+  }
   pgr_battery_tick(os_tid, &g_md);
-  pgr_buddy_emotion_tick(os_tid, &g_md);
+  if(!raid_block)pgr_buddy_emotion_tick(os_tid, &g_md);
 
 
   return PGR_EH_OK;
@@ -2529,6 +2535,7 @@ static int api_stop(uint64_t proven_tid) {
   if (!tid || (proven_tid && proven_tid != tid)) return PGR_EH_RETRY;
   g_stopped = true;
   if (tid != 0) {
+    pgr_auto_raid_stop(tid);
     if (g_berries && (g_active_caps & PGR_EH_CAP_BERRIES)) {
       g_berries->update(nullptr, 0, 0, tid);
       pump_berry_events_and_resume(tid, 1);
