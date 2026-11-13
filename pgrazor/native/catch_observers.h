@@ -30,7 +30,8 @@
 //     the RE-RESOLVED response pointer, never a pre-operation raw pointer (no stale return).
 //     Free both roots on the proven thread AFTER capturing the return address.
 //   * Single confirmed success -> one speed delegation; a concurrent owned attempt is
-//     skipped (no re-apply). bread>1 latches a fault; bread==1 skips a special ball.
+//     skipped (no re-apply). bread>1 latches a fault; bread==1 requires the optional
+//     validated Max speed binding (API3); missing bindings preserve the game animation.
 //   * Outcome seen handles are strong, bounded (<=4), expire after 8 s and are freed ONLY
 //     on the proven Unity thread (tick prune / stop drain on the next proven tick).
 //   * A reentry flag (not a mutex) spans the btxu-leave managed work and completion; no lock
@@ -98,7 +99,9 @@ enum PgrObsReason {
     // skip reasons
     PGR_OBS_R_CONCURRENT = 20,
     PGR_OBS_R_SPECIAL = 21,
-    PGR_OBS_R_REVOKED = 22        // stop() bumped the revocation generation mid-flight
+    PGR_OBS_R_REVOKED = 22,       // stop() bumped the revocation generation mid-flight
+    PGR_OBS_R_MAX_SPEED = 23,     // invalid per-ball Max speed; no mutation
+    PGR_OBS_R_MAX = 30            // Max-ball speed request (actual writes reported by feature8)
 };
 
 // Fixed LP64 config (168 bytes): 8-byte header + 15 validated pointers + 6 int32 literals
@@ -217,6 +220,22 @@ struct PgrObsApi2 {
     int (*filter_ready)();
 };
 static_assert(sizeof(PgrObsApi2)==24,"Catch observer berry bridge API2");
+
+// Optional compiled Max-ball binding. The host validates the instance Single field
+// on Pokeball before registering it on the attached Unity owner. No V1 ABI changes.
+struct PgrObsApi3 {
+    uint32_t version,size;
+    int (*register_max)(void *field_max_speed,const PgrSpeedApi2 *speed,uint64_t owner_tid);
+};
+static_assert(sizeof(PgrObsApi3)==16,"Catch observer Max binding API3");
+
+// HoldingBreadBall is cleared during throw/shrink. The optional compiled reader
+// queries this ball's encounter state instead: 1 Max, 0 ordinary, -1 unavailable.
+typedef int (*PgrObsMaxContext)(void *rooted_ball);
+struct PgrObsApi4 {
+    uint32_t version,size;
+    int (*register_context)(PgrObsMaxContext reader,uint64_t owner_tid);
+};
 
 // Hidden getter. NOT exported by the version script; the coordinator registers it in
 // query_feature under feature id 49 and answers only on an exact version match.

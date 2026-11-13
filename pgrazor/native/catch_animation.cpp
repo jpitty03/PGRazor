@@ -15,6 +15,7 @@
 static_assert(sizeof(PgrSpeedConfig) == 104, "PgrSpeedConfig must be 104 bytes");
 static_assert(sizeof(PgrSpeedSample) == 32,  "PgrSpeedSample must be 32 bytes");
 static_assert(sizeof(PgrSpeedApi)    == 56,  "PgrSpeedApi must be 56 bytes");
+static_assert(sizeof(PgrSpeedApi2)   == 16,  "PgrSpeedApi2 must be 16 bytes");
 static_assert(offsetof(PgrSpeedConfig, runtime_invoke)      == 8,  "layout: runtime_invoke");
 static_assert(offsetof(PgrSpeedConfig, gchandle_new)        == 16, "layout: gchandle_new");
 static_assert(offsetof(PgrSpeedConfig, gchandle_get_target) == 24, "layout: gchandle_get_target");
@@ -37,15 +38,18 @@ enum { OK = 0, ERR_NULL = 1, ERR_BAD_CONFIG = 2, ERR_LEASE = 4, ERR_NOT_INSTALLE
 enum { EV_NONE = 0, EV_APPLIED = 1, EV_RESTORED = 2, EV_EXTERNAL = 3, EV_DESTROYED = 4,
        EV_CLEANUP_FAILED = 5, EV_SKIP = 6 };
 
-// Reason codes surfaced through sample().reason.
+// Reason codes surfaced through sample().reason. R_FLED and R_MAX_RESET are V2
+// additions; the host diagnostics array maps 13 -> "fled", 14 -> "max-game-speed-reset".
 enum { R_NONE = 0, R_STOP = 1, R_OFF = 2, R_LEASE = 3, R_TIMEOUT = 4, R_CAUGHT = 5,
        R_BROKE_FREE = 6, R_CLOCK = 7, R_APPLY_READBACK = 8, R_SKIP_DESTROYED = 9,
-       R_SKIP_NONSTANDARD = 10, R_SKIP_CONCURRENT = 11, R_ROOT = 12 };
+       R_SKIP_NONSTANDARD = 10, R_SKIP_CONCURRENT = 11, R_ROOT = 12, R_FLED = 13,
+       R_MAX_RESET = 14 };
 
 constexpr uint64_t kMaxLeaseMs = 2500u; // LIMITS.leaseMs
 constexpr uint64_t kTimeoutMs  = 8000u; // LIMITS.timeoutMs
 constexpr float    kBallSpeed  = 20.0f; // BALL_SPEED
-constexpr float    kTol        = 1e-5f; // float comparison tolerance from quick-ball.js
+constexpr float    kTol        = 1e-5f; // float comparison tolerance (legacy quick-ball.js)
+constexpr float    kMaxSpeedCap = 2.0f; // expected Max game speed must be in (0, 2]
 
 // --- lifetime / publication -------------------------------------------------------
 std::mutex        g_install_mutex;      // serialises install() + config publication
@@ -67,6 +71,7 @@ std::atomic<uint32_t> g_reason{R_NONE};
 std::atomic<uint32_t> g_serial{0};
 std::atomic<uint32_t> g_original_bits{0};
 std::atomic<uint32_t> g_readback_bits{0};
+std::atomic<uint32_t> g_last_max{0};       // bit0 of sample().pad: last event's ball kind
 
 // --- game-thread-only state -------------------------------------------------------
 // The single owned attempt. Touched ONLY on the proven Unity thread (apply/complete/
@@ -78,6 +83,9 @@ struct Attempt {
     uint64_t deadline = 0;       // BOOTTIME ms: now + kTimeoutMs
     uint64_t retry_at = 0;       // BOOTTIME ms before which a soft restore is skipped
     bool     reported = false;   // cleanup-failed emitted once
+    bool     max_ball = false;   // V2: this attempt is a Max/Dynamax ball
+    float    expected_max_speed = 0.0f; // V2: validated Max game speed to watch for
+    bool     max_reapplied = false;     // V2: the one later 20x reset has been performed
 };
 Attempt  g_attempt_storage;
 Attempt *g_attempt = nullptr;
@@ -101,9 +109,13 @@ uint64_t boottime_ms() {
     return static_cast<uint64_t>(ts.tv_sec) * 1000ull + static_cast<uint64_t>(ts.tv_nsec) / 1000000ull;
 }
 
-void emit(uint32_t action, uint32_t reason, float original, float readback) {
+// `max` records whether the event concerns a Max ball; it is published through
+// sample().pad bit0 so the host can label the ball "max" vs "ordinary". The default
+// keeps every ordinary-ball (V1) call site unchanged.
+void emit(uint32_t action, uint32_t reason, float original, float readback, bool max = false) {
     g_action.store(action, std::memory_order_relaxed);
     g_reason.store(reason, std::memory_order_relaxed);
+    g_last_max.store(max ? 1u : 0u, std::memory_order_relaxed);
     g_original_bits.store(bits_of(original), std::memory_order_relaxed);
     g_readback_bits.store(bits_of(readback), std::memory_order_relaxed);
     g_serial.fetch_add(1, std::memory_order_release); // publish last
@@ -224,8 +236,17 @@ void release_attempt() {
     g_owned.store(0, std::memory_order_release);
 }
 
-// restore(): the Unity-thread cleanup from quick-ball.js. force bypasses the 1 s retry
-// gate (used for completion and clock failure). Proven-thread only.
+// A read/write failure: latch the fault, keep the attempt + roots, schedule a 1 s
+// retry and report cleanup-failed once. Shared by restore() and the Max active poll.
+void fault_retry(Attempt *a, uint32_t reason) {
+    uint64_t now = boottime_ms();
+    a->retry_at = (now == 0) ? 0 : now + 1000;
+    latch_fault();
+    if (!a->reported) { a->reported = true; emit(EV_CLEANUP_FAILED, reason, a->original, 0.0f, a->max_ball); }
+}
+
+// restore(): the Unity-thread cleanup (legacy quick-ball.js). force bypasses the 1 s
+// retry gate (used for completion and clock failure). Proven-thread only.
 void restore(uint32_t reason, bool force) {
     Attempt *a = g_attempt;
     if (a == nullptr) return;
@@ -235,32 +256,68 @@ void restore(uint32_t reason, bool force) {
     }
 
     bool alive = false;
-    if (!read_alive(gc_target(a->animator), &alive)) goto fail;
-    if (!alive) { emit(EV_DESTROYED, reason, a->original, 0.0f); release_attempt(); return; }
+    if (!read_alive(gc_target(a->animator), &alive)) { fault_retry(a, reason); return; }
+    if (!alive) { emit(EV_DESTROYED, reason, a->original, 0.0f, a->max_ball); release_attempt(); return; }
 
     float current;
-    if (!read_speed(gc_target(a->animator), &current)) goto fail;
-    if (!std::isfinite(current)) goto fail;
+    if (!read_speed(gc_target(a->animator), &current)) { fault_retry(a, reason); return; }
+    if (!std::isfinite(current)) { fault_retry(a, reason); return; }
     // An external change away from our 20x releases ownership WITHOUT overwriting.
     if (!near_eq(current, kBallSpeed)) {
-        emit(EV_EXTERNAL, reason, a->original, current);
+        emit(EV_EXTERNAL, reason, a->original, current, a->max_ball);
         release_attempt();
         return;
     }
-    if (!write_speed(gc_target(a->animator), a->original)) goto fail;
+    if (!write_speed(gc_target(a->animator), a->original)) { fault_retry(a, reason); return; }
     float readback;
-    if (!read_speed(gc_target(a->animator), &readback)) goto fail;
-    if (!near_eq(readback, a->original)) goto fail;
+    if (!read_speed(gc_target(a->animator), &readback)) { fault_retry(a, reason); return; }
+    if (!near_eq(readback, a->original)) { fault_retry(a, reason); return; }
 
-    emit(EV_RESTORED, reason, a->original, readback);
+    emit(EV_RESTORED, reason, a->original, readback, a->max_ball);
     release_attempt();
-    return;
+}
 
-fail:
-    // Latch the fault, keep the attempt, retry in 1 s. Report cleanup-failed once.
-    a->retry_at = (now == 0) ? 0 : now + 1000;
-    latch_fault();
-    if (!a->reported) { a->reported = true; emit(EV_CLEANUP_FAILED, reason, a->original, 0.0f); }
+// max_poll(): the Max-only active-tick pass. Called ONLY while the policy window is
+// fully open (not stopping/off/past lease or timeout -- normal cleanup wins). The
+// game's Max coroutine drives the Animator speed itself and resets it to 1.0 at the
+// end; we must not fight that. See the header for the full rule set.
+void max_poll() {
+    Attempt *a = g_attempt;
+    if (a == nullptr || !a->max_ball) return;
+
+    bool alive = false;
+    if (!read_alive(gc_target(a->animator), &alive)) { fault_retry(a, R_STOP); return; }
+    if (!alive) { emit(EV_DESTROYED, R_SKIP_DESTROYED, a->original, 0.0f, true); release_attempt(); return; }
+
+    float current;
+    if (!read_speed(gc_target(a->animator), &current)) { fault_retry(a, R_STOP); return; }
+    if (!std::isfinite(current)) { fault_retry(a, R_STOP); return; }
+
+    if (near_eq(current, kBallSpeed)) return; // still holding our 20x: nothing to do
+
+    // The game dropped the Animator to its Max game speed: perform exactly one later
+    // reset. Snapshot the current game speed as the new original and set the re-apply
+    // flag BEFORE the setter, so a throwing set_speed cannot cause a second attempt.
+    if (near_eq(current, a->expected_max_speed) && !near_eq(a->expected_max_speed, 1.0f) && !a->max_reapplied) {
+        // Managed getters can synchronously revoke policy. Recheck immediately
+        // before taking speed ownership again; the next tick handles cleanup.
+        const uint64_t now=boottime_ms();
+        if(!gate_open() || !now || now>=a->deadline)return;
+        a->original = current;
+        a->max_reapplied = true;
+        if (!write_speed(gc_target(a->animator), kBallSpeed)) { fault_retry(a, R_MAX_RESET); return; }
+        float readback;
+        if (!read_speed(gc_target(a->animator), &readback) || !near_eq(readback, kBallSpeed)) {
+            fault_retry(a, R_MAX_RESET); return;
+        }
+        emit(EV_APPLIED, R_MAX_RESET, a->original, readback, true);
+        return;
+    }
+
+    // Any other speed (the end-of-coroutine 1.0 reset, a repeat game speed after the
+    // one allowed reset, or an unrelated external change) releases WITHOUT overwriting.
+    emit(EV_EXTERNAL, R_NONE, a->original, current, true);
+    release_attempt();
 }
 
 // --- config validation ------------------------------------------------------------
@@ -307,16 +364,22 @@ int api_update(int allowed, uint64_t lease_ms, uint64_t unity_tid) {
     return OK;
 }
 
-// apply(): called from the JS btxu-leave observer on a confirmed success. The observer
-// has already proved the ball/caller/thread/bread/animator class; here we own the
-// snapshot + 20x write + readback.
-int api_apply(void *animator, void *response) {
+// Shared apply engine for both ball kinds. The observer has already proved the
+// ball/caller/thread/bread/animator class; here we own the snapshot + 20x write +
+// readback. `is_max` selects the Max baseline acceptance (~1.0 OR ~expected_max_speed)
+// and arms the active-tick reset; an ordinary ball keeps the strict ~1.0 gate.
+int apply_engine(void *animator, void *response, bool is_max, float expected_max_speed) {
     if (!g_installed.load(std::memory_order_acquire)) return ERR_NOT_INSTALLED;
     if (animator == nullptr || response == nullptr) return ERR_NULL;
+    // Validate the caller's expected Max game speed before touching any state: finite,
+    // in (0, 2] and never our own 20x ball speed. A bad value writes nothing.
+    if (is_max && !(std::isfinite(expected_max_speed) && expected_max_speed > 0.0f &&
+                    expected_max_speed <= kMaxSpeedCap && !near_eq(expected_max_speed, kBallSpeed)))
+        return ERR_BAD_ARG;
     if (g_busy.exchange(1, std::memory_order_acquire)) return OK; // reentry guard
     int rc = OK;
     if (!gate_open()) goto done;
-    if (g_attempt != nullptr) { emit(EV_SKIP, R_SKIP_CONCURRENT, 0.0f, 0.0f); goto done; } // single attempt
+    if (g_attempt != nullptr) { emit(EV_SKIP, R_SKIP_CONCURRENT, 0.0f, 0.0f, is_max); goto done; } // single attempt
     if (!exact(animator, g_config.class_animator)) goto done;
 
     {
@@ -330,22 +393,26 @@ int api_apply(void *animator, void *response) {
         roots.animator = gc_new(animator);
         if (roots.animator) roots.response = gc_new(response);
         if (!roots.animator || !roots.response) {
-            latch_fault(); emit(EV_CLEANUP_FAILED, R_ROOT, 0.0f, 0.0f); goto done;
+            latch_fault(); emit(EV_CLEANUP_FAILED, R_ROOT, 0.0f, 0.0f, is_max); goto done;
         }
         bool alive = false;
         if (!read_alive(gc_target(roots.animator), &alive)) { latch_fault(); goto done; }
-        if (!alive) { emit(EV_SKIP, R_SKIP_DESTROYED, 0.0f, 0.0f); goto done; }
+        if (!alive) { emit(EV_SKIP, R_SKIP_DESTROYED, 0.0f, 0.0f, is_max); goto done; }
 
         float original;
         if (!read_speed(gc_target(roots.animator), &original)) { latch_fault(); goto done; }
-        if (!near_eq(original, 1.0f)) { emit(EV_SKIP, R_SKIP_NONSTANDARD, original, 0.0f); goto done; }
+        // Ordinary: original must be ~1.0. Max: ~1.0 OR already ~ the game speed.
+        bool baseline_ok = near_eq(original, 1.0f) || (is_max && near_eq(original, expected_max_speed));
+        if (!baseline_ok) { emit(EV_SKIP, R_SKIP_NONSTANDARD, original, 0.0f, is_max); goto done; }
 
         uint64_t now = boottime_ms();
         if (now == 0) { latch_fault(); goto done; }
+        if (is_max && !gate_open()) goto done;
 
         // Ownership is recorded BEFORE the setter: even a throwing set_speed may have
         // mutated native state, so cleanup must be able to inspect and restore it.
-        g_attempt_storage = Attempt{ roots.animator, roots.response, original, now + kTimeoutMs, 0, false };
+        g_attempt_storage = Attempt{ roots.animator, roots.response, original, now + kTimeoutMs, 0, false,
+                                     is_max, is_max ? expected_max_speed : 0.0f, false };
         roots.animator = roots.response = nullptr;
         g_attempt = &g_attempt_storage;
         // A later policy update must not move an owned animator's cleanup to a
@@ -356,12 +423,24 @@ int api_apply(void *animator, void *response) {
         if (!write_speed(gc_target(g_attempt->animator), kBallSpeed)) { latch_fault(); goto done; } // attempt kept for restore
         float readback;
         if (!read_speed(gc_target(g_attempt->animator), &readback) || !near_eq(readback, kBallSpeed)) { latch_fault(); goto done; }
-        emit(EV_APPLIED, R_NONE, original, readback);
+        emit(EV_APPLIED, R_NONE, original, readback, is_max);
     }
 
 done:
     g_busy.store(0, std::memory_order_release);
     return rc;
+}
+
+// apply(): ordinary ball (V1). Strict ~1.0 baseline, no active-tick reset.
+int api_apply(void *animator, void *response) {
+    return apply_engine(animator, response, false, 0.0f);
+}
+
+// apply_max(): Max/Dynamax ball (V2). Accepts a ~1.0 OR ~expected_max_speed baseline
+// and arms the active-tick reset. Returns OK for skips just like apply(); the caller
+// reads sample().owned/action to learn the outcome.
+int api_apply_max(void *animator, void *response, float expected_max_speed) {
+    return apply_engine(animator, response, true, expected_max_speed);
 }
 
 // complete(): called from the JS completion observers (caught / broke-free). Force a
@@ -371,7 +450,9 @@ int api_complete(void *response, int32_t reason) {
     if (response == nullptr) return ERR_NULL;
     if (g_busy.exchange(1, std::memory_order_acquire)) return OK;
     if (g_cleanup_tid.load()==static_cast<uint64_t>(gettid()) && g_attempt != nullptr && gc_target(g_attempt->response) == response) {
-        uint32_t r = (reason == R_BROKE_FREE) ? R_BROKE_FREE : R_CAUGHT;
+        // broke-free (6) and fled (13) keep their own identity; everything else is a
+        // catch (5). Max flee uses the same scoped ownership as catch/escape.
+        uint32_t r = (reason == R_BROKE_FREE) ? R_BROKE_FREE : (reason == R_FLED) ? R_FLED : R_CAUGHT;
         restore(r, true);
     }
     g_busy.store(0, std::memory_order_release);
@@ -394,6 +475,9 @@ int api_tick(uint64_t proven_tid) {
             if (now == 0) restore(R_CLOCK, true);
             else if (now >= g_lease_deadline.load(std::memory_order_relaxed)) restore(R_LEASE, false);
             else if (now >= g_attempt->deadline) restore(R_TIMEOUT, false);
+            // Fully-open window: a Max attempt additionally polls for the game's speed
+            // change. Normal cleanup above always takes priority over the poll.
+            else if (g_attempt->max_ball) max_poll();
         }
     }
     g_busy.store(0, std::memory_order_release);
@@ -407,7 +491,7 @@ int api_sample(PgrSpeedSample *out) {
     out->fault    = static_cast<uint32_t>(g_fault.load(std::memory_order_relaxed));
     out->action   = g_action.load(std::memory_order_relaxed);
     out->reason   = g_reason.load(std::memory_order_relaxed);
-    out->pad      = 0;
+    out->pad      = g_last_max.load(std::memory_order_relaxed) & 1u; // bit0: last event's ball kind
     out->original = float_of(g_original_bits.load(std::memory_order_relaxed));
     out->readback = float_of(g_readback_bits.load(std::memory_order_relaxed));
     return OK;
@@ -423,9 +507,16 @@ const PgrSpeedApi g_api = {
     &api_sample,
 };
 
+// V2: appends only apply_max. install/update/complete/tick/sample stay on the V1 table.
+const PgrSpeedApi2 g_api2 = {
+    2, sizeof(PgrSpeedApi2),
+    &api_apply_max,
+};
+
 } // namespace
 
 const void *pgrazor_catch_animation_api(uint32_t version) {
-    if (version != 1) return nullptr;
-    return &g_api;
+    if (version == 1) return &g_api;
+    if (version == 2) return &g_api2;
+    return nullptr;
 }

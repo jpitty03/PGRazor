@@ -13,9 +13,35 @@
 namespace fixture {
 const pgrazor_native_api_v2 *core=nullptr;
 int class_tokens[kClassCount]{},field_tokens[kFieldCount]{},method_tokens[kMethodCount]{};
+int max_field,max_type;
+int context_field,context_type,interface_type,bool_type,lazy_class,state_class,value_method,full_method;
+bool is_max_encounter=false,context_throws=false;
+uint32_t max_test_flags=0x16; // initial invalid static field: ordinary Quick Catch still works
+void *max_field_by_name(void *k,const char *n){return k==&class_tokens[C_BALL]&&!std::strcmp(n,"breadballAnimSpeed")?&max_field:nullptr;}
+void *max_parent(void *f){assert(f==&max_field||f==&context_field);return &class_tokens[C_BALL];}
+uint32_t max_flags(void *f){assert(f==&max_field||f==&context_field);return f==&max_field?max_test_flags:6;}
+size_t max_offset(void *f){assert(f==&max_field);return 0x16c;}
+void *max_field_type(void *f){assert(f==&max_field||f==&context_field);return f==&max_field?&max_type:&context_type;}
+char *max_type_name(void *t){
+ if(t==&max_type)return strdup("System.Single");
+ if(t==&context_type)return strdup("Zenject.LazyInject<Niantic.Holoholo.Encounter.IEncounterState>");
+ if(t==&interface_type)return strdup("Niantic.Holoholo.Encounter.IEncounterState");
+ assert(t==&bool_type);return strdup("System.Boolean");
+}
+void *context_fields(void *k,void **it){assert(k==&class_tokens[C_BALL]);if(*it)return nullptr;*it=&context_field;return &context_field;}
+void *context_method(void *k,const char *n,int argc){
+ assert(argc==0);
+ if(k==&lazy_class&&!std::strcmp(n,"get_Value"))return &value_method;
+ if(k==&state_class&&!std::strcmp(n,"get_IsFullBreadEncounter"))return &full_method;
+ return nullptr;
+}
+uint32_t context_argc(void*){return 0;}
+uint32_t context_method_flags(void*,uint32_t*){return 6;}
+void *context_return(void *m){assert(m==&value_method||m==&full_method);return m==&value_method?&interface_type:&bool_type;}
 PgrQuickballMetaOutput metadata{};
 struct Object {void *klass;alignas(8) unsigned char data[64];};
 Object ball{},animator{},response{},float_box{},bool_box{},wild{},ar_values{},latlng_box{},map_object{},ground_object{};
+Object lazy{&lazy_class,{}},state{&state_class,{}};
 struct Root {void *object;bool live;};Root root_pool[512]{};unsigned root_next=0,root_count=0;
 void *learned_caller=nullptr,*last_ar=nullptr;PgrThrowValue last_hit{};int btxu_calls=0,caught_calls=0,hit_calls=0,ar_calls=0;
 bool attached_flag=true,stop_inside=false;const PgrQuickballHostApi *host=nullptr;
@@ -30,6 +56,8 @@ void field_get(void *o,void *f,void *out){
  if(f==&field_tokens[0]){assert(o==&ball);*static_cast<void**>(out)=&animator;}
  else if(f==&field_tokens[1]){assert(o==&ball);*static_cast<uint8_t*>(out)=ball.data[0];}
  else if(f==&field_tokens[2]){assert(o==&response);std::memcpy(out,response.data,4);}
+ else if(f==&max_field){assert(o==&ball);*static_cast<float*>(out)=0.7f;}
+ else if(f==&context_field){assert(o==&ball);*static_cast<void**>(out)=&lazy;}
  else assert(false&&"unexpected field read");
 }
 void field_set(void *o,void *f,void *value){assert(o==&ar_values);
@@ -40,6 +68,8 @@ void field_set(void *o,void *f,void *value){assert(o==&ar_values);
 }
 void *allocate_object(void *k){assert(k==&class_tokens[C_ARVALUES]);ar_values={};ar_values.klass=k;ar_values.data[8]=1;return &ar_values;}
 void *invoke(void *m,void *self,void **args,void **exc){*exc=nullptr;
+ if(m==&value_method){assert(self==&lazy);if(context_throws){*exc=&max_type;return nullptr;}return &state;}
+ if(m==&full_method){assert(self==&state);bool_box.data[0]=is_max_encounter;return &bool_box;}
  if(m==&method_tokens[2]){assert(self==&animator);std::memcpy(float_box.data,animator.data,4);return &float_box;}
  if(m==&method_tokens[3]){assert(self==&animator);std::memcpy(animator.data,args[0],4);return nullptr;}
  if(m==&method_tokens[4]){assert(!self&&args&&args[0]);bool_box.data[0]=1;return &bool_box;}
@@ -117,7 +147,19 @@ int main(int argc,char **argv){
  host=static_cast<const PgrQuickballHostApi*>(pgrazor_quickball_host_api(1));assert(host&&host->size==96);
  initialize();wrapped_btxu();assert(learned_caller);
  PgrMetaExports meta_exports{};meta_exports.class_get_type=reinterpret_cast<void*>(type_object);
+ meta_exports.class_get_field_from_name=reinterpret_cast<void*>(max_field_by_name);
+ meta_exports.field_get_parent=reinterpret_cast<void*>(max_parent);
+ meta_exports.field_get_flags=reinterpret_cast<void*>(max_flags);
+ meta_exports.field_get_offset=reinterpret_cast<void*>(max_offset);
+ meta_exports.field_get_type=reinterpret_cast<void*>(max_field_type);
+ meta_exports.type_get_name=reinterpret_cast<void*>(max_type_name);
+ meta_exports.mem_free=reinterpret_cast<void*>(free);
+ meta_exports.class_get_method_from_name=reinterpret_cast<void*>(context_method);
+ meta_exports.method_get_param_count=reinterpret_cast<void*>(context_argc);
+ meta_exports.method_get_flags=reinterpret_cast<void*>(context_method_flags);
+ meta_exports.method_get_return_type=reinterpret_cast<void*>(context_return);
  PgrQuickballExtra extra_exports{};PgrQuickballMetaConfig metadata_config{};metadata_config.version=2;metadata_config.size=sizeof(metadata_config);
+ extra_exports.class_get_fields=reinterpret_cast<void*>(context_fields);
  metadata_config.binding.exports=&meta_exports;metadata_config.binding.module_base=reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(learned_caller)-kCallerRva);
  metadata_config.thread_current=reinterpret_cast<void*>(thread_current);metadata_config.extra=&extra_exports;
  PgrQuickballHostRuntime runtime{reinterpret_cast<void*>(invoke),reinterpret_cast<void*>(new_root),reinterpret_cast<void*>(target_root),reinterpret_cast<void*>(free_root),
@@ -152,6 +194,32 @@ int main(int argc,char **argv){
   if(!std::strcmp(event_out.kind,"map-tap")){saw_map=true;assert(std::strstr(event_out.json,"12.250000")&&std::strstr(event_out.json,"\"epoch\":17"));}
   if(!std::strcmp(event_out.kind,"speed-applied"))saw_speed=true;
  }assert(saw_outcome&&saw_map&&saw_speed);
+ max_test_flags=6;assert(install_max_speed());
+ // Full host -> actual49 hook -> actual8 engine: Max result, game's delayed
+ // 0.7 speed write, one reapply, then the game's reset to1 (including flee).
+ // Regression from live MuMu: HoldingBreadBall is already FALSE when the result
+ // arrives. This must still reach the Max path using this ball's encounter state.
+ ball.data[0]=0;is_max_encounter=true;
+ for(int32_t result:{1,2,3}){
+  std::memcpy(response.data,&result,4);
+  assert(wrapped_btxu()==&response&&current_speed()==20);
+  float max_speed=0.7f;std::memcpy(animator.data,&max_speed,4);
+  assert(host->tick(gettid())==0&&current_speed()==20);
+  PgrSpeedSample speed_state{};speed()->sample(&speed_state);
+  assert(speed_state.owned&&speed_state.pad==1&&speed_state.reason==14);
+  float normal=1;std::memcpy(animator.data,&normal,4);
+  assert(host->tick(gettid())==0);speed()->sample(&speed_state);
+  assert(!speed_state.owned&&!speed_state.fault&&current_speed()==1);
+ }
+ bool saw_max_reset=false,saw_max_request=false;
+ while(host->next_event(&event_out)==0){
+  if(!std::strcmp(event_out.kind,"speed-applied")&&std::strstr(event_out.json,"max-game-speed-reset"))saw_max_reset=true;
+  if(!std::strcmp(event_out.kind,"catch-observer-request")&&std::strstr(event_out.json,"\"ball\":\"max\""))saw_max_request=true;
+ }assert(saw_max_reset&&saw_max_request);
+ ball.data[0]=0;is_max_encounter=false;int32_t success=1;std::memcpy(response.data,&success,4);
+ const unsigned before_context_failure=root_count;context_throws=true;
+ assert(read_max_context(&ball)==-1&&root_count==before_context_failure);context_throws=false;
+ assert(read_max_context(&ball)==0&&root_count==before_context_failure);
  // Invalid settings revoke and cannot revive an earlier deadline on the next tick.
  bad=config;auto invalid=settings;invalid.grade=7;assert(host->set_options(&invalid)==PGR_QBH_BAD_CONFIG);assert(host->tick(gettid())==0);
  PgrThrowValue unchanged{1,0.5f,0,0,0,0};value=unchanged;host->rewrite_submit(&ball,&value);assert(!std::memcmp(&value,&unchanged,sizeof(value)));

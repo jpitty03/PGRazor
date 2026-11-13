@@ -14,13 +14,15 @@
 #include <cstdio>
 #include <cstring>
 #include <ctime>
+#include <initializer_list>
 
 // Enum literal values (distinct, mirror the pairwise-distinct requirement).
 enum { S_SUCCESS = 7, S_ESCAPE = 3, S_FLEE = 5, S_MISSED = 9, S_ERROR = 1, S_ITEM = 11, S_UNKNOWN = 42 };
 
 // Symbolic il2cpp identities compared by address only.
 int ball_class, response_class, animator_class;
-int fld_bread, fld_animator, fld_status;
+int fld_bread, fld_animator, fld_status, fld_max_speed;
+float max_baseline=0.7f;
 int method_obj, capture_obj;
 
 struct Animator { void *klass; };
@@ -54,6 +56,7 @@ void field_get(void *o, void *f, void *out) {
     if      (f == &fld_bread)    *static_cast<uint8_t *>(out) = static_cast<Ball *>(o)->bread;
     else if (f == &fld_animator) *static_cast<void **>(out)   = static_cast<Ball *>(o)->animator;
     else if (f == &fld_status)   *static_cast<int32_t *>(out) = static_cast<Response *>(o)->status;
+    else if (f == &fld_max_speed) *static_cast<float *>(out) = max_baseline;
 }
 
 // Relocating GC handles: gc_target returns the CURRENT location, which for g_resp_success is the
@@ -87,6 +90,9 @@ int sp_complete(void *r, int32_t reason) { (void)r; stub_last_reason = reason; +
 int sp_tick(uint64_t) { return 0; }
 int sp_sample(PgrSpeedSample *out) { if (out) { std::memset(out, 0, sizeof(*out)); out->owned = static_cast<uint32_t>(stub_owned); } return 0; }
 PgrSpeedApi stub_speed{1, sizeof(PgrSpeedApi), &sp_install, &sp_update, &sp_apply, &sp_complete, &sp_tick, &sp_sample};
+int max_applied=0;float max_received=0;
+int sp_max(void *a,void *r,float baseline){++max_applied;max_received=baseline;return sp_apply(a,r);}
+PgrSpeedApi2 stub_max{2,sizeof(PgrSpeedApi2),sp_max};
 
 #define PAD asm volatile("nop; nop; nop; nop; nop; nop; nop; nop" ::: "memory")
 typedef void *(*BtxuPtr)(void *, void *);
@@ -349,6 +355,33 @@ int main(int argc, char **argv) {
     try{call_caught(&capture_obj,&g_resp_escape,&method_obj);return 60;}catch(int value){if(value!=749||roots!=0)return 61;}
     g_throw_observed=false;
     {int before=stub_completed;call_caught(&capture_obj,&g_resp_escape,&method_obj);if(stub_completed!=before+1||roots!=0)return 62;}
+
+    // Optional Max binding: original result identity/status is preserved. No Max
+    // delegation without metadata; all three confirmed outcomes work once bound.
+    api->stop(gettid());api->tick(gettid());sleep_ms(1050);
+    api->update(1,2500,gettid(),nullptr);g_ball.bread=1;g_next_response=&g_resp_flee;
+    {int before=stub_applied;call_btxu(&g_ball,&method_obj);
+     api->sample(&s);if(stub_applied!=before||s.reason!=PGR_OBS_R_SPECIAL)return 70;}
+    const auto *max_bridge=static_cast<const PgrObsApi3*>(core->query_feature(49,3));
+    if(!max_bridge||max_bridge->size!=16)return 71;
+    if(max_bridge->register_max(&fld_max_speed,&stub_max,gettid()+1)!=PGR_OBS_ERR_BAD_ARG)return 72;
+    if(max_bridge->register_max(nullptr,&stub_max,gettid())!=PGR_OBS_ERR_BAD_CONFIG)return 73;
+    if(max_bridge->register_max(&fld_max_speed,&stub_max,gettid())||
+       max_bridge->register_max(&fld_max_speed,&stub_max,gettid()))return 74;
+    if(max_bridge->register_max(&fld_status,&stub_max,gettid())!=PGR_OBS_ERR_BAD_CONFIG)return 75;
+    for(auto *response:{&g_resp_success_moved,&g_resp_escape,&g_resp_flee}){
+     g_next_response=response;int before=max_applied;
+     if(call_btxu(&g_ball,&method_obj)!=response||max_applied!=before+1||max_received!=0.7f)return 76;
+    }
+    call_escaped(&capture_obj,&g_resp_flee,&method_obj);
+    if(stub_last_reason!=13)return 77;
+    max_baseline=0;
+    {int before=max_applied;call_btxu(&g_ball,&method_obj);api->sample(&s);
+     if(max_applied!=before||s.reason!=PGR_OBS_R_MAX_SPEED)return 78;}
+    max_baseline=0.7f;g_next_response=&g_resp_missed;
+    {int before=max_applied;call_btxu(&g_ball,&method_obj);if(max_applied!=before)return 79;}
+    api->stop(gettid());api->tick(gettid());g_ball.bread=0;
+    if(roots)return 80;
 
     // Failed return-root allocation must not free the receiver across a borrowed
     // raw return. Fault closes future arms; the next attached tick releases the

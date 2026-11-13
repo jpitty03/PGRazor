@@ -10,6 +10,7 @@
 
 ### Improvements & fixes
 
+- Quick Catch adds experimental acceleration for Dynamax catch, breakout, and flee animations, with Max-specific speed and cleanup diagnostics.
 - Pokémon lists support relevant category filters, including Legendary, Mega-capable, and second- or third-stage evolutions, with selection by name.
 - Auto incubate or Skip cutscenes now skips the post-hatch Eggs page by completing the hatch directly. Manually opened Eggs pages remain accessible.
 - Hatch outcomes and page-dismissal failure reasons are retained when run logs rotate.

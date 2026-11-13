@@ -31,6 +31,7 @@
 #include <cstdint>
 #include <ctime>
 #include <limits>
+#include <initializer_list>
 
 // Event (action) and reason codes, mirrored from catch_animation.cpp's anonymous
 // namespace (not exported); the JS adapter hardcodes the same mapping.
@@ -76,6 +77,8 @@ void *g_reenter_anim = nullptr;
 void *g_reenter_resp = nullptr;
 
 const PgrSpeedApi *g_api = nullptr; // resolved once; used by the reentry injection
+const PgrSpeedApi2 *g_max_api = nullptr;
+bool revoke_on_speed_read=false;
 
 // --- fake IL2CPP exports ----------------------------------------------------------
 void *fake_root(void *o, int) {
@@ -95,6 +98,7 @@ void *fake_unbox(void *o)  { return static_cast<Boxed *>(o)->payload; }
 void *fake_invoke(void *method, void *obj, void **params, void **exc) {
     if (exc) *exc = nullptr;
     if (method == &get_speed_m) {
+        if(revoke_on_speed_read){revoke_on_speed_read=false;g_api->update(0,0,0);}
         std::memcpy(g_box_single.payload, &static_cast<Animator *>(obj)->speed, sizeof(float));
         g_box_single.klass = &single_class; return &g_box_single;
     }
@@ -251,6 +255,80 @@ int child_missing_target_keeps_ownership() {
     return snap().owned || g_roots || g_anim.speed != 1.0f ? 2 : 0;
 }
 
+#define MAX_CHECK(x) do { if(!(x)){std::printf("Max test failed line %d: %s\n",__LINE__,#x);return 1;} } while(0)
+int max_clean_cases(){
+    // Actual production engine, confirmed-result entry: preserve response identity
+    // and restore the snapshot for caught, breakout and flee.
+    for(int reason:{5,6,13}){
+        reset_fakes();g_anim.speed=0.7f;g_api->update(1,2500,gettid());
+        MAX_CHECK(g_max_api->apply_max(&g_anim,&g_resp,0.7f)==0);
+        MAX_CHECK(snap().owned&&snap().pad==1&&g_anim.speed==20&&g_roots==2);
+        g_api->complete(&g_resp2,reason);MAX_CHECK(snap().owned);
+        g_api->complete(&g_resp,reason);
+        MAX_CHECK(!snap().owned&&!snap().fault&&g_roots==0&&g_anim.speed==0.7f&&snap().reason==uint32_t(reason)&&snap().pad==1);
+    }
+    reset_fakes();g_api->update(1,2500,gettid());
+    g_max_api->apply_max(&g_anim,&g_resp,0.7f);
+    g_anim.speed=0.7f;g_api->tick(gettid());
+    MAX_CHECK(g_anim.speed==20&&snap().reason==14&&snap().original==0.7f&&snap().pad==1);
+    g_api->complete(&g_resp,6);MAX_CHECK(!snap().owned&&g_anim.speed==0.7f&&!g_roots);
+    // One permitted Max overwrite only, including when the initial baseline was
+    // already0.7. End reset1/arbitrary5/repeat0.7 must never be fought.
+    for(float external:{1.0f,5.0f,0.7f}){
+        reset_fakes();g_anim.speed=0.7f;g_api->update(1,2500,gettid());
+        g_max_api->apply_max(&g_anim,&g_resp,0.7f);
+        g_anim.speed=0.7f;g_api->tick(gettid());MAX_CHECK(g_anim.speed==20);
+        int sets=g_set_calls;g_anim.speed=external;g_api->tick(gettid());
+        MAX_CHECK(!snap().owned&&!snap().fault&&!g_roots&&g_anim.speed==external&&g_set_calls==sets&&snap().pad==1);
+    }
+    reset_fakes();g_api->update(1,2500,gettid());g_max_api->apply_max(&g_anim,&g_resp,0.7f);
+    g_anim.alive=0;g_api->tick(gettid());MAX_CHECK(snap().action==EV_DESTROYED&&!snap().owned&&!g_roots);
+    // Off and expired policy win over the game's late0.7 write.
+    for(bool expired:{false,true}){
+        reset_fakes();g_api->update(1,2500,gettid());g_max_api->apply_max(&g_anim,&g_resp,0.7f);
+        int sets=g_set_calls;g_anim.speed=0.7f;
+        if(expired){g_api->update(1,1,gettid());sleep_ms(10);}else g_api->update(0,0,0);
+        g_api->tick(gettid());MAX_CHECK(!snap().owned&&!g_roots&&g_anim.speed==0.7f&&g_set_calls==sets);
+    }
+    // Revocation inside a managed getter cannot race a new Max write.
+    reset_fakes();g_api->update(1,2500,gettid());revoke_on_speed_read=true;
+    g_max_api->apply_max(&g_anim,&g_resp,0.7f);
+    MAX_CHECK(!snap().owned&&!g_roots&&g_set_calls==0&&g_anim.speed==1);
+    g_api->update(1,2500,gettid());g_max_api->apply_max(&g_anim,&g_resp,0.7f);
+    g_anim.speed=0.7f;int sets=g_set_calls;revoke_on_speed_read=true;g_api->tick(gettid());
+    MAX_CHECK(g_set_calls==sets&&g_anim.speed==0.7f);
+    g_api->tick(gettid());MAX_CHECK(!snap().owned&&!g_roots);
+    // Bounds, unknown baselines and ordinary nonstandard-speed behavior.
+    reset_fakes();g_api->update(1,2500,gettid());
+    for(float value:{0.0f,-1.0f,2.1f,20.0f,std::numeric_limits<float>::quiet_NaN(),std::numeric_limits<float>::infinity()}){
+        MAX_CHECK(g_max_api->apply_max(&g_anim,&g_resp,value)==9&&!snap().owned&&!g_roots&&g_set_calls==0);
+    }
+    g_anim.speed=1.5f;g_max_api->apply_max(&g_anim,&g_resp,0.7f);
+    MAX_CHECK(!snap().owned&&g_anim.speed==1.5f&&!g_roots);
+    g_anim.speed=0.7f;g_api->apply(&g_anim,&g_resp);
+    MAX_CHECK(!snap().owned&&g_anim.speed==0.7f&&!g_roots&&snap().pad==0);
+    // Ambiguous expected1 is allowed initially, but its later reset1 is never reclaimed.
+    g_anim.speed=1;g_max_api->apply_max(&g_anim,&g_resp,1);
+    MAX_CHECK(snap().owned);g_anim.speed=1;sets=g_set_calls;g_api->tick(gettid());
+    MAX_CHECK(!snap().owned&&!g_roots&&g_set_calls==sets);
+    // A new ordinary throw after a Max result is unaffected.
+    g_api->apply(&g_anim,&g_resp2);MAX_CHECK(snap().owned&&g_anim.speed==20&&snap().pad==0);
+    g_api->complete(&g_resp2,5);MAX_CHECK(!snap().owned&&!g_roots&&g_anim.speed==1);
+    // Exercise the actual8-second backstop with a renewable policy, not a mocked timeout.
+    g_max_api->apply_max(&g_anim,&g_resp,0.7f);MAX_CHECK(snap().owned);
+    for(int i=0;i<17&&snap().owned;++i){sleep_ms(500);g_api->update(1,2500,gettid());g_api->tick(gettid());}
+    MAX_CHECK(!snap().owned&&!g_roots&&!snap().fault&&snap().reason==4&&g_anim.speed==1);
+    return 0;
+}
+int child_max_reapply_failure(){
+    reset_fakes();g_api->update(1,2500,gettid());g_max_api->apply_max(&g_anim,&g_resp,0.7f);
+    g_anim.speed=0.7f;g_set_throw_after_write=1;g_api->tick(gettid());
+    MAX_CHECK(snap().fault&&snap().owned&&snap().pad==1&&snap().reason==14&&g_roots==2&&g_anim.speed==20);
+    g_api->complete(&g_resp,13);
+    MAX_CHECK(!snap().owned&&!g_roots&&g_anim.speed==0.7f&&snap().reason==13);
+    return 0;
+}
+
 int main(int argc, char **argv) {
     if (argc != 2) return 1;
     void *lib = dlopen(argv[1], RTLD_NOW | RTLD_LOCAL);
@@ -260,6 +338,8 @@ int main(int argc, char **argv) {
     if (!core || core->size != 48 || core->query_feature(8, 99) || core->query_feature(99, 1)) return 3;
     g_api = static_cast<const PgrSpeedApi *>(core->query_feature(8, 1));
     if (!g_api || g_api->version != 1 || g_api->size != 56) return 4;
+    g_max_api=static_cast<const PgrSpeedApi2*>(core->query_feature(8,2));
+    if(!g_max_api||g_max_api->version!=2||g_max_api->size!=16)return 90;
 
     PgrSpeedConfig cfg{};
     cfg.version = 1; cfg.size = sizeof(cfg);
@@ -291,6 +371,7 @@ int main(int argc, char **argv) {
     if (run_child(&child_nan_current_keeps_ownership)) return 14;
     if (run_child(&child_reentrancy_no_deadlock))    return 15;
     if (run_child(&child_missing_target_keeps_ownership)) return 16;
+    if (run_child(&child_max_reapply_failure)) return 91;
 
     // =============================================================================
     // Clean (non-latching) cases run in the parent; each ends with no owned attempt,
@@ -373,6 +454,8 @@ int main(int argc, char **argv) {
     g_api->apply(&g_anim, &g_resp);
     if (snap().owned != 0 || g_anim.speed != 1.0f || g_roots != 0) return 64;
 
+    if(max_clean_cases())return 92;
+    std::puts("PASS Max catch engine: caught/breakout/flee, one game-speed reset, external/end/destroy release, policy/reentrant revoke, next throw, real8s timeout, failed reapply recovery");
     std::puts("PASS native catch animation: dlopen/getter-registry ABI, config v1 (104B) validation, "
               "apply 20x only when original ~1 (non-standard preserved), complete only on the matching "
               "response, off/lease restore (8 s timeout omitted), external-change retention, destroyed "

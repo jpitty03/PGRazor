@@ -116,6 +116,104 @@ int bootstrap_binding(){
 }
 bool required_runtime(){return rt.runtime_invoke&&rt.gchandle_new&&rt.gchandle_get_target&&rt.gchandle_free&&rt.object_get_class&&rt.object_unbox&&rt.field_get_value;}
 
+void *max_context_field=nullptr;
+std::string metadata_type(void *type){
+ if(!type)return {};
+ char *name=reinterpret_cast<char*(*)(void*)>(me.type_get_name)(type);
+ std::string result=name?name:"";
+ if(name)reinterpret_cast<void(*)(void*)>(me.mem_free)(name);
+ return result;
+}
+struct MaxContextRoot {
+ void *handle=nullptr;
+ explicit MaxContextRoot(void *value){if(value)handle=reinterpret_cast<void*(*)(void*,int)>(rt.gchandle_new)(value,0);}
+ ~MaxContextRoot(){if(handle)reinterpret_cast<void(*)(void*)>(rt.gchandle_free)(handle);}
+ void *get()const{return handle?reinterpret_cast<void*(*)(void*)>(rt.gchandle_get_target)(handle):nullptr;}
+ MaxContextRoot(const MaxContextRoot&)=delete;
+};
+void *max_context_getter(void *object,const char *name,const char *returns){
+ if(!object)return nullptr;
+ void *k=reinterpret_cast<void*(*)(void*)>(rt.object_get_class)(object);
+ void *m=reinterpret_cast<void*(*)(void*,const char*,int)>(me.class_get_method_from_name)(k,name,0);
+ if(!m||reinterpret_cast<uint32_t(*)(void*)>(me.method_get_param_count)(m)!=0)return nullptr;
+ uint32_t impl=0;
+ if(reinterpret_cast<uint32_t(*)(void*,uint32_t*)>(me.method_get_flags)(m,&impl)&0x10)return nullptr;
+ return metadata_type(reinterpret_cast<void*(*)(void*)>(me.method_get_return_type)(m))==returns?m:nullptr;
+}
+int read_max_context(void *ball){
+ // The ball is rooted by49. Only the lazy reference is read before further managed
+ // calls; each subsequent receiver/result has its own root across those calls.
+ void *lazy=nullptr;uint8_t held=0;
+ reinterpret_cast<void(*)(void*,void*,void*)>(rt.field_get_value)(ball,field(1),&held);
+ reinterpret_cast<void(*)(void*,void*,void*)>(rt.field_get_value)(ball,max_context_field,&lazy);
+ MaxContextRoot lazy_root(lazy);if(!lazy_root.get())return -1;
+ void *get=max_context_getter(lazy_root.get(),"get_Value","Niantic.Holoholo.Encounter.IEncounterState");
+ if(!get)return -1;
+ void *exc=nullptr;
+ auto invoke=reinterpret_cast<void*(*)(void*,void*,void**,void**)>(rt.runtime_invoke);
+ void *state=invoke(get,lazy_root.get(),nullptr,&exc);if(exc)return -1;
+ MaxContextRoot state_root(state);if(!state_root.get())return -1;
+ get=max_context_getter(state_root.get(),"get_IsFullBreadEncounter","System.Boolean");
+ if(!get)return -1;
+ void *value=invoke(get,state_root.get(),nullptr,&exc);if(exc)return -1;
+ MaxContextRoot value_root(value);if(!value_root.get()||
+    reinterpret_cast<void*(*)(void*)>(rt.object_get_class)(value_root.get())!=klass(C_BOOL))return -1;
+ void *raw=reinterpret_cast<void*(*)(void*)>(rt.object_unbox)(value_root.get());if(!raw)return -1;
+ uint8_t result=0;std::memcpy(&result,raw,1);if(result>1)return -1;
+ event("catch-ball-context","\"maxEncounter\":"+std::string(result?"true":"false")+",\"holdingMaxBall\":"+(held?"true":"false"));
+ return result;
+}
+bool install_max_context(){
+ if(!extra.class_get_fields||!me.class_get_method_from_name||!me.method_get_param_count||
+    !me.method_get_flags||!me.method_get_return_type)return false;
+ void *it=nullptr,*match=nullptr;
+ auto next=reinterpret_cast<void*(*)(void*,void**)>(extra.class_get_fields);
+ while(void *f=next(klass(C_BALL),&it)){
+  if(reinterpret_cast<void*(*)(void*)>(me.field_get_parent)(f)!=klass(C_BALL)||
+     (reinterpret_cast<uint32_t(*)(void*)>(me.field_get_flags)(f)&0x50))continue;
+  auto type=metadata_type(reinterpret_cast<void*(*)(void*)>(me.field_get_type)(f));
+  if(type=="Zenject.LazyInject`1<Niantic.Holoholo.Encounter.IEncounterState>"||
+     type=="Zenject.LazyInject<Niantic.Holoholo.Encounter.IEncounterState>"){
+   if(match)return false;match=f;
+  }
+ }
+ if(!match)return false;
+ max_context_field=match;
+ auto api=static_cast<const PgrObsApi4*>(pgrazor_catch_observers_api(4));
+ return api&&api->register_context(read_max_context,owner.load())==0;
+}
+
+// Optional Max support must not take ordinary Quick Catch down if game metadata
+// changes. Read the per-ball speed by validated FieldInfo, never a guessed float.
+bool install_max_speed(){
+ const char *reason="metadata-exports";
+ void *f=nullptr;
+ if(me.class_get_field_from_name&&me.field_get_parent&&me.field_get_flags&&
+    me.field_get_type&&me.type_get_name&&me.mem_free&&me.field_get_offset){
+  f=reinterpret_cast<void*(*)(void*,const char*)>(me.class_get_field_from_name)(klass(C_BALL),"breadballAnimSpeed");
+  reason="breadballAnimSpeed-field";
+  if(f&&reinterpret_cast<void*(*)(void*)>(me.field_get_parent)(f)==klass(C_BALL)&&
+     !(reinterpret_cast<uint32_t(*)(void*)>(me.field_get_flags)(f)&0x50u)&&
+     reinterpret_cast<size_t(*)(void*)>(me.field_get_offset)(f)==0x16c){
+   void *type=reinterpret_cast<void*(*)(void*)>(me.field_get_type)(f);
+   char *name=type?reinterpret_cast<char*(*)(void*)>(me.type_get_name)(type):nullptr;
+   const bool valid=name&&std::strcmp(name,"System.Single")==0;
+   if(name)reinterpret_cast<void(*)(void*)>(me.mem_free)(name);
+   reason="breadballAnimSpeed-type";
+   if(valid){
+    auto bridge=static_cast<const PgrObsApi3*>(pgrazor_catch_observers_api(3));
+    auto max=static_cast<const PgrSpeedApi2*>(pgrazor_catch_animation_api(2));
+    reason="max-speed-registration";
+    if(bridge&&bridge->register_max(f,max,owner.load())==0){
+     const bool context=install_max_context();
+     event(context?"max-catch-ready":"max-context-unavailable","\"multiplier\":20,\"context\":"+quote(context?"encounter-state":"held-ball-only")+",\"outcomes\":\"caught,breakout,flee\"");return context;
+    }
+   }
+  }
+ }
+ event("max-catch-unavailable","\"reason\":"+quote(reason));return false;
+}
+
 // All metadata positions are ABI2 declaration order, independently matched to the
 // original adapters. No host-authored object/field/method choices cross this boundary.
 void optional_failure(uint32_t bit,const char *kind,int code);
@@ -132,6 +230,7 @@ int install_leaves(){
  oc.status_error=md.outcomes_values[0];oc.status_success=md.outcomes_values[1];oc.status_escape=md.outcomes_values[2];
  oc.status_flee=md.outcomes_values[3];oc.status_missed=md.outcomes_values[4];oc.status_item_replacement=md.outcomes_values[5];
  rc=obs()->install(&oc);if(rc)return PGR_QBH_LEAF;capabilities.fetch_or(PGR_QBH_OBSERVERS);
+ install_max_speed();
  if(group(GROUP_THROWS)){
   PgrThrowConfig c{1,sizeof(c),code(14),code(15),klass(C_BALL),klass(C_ENCOUNTER),rt.object_get_class,rt.class_is_assignable_from,rt.field_get_value,field(1)};
   rc=throws()->install(&c);if(rc)optional_failure(PGR_QBH_THROWS,"throw-unavailable",rc);else capabilities.fetch_or(PGR_QBH_THROWS);
@@ -249,17 +348,18 @@ void drain_observers(){
   if(e.action==1){body+=",\"outcome\":"+quote(o);event("outcome-confirmed",body);if(o&&!stopping.load())string_action(22,o);}
   else if(e.action==2)event("outcome-suppressed",body+",\"reason\":"+quote(e.reason==1?"ambiguous-status":e.reason==2?"not-confirmed":"unknown-status"));
   else if(e.action==3)event("outcome-unavailable",body);
-  else if(e.action==4)event("skip",body+",\"reason\":"+quote(e.reason==20?"concurrent-attempt":e.reason==21?"special-ball":"revoked"));
-  else if(e.action==5)event("catch-observer-apply",body);
+  else if(e.action==4)event("skip",body+",\"reason\":"+quote(e.reason==20?"concurrent-attempt":e.reason==21?"max-binding-unavailable":e.reason==23?"invalid-max-speed":e.reason==24?"max-context-read-failed":"revoked"));
+  // This is a delegation, not proof of a setter/readback. speed-applied supplies that proof.
+  else if(e.action==5)event("catch-observer-request",body+",\"ball\":"+quote(e.reason==30?"max":"ordinary"));
   else if(e.action==6)event("catch-observer-complete",body+",\"outcome\":"+quote(o));
  }obs_cursor=s.event_head;if(s.fault)fail(PGR_QBH_LEAF);
 }
 void drain_speed(){
  PgrSpeedSample s{};if(speed()->sample(&s))return;
  if(s.serial!=speed_cursor){speed_cursor=s.serial;const char *names[]={"","speed-applied","speed-restored","speed-external-change","speed-target-destroyed","cleanup-failed","speed-skip"};
-  const char *reasons[]={"","stop","off","lease-expired","timeout","normal-caught","normal-broke-free","clock-failed","apply-readback","destroyed-animator","nonstandard-speed","concurrent-attempt","root-failed"};
+  const char *reasons[]={"","stop","off","lease-expired","timeout","caught","broke-free","clock-failed","apply-readback","destroyed-animator","nonstandard-speed","concurrent-attempt","root-failed","fled","max-game-speed-reset"};
   if(s.action<7&&s.action){std::string values="\"originalSpeed\":"+(std::isfinite(s.original)?std::to_string(s.original):"null")+",\"readback\":"+(std::isfinite(s.readback)?std::to_string(s.readback):"null")+",\"fault\":"+(s.fault?"true":"false");
-   event(names[s.action],values+",\"reason\":"+(s.reason<13&&s.reason?quote(reasons[s.reason]):"null"));}
+   event(names[s.action],values+",\"ball\":"+quote((s.pad&1)?"max":"ordinary")+",\"reason\":"+(s.reason<15&&s.reason?quote(reasons[s.reason]):"null"));}
  }if(s.fault)fail(PGR_QBH_LEAF);
 }
 const char *iv_reason(uint32_t reason,bool inventory){

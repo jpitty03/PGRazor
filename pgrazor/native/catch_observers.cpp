@@ -3,6 +3,7 @@
 #include "interaction_observer.h"
 
 #include <atomic>
+#include <cmath>
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
@@ -64,6 +65,10 @@ std::atomic<CompletionFn> g_orig_caught{nullptr};
 std::atomic<CompletionFn> g_orig_escaped{nullptr};
 std::atomic<PgrObsBerryFilter> g_berry_filter{nullptr};
 uint64_t g_berry_owner=0; // immutable before callback release-publication
+std::atomic<const PgrSpeedApi2 *> g_max_speed{nullptr};
+void *g_max_field=nullptr; // immutable before g_max_speed release-publication
+uint64_t g_max_owner=0;
+std::atomic<PgrObsMaxContext> g_max_context{nullptr};
 
 // --- policy window (armed by update) -----------------------------------------------
 std::atomic<int>      g_enabled{0};
@@ -354,7 +359,8 @@ void *btxu_replacement(void *self, void *method) {
         int32_t status = read_i32(resp, g_config.field_status);
         outcome(resp, status);
 
-        if (status != g_config.status_success && status != g_config.status_escape) break;
+        if (status != g_config.status_success && status != g_config.status_escape &&
+            status != g_config.status_flee) break;
 
         // Concurrent owned speed attempt -> skip (no re-apply).
         PgrSpeedSample ss{};
@@ -363,9 +369,28 @@ void *btxu_replacement(void *self, void *method) {
         void *ball = gc_target(self_h);
         uint8_t bread = read_u8(ball, g_config.field_bread);
         if (bread > 1) { latch_fault(); break; }
-        if (bread == 1) { emit(PGR_OBS_A_SKIP, PGR_OBS_R_SPECIAL, status); break; }
+        if(auto context=g_max_context.load(std::memory_order_acquire)){
+            const int kind=context(gc_target(self_h));
+            if(kind==1)bread=1;
+            else if(kind<0)emit(PGR_OBS_A_SKIP,24,status); // observable, ordinary fallback remains
+        }
+        // Ordinary flee behavior remains unchanged. Max flee uses the same scoped
+        // animator ownership as catch/escape, with per-tick end/reset/destroy cleanup.
+        if (!bread && status == g_config.status_flee) break;
+        const auto *max_speed=g_max_speed.load(std::memory_order_acquire);
+        float max_baseline=0;
+        if (bread) {
+            if (!max_speed || g_max_owner!=static_cast<uint64_t>(gettid())) {
+                emit(PGR_OBS_A_SKIP,PGR_OBS_R_SPECIAL,status); break;
+            }
+            reinterpret_cast<void(*)(void*,void*,void*)>(g_config.field_get_value)(
+                gc_target(self_h),g_max_field,&max_baseline);
+            if (!std::isfinite(max_baseline) || max_baseline<=0 || max_baseline>2) {
+                emit(PGR_OBS_A_SKIP,PGR_OBS_R_MAX_SPEED,status); break;
+            }
+        }
 
-        void *animator = read_ptr(ball, g_config.field_animator);
+        void *animator = read_ptr(gc_target(self_h), g_config.field_animator);
         if (!exact(animator, g_config.class_animator)) { latch_fault(); break; }
 
         // Consult the revocation generation + re-check the gate immediately before the delegated
@@ -382,9 +407,10 @@ void *btxu_replacement(void *self, void *method) {
         if (remaining == 0) break;
         speed()->update(1, remaining, g_tid.load(std::memory_order_relaxed));
         if (g_gen.load(std::memory_order_acquire) != gen0 || !gate_open()) break;
-        speed()->apply(animator, gc_target(resp_h));
+        if (bread) max_speed->apply_max(animator,gc_target(resp_h),max_baseline);
+        else speed()->apply(animator, gc_target(resp_h));
         g_applied.fetch_add(1, std::memory_order_relaxed);
-        emit(PGR_OBS_A_APPLIED, PGR_OBS_R_NONE, status);
+        emit(PGR_OBS_A_APPLIED, bread?PGR_OBS_R_MAX:PGR_OBS_R_NONE, status);
     } while (false);
 
     // Free every OTHER managed handle FIRST: a safepoint inside those frees could relocate the
@@ -398,7 +424,7 @@ void *btxu_replacement(void *self, void *method) {
 }
 
 // --- completion replacements -------------------------------------------------------
-// reason: feature8's complete() treats 6 as broke-free, anything else as caught.
+// reason: feature8 uses 5 caught, 6 broke-free, 13 fled.
 //
 // Completion is a CLEANUP signal: the catch animation (and thus btdd/btdf) routinely fires
 // AFTER the <=2.5 s observer lease has expired, so this must NOT gate on gate_open()/the lease
@@ -424,9 +450,14 @@ void completion_body(void *self, void *response, void *method, CompletionFn orig
         if (self != nullptr) self_h = gc_new(self);
         if(response&&(!self || self_h))resp_h = gc_new(response);
         if (held_busy&&resp_h != nullptr && (!self || self_h)) {
-            speed()->complete(gc_target(resp_h), reason); // feature8 does its own re-resolve + compare
+            int32_t actual_reason=reason;
+            if (exact(gc_target(resp_h),g_config.class_response) &&
+                read_i32(gc_target(resp_h),g_config.field_status)==g_config.status_flee)
+                actual_reason=13;
+            speed()->complete(gc_target(resp_h), actual_reason); // feature8 re-resolves + compares
             g_completed.fetch_add(1, std::memory_order_relaxed);
-            emit(PGR_OBS_A_COMPLETED, reason == 6 ? PGR_OBS_R_BROKE_FREE : PGR_OBS_R_CAUGHT, 0);
+            emit(PGR_OBS_A_COMPLETED, actual_reason==13?PGR_OBS_R_FLED:
+                 reason == 6 ? PGR_OBS_R_BROKE_FREE : PGR_OBS_R_CAUGHT, 0);
         } else if((self&&!self_h)||(response&&!resp_h)) {
             latch_fault(); // root failure: fail closed, still forward the game's own body below
         }
@@ -620,9 +651,36 @@ int register_berry_filter(PgrObsBerryFilter filter,uint64_t tid){
 int berry_filter_ready(){return g_berry_filter.load(std::memory_order_acquire)?1:0;}
 const PgrObsApi2 g_api2={2,sizeof(PgrObsApi2),register_berry_filter,berry_filter_ready};
 
+int register_max(void *field,const PgrSpeedApi2 *api,uint64_t tid){
+    if(!g_installed.load(std::memory_order_acquire))return PGR_OBS_ERR_NOT_INSTALLED;
+    if(!field||!api||api->version!=2||api->size!=sizeof(*api)||!api->apply_max)
+        return PGR_OBS_ERR_BAD_CONFIG;
+    if(!tid||tid!=static_cast<uint64_t>(gettid())||!attached())return PGR_OBS_ERR_BAD_ARG;
+    std::lock_guard<std::mutex> lock(g_install_mutex);
+    if(auto existing=g_max_speed.load(std::memory_order_acquire))
+        return existing==api&&g_max_field==field&&g_max_owner==tid?PGR_OBS_OK:PGR_OBS_ERR_BAD_CONFIG;
+    uint64_t owner=g_cleanup_tid.load(std::memory_order_relaxed);
+    if(owner&&owner!=tid)return PGR_OBS_ERR_BAD_ARG;
+    g_max_field=field;g_max_owner=tid;g_cleanup_tid.store(tid,std::memory_order_relaxed);
+    g_max_speed.store(api,std::memory_order_release);return PGR_OBS_OK;
+}
+const PgrObsApi3 g_api3={3,sizeof(PgrObsApi3),register_max};
+int register_context(PgrObsMaxContext reader,uint64_t tid){
+    if(!g_installed.load(std::memory_order_acquire))return PGR_OBS_ERR_NOT_INSTALLED;
+    if(!reader||!tid||tid!=static_cast<uint64_t>(gettid())||!attached()||tid!=g_max_owner)
+        return PGR_OBS_ERR_BAD_ARG;
+    std::lock_guard<std::mutex> lock(g_install_mutex);
+    auto previous=g_max_context.load(std::memory_order_acquire);
+    if(previous&&previous!=reader)return PGR_OBS_ERR_BAD_CONFIG;
+    g_max_context.store(reader,std::memory_order_release);return PGR_OBS_OK;
+}
+const PgrObsApi4 g_api4={4,sizeof(PgrObsApi4),register_context};
+
 } // namespace
 
 const void *pgrazor_catch_observers_api(uint32_t version) {
+    if(version==4)return &g_api4;
+    if(version==3)return &g_api3;
     if(version==2)return &g_api2;
     if (version != 1) return nullptr;
     return &g_api;
