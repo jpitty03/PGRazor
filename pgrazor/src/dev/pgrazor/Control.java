@@ -230,7 +230,9 @@ public final class Control {
     private static void guardVgpCooldown(){vgp.guardCooldown();}
     public static void setVgpTarget(boolean visible,double x,double y,boolean spin){vgp.setTarget(visible,x,y,spin);}
     public static boolean vgpMapVisible(){long age=SystemClock.elapsedRealtime()-buddyMapSample;return buddyMapSample>0&&age>=0&&age<1500;}
-    public static boolean vgpTargetVisible(){return vgp.targetVisible(vgpAllowed(),vgpMapVisible());}
+    // The same icon marks a Pokemon being caught by a map tap, which works with VGP+ off as well.
+    public static boolean vgpTargetVisible(){return vgp.targetVisible(vgpAllowed()||mapCatching(),vgpMapVisible());}
+    private static boolean mapCatching(){return autoThrow&&autoThrowOnMap&&hostLive()&&mapCatchStatus.catching(SystemClock.elapsedRealtime());}
     public static float vgpTargetX(){return vgp.targetX();}
     public static float vgpTargetY(){return vgp.targetY();}
     public static boolean vgpTargetSpin(){return vgp.targetSpin();}

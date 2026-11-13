@@ -13,9 +13,14 @@ struct MapTapAdapter {
     int (*choose_ball)(void*,void*,const PgrCatchChanceOptions&,const PgrThrowValue&);
     Root (*capture)(void*,const PgrThrowValue&);
     int (*poll_capture)(void*,uint64_t,int&);
+    // Takes a caught or fled Pokemon off the map when the game has not done so itself.
+    void (*remove)(void*);
 };
 const MapTapAdapter& map_tap_adapter();
-enum MapTapPhase {MapTapIdle,MapTapEncounter,MapTapBerry,MapTapCapture};
+// MapTapWaiting: tapped while VGP+ was mid-request. Nothing has been sent for it; it starts once
+// VGP+ is idle and is dropped if the Pokemon leaves, the mode is turned off or VGP+ stays busy.
+enum MapTapPhase {MapTapIdle,MapTapEncounter,MapTapBerry,MapTapCapture,MapTapWaiting};
+constexpr int64_t kMapTapWaitMs=6000;
 struct MapTapSession {
     Root target,promise,response,berry_response;
     std::string account;
@@ -23,9 +28,11 @@ struct MapTapSession {
     MapTapPhase phase=MapTapIdle;
     int attempts=0,active_berry=0;
     bool uncertain=false,berry_prepared=false,stop_new=false;
-    int64_t next_ms=0,promise_ms=0;
+    int64_t next_ms=0,promise_ms=0,wait_ms=0;
 };
 MapTapSession map_tap;
+// A waiting tap owns nothing yet, so VGP+ keeps running until the tap is started.
+bool map_tap_active(){return map_tap.target&&map_tap.phase!=MapTapWaiting;}
 uint64_t map_tap_generation=0;
 // No managed roots retained by dedup. Unknown outcomes cannot be replayed by another tap.
 std::set<std::pair<std::string,uint64_t>> map_finished;
@@ -40,7 +47,8 @@ void map_event(const char* phase,const std::string& message,int value=0){
 void map_reset(){++map_tap_generation;map_tap=MapTapSession{};}
 void map_done(const char* phase,const std::string& why,bool remember=false){
     map_event(phase,why);
-    if((remember||map_tap.uncertain||map_tap.attempts)&&map_tap.id)map_finished.insert({map_tap.account,map_tap.id});
+    // A tap dropped while waiting sent no request, so the same Pokemon can be tapped again.
+    if(map_tap.phase!=MapTapWaiting&&(remember||map_tap.uncertain||map_tap.attempts)&&map_tap.id)map_finished.insert({map_tap.account,map_tap.id});
     map_reset();
 }
 void map_block(const std::string& why){map_done("stopped",why,true);}
@@ -66,7 +74,7 @@ bool map_command_idle(const char* raw,uint32_t n){
     return fields[5]=="0"||fields[5]=="1";
 }
 bool map_mode_on(const MapTapPermission& p){return p.coherent&&p.foreground&&p.config.autothrow&&p.config.onmap;}
-bool map_tap_consume(void* tapped,bool gate){
+bool map_tap_consume(void* tapped,bool gate,bool vgp_busy=false){
     // A tap during an owned session must NOT open an encounter alongside its pending RPC.
     if(map_tap.target){map_event("busy","Finish the current map catch before tapping another Pokemon");return true;}
     if(!tapped||!gate)return false;
@@ -75,9 +83,17 @@ bool map_tap_consume(void* tapped,bool gate){
     if(!a.eligible(target.get()))return false;
     const std::string account=a.account();const uint64_t id=a.identity(target.get());
     if(account.empty()||!id)return false;
-    if(map_finished.count({account,id})){map_event("ignored","This encounter already completed or has an unknown outcome; not retried");return true;}
+    if(map_finished.count({account,id})){
+        map_event("ignored","This encounter already completed or has an unknown outcome; not retried");
+        try{if(a.remove&&a.alive(target.get()))a.remove(target.get());}catch(...){}
+        return true;
+    }
     if(map_finished.size()>=1024)return false;
     map_tap.target=std::move(target);map_tap.account=account;map_tap.id=id;
+    if(vgp_busy){
+        map_tap.phase=MapTapWaiting;map_tap.wait_ms=clock_ms();
+        map_event("queued","Waiting for VGP+ to finish, then catching on the map");return true;
+    }
     map_tap.phase=MapTapEncounter;map_event("tap","Catching tapped Pokemon on the map");return true;
 }
 void map_poll(uint64_t tid,int64_t now){
@@ -102,18 +118,32 @@ void map_poll(uint64_t tid,int64_t now){
         map_tap.phase=MapTapCapture;return;
     }
     map_event("catch-result","Confirmed capture response",status);
-    if(status==1||status==3){map_done(status==1?"caught":"fled",status==1?"Caught on the map":"Pokemon fled",true);return;}
+    if(status==1||status==3){
+        // The game removes a wild spawn itself. A lure spawn stays standing after a map catch and
+        // would look catchable again; a failure here only leaves it visible.
+        try{if(a.remove&&map_tap.target&&a.alive(map_tap.target.get()))a.remove(map_tap.target.get());}catch(...){}
+        if(generation!=map_tap_generation)return;
+        map_done(status==1?"caught":"fled",status==1?"Caught on the map":"Pokemon fled",true);return;
+    }
     require(status==2||status==4,"Unknown catch result; no automatic retry");
     if(status==2){map_tap.active_berry=0;map_tap.berry_response.reset();map_tap.berry_prepared=false;}
     map_tap.next_ms=now+kThrowCadenceMs;
 }
-void step_map_auto_throw(uint64_t tid,bool blocked){
+void step_map_auto_throw(uint64_t tid,bool blocked,bool vgp_busy=false){
     if(!map_tap.target)return;
     const auto& a=map_tap_adapter();const auto p=map_permission();const int64_t now=clock_ms();
     if(!p.coherent||!p.foreground){map_block("Foreground or settings lease lost; tap abandoned without retry");return;}
     if(a.account()!=map_tap.account){map_block("Account changed; tap abandoned without retry");return;}
     if(blocked||!map_mode_on(p))map_tap.stop_new=true;
     if(now<map_tap.next_ms)return;map_tap.next_ms=now+250;
+    if(map_tap.phase==MapTapWaiting){
+        if(map_tap.stop_new){map_done("stopped","Map catching disabled while waiting; tap dropped");return;}
+        if(!a.alive(map_tap.target.get())||a.identity(map_tap.target.get())!=map_tap.id){map_done("gone","Pokemon left or was caught while waiting");return;}
+        if(p.config.cooldown_ms>0){map_done("stopped","Waiting for cooldown; tap again when ready");return;}
+        if(vgp_busy){if(now-map_tap.wait_ms>=kMapTapWaitMs)map_done("stopped","VGP+ stayed busy; tap dropped");return;}
+        // From here the tap owns the map: the host stops ticking VGP+ until it finishes.
+        map_tap.phase=MapTapEncounter;map_event("tap","Catching tapped Pokemon on the map");return;
+    }
     // Poll first: the game may already have removed a successfully caught map object.
     if(map_tap.promise){map_poll(tid,now);return;}
     if(map_tap.stop_new){map_done("stopped","Map catching disabled; no new throw sent");return;}

@@ -38,6 +38,10 @@ public final class ControlWildEventTest {
         check(badge.label(3100).isEmpty());
         badge.event("tap",0,4000);badge.event("busy",0,23000);check(badge.label(24000).isEmpty());
         badge.event("throw",1,25000);badge.clear();check(badge.label(25000).isEmpty());
+        badge.event("queued",0,30000);check(badge.label(30100).equals("WAIT")&&!badge.catching(30100));
+        badge.event("tap",0,31000);check(badge.label(31000).equals("CATCH")&&badge.catching(31000));
+        badge.event("gone",0,31500);check(!badge.catching(31600));
+        badge.event("queued",0,40000);check(badge.label(48100).isEmpty()); // a lost event cannot leave WAIT up
         System.out.println("PASS Go Wild independent wire flags; base features remain off");
     }
 }

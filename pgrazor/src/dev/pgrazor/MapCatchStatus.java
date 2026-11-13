@@ -7,6 +7,7 @@ final class MapCatchStatus {
     synchronized void clear() { label = ""; expires = 0; }
     synchronized void event(String phase, int result, long now) {
         switch (phase) {
+            case "queued": label = "WAIT"; expires = now + 8000; break;
             case "tap": case "encounter": case "berry": case "berry-result": case "throw":
                 label = "CATCH"; expires = now + 20000; break;
             case "catch-result":
@@ -23,4 +24,6 @@ final class MapCatchStatus {
     }
     private void finish(String value, long now) { label = value; expires = now + 1500; }
     synchronized String label(long now) { return now < expires ? label : ""; }
+    /** A tapped Pokemon is being caught right now (not merely waiting, and not finished). */
+    synchronized boolean catching(long now) { return now < expires && ("CATCH".equals(label) || "RETRY".equals(label)); }
 }

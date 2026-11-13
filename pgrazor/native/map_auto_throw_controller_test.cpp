@@ -22,7 +22,7 @@ struct Root{
  void* get()const{return h?roots.at(h):nullptr;}explicit operator bool()const{return get()!=nullptr;}
 };
 int target,other,enc_promise,berry_promise,catch_promise,enc_response,berry_response;
-int encounters=0,berries=0,captures=0,polls=0,values=0,ball=1,result=1,rc=PGR_VR_PENDING;
+int encounters=0,berries=0,captures=0,polls=0,values=0,removes=0,ball=1,result=1,rc=PGR_VR_PENDING;
 bool fresh=true,foreground=true,eligible=true,alive=true,fail_capture=false;
 int64_t now=10000;constexpr int64_t kPromiseTimeoutMs=15000,kThrowCadenceMs=1200;
 std::string account="one",settings="C4|0|1|75|701|0|1|0|1";
@@ -47,11 +47,12 @@ const MapTapAdapter& map_tap_adapter(){
   +[](PgrThrowValue& value){++values;value={};value.item=1;value.radius=values%2?.8f:.4f;value.bullseye=1;value.spinning=values%2;return true;},
   +[](void*,void*,const PgrCatchChanceOptions&,const PgrThrowValue&){return ball;},
   +[](void*,const PgrThrowValue& value){++captures;last=value;return fail_capture?Root():Root(&catch_promise);},
-  +[](void*,uint64_t,int& status){++polls;status=result;return rc;}
+  +[](void*,uint64_t,int& status){++polls;status=result;return rc;},
+  +[](void*){++removes;}
  };return a;
 }
 void reset(){
- map_reset();assert(roots.empty());map_finished.clear();encounters=berries=captures=polls=values=0;
+ map_reset();assert(roots.empty());map_finished.clear();encounters=berries=captures=polls=values=removes=0;
  fresh=foreground=eligible=alive=true;fail_capture=false;ball=1;result=1;rc=PGR_VR_PENDING;now=10000;
  account="one";settings="C4|0|1|75|701|0|1|0|1";
 }
@@ -91,5 +92,24 @@ int main(){
  reset();settings="C4|0|1|75|701|0|1|5000|1";assert(!map_tap_consume(&target,true));assert(!encounters&&roots.empty());
  reset();begin_capture();rc=PGR_VR_DONE;result=2;tick(true);tick(false,1200);assert(captures==1&&roots.empty());
  reset();fail_capture=true;assert(map_tap_consume(&target,true));tick();tick();tick();tick();tick();assert(captures==1&&roots.empty());assert(map_tap_consume(&target,true));assert(!map_tap.target);
- reset();puts("PASS production map Auto Throw: inactive-command regression, explicit tap, duplicates, berry breakout, settings per attempt, off/owner/account/foreground, uncertain dedup, no balls, roots and C1-C4");
+ // A tap while VGP+ is busy waits, sends nothing, and starts once VGP+ is idle.
+ auto wtick=[&](bool busy,int64_t delta=300){now+=delta;try{step_map_auto_throw(1,false,busy);}catch(const Failure& f){map_block(f.where);}};
+ reset();assert(map_tap_consume(&target,true,true));assert(map_tap.target&&!map_tap_active());
+ assert(map_tap_consume(&other,true,false));assert(!map_tap_active()); // a second tap cannot replace or join it
+ wtick(true);wtick(true);assert(!encounters&&map_tap.target&&!map_tap_active());
+ wtick(false);assert(map_tap_active()&&!encounters);wtick(false);assert(encounters==1);
+ // Gone (despawned or caught by VGP+) while waiting: dropped without a request, and tappable again.
+ reset();assert(map_tap_consume(&target,true,true));alive=false;wtick(true);assert(roots.empty()&&!encounters);
+ alive=true;assert(map_tap_consume(&target,true,false));assert(map_tap_active());
+ // VGP+ stays busy past the limit: dropped, nothing sent, tappable again.
+ reset();assert(map_tap_consume(&target,true,true));wtick(true,5000);assert(map_tap.target);wtick(true,1100);assert(roots.empty()&&!encounters);
+ assert(map_tap_consume(&target,true,false));assert(map_tap_active());
+ // Mode turned off, or another automation taking over, while waiting: dropped.
+ reset();assert(map_tap_consume(&target,true,true));settings="C4|0|1|75|701|0|0|0|1";wtick(false);assert(roots.empty()&&!encounters);
+ reset();assert(map_tap_consume(&target,true,true));now+=300;step_map_auto_throw(1,true,false);assert(roots.empty()&&!encounters);
+ // A caught Pokemon the game left standing is taken off the map once; one the game removed is not touched.
+ reset();begin_capture();rc=PGR_VR_DONE;result=1;tick();assert(roots.empty()&&removes==1);
+ assert(map_tap_consume(&target,true));assert(!map_tap.target&&removes==2); // a later tap on a leftover removes it
+ reset();begin_capture();alive=false;rc=PGR_VR_DONE;result=1;tick();assert(roots.empty()&&removes==0);
+ reset();puts("PASS production map Auto Throw: waits for VGP+, removes leftovers, inactive-command regression, explicit tap, duplicates, berry breakout, settings per attempt, off/owner/account/foreground, uncertain dedup, no balls, roots and C1-C4");
 }

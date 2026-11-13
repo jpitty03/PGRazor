@@ -355,6 +355,25 @@ static void notify_vgp_target(int visible, double x, double y, int is_spin) {
   transport_emit_op(55, sc, 4, nullptr, 0);
 }
 
+// Shows the overlay's target icon above a Pokemon being caught by a map tap. VGP+ is not ticked
+// during that catch, so nothing else moves the icon; it is hidden once when the catch ends.
+static void tick_map_catch_marker(uint64_t tid, uint64_t now_ms, uint64_t lease_ms) {
+  static uint64_t last_ms = 0;
+  static bool shown = false;
+  void *target = pgr_map_auto_throw_target();
+  if (!target || !g_vmk || !g_vmk->project) {
+    if (shown) { shown = false; notify_vgp_target(0, 0.0, 0.0, 0); }
+    return;
+  }
+  if (now_ms - last_ms < 100) return;
+  last_ms = now_ms;
+  PgrVgpMarkerResult r{};
+  const int rc = g_vmk->project(target, lease_ms, tid, &r);
+  const bool visible = rc == 1 && r.visible && isfinite(r.x) && isfinite(r.y);
+  if (visible) { shown = true; notify_vgp_target(1, r.x, r.y, 0); }
+  else if (shown) { shown = false; notify_vgp_target(0, 0.0, 0.0, 0); }
+}
+
 static void notify_vgp_result(int success, const char *action) {
   uint64_t sc[1] = {success ? 1ULL : 0ULL};
   const char *s[1] = {action ? action : ""};
@@ -2494,6 +2513,7 @@ static int api_tick(uint64_t proven_tid) {
   if(bird_block||(raid_block&&!map_block)){g_opts.vgp_enabled=0;if(g_vgc&&g_last_vgp_enabled){g_vgc->revoke();clear_active_vgp_transfer();g_last_vgp_enabled=false;++g_vgp_epoch;}}
   // Publish exclusive ownership before the bird guard can invoke OnTap.
   pgr_map_auto_throw_tick(os_tid,&g_md,(!map_block&&raid_block)||bird_block);
+  tick_map_catch_marker(os_tid, now, rem_lease);
   if(!raid_block)pgr_incense_guard_open(os_tid);
   // 1. Berries tick, resume & event drain
   pump_berry_events_and_resume(os_tid, 0);

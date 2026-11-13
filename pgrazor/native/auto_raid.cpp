@@ -14,6 +14,7 @@ extern int pgrazor_hook(void*,void*,void**);
 #include "shared_metadata.h"
 #include "throws.h"
 #include "vgp_results.h"
+#include "vgp_marker.h"
 
 #include <algorithm>
 #include <cmath>
@@ -1604,8 +1605,9 @@ void pgr_map_auto_throw_tick(uint64_t tid,const PgrSharedMetadataOutput* metadat
     try{
         if(!boot_ready){auto api=static_cast<const PgrBootApi*>(pgrazor_runtime_bootstrap_api(1));boot.version=1;boot.size=sizeof(boot);if(!api||api->snapshot(&boot)!=0)return;boot_ready=true;}
         if(map_mode_on(map_permission()))map_install_hook();
-        step_map_auto_throw(tid,blocked||!map_command_free());
+        step_map_auto_throw(tid,blocked||!map_command_free(),map_vgp_busy());
     }catch(const Failure& f){map_block(f.where);}catch(...){map_block("Unexpected native failure; not retried");}
 }
-bool pgr_map_auto_throw_active(){return bool(map_tap.target);}
+bool pgr_map_auto_throw_active(){return map_tap_active();}
+void* pgr_map_auto_throw_target(){return owner==uint64_t(gettid())&&map_tap_active()?map_tap.target.get():nullptr;}
 void pgr_map_auto_throw_stop(){if(owner==uint64_t(gettid())){map_gate=false;if(map_tap.target)map_block("Runtime stopped; no retry");}}
