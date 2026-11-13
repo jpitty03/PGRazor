@@ -51,7 +51,7 @@ public final class CatchChance {
             int item = b.optInt("item");
             if (line.length() > 0) line.append(" · ");
             if (item == current) line.append("▸");
-            line.append(ballName(item)).append(' ')
+            line.append("Safari".equals(b.optString("name", "")) ? "Safari" : ballName(item)).append(' ')
                 .append(Math.round(b.optDouble("chance", 0) * 100)).append('%');
         }
         return line.toString();

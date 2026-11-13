@@ -1,6 +1,7 @@
 #include "always_hit.h"
 #include "hook_engine.h"
 #include "dobby.h"
+#include "safari_ball_policy.h"
 
 #if defined(__ANDROID__)
 #include <android/log.h>
@@ -172,11 +173,11 @@ void note_bread(void *ball, const char *what, int32_t value = 0) {
 #endif
 }
 
-// valid(ball): exact ball class and an eligible item (Poke, Great, Ultra, Premier).
+// valid(ball): exact ball class and a regular/Premier or metadata-resolved inventory Safari ball.
 bool valid_ball(void *ball) {
     if (!exact(ball, g_config.ball_class)) return false;
     int32_t item = read_int(ball, g_config.field_item);
-    if (item == 1 || item == 2 || item == 3 || item == 5) return true;
+    if (item == 1 || item == 2 || item == 3 || item == 5 || pgr_is_inventory_safari_ball(item)) return true;
     note_bread(ball, "skipped: ball item", item);
     return false;
 }

@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 STUBS = {
     "dev/pgrazor/AutoRaid.java": "package dev.pgrazor; public class AutoRaid { public static void travel(long s,long t,double a,double b){} public static void reset(){} public static void read(java.util.Properties p){} public static void write(java.util.Properties p){} public static String config(){return null;} public static void tick(boolean b){} public static boolean running(){return false;} public static void publish(String s){} }",
     "dev/pgrazor/GiftBatchSettings.java": "package dev.pgrazor; public class GiftBatchSettings {public static void reset(){} public static String config(){return null;} public static void publish(String s){} public static boolean running(){return false;}}",
-    'dev/pgrazor/events/EventSettings.java': 'package dev.pgrazor.events; public final class EventSettings {public static boolean boxCollectorEnabled(android.app.Application app){return false;} public static void publishBoxCollectorCapability(boolean value){}}',
+    'dev/pgrazor/events/EventSettings.java': 'package dev.pgrazor.events; public final class EventSettings {public static boolean vgpSafari, autoSafari; public static boolean wildVgpSafari(android.app.Application app){return vgpSafari;} public static boolean wildAutoBallSafari(android.app.Application app){return autoSafari;} public static boolean boxCollectorEnabled(android.app.Application app){return false;} public static void publishBoxCollectorCapability(boolean value){}}',
     'android/content/Context.java': 'package android.content; public class Context {public static final String NOTIFICATION_SERVICE="notification";}',
     'android/app/Activity.java': '''package android.app;
 public class Activity extends android.content.Context {
@@ -236,7 +236,7 @@ class ControlJavaTests(unittest.TestCase):
                 'CameraHeadingState.java', 'CameraSteering.java',
                 'BerryPriority.java', 'MapTapSequence.java', 'CooldownState.java',
                 'VgpController.java', 'CatchOutcomeController.java', 'SettingsWriter.java', 'SmartCatchPreferences.java', 'GymAutomationPreferences.java', 'BuddyEmotionPreferences.java', 'ResearchPreferences.java'))
-            sources.extend([ROOT / 'test/ControlEggInventoryTest.java', ROOT / 'test/ControlAdventureSyncTest.java', ROOT / 'test/ControlLogRetentionTest.java', ROOT / 'test/ControlQuickSummaryTest.java',ROOT / 'test/ControlQuickBallTest.java',
+            sources.extend([ROOT / 'test/ControlWildEventTest.java', ROOT / 'test/ControlEggInventoryTest.java', ROOT / 'test/ControlAdventureSyncTest.java', ROOT / 'test/ControlLogRetentionTest.java', ROOT / 'test/ControlQuickSummaryTest.java',ROOT / 'test/ControlQuickBallTest.java',
                             ROOT / 'test/ControlQuickBallOutcomeTest.java',ROOT / 'test/ControlSettingsTest.java',
                             ROOT / 'test/VgpControllerTest.java',ROOT / 'test/CooldownTest.java',ROOT / 'test/ControlCooldownTest.java',
                             ROOT / 'test/ControlSettingsReloadTest.java',ROOT / 'test/ControlItemCatalogTest.java',ROOT / 'test/ControlIdleWalkingTest.java'])
@@ -255,6 +255,8 @@ class ControlJavaTests(unittest.TestCase):
             compiled = subprocess.run([str(compiler), '-encoding', 'UTF-8', '-d', str(classes),
                                        *map(str, sources)], capture_output=True, text=True, timeout=30)
             self.assertEqual(compiled.returncode, 0, compiled.stdout + compiled.stderr)
+            wild = subprocess.run([str(runtime), '-cp', str(classes), 'dev.pgrazor.ControlWildEventTest'], capture_output=True, text=True, timeout=15)
+            self.assertEqual(wild.returncode, 0, wild.stdout + wild.stderr)
             egg = subprocess.run([str(runtime), '-cp', str(classes), 'dev.pgrazor.ControlEggInventoryTest'], capture_output=True, text=True, timeout=15)
             self.assertEqual(egg.returncode, 0, egg.stdout + egg.stderr)
             adventure = subprocess.run([str(runtime), '-cp', str(classes), 'dev.pgrazor.ControlAdventureSyncTest'], capture_output=True, text=True, timeout=15)

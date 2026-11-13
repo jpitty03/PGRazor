@@ -50,6 +50,8 @@ public final class LogExport {
             }
             JSONObject events=new JSONObject();
             events.put("halloween_2026.box_collector",dev.pgrazor.events.EventSettings.boxCollectorRequested(context));
+            events.put("go_wild_november_2026.vgp_plus_safari",dev.pgrazor.events.EventSettings.wildVgpSafari(context));
+            events.put("go_wild_november_2026.auto_ball_safari",dev.pgrazor.events.EventSettings.wildAutoBallSafari(context));
             groups.put("pgrazor-events-v1",events);
             return groups;
         } catch(JSONException error) { throw new IOException("Cannot capture preferences",error); }

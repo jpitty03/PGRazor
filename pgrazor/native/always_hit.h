@@ -43,7 +43,7 @@
 // 12-byte packed PokeballThrow; identical layout to PgrThrowValue in throws.h. Redefined
 // here under a feature-local name so this header is self-contained for the coordinator.
 struct PgrAlwaysHitValue {   // 12 bytes, 4-byte aligned
-    int32_t item;            // 0  Pokeball item id (1,2,3,5 are eligible)
+    int32_t item;            // 0  regular/Premier or metadata-resolved inventory Safari item
     float   radius;          // 4  reticle radius (untouched by this layer)
     uint8_t bullseye;        // 8  0/1 (untouched)
     uint8_t spinning;        // 9  0/1 (untouched)

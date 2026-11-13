@@ -1,5 +1,6 @@
 #include "throws.h"
 #include "hook_engine.h"
+#include "safari_ball_policy.h"
 
 #include <atomic>
 #include <cmath>
@@ -120,7 +121,7 @@ PgrThrowValue transform(const PgrThrowValue &v, uint32_t setting, uint32_t curve
     const Sample prev = g_sample;
     g_sample.valid = false;
     // Value-level gates, mirroring throwWords(): eligible items, clean flags, sane radius.
-    if (!(v.item == 1 || v.item == 2 || v.item == 3 || v.item == 5)) return v;
+    if (!(v.item == 1 || v.item == 2 || v.item == 3 || v.item == 5 || pgr_is_inventory_safari_ball(v.item))) return v;
     if (v.bullseye > 1 || v.spinning > 1 || v.missed != 0) return v;
     if (!(std::isfinite(v.radius) && v.radius >= 0.0f && v.radius <= 1.0f)) return v;
 

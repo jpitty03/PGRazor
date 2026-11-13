@@ -178,6 +178,18 @@ bool capture_base(void *target,uint64_t owner,double base[4]){
   return pgr_catch_chance_base(response,base);
 }
 
+bool safari_offered(void *target,uint64_t owner,int item){
+  if(!g_bound||!target||owner!=g_fresh.owner||owner!=uint64_t(gettid()))return false;
+  auto klass=reinterpret_cast<void*(*)(void*)>(g_fresh.object_get_class);
+  auto read=reinterpret_cast<void(*)(void*,void*,void*)>(g_fresh.field_get_value);
+  void *target_class=klass(target);
+  const PgrVgpIncense *incense=pgr_vgp_incense_class(target_class)?pgr_vgp_incense():nullptr;
+  if(target_class!=g_fresh.class_wildmap&&!incense)return false;
+  void *response=nullptr;read(target,incense?incense->f_response:map_encounter,&response);
+  if(!response||klass(response)!=(incense?incense->class_response:encounter_class))return false;
+  return pgr_catch_chance_offers_ball(response,item);
+}
+
 int64_t now_ms() {
   struct timespec ts{};
   if (clock_gettime(CLOCK_REALTIME, &ts) != 0) return -1;
@@ -371,6 +383,20 @@ int pgr_smart_ensure_bound(uint64_t owner) {
   g_fresh.field_get_value = rt.field_get_value;
   g_bound = true;
   pgr_smart_set_capture_source(capture_base);
+  // Optional event support: resolve names and field types without adding a
+  // mandatory game-version offset that could disable all ordinary VGP+ catches.
+  void *item_enum=nullptr,*strong=nullptr;int32_t wild_ball=0;
+  bool safari_ok=resolve_class(md,"Holoholo.Rpc","Item",&item_enum)==0&&
+    read_enum_literal(ex,rt,item_enum,"WildBall",&wild_ball)&&wild_ball>5&&wild_ball<256&&
+    resolve_field_byname(rt,ex,b.class_display_proto,"IsStrongPokemon",&strong)==0;
+  if(safari_ok){
+    auto offset=reinterpret_cast<size_t(*)(void*)>(ex.field_get_offset);
+    auto flags=reinterpret_cast<int(*)(void*)>(ex.field_get_flags);
+    safari_ok=offset&&flags&&!(flags(strong)&0x10)&&
+      validate_field(md,b.class_display_proto,"IsStrongPokemon",offset(strong),PGR_MD_FIELD_VALUE,1,"System.Boolean",&strong,nullptr)==0;
+  }
+  if(safari_ok)pgr_smart_set_safari_source(strong,wild_ball,safari_offered);
+  __android_log_print(ANDROID_LOG_INFO,"PGRazorSmartCatch","Mighty Safari binding %s (inventory ball=%d)",safari_ok?"ready":"unavailable; normal balls retained",safari_ok?wild_ball:0);
   __android_log_print(ANDROID_LOG_INFO,"PGRazorSmartCatch","Native catch binding ready (level rules and berry RPC validated)");
   return PGR_SMARTBIND_OK;
 }

@@ -265,7 +265,16 @@ public final class Control {
     private static volatile long encounterBerrySeen;
     public static void setEncounterBerry(boolean active,boolean busy){encounterBerryActive=active;encounterBerryBusy=busy;encounterBerrySeen=SystemClock.elapsedRealtime();}
     public static boolean catchScreenVisible(){long age=SystemClock.elapsedRealtime()-encounterBerrySeen;return encounterBerryActive&&age>=0&&age<2000&&foreground&&quickSummaryReady();}
-    public static String smartCatchConfig(){return SmartCatchSettings.config();}
+    // Wrap SmartCatchPreferences' version-4 line as version 5 and append the Go Wild November 2026
+    // "Use Safari Balls in VGP+" flag (0/1). The flag applies only to Mighty Pokemon and is validated
+    // independently by the native smart-catch owner, which falls back to the normal VGP+ ball rules
+    // when a permitted Safari Ball is unavailable. Null host application => flag off; v5 always emitted.
+    public static String smartCatchConfig(){
+        String base=SmartCatchSettings.config();
+        if(base.startsWith("4;"))base="5;"+base.substring(2);
+        Application app=hostApplication;
+        return base+";"+(app!=null&&dev.pgrazor.events.EventSettings.wildVgpSafari(app)?1:0);
+    }
     public static String gymAutomationConfig(){return GymAutomationSettings.config();}
     public static String buddyEmotionConfig(){return BuddyEmotionSettings.config();}
     public static boolean automationReady(){return hostLive()&&active()&&itemAccessAllowed();}
@@ -597,11 +606,18 @@ public final class Control {
     public static int autoBallTarget(){return autoBallTarget;}
     public static void setAutoBallTarget(int percent){autoBallTarget=percent>=1&&percent<=99?percent:75;saveSettings();}
     /**
-     * "C1|show|auto|target|berry". berry is the one PGRazor's berry picker will feed on the next
-     * throw (0 when the picker is off); the game only sees it at release, so the chance needs it from
-     * here. While the overlay is hidden the chance line is off; auto ball keeps running.
+     * "C2|show|auto|target|berry|safari". berry is the one PGRazor's berry picker will feed on the
+     * next throw (0 when the picker is off); the game only sees it at release, so the chance needs it
+     * from here. While the overlay is hidden the chance line is off; auto ball keeps running. The
+     * trailing safari flag (0/1) is the Go Wild November 2026 "Use Safari Balls in Auto Ball" toggle;
+     * it applies only to Mighty Pokemon and the native owner falls back to the normal Auto Ball rules
+     * when a permitted Safari Ball is unavailable. Null host application => flag off; C2 always emitted.
      */
-    public static String catchChanceConfig(){return "C1|"+(catchChanceShown&&!overlaysHidden?1:0)+"|"+(autoBall?1:0)+"|"+autoBallTarget+"|"+autoBerry();}
+    public static String catchChanceConfig(){
+        Application app=hostApplication;
+        boolean safari=app!=null&&dev.pgrazor.events.EventSettings.wildAutoBallSafari(app);
+        return "C2|"+(catchChanceShown&&!overlaysHidden?1:0)+"|"+(autoBall?1:0)+"|"+autoBallTarget+"|"+autoBerry()+"|"+(safari?1:0);
+    }
     // PvP keep for auto-transfer, per league (0 Great, 1 Ultra, 2 Master): a catch is kept when its
     // stat-product rank is at or below that league's rank for a species in PvPoke's top PVP_META.
     // pvpKeepLeagues has a bit per league that is on; each league keeps its rank while off.

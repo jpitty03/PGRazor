@@ -50,7 +50,7 @@ public final class ControlSettingsTest {
             throw new AssertionError("Evolve-before-transfer settings lost across process restart");
         if(Control.ivCatchEnabled()||!Control.ivOwnedEnabled()||Control.ivCatchMode()!=0||Control.ivOwnedMode()!=3||Control.nextIvMode(0)!=4||Control.nextIvMode(4)!=3||Control.nextIvMode(1)!=0)throw new AssertionError("IV display preferences lost across process restart");
         if(Control.storageIvEnabled()||Control.storageIvFormat()!=2||!Control.storageIvConfig().equals("S2|0|1|3"))throw new AssertionError("Storage IV setting lost across process restart");
-        if(Control.catchChanceShown()||!Control.autoBall()||Control.autoBallTarget()!=85||!Control.catchChanceConfig().startsWith("C1|0|1|85|"))throw new AssertionError("Catch chance settings lost across process restart");
+        if(Control.catchChanceShown()||!Control.autoBall()||Control.autoBallTarget()!=85||!Control.catchChanceConfig().startsWith("C2|0|1|85|"))throw new AssertionError("Catch chance settings lost across process restart");
         if(Control.pvpKeep(0)||!Control.pvpKeep(1)||Control.pvpRank(0)!=50||Control.pvpRank(1)!=25||!Control.pvpKeepConfig().equals("P2|0|25|10|150"))throw new AssertionError("PvP keep settings lost across process restart");
         // Pending off-thread writes must reach disk before this process exits, or the restart cannot see them.
         Control.flushSettings(5000);

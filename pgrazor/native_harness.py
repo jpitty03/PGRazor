@@ -38,7 +38,7 @@ def main(argv=None):
     triple = 'aarch64-linux-android' if args.abi == 'arm64-v8a' else 'x86_64-linux-android'
     compiler = ndk / 'toolchains/llvm/prebuilt' / host / 'bin' / (
         triple + str(native_build.API_LEVEL) + '-clang++' + ('.cmd' if platform.system() == 'Windows' else ''))
-    stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d-%H%M%S-%f')
+    stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d-%H%M%S-%f') + '-' + args.abi
     output = root / 'build/native/harness' / stamp
     output.mkdir(parents=True)
     receipt = {'abi': args.abi, 'ndk': revision, 'serial': args.serial, 'tests': [], 'success': False}
@@ -75,6 +75,15 @@ def main(argv=None):
             entry = {'source': str(source.relative_to(root)), 'source_sha256': native_build.sha256(source)}
             receipt['tests'].append(entry)
             extra_flags = []
+            if source.stem.startswith('safari_') or source.stem == 'catch_chance_runtime_test':
+                entry['safari_policy_sha256'] = native_build.sha256(root/'native/safari_ball_policy.h')
+            if source.stem == 'safari_vgp_actions_test':
+                entry['included_source_sha256'] = native_build.sha256(root/'native/vgp_actions.cpp')
+                entry['fixture_base_sha256'] = native_build.sha256(root/'native/vgp_actions_test.cpp')
+            if source.stem in ('safari_always_hit_test','safari_throws_test'):
+                vendor = native_build.ensure_dobby(root, download=False)
+                extra_flags = ['-I'+str(vendor/'include'), '-llog']
+                entry['included_source_sha256'] = native_build.sha256(root/'native'/('always_hit.cpp' if source.stem=='safari_always_hit_test' else 'throws.cpp'))
             if source.stem in ('runtime_bootstrap_namespace_test', 'runtime_loader_live_test'):
                 entry['included_source_sha256'] = native_build.sha256(root/'native/runtime_bootstrap.cpp')
             if source.stem == 'unity_scheduler_diag_test':
@@ -96,9 +105,9 @@ def main(argv=None):
             if source.stem == 'gym_repeat_runtime_test':
                 vendor = native_build.ensure_dobby(root, download=False)
                 extra_flags += ['-I'+str(vendor/'include')]
-            if source.stem == 'max_orbs_test':
+            if source.stem in ('max_orbs_test', 'catch_chance_runtime_test'):
                 extra_flags = ['-fexceptions']
-                entry['included_source_sha256'] = native_build.sha256(root/'native/max_orbs.cpp')
+                entry['included_source_sha256'] = native_build.sha256(root/'native'/('catch_chance.cpp' if source.stem=='catch_chance_runtime_test' else 'max_orbs.cpp'))
             if source.stem == 'cutscene_skip_test':
                 vendor = native_build.ensure_dobby(root, download=False)
                 extra_flags = ['-fexceptions', '-I'+str(vendor/'include')]

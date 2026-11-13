@@ -6,8 +6,14 @@ import android.content.SharedPreferences;
 /** Event preferences are separate from Control; runtime capability is never persisted. */
 public final class EventSettings {
     public static final String HALLOWEEN_2026 = "halloween_2026";
+    public static final String GO_WILD_NOVEMBER_2026 = "go_wild_november_2026";
     private static final String FILE = "pgrazor-events-v1";
     private static final String BOX_COLLECTOR_KEY = HALLOWEEN_2026 + ".box_collector";
+    // Go Wild November 2026: two independent, default-off opt-ins that only change the ball used for
+    // Mighty Pokemon. Neither enables its base feature (VGP+ / Auto Ball) and neither is capability
+    // gated: the native owner validates permitted Safari Balls and falls back to the normal ball rules.
+    private static final String WILD_VGP_SAFARI_KEY = GO_WILD_NOVEMBER_2026 + ".vgp_plus_safari";
+    private static final String WILD_AUTO_BALL_SAFARI_KEY = GO_WILD_NOVEMBER_2026 + ".auto_ball_safari";
     // Retired preferences: the strict candy-only consent and the experimental
     // empty-box scanner. Their keys are cleared to the default whenever the
     // collector setting is written so stale consent cannot linger on disk. The
@@ -52,6 +58,41 @@ public final class EventSettings {
     /** Transport must read this effective gate, never the saved preference alone. */
     public static boolean boxCollectorEnabled(Context context) {
         return boxCollectorCapability && boxCollectorRequested(context);
+    }
+
+    // --- Go Wild November 2026 Safari balls ----------------------------------
+    // Two independent toggles. Each only applies to Mighty Pokemon and only while its own base
+    // feature is already on; neither turns that feature on. There is no capability lock: the native
+    // owner independently validates owned permitted Safari Balls and otherwise uses the normal ball
+    // rules, so the saved preference is read directly.
+
+    public static boolean wildVgpSafari(Context context) {
+        return preferences(context).getBoolean(WILD_VGP_SAFARI_KEY, false);
+    }
+
+    public static boolean wildAutoBallSafari(Context context) {
+        return preferences(context).getBoolean(WILD_AUTO_BALL_SAFARI_KEY, false);
+    }
+
+    public static synchronized boolean setWildVgpSafari(Context context, boolean enabled) {
+        return persistSingle(context, WILD_VGP_SAFARI_KEY, enabled);
+    }
+
+    public static synchronized boolean setWildAutoBallSafari(Context context, boolean enabled) {
+        return persistSingle(context, WILD_AUTO_BALL_SAFARI_KEY, enabled);
+    }
+
+    /**
+     * Write one Go Wild preference with the same commit-failure rollback as the Halloween collector,
+     * but WITHOUT touching any Halloween key. The two events persist separately: changing a Go Wild
+     * toggle must never disturb (nor re-clear) Halloween's collector preference or its retired keys.
+     */
+    private static boolean persistSingle(Context context, String key, boolean enabled) {
+        SharedPreferences preferences = preferences(context);
+        boolean previous = preferences.getBoolean(key, false);
+        if (preferences.edit().putBoolean(key, enabled).commit()) return true;
+        preferences.edit().putBoolean(key, previous).commit();
+        return false;
     }
 
     /**

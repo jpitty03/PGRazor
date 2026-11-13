@@ -6,6 +6,7 @@
 #include <cstring>
 #include <iostream>
 #include <string>
+#include <vector>
 #include <unordered_map>
 #include <unistd.h>
 namespace {
@@ -16,6 +17,11 @@ struct Array {uint64_t header[4];void *items[2];} array_obj{};
 std::unordered_map<uintptr_t,void*> roots;
 uintptr_t next_root=1;int sends=0,stock[800]={},atk=0,def=0,sta=0,cp=100,species=25;
 bool shiny=false,fresh=true,allowed=true,visible=true,revoke_reflection=false,throw_send=false;
+bool mighty=false,safari_offered=true;
+std::vector<std::string> safari_events;
+int safari_reads=0;
+bool safari_source(void *target,uint64_t owner,int item){assert(target==&wild&&owner==uint64_t(gettid())&&item==7);++safari_reads;return safari_offered;}
+int emit(uint32_t op,const int64_t*,uint32_t,const PgrRuntimeTransportString *s,uint32_t n){assert(op==19&&n==2);safari_events.emplace_back(s[1].ptr,s[1].len);return 0;}
 uint64_t encounter=0xfedcba9876543210ULL, sent_encounter=0;
 int req_item=0;uint64_t req_encounter=0;void *req_spawn=nullptr;
 std::string config="1;1;1;0;1;1500;30;3;1;";
@@ -29,7 +35,7 @@ void gc_free(uintptr_t h){assert(roots.erase(h)==1);}
 void *object_class(void *o){return static_cast<Obj*>(o)->cls;}
 void *object_new(void *cls){assert(cls==request.cls);req_item=0;req_encounter=0;req_spawn=nullptr;return &request;}
 void *unbox(void *o){return &static_cast<Obj*>(o)->value;}
-enum Fields {MAP=101,SPECIES,CP,ATK,DEF,STA,MULT,ADD,DISPLAY,SHINY,ITEM,ENCID,SPAWN,STATUS,RPC};
+enum Fields {MAP=101,SPECIES,CP,ATK,DEF,STA,MULT,ADD,DISPLAY,SHINY,ITEM,ENCID,SPAWN,STATUS,RPC,STRONG};
 enum Methods {ENCOUNTER=201,SPAWN_ID,COUNT,CTOR,OPEN,MAKE,CLOSED};
 void field_get(void *o,void *field,void *out){
  switch(uintptr_t(field)){
@@ -41,6 +47,7 @@ void field_get(void *o,void *field,void *out){
  case ITEM:*static_cast<int*>(out)=req_item;break;case ENCID:*static_cast<uint64_t*>(out)=req_encounter;break;
  case SPAWN:*static_cast<void**>(out)=req_spawn;break;case STATUS:*static_cast<int*>(out)=int(response.value);break;
  case RPC:assert(o==&bag);*static_cast<void**>(out)=&rpc;break;default:assert(false);
+ case STRONG:assert(o==&display);*static_cast<uint8_t*>(out)=mighty;break;
  }
 }
 void field_set(void *o,void *field,void *value){assert(o==&request);if(uintptr_t(field)==ITEM)req_item=*static_cast<int*>(value);else{assert(uintptr_t(field)==ENCID);req_encounter=*static_cast<uint64_t*>(value);}}
@@ -111,6 +118,9 @@ void pure_tests(){
  // Version 4: throw variety appended; version 3 means variety off.
  assert(parse("3;1;2;0;1;1500;30;3;1;0;75;;").variety==0);
  s=parse("4;1;2;0;1;1500;30;3;1;0;75;25;415;2");assert(s.enabled&&s.variety==2&&s.catch_count==1&&s.species_count==1);
+ assert(!s.mighty_safari);
+ s=parse("5;1;2;0;1;1500;30;3;1;0;75;25;415;2;1");assert(s.enabled&&s.variety==2&&s.mighty_safari&&s.catch_count==1);
+ for(const std::string &bad:{"5;1;2;0;1;1500;30;3;1;0;75;;;0", "5;1;2;0;1;1500;30;3;1;0;75;;;0;2", "5;1;2;0;1;1500;30;3;1;0;75;;;0;-1", "5;1;2;0;1;1500;30;3;1;0;75;;;0;1;", "4;1;2;0;1;1500;30;3;1;0;75;;;0;1"})assert(!parse(bad).enabled);
  for(const std::string &bad:{"4;1;2;0;1;1500;30;3;1;0;75;;;4","4;1;2;0;1;1500;30;3;1;0;75;;;-1","4;1;2;0;1;1500;30;3;1;0;75;;","3;1;2;0;1;1500;30;3;1;0;75;;;1","4;1;2;0;1;1500;30;3;1;0;75;;;1;"})assert(!parse(bad).enabled);
  for(int variety=1;variety<=3;++variety){
   int seen[4]={};for(uint32_t r=0;r<1200;++r)++seen[pgr_smart_variety_grade(variety,r*2654435761u)];
@@ -175,5 +185,23 @@ int main(){
  stock[1]=0;stock[2]=0;stock[3]=0;assert(pgr_smart_plan(&wild,&bag,tid,&d)==PGR_SMART_SKIP_SPECIES);stock[1]=10;stock[2]=10;stock[3]=10;
  config="3;1;3;0;1;1500;30;3;1;0;75;;25,415";assert(pgr_smart_plan(&wild,&bag,tid,&d)==0&&d.enabled&&d.ball==3);assert(roots.empty());
  response.value=1;assert(pgr_smart_berry_success(&response,tid)==1);response.value=0;assert(pgr_smart_berry_success(&response,tid)==PGR_SMART_NOT_SUCCESS);assert(pgr_smart_berry_success(&spawn,tid)==PGR_SMART_ERR_IDENTITY);
+ // Event preference augments smart catching; it never overrides species filters,
+ // accepts absent capability, or indexes the normal stock array with an event ID.
+ transport.emit=emit;stock[7]=5;stock[706]=5;shiny=true;mighty=true;
+ config="5;1;3;0;1;1500;30;3;1;1;75;;;0;1";
+ assert(pgr_smart_plan(&wild,&bag,tid,&d)==0&&d.ball==3&&safari_reads==0);
+ assert(safari_events.back().find("metadata-unavailable")!=std::string::npos);
+ pgr_smart_set_safari_source(tag(STRONG),7,safari_source);
+ assert(pgr_smart_plan(&wild,&bag,tid,&d)==0&&d.ball==7&&d.berry==706&&d.grade==3&&d.curve);
+ assert(safari_events.back().find("safari-selected")!=std::string::npos);
+ stock[1]=stock[2]=stock[3]=0;assert(pgr_smart_plan(&wild,&bag,tid,&d)==0&&d.ball==7);
+ stock[7]=0;assert(pgr_smart_plan(&wild,&bag,tid,&d)==PGR_SMART_NO_BALLS&&safari_events.back().find("no-safari-balls")!=std::string::npos);
+ stock[3]=10;assert(pgr_smart_plan(&wild,&bag,tid,&d)==0&&d.ball==3);
+ stock[7]=5;safari_offered=false;assert(pgr_smart_plan(&wild,&bag,tid,&d)==0&&d.ball==3&&safari_events.back().find("not-offered")!=std::string::npos);
+ safari_offered=true;mighty=false;int prior=safari_reads;assert(pgr_smart_plan(&wild,&bag,tid,&d)==0&&d.ball==3&&safari_reads==prior);
+ mighty=true;config="5;1;3;0;1;1500;30;3;1;1;75;;;0;0";assert(pgr_smart_plan(&wild,&bag,tid,&d)==0&&d.ball==3&&safari_reads==prior);
+ config="5;0;3;0;1;1500;30;3;1;1;75;;;0;1";assert(pgr_smart_plan(&wild,&bag,tid,&d)==0&&!d.enabled&&safari_reads==prior);
+ config="5;1;3;0;1;1500;30;3;1;1;75;;415;0;1";assert(pgr_smart_plan(&wild,&bag,tid,&d)==PGR_SMART_SKIP_SPECIES&&safari_reads==prior);
+ assert(roots.empty());
  std::cout<<"smart_catch parser, policy, auto ball, stock, RPC identity, revocation and GC fixture passed\n";
 }

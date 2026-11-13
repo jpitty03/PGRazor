@@ -9,6 +9,10 @@ void pgr_smart_set_admission_guard(bool (*guard)(void *), void *context);
 // offered) with the server's per-ball capture probability from the target's encounter response, on the
 // owner thread. With no source, or when it returns false, plan() keeps the rule-chosen ball.
 void pgr_smart_set_capture_source(bool (*source)(void *target, uint64_t owner, double base[4]));
+// Optional, owner-thread-only binding. Missing support leaves regular catching
+// available. The source checks the target's own confirmed response, not manual UI.
+void pgr_smart_set_safari_source(void *strong_field, int item,
+                               bool (*source)(void *target, uint64_t owner, int item));
 // Pure. The chance of one throw: 1 - (1 - base) ^ (berry * throw * curve), with the throw multiplier
 // taken from the reticle size VGP+ requests for the rating (2 - radius) and 1.7 for a curveball.
 double pgr_smart_chance(double base, int berry, int grade, bool curve);
@@ -68,7 +72,8 @@ enum PgrSmartInfo {
 };
 
 // Holoholo.Rpc.Item enum values this module uses directly (written into the proto Item enum i32 field and
-// queried against ItemBag stock). Balls 1..3 are the only selectable balls; MASTER (4) is never chosen.
+// queried against ItemBag stock). Regular selection uses 1..3; optional Mighty
+// selection uses the resolved WildBall literal. MASTER (4) is never chosen.
 enum PgrSmartItem {
   PGR_SMART_BALL_POKE   = 1,
   PGR_SMART_BALL_GREAT  = 2,
@@ -86,7 +91,7 @@ enum PgrSmartItem {
 enum PgrSmartStatus {
   PGR_SMART_ISSUED        = 1,   // berry(): the single SendRpc was issued; OWN handles transferred
   PGR_SMART_OK            = 0,   // plan(): decision written (may be .enabled==false); berry(): refused
-  PGR_SMART_NO_BALLS      = 2,   // plan(): enabled but NO regular ball in stock (distinct from error)
+  PGR_SMART_NO_BALLS      = 2,   // plan(): no usable in-stock ball (distinct from error)
   PGR_SMART_NOT_SUCCESS   = 3,   // berry_success(): response is UseItemEncounterOutProto but not Success
   PGR_SMART_SKIP_SPECIES  = 4,   // plan(): enabled, but the species is not on the catch-only list
   PGR_SMART_ERR_NULL_ARG      = -1,
@@ -105,7 +110,8 @@ enum PgrSmartStatus {
 
 // Parsed Smart Catcher settings (transport index 7). Format, exactly as emitted by
 // SmartCatchSettings.config():
-//   "4;enabled;ball;berry;premium;highCp;highLevel;grade;curve;autoBall;autoTarget;<candy ids>;<catch ids>;variety"
+//   "5;enabled;ball;berry;premium;highCp;highLevel;grade;curve;autoBall;autoTarget;<candy ids>;<catch ids>;variety;mightySafari"
+// Version 4 omits mightySafari (defaults off).
 // The version-3 form (without throw variety), the version-2 form (without the catch-only list) and the version-1 form (also without
 // autoBall/autoTarget) are still accepted, catching every species with auto ball off for version 1.
 // Field 0 is the schema tag "1". A malformed string, a wrong tag, an out-of-range field or an over-long
@@ -126,6 +132,7 @@ struct PgrSmartSettings {
   uint32_t catch_count;    // catch-only species (version 3); 0 catches every species
   int32_t  catch_species[PGR_SMART_MAX_SPECIES];  // ascending, de-duplicated National Dex ids (1..2000)
   int32_t  variety;        // throw variety (version 4): 0 off, 1 Excellent & Great, 2 + Nice, 3 + a plain throw
+  int32_t  mighty_safari;  // version 5: prefer owned, offered Safari Balls for Mighty Pokemon only
 };
 
 // Catch-only list: an empty list catches every species.
@@ -136,11 +143,11 @@ static inline bool pgr_smart_catch_wanted(const PgrSmartSettings *s, int species
   return false;
 }
 
-// The decision handed back to the controller after a confirmed encounter. ball is always a regular ball
-// (1..3) that is in stock on PGR_SMART_OK with enabled==true; berry is 0 when Off or out of stock.
+// The decision after a confirmed encounter: an in-stock regular ball (1..3), or
+// the resolved inventory Safari Ball for an eligible Mighty encounter. Berry is 0 when unavailable.
 struct PgrSmartDecision {
   bool     enabled;   // false -> smart disabled; the controller keeps its own default catch strategy
-  int      ball;      // selected regular ball id (1..3), in stock; 0 only when enabled==false
+  int      ball;      // regular or resolved inventory Safari id; 0 when no ball is selected
   int      berry;     // selected berry id (0 == none / out of stock)
   int      grade;     // throw rating 0..3 (passthrough from settings)
   bool     curve;     // curveball (passthrough from settings)
@@ -258,9 +265,10 @@ int pgr_smart_bind(const PgrSmartBinding *binding);
 // when a catch-only list is set and the encountered species is not on it. `target` is the rooted WildMapPokemon, `itemBag` the
 // rooted IItemBag; `owner` is the proven Unity owner tid. Reads WildMapPokemon.eluq (PokemonProto) ONLY
 // (exact class checked), derives shiny/IV/CP/(optional level)/species, decides, then resolves actual
-// stock: the selected ball or a cheaper in-stock regular ball (never Master); the berry is dropped when
+// stock: an eligible Safari Ball when opted in, otherwise the selected regular ball or an in-stock
+// regular fallback (never Master); the berry is dropped when
 // Off or out of stock. Read-only: issues no managed mutation. Returns PGR_SMART_OK (decision written; may
-// be disabled), PGR_SMART_NO_BALLS (enabled, no regular ball), PGR_SMART_OK with enabled==false when
+// be disabled), PGR_SMART_NO_BALLS (enabled, no usable ball), PGR_SMART_OK with enabled==false when
 // off-thread/not-bound (refused), or a negative data/runtime fault. *out is always initialized.
 int pgr_smart_plan(void *target, void *itemBag, uint64_t owner, PgrSmartDecision *out);
 

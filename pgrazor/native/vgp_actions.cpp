@@ -1,4 +1,5 @@
 #include "vgp_actions.h"
+#include "safari_ball_policy.h"
 #include "vgp_incense.h"
 
 #include <atomic>
@@ -466,7 +467,7 @@ extern "C" const void *pgrazor_vgp_actions_api(uint32_t version) {
 
 extern "C" int pgr_vgp_capture_selected(const PgrVgpActionsTarget *request,int item,int grade,int curve,uintptr_t *out_handle){
   if(out_handle)*out_handle=0;
-  if(item<1||item>3||grade<0||grade>3||(curve!=0&&curve!=1))return PGR_VA_ERR_BAD_VERSION;
+  if(((item<1||item>3)&&!pgr_is_inventory_safari_ball(item))||grade<0||grade>3||(curve!=0&&curve!=1))return PGR_VA_ERR_BAD_VERSION;
   alignas(8) uint8_t ball[12]{};
   // Same reticle ranges as the manual throw feature. Ratings are requested, not guaranteed outcomes.
   const float radius=grade==3?0.1f:grade==2?0.4f:grade==1?0.8f:1.0f;

@@ -1,6 +1,8 @@
 #include "smart_catch.h"
 #include "runtime_transport.h"
 #include "vgp_incense.h"
+#include "safari_ball_policy.h"
+#include <cstdio>
 #include <algorithm>
 #include <atomic>
 #include <cmath>
@@ -19,6 +21,9 @@ std::atomic<uint64_t> owner_tid{0};
 thread_local bool (*admission_guard)(void *)=nullptr;
 thread_local void *admission_context=nullptr;
 bool (*capture_source)(void *,uint64_t,double[4])=nullptr;
+void *safari_strong_field=nullptr;
+int safari_item=0;
+bool (*safari_source)(void *,uint64_t,int)=nullptr;
 using Invoke=void*(*)(void*,void*,void**,void**);
 uint64_t now(){timespec t{};return clock_gettime(CLOCK_BOOTTIME,&t)==0?uint64_t(t.tv_sec)*1000+t.tv_nsec/1000000:0;}
 void *klass(void *o){return o?reinterpret_cast<void*(*)(void*)>(b.object_get_class)(o):nullptr;}
@@ -89,6 +94,11 @@ unsigned params(void *m){return reinterpret_cast<unsigned(*)(void*)>(b.method_ge
 
 void pgr_smart_set_admission_guard(bool (*guard)(void *),void *context){admission_guard=guard;admission_context=context;}
 void pgr_smart_set_capture_source(bool (*source)(void *,uint64_t,double[4])){capture_source=source;}
+void pgr_smart_set_safari_source(void *strong,int item,bool (*source)(void *,uint64_t,int)){
+ const bool valid=strong&&source&&item>5&&item<256;
+ safari_strong_field=valid?strong:nullptr;safari_item=valid?item:0;safari_source=valid?source:nullptr;
+ if(valid)pgr_safari_inventory_item.store(item);
+}
 double pgr_smart_chance(double base,int berry,int grade,bool curve){
  if(!(base>0))return 0;if(base>=1)return 1;
  // Reticle radius per rating as sent by pgr_vgp_capture_selected (0.1/0.4/0.8/1.0).
@@ -112,8 +122,9 @@ extern "C" int pgr_smart_parse_settings(const char *text,size_t len,PgrSmartSett
  *out={};out->ball=1;out->premium=1;out->high_cp=1500;out->high_level=30;out->grade=3;out->curve=1;out->auto_target=75;
  if(!text||len>PGR_SMART_CONFIG_MAX)return 0;
  std::vector<std::string> parts;size_t start=0;
- for(size_t i=0;i<=len;++i)if(i==len||text[i]==';'){parts.emplace_back(text+start,i-start);start=i+1;if(parts.size()>14)return 0;}
- const bool v4=parts.size()==14&&parts[0]=="4";
+ for(size_t i=0;i<=len;++i)if(i==len||text[i]==';'){parts.emplace_back(text+start,i-start);start=i+1;if(parts.size()>15)return 0;}
+ const bool v5=parts.size()==15&&parts[0]=="5";
+ const bool v4=v5||(parts.size()==14&&parts[0]=="4");
  const bool v3=v4||(parts.size()==13&&parts[0]=="3");
  const bool v2=v3||(parts.size()==12&&parts[0]=="2");
  if(!v2&&(parts.size()!=10||parts[0]!="1"))return 0;
@@ -126,6 +137,7 @@ extern "C" int pgr_smart_parse_settings(const char *text,size_t len,PgrSmartSett
  if(!species_list(species,s.species,s.species_count))return 0;
  if(v3&&!species_list(parts[12],s.catch_species,s.catch_count))return 0;
  if(v4&&!number(parts[13],0,3,s.variety))return 0;
+ if(v5&&!number(parts[14],0,1,s.mighty_safari))return 0;
  *out=s;return 0;
 }
 extern "C" int pgr_smart_variety_grade(int variety,uint32_t random){
@@ -181,6 +193,9 @@ extern "C" int pgr_smart_plan(void *target,void *itemBag,uint64_t owner,PgrSmart
  const float multiplier=field<float>(pokemon.get(),b.f_proto_cpmul)+field<float>(pokemon.get(),b.f_proto_addcpmul);
  bool shiny=false;void *display=field<void*>(pokemon.get(),b.f_proto_display);
  if(display){if(!exact(display,b.class_display_proto))return PGR_SMART_ERR_IDENTITY;shiny=field<uint8_t>(display,b.f_display_shiny)!=0;}
+ const bool safari_bound=safari_strong_field&&safari_item>0&&safari_source;
+ const bool mighty_known=safari_bound&&display;
+ const bool mighty=mighty_known&&field<uint8_t>(display,safari_strong_field)==1;
  int level_half=-1;
  if(b.class_gm&&std::isfinite(multiplier)&&multiplier>0){
   Root gm(field<void*>(bag.get(),b.f_bag_gm));if(gm.h&&exact(gm.get(),b.class_gm)){
@@ -196,13 +211,27 @@ extern "C" int pgr_smart_plan(void *target,void *itemBag,uint64_t owner,PgrSmart
  pgr_smart_decide(&settings,shiny,atk+def+sta,atk>=0&&atk<=15&&def>=0&&def<=15&&sta>=0&&sta<=15,cp,level_half,species,out);
  // Throw variety: this throw's rating, picked before auto ball so its chance uses the same one.
  if(settings.variety)out->grade=pgr_smart_variety_grade(settings.variety,random32());
+ bool use_safari=false,offered=false;int safari_stock=-1;
+ const char *safari_reason=!mighty_known?"metadata-unavailable":!mighty?"not-mighty":"not-offered";
+ if(settings.mighty_safari&&mighty){
+  offered=safari_source(map.get(),owner,safari_item);
+  if(offered){
+   int rc=quantity(bag,safari_item,safari_stock);
+   if(rc){safari_stock=-1;safari_reason="stock-unavailable";}
+   else if(safari_stock<1)safari_reason="no-safari-balls";
+   else{use_safari=true;safari_reason="safari-selected";}
+  }
+ }
  // Auto ball needs the server's per-ball rates; without them the standard ball is used as before.
  double base[4]={};
- const bool autoball=settings.auto_ball&&capture_source&&capture_source(map.get(),owner,base);
+ const bool autoball=!use_safari&&settings.auto_ball&&capture_source&&capture_source(map.get(),owner,base);
  if(settings.auto_ball&&!autoball&&out->ball<settings.ball)out->ball=settings.ball;
- int stocks[4]={};for(int item=1;item<=3;++item){int rc=quantity(bag,item,stocks[item]);if(rc)return rc;}
- if(stocks[out->ball]<1){out->ball=0;for(int item=1;item<=3;++item)if(stocks[item]>0){out->ball=item;break;}}
- if(!out->ball)return PGR_SMART_NO_BALLS;
+ int stocks[4]={};
+ if(use_safari)out->ball=safari_item;
+ else{
+  for(int item=1;item<=3;++item){int rc=quantity(bag,item,stocks[item]);if(rc)return rc;}
+  if(stocks[out->ball]<1){out->ball=0;for(int item=1;item<=3;++item)if(stocks[item]>0){out->ball=item;break;}}
+ }
  if(out->berry){int count=0;int rc=quantity(bag,out->berry,count);if(rc)return rc;if(!count)out->berry=0;}
  // Auto ball: start from the cheapest ball (or the Ultra Ball a rule asked for) and move up only
  // while the chance is below the target.
@@ -210,6 +239,14 @@ extern "C" int pgr_smart_plan(void *target,void *itemBag,uint64_t owner,PgrSmart
   const int pick=pgr_smart_auto_ball(base,stocks,out->ball,out->berry,out->grade,out->curve,settings.auto_target);
   if(pick)out->ball=pick;
  }
+ if(settings.mighty_safari){
+  const auto *tr=static_cast<const PgrRuntimeTransportApi*>(pgrazor_runtime_transport_api(1));
+  if(tr&&tr->emit){
+   char note[320];std::snprintf(note,sizeof(note),"{\"source\":\"vgp-plus\",\"mightyKnown\":%s,\"mighty\":%s,\"offered\":%s,\"stock\":%d,\"ball\":%d,\"reason\":\"%s\"}",mighty_known?"true":"false",mighty?"true":"false",offered?"true":"false",safari_stock,out->ball,safari_reason);
+   PgrRuntimeTransportString text[]={{"wild-safari",11},{note,uint32_t(std::strlen(note))}};tr->emit(19,nullptr,0,text,2);
+  }
+ }
+ if(!out->ball)return PGR_SMART_NO_BALLS;
  return 0;
 }
 

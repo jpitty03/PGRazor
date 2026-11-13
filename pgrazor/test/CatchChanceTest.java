@@ -21,6 +21,8 @@ public final class CatchChanceTest {
             + "\"balls\":[{\"item\":1,\"chance\":0.91}]}");
         require(CatchChance.describe(throwOnly).equals("▸Poké 91%"), CatchChance.describe(throwOnly));
         require(CatchChance.describe(new JSONObject("{\"balls\":[]}")).isEmpty(), "no balls, no text");
+        JSONObject safari = new JSONObject("{\"current\":7,\"balls\":[{\"item\":7,\"name\":\"Safari\",\"chance\":0.8}]}");
+        require(CatchChance.describe(safari).equals("\u25b8Safari 80%"), "event ball uses resolved name");
 
         CatchChance.publish(o.toString());
         require(CatchChance.visible() && CatchChance.text().startsWith("Poké 41%"), "published encounter is shown");
