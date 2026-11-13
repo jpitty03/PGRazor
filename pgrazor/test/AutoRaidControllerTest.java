@@ -146,6 +146,7 @@ public final class AutoRaidControllerTest {
         caller.premiumPass = true;
         caller.stopOnShiny = true;
         caller.bosses = "150,151";
+        caller.goldenRazzBerry = true; // Golden preferred -> berry mode 706 frozen into the session
         AutoRaid.start(caller);
 
         require(AutoRaid.running(), "running after a clean start");
@@ -155,7 +156,8 @@ public final class AutoRaidControllerTest {
         require(Control.lastEvent.equals("auto-raid-session"), "start event tag");
 
         String[] f = config();
-        require(f[0].equals("R1"), "config header");
+        require(f[0].equals("R2"), "config header");
+        require(f.length == 14, "R2 carries fourteen fields");
         require(f[2].equals("1"), "running flag in config");
         require(f[3].equals("4"), "tier mask frozen into session");
         require(f[4].equals("7"), "max raids frozen into session");
@@ -164,6 +166,7 @@ public final class AutoRaidControllerTest {
         require(f[9].equals("1"), "premium pass frozen into session");
         require(f[10].equals("1"), "stop-on-shiny frozen into session");
         require(f[11].equals("150,151"), "boss list frozen into session");
+        require(f[13].equals("706"), "Golden-preferred berry mode frozen into session");
 
         // Mutating the caller's object must not reach the frozen session.
         caller.maxRaids = 99;
@@ -342,6 +345,7 @@ public final class AutoRaidControllerTest {
 
     private static void testCooldownAndManualTeleport() {
         setup(); AutoRaid.start(prefs());
+        require("0".equals(config()[13]),"default session sends no berry");
         Cooldown.remaining=12345;
         require("12345".equals(config()[12]),"current cooldown travels with command");
         Cooldown.remaining=Long.MAX_VALUE;

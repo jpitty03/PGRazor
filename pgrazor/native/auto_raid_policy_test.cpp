@@ -935,6 +935,28 @@ static void test_geo_helpers() {
 
 // =====================================================================
 int main() {
+    // Versioned berry policy keeps old clients berry-free and rejects malformed updates.
+    {
+        Command c;
+        std::string legacy=Wire{}.str();
+        CHECK(parse_command(legacy.data(),legacy.size(),c) && c.berry_mode==0);
+        for(int mode:{0,701,706}){
+            std::string wire="R2"+legacy.substr(2)+"|"+std::to_string(mode);
+            CHECK(parse_command(wire.data(),wire.size(),c) && c.berry_mode==mode);
+        }
+        for(const char* suffix:{"","|","|-1","|705","|707","|706x","|706|0","|999999999999999999999999"}){
+            std::string wire="R2"+legacy.substr(2)+suffix;
+            CHECK(!parse_command(wire.data(),wire.size(),c));
+        }
+        std::string extra=legacy+"|706";
+        CHECK(!parse_command(extra.data(),extra.size(),c));
+        CHECK(select_raid_berry(0,5,5)==0);
+        CHECK(select_raid_berry(701,1,5)==701);
+        CHECK(select_raid_berry(701,0,5)==0);
+        CHECK(select_raid_berry(706,5,1)==706);
+        CHECK(select_raid_berry(706,1,0)==701);
+        CHECK(select_raid_berry(706,0,0)==0);
+    }
     test_parse_valid();
     test_parse_malformed();
     test_parse_overflow();

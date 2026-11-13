@@ -52,7 +52,7 @@ public final class AutoRaid {
         synchronized(LOCK){
         if((!running&&!stopping)||session==null)return null;
         AutoRaidPreferences p=session;
-        return "R1|"+token+"|"+(running?1:0)+"|"+p.tierMask+"|"+p.maxRaids+"|"+p.minPlayers+"|"+p.waitSeconds+"|"+(p.walk?1:0)+"|"+(p.freePass?1:0)+"|"+(p.premiumPass?1:0)+"|"+(p.stopOnShiny?1:0)+"|"+p.bosses+"|"+cooldown;
+        return "R2|"+token+"|"+(running?1:0)+"|"+p.tierMask+"|"+p.maxRaids+"|"+p.minPlayers+"|"+p.waitSeconds+"|"+(p.walk?1:0)+"|"+(p.freePass?1:0)+"|"+(p.premiumPass?1:0)+"|"+(p.stopOnShiny?1:0)+"|"+p.bosses+"|"+cooldown+"|"+p.berryMode();
     }}
     public static void publish(String detail){
         try{

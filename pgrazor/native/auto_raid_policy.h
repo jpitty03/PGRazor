@@ -3,7 +3,7 @@
 
 // Pure, host-independent policy and state rules for the native Auto-Raid module.
 // Contains only deterministic logic that can be unit-tested without an IL2CPP runtime:
-// - R1 slot-12 command parsing and parameter bounds validation
+// - R1/R2 slot-12 command parsing and parameter bounds validation
 // - Raid tier bitmask classification and boss National Dex filtering
 // - Active raid eligibility (no egg/expired/completed/hidden raids) and nearest Haversine selection
 // - Raid pass cost classification and selection (Free pass first, optional Premium pass, never Remote/Shop)
@@ -111,6 +111,7 @@ struct Command {
     bool stop_on_shiny = false; // 1 = stop session immediately when a shiny raid boss is caught
     std::vector<int> boss_ids;  // sorted unique National Dex IDs (1..2000); empty = any boss
     int64_t cooldown_ms = 0;    // Current-position cooldown; wait before local entry.
+    int berry_mode = 0;        // 0=off, 701=Razz, 706=Golden with Razz fallback.
 };
 
 namespace detail {
@@ -160,19 +161,21 @@ inline bool parse_boss_list(const char* begin, const char* end, std::vector<int>
 
 // Parse slot-12 wire command:
 // "R1|token|enabled|tierMask|maxRaids|minPlayers|waitSeconds|walk|freePass|premiumPass|stopOnShiny|bosses|cooldownMs"
+// R2 adds a final |berryMode (0=off, 701=Razz, 706=Golden with Razz fallback).
 inline bool parse_command(const char* data, size_t size, Command& out) {
     if (!data || size < 26 || size > 1200) return false;
-    if (data[0] != 'R' || data[1] != '1' || data[2] != '|') return false;
+    if (data[0] != 'R' || (data[1] != '1' && data[1] != '2') || data[2] != '|') return false;
+    const size_t expected = data[1] == '2' ? 14 : 13;
 
-    const char* seg_starts[13]{};
-    const char* seg_ends[13]{};
+    const char* seg_starts[14]{};
+    const char* seg_ends[14]{};
     size_t seg_count = 0;
     const char* cur = data;
     const char* const end = data + size;
 
     for (const char* p = data;; ++p) {
         if (p == end || *p == '|') {
-            if (seg_count >= 13) return false; // too many '|' delimiters
+            if (seg_count >= expected) return false;
             seg_starts[seg_count] = cur;
             seg_ends[seg_count] = p;
             ++seg_count;
@@ -180,7 +183,7 @@ inline bool parse_command(const char* data, size_t size, Command& out) {
             cur = p + 1;
         }
     }
-    if (seg_count != 13) return false;
+    if (seg_count != expected) return false;
 
     constexpr uint64_t kMaxToken = static_cast<uint64_t>(std::numeric_limits<int64_t>::max());
     uint64_t num[10]{};
@@ -214,6 +217,9 @@ inline bool parse_command(const char* data, size_t size, Command& out) {
     if (!detail::parse_boss_list(seg_starts[11], seg_ends[11], bosses)) return false;
     uint64_t cooldown = 0;
     if (!detail::parse_uint64_segment(seg_starts[12], seg_ends[12], 7200000, cooldown)) return false;
+    uint64_t berry = 0;
+    if (expected == 14 && (!detail::parse_uint64_segment(seg_starts[13], seg_ends[13], 706, berry) ||
+        (berry != 0 && berry != 701 && berry != 706))) return false;
 
     Command parsed;
     parsed.token = token;
@@ -228,8 +234,17 @@ inline bool parse_command(const char* data, size_t size, Command& out) {
     parsed.stop_on_shiny = (stop_on_shiny == 1);
     parsed.boss_ids = std::move(bosses);
     parsed.cooldown_ms = static_cast<int64_t>(cooldown);
+    parsed.berry_mode = static_cast<int>(berry);
     out = std::move(parsed);
     return true;
+}
+
+// Inventory counts must be known before selecting a consumable. Golden always
+// permits regular Razz as fallback, independently of the regular checkbox.
+inline int select_raid_berry(int mode, int razz, int golden) {
+    if (mode == 706 && golden > 0) return 706;
+    if ((mode == 701 || mode == 706) && razz > 0) return 701;
+    return 0;
 }
 
 // Classify a raid's tier bitmask from its RaidInfoProto level and boolean properties.

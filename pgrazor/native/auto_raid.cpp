@@ -152,7 +152,7 @@ struct TransportPermission {
     bool snapshot_coherent = false; // sample A and Z both fresh, non-faulted, equal seq
     bool retry_snapshot = false; // Fresh host update overlapped the read; do no game work this tick.
     bool empty_command = false;     // coherent snapshot with empty slot-12 command (revoked)
-    bool valid = false;             // coherent snapshot + valid R1 command
+    bool valid = false;             // coherent snapshot + valid R1/R2 command
     bool foreground = false;        // bool 3: app active in foreground
     bool item_access = false;       // bool 16: map itemAccessReady
     bool has_coords = false;        // valid player coordinates in doubles 0, 1
@@ -251,6 +251,12 @@ struct ActiveSession {
     Root raid_map_pokemon;
     Root coord_encounter;
     Root pending_promise;
+    Root berry_promise;
+    Root berry_interaction;
+    int berry_item = 0;
+    int64_t berry_wait_started_ms = 0;
+    unsigned berry_unavailable = 0;
+    bool berry_prepared = false;
 
     // Pass verification state
     pgr_auto_raid::PassSelectionResult pass_decision{};
@@ -273,6 +279,12 @@ struct ActiveSession {
     std::string last_message;
 
     void release_roots() {
+        berry_promise.reset();
+        berry_interaction.reset();
+        berry_item = 0;
+        berry_wait_started_ms = 0;
+        berry_unavailable = 0;
+        berry_prepared = false;
         pending_promise.reset();
         coord_encounter.reset();
         raid_map_pokemon.reset();
@@ -381,6 +393,11 @@ void maybe_emit_heartbeat(int64_t now_ms) {
 // ============================================================================
 // Runtime & Managed Reflection Helpers (with Test Seam for Runtime Fixture)
 // ============================================================================
+struct RaidBerrySnapshot {
+    int active = 0, razz = 0, golden = 0;
+    bool can_feed = false;
+};
+enum RaidBerryResult { BerryAccepted = 0, BerryNoStock = 1, BerryRefused = 2 };
 struct RuntimeAdapter {
     bool (*ensure_ready)() = nullptr;
     std::string (*read_account_id)() = nullptr;
@@ -420,6 +437,11 @@ struct RuntimeAdapter {
     int (*poll_catch_promise)(void* promise, uint64_t tid, int& out_catch_status) = nullptr;
     void (*close_encounter_summary)() = nullptr;
     bool (*map_ready)() = nullptr;
+    bool (*ensure_berry_ready)() = nullptr;
+    bool (*inspect_raid_berry)(void* state, void* pokemon, RaidBerrySnapshot& out) = nullptr;
+    Root (*submit_raid_berry)(void* state, void* pokemon, int item) = nullptr;
+    int (*poll_berry_promise)(void* promise, uint64_t tid, int& result) = nullptr;
+    void (*clear_raid_berry)() = nullptr;
 };
 
 RuntimeAdapter* g_test_adapter = nullptr;
@@ -734,6 +756,11 @@ RuntimeAdapter kRealAdapter = {
     real_poll_catch_promise,
     real_close_encounter_summary,
     real_map_ready,
+    real_ensure_berry_ready,
+    real_inspect_raid_berry,
+    real_submit_raid_berry,
+    real_poll_berry_promise,
+    real_clear_raid_berry,
 };
 
 RuntimeAdapter& adapter() {
@@ -1245,6 +1272,31 @@ void step_catch_summary(const TransportPermission& perm,int64_t now_ms){
 }
 
 void step_encounter(uint64_t tid, int64_t now_ms) {
+    if (session.berry_promise) {
+        int result = BerryRefused;
+        const int rc = adapter().poll_berry_promise(session.berry_promise.get(), tid, result);
+        if (rc == PGR_VR_PENDING) {
+            if (now_ms - session.promise_started_ms >= kPromiseTimeoutMs)
+                finish_session("error", "Berry request timed out; check the encounter (not retried)");
+            else maybe_emit_heartbeat(now_ms);
+            return;
+        }
+        session.berry_promise.reset();
+        session.uncertain_action = false;
+        if (rc != PGR_VR_DONE || result == BerryRefused) {
+            finish_session("error", "Berry request failed; check the encounter (not retried)");
+            return;
+        }
+        if (result == BerryNoStock) {
+            session.berry_unavailable |= session.berry_item == 706 ? 2u : 1u;
+            emit_status(session.command.token, "catching", "Selected berry unavailable; checking fallback", tracker.completed_raids);
+        } else {
+            session.berry_prepared = true;
+            session.last_step_ms = now_ms;
+            emit_status(session.command.token, "catching", "Berry applied; catching raid boss", tracker.completed_raids);
+        }
+        return;
+    }
     if (session.pending_promise) {
         int catch_status = 0;
         const int rc = adapter().poll_catch_promise(session.pending_promise.get(), tid, catch_status);
@@ -1279,6 +1331,11 @@ void step_encounter(uint64_t tid, int64_t now_ms) {
             return;
         }
         if ((catch_status == 2 || catch_status == 4) && session.throws_made < kMaxRaidThrows) {
+            if (session.command.berry_mode) {
+                if (catch_status == 2) adapter().clear_raid_berry();
+                session.berry_prepared = false;
+                session.berry_wait_started_ms = 0;
+            }
             maybe_emit_heartbeat(now_ms);
             return;
         }
@@ -1303,6 +1360,42 @@ void step_encounter(uint64_t tid, int64_t now_ms) {
         return;
     }
     if (shiny) session.boss_shiny = true;
+
+    if (session.command.berry_mode && !session.berry_prepared) {
+        RaidBerrySnapshot stock{};
+        const bool ready = adapter().inspect_raid_berry(session.coord_encounter.get(), session.raid_map_pokemon.get(), stock);
+        if (!ready || (!stock.active && !stock.can_feed)) {
+            if (!session.berry_wait_started_ms) {
+                session.berry_wait_started_ms = now_ms;
+                emit_status(session.command.token, "catching", "Waiting for raid berry controls", tracker.completed_raids);
+            } else if (now_ms - session.berry_wait_started_ms >= kPromiseTimeoutMs) {
+                finish_session("error", "Raid berry controls did not become ready; no berry or throw sent");
+            }
+            return;
+        }
+        session.berry_wait_started_ms = 0;
+        const int item = stock.active ? 0 : pgr_auto_raid::select_raid_berry(session.command.berry_mode,
+            (session.berry_unavailable & 1u) ? 0 : stock.razz,
+            (session.berry_unavailable & 2u) ? 0 : stock.golden);
+        emit_raw_event("{\"token\":"+json_quote(std::to_string(session.command.token))+
+            ",\"phase\":\"berry-choice\",\"preferred\":"+std::to_string(session.command.berry_mode)+
+            ",\"selected\":"+std::to_string(item)+",\"active\":"+std::to_string(stock.active)+
+            ",\"razzStock\":"+std::to_string(stock.razz)+",\"goldenStock\":"+std::to_string(stock.golden)+
+            ",\"unavailableMask\":"+std::to_string(session.berry_unavailable)+"}");
+        if (item) {
+            session.berry_item = item;
+            session.promise_started_ms = now_ms;
+            session.uncertain_action = true;
+            session.berry_promise = adapter().submit_raid_berry(session.coord_encounter.get(), session.raid_map_pokemon.get(), item);
+            require(bool(session.berry_promise), "Berry request returned no promise; check the encounter (not retried)");
+            emit_status(session.command.token, "catching", item == 706 ? "Applying Golden Razz Berry" :
+                session.command.berry_mode == 706 ? "Golden Razz unavailable; applying Razz Berry" : "Applying Razz Berry", tracker.completed_raids);
+            return;
+        }
+        session.berry_prepared = true;
+        emit_status(session.command.token, "catching", stock.active ? "Keeping active berry; catching raid boss" :
+                    "No selected berries in stock; catching without a berry", tracker.completed_raids);
+    }
 
     session.last_step_ms = now_ms;
     session.promise_started_ms = now_ms;
@@ -1331,6 +1424,8 @@ bool step_controller(uint64_t tid) {
         if (!perm.foreground) return false;
 
         adapter().ensure_ready();
+        if (perm.command.berry_mode)
+            require(adapter().ensure_berry_ready(), "Raid berry bindings unavailable; no raid started");
         const std::string account = adapter().read_account_id();
 
         tracker.reset_for_token(perm.command.token);

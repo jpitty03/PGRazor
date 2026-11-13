@@ -27,6 +27,9 @@ public final class AutoRaidPreferences {
     public static final int MIN_PLAYERS_DEFAULT = 1, MIN_PLAYERS_MIN = 1, MIN_PLAYERS_MAX = 20;
     public static final int WAIT_DEFAULT = 60, WAIT_MIN = 15, WAIT_MAX = 120;
 
+    /** Bonus-catch berry item ids sent to the controller. */
+    public static final int BERRY_NONE = 0, BERRY_RAZZ = 701, BERRY_GOLDEN_RAZZ = 706;
+
     /** Tier filter bitmask; {@link #TIER_ANY} joins any tier. */
     public int tierMask = TIER_ANY;
     /** Canonical comma-separated National Dex IDs (sorted, unique, 1-2000); empty joins any boss. */
@@ -45,6 +48,22 @@ public final class AutoRaidPreferences {
     public boolean freePass = true;
     /** Use Premium Battle passes. Remote Raid passes are never used. */
     public boolean premiumPass = false;
+    /** Throw a Razz Berry on bonus catches. */
+    public boolean razzBerry = false;
+    /**
+     * Prefer a Golden Razz Berry on bonus catches. When this is set the controller always falls back to
+     * a regular Razz Berry once no Golden remain, whether or not {@link #razzBerry} is also set.
+     */
+    public boolean goldenRazzBerry = false;
+
+    /**
+     * The bonus-catch berry item id sent to the controller: {@link #BERRY_GOLDEN_RAZZ} when Golden is
+     * chosen (Golden preferred, with a regular Razz fallback regardless of the {@link #razzBerry} box),
+     * {@link #BERRY_RAZZ} when only the Razz box is chosen, or {@link #BERRY_NONE} when neither is.
+     */
+    public synchronized int berryMode() {
+        return goldenRazzBerry ? BERRY_GOLDEN_RAZZ : razzBerry ? BERRY_RAZZ : BERRY_NONE;
+    }
 
     /**
      * The canonical form of a comma-separated boss list: whitespace trimmed, IDs sorted ascending and
@@ -92,6 +111,8 @@ public final class AutoRaidPreferences {
         c.walk = walk;
         c.freePass = freePass;
         c.premiumPass = premiumPass;
+        c.razzBerry = razzBerry;
+        c.goldenRazzBerry = goldenRazzBerry;
         return c;
     }
 
@@ -132,6 +153,8 @@ public final class AutoRaidPreferences {
         walk = flag(p, "Walk", false);
         freePass = flag(p, "FreePass", true);
         premiumPass = flag(p, "PremiumPass", false);
+        razzBerry = flag(p, "RazzBerry", false);
+        goldenRazzBerry = flag(p, "GoldenRazzBerry", false);
     }
 
     /** Writes every field under the {@code autoRaid} prefix (e.g. {@code autoRaidTierMask}). */
@@ -145,5 +168,7 @@ public final class AutoRaidPreferences {
         p.setProperty("autoRaidWalk", String.valueOf(walk));
         p.setProperty("autoRaidFreePass", String.valueOf(freePass));
         p.setProperty("autoRaidPremiumPass", String.valueOf(premiumPass));
+        p.setProperty("autoRaidRazzBerry", String.valueOf(razzBerry));
+        p.setProperty("autoRaidGoldenRazzBerry", String.valueOf(goldenRazzBerry));
     }
 }

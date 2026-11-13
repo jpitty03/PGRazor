@@ -170,6 +170,11 @@ struct FakeWorld {
     int poll_rc = PGR_VR_DONE;
     int catch_status = 1; // 1 = CatchSuccess
     unsigned summary_closed = 0;
+    bool berry_bindings = true, berry_ready = true, berry_feedable = true;
+    int active_berry = 0, razz = 5, golden = 5;
+    int berry_rc = PGR_VR_DONE, berry_result = BerryAccepted;
+    unsigned berry_polls = 0, berry_clears = 0;
+    std::vector<int> berries;
 };
 
 FakeWorld world{};
@@ -280,7 +285,10 @@ bool fake_poll_raid_encounter(Root& io_coord, Root& io_pk, bool& out_shiny, int&
     return true;
 }
 
-Root fake_submit_raid_throw(void*, void*, int) {
+Root fake_submit_raid_throw(void*, void*, int ball) {
+    auto value = raid_throw_value(ball);
+    assert(value.item == ball && value.radius == 0.1f && value.bullseye == 1 && value.spinning == 1 && value.missed == 0);
+    assert(!session.berry_promise);
     ++world.throws_submitted;
     return Root(&dummy_catch_promise_obj);
 }
@@ -296,6 +304,20 @@ void fake_close_encounter_summary() {
     world.encounter_open = false;
 }
 bool fake_map_ready(){return world.map_ready;}
+bool fake_ensure_berry_ready(){return world.berry_bindings;}
+bool fake_inspect_berry(void*,void*,RaidBerrySnapshot& out){
+    out={world.active_berry,world.razz,world.golden,world.berry_feedable};return world.berry_ready;
+}
+Root fake_submit_berry(void*,void*,int item){
+    assert(!session.pending_promise);world.berries.push_back(item);
+    return Root(&dummy_catch_promise_obj);
+}
+int fake_poll_berry(void*,uint64_t,int& result){
+    ++world.berry_polls;result=world.berry_result;
+    if(world.berry_rc==PGR_VR_DONE && result==BerryAccepted)world.active_berry=world.berries.back();
+    return world.berry_rc;
+}
+void fake_clear_berry(){world.active_berry=0;++world.berry_clears;}
 
 RuntimeAdapter g_fake_adapter = {
     fake_ensure_ready,
@@ -321,6 +343,11 @@ RuntimeAdapter g_fake_adapter = {
     fake_poll_catch_promise,
     fake_close_encounter_summary,
     fake_map_ready,
+    fake_ensure_berry_ready,
+    fake_inspect_berry,
+    fake_submit_berry,
+    fake_poll_berry,
+    fake_clear_berry,
 };
 
 pgr_auto_raid::RaidCandidate make_active_raid(const std::string& fort_id,
@@ -734,6 +761,79 @@ int main() {
     world.map_ready=true;
     assert(!pgr_auto_raid_tick(tid,&metadata));
     assert(t_events.back().find("\"completed\":1")!=std::string::npos && test_roots.empty());
-    std::puts("PASS auto_raid runtime: lifecycle revocation, immutable policy, unknown results, cooldown, lobby, catch, map restoration & roots");
+    auto start_berry_encounter=[&](int mode){
+        reset_fixture();g_test_adapter=&g_fake_adapter;
+        t_command="R2|1000|1|0|3|1|45|0|1|0|0||0|"+std::to_string(mode);
+        assert(pgr_auto_raid_tick(tid,&metadata));
+        session.stage=RaidStage::Encounter;session.last_step_ms=0;
+        world.encounter_open=true;
+    };
+    auto tick=[&](){return pgr_auto_raid_tick(tid,&metadata);};
+    auto later=[&](){test_clock_override_ms+=kThrowCadenceMs;return tick();};
+    // Golden is sent once, confirmed before the first excellent/curve/non-missed throw.
+    start_berry_encounter(706);world.berry_rc=PGR_VR_PENDING;
+    assert(tick() && world.berries==std::vector<int>{706} && world.throws_submitted==0);
+    assert(tick() && world.berries.size()==1 && world.throws_submitted==0);
+    world.berry_rc=PGR_VR_DONE;assert(tick() && world.throws_submitted==0);
+    assert(later() && world.throws_submitted==1);
+    // Breakout removes the used effect and feeds the next throw; a miss retains it.
+    world.catch_status=2;assert(tick() && world.berry_clears==1);
+    assert(later() && world.berries.size()==2 && world.throws_submitted==1);
+    assert(tick());assert(later() && world.throws_submitted==2);
+    world.catch_status=4;assert(tick());
+    assert(later() && world.berries.size()==2 && world.throws_submitted==3 && world.berry_clears==1);
+    pgr_auto_raid_stop(tid);assert(test_roots.empty());
+    // Fallback is authorized with Golden alone; regular-only never consumes Golden.
+    start_berry_encounter(706);world.golden=0;
+    assert(tick() && world.berries==std::vector<int>{701});pgr_auto_raid_stop(tid);
+    start_berry_encounter(706);world.golden=world.razz=0;
+    assert(tick() && world.berries.empty() && world.throws_submitted==1);pgr_auto_raid_stop(tid);
+    start_berry_encounter(701);world.razz=0;
+    assert(tick() && world.berries.empty() && world.throws_submitted==1);pgr_auto_raid_stop(tid);
+    start_berry_encounter(701);
+    assert(tick() && world.berries==std::vector<int>{701});pgr_auto_raid_stop(tid);
+    // Keep an existing effect without spending any selected berry.
+    start_berry_encounter(706);world.active_berry=705;world.berry_feedable=false;
+    assert(tick() && world.berries.empty() && world.throws_submitted==1);pgr_auto_raid_stop(tid);
+    // Server NoItem overrides stale positive inventory, including fallback exhaustion.
+    start_berry_encounter(706);world.berry_result=BerryNoStock;
+    assert(tick());assert(tick());assert(tick());
+    assert((world.berries==std::vector<int>{706,701}) && world.throws_submitted==0);
+    assert(tick());assert(tick());
+    assert(world.berries.size()==2 && world.throws_submitted==1);pgr_auto_raid_stop(tid);
+    // Neither an uncertain timeout nor an explicit rejection is retried or followed by a throw.
+    for(int scenario=0;scenario<3;++scenario){
+        start_berry_encounter(706);assert(tick());
+        if(scenario==0){world.berry_rc=PGR_VR_PENDING;test_clock_override_ms+=kPromiseTimeoutMs;}
+        if(scenario==1)world.berry_rc=PGR_VR_REJECTED;
+        if(scenario==2)world.berry_result=BerryRefused;
+        assert(!tick() && world.berries.size()==1 && world.throws_submitted==0 && test_roots.empty());
+        assert(!tick() && world.berries.size()==1);
+    }
+    // Lease, foreground, account and token changes revoke pending work before polling.
+    for(int scenario=0;scenario<4;++scenario){
+        start_berry_encounter(706);assert(tick());
+        if(scenario==0)t_fresh=false;
+        if(scenario==1)t_foreground=false;
+        if(scenario==2)world.account="other";
+        if(scenario==3)t_command="R2|1001|1|0|3|1|45|0|1|0|0||0|706";
+        assert(!tick() && world.berry_polls==0 && world.throws_submitted==0 && test_roots.empty());
+    }
+    // A changed policy within the same token cannot authorize a different consumable.
+    start_berry_encounter(701);t_command="R2|1000|1|0|3|1|45|0|1|0|0||0|706";
+    assert(tick() && world.berries==std::vector<int>{701});pgr_auto_raid_stop(tid);
+    // Transient controls wait, but never stall forever or send an unconfirmed throw.
+    start_berry_encounter(706);world.berry_ready=false;
+    assert(tick() && world.berries.empty() && world.throws_submitted==0);
+    test_clock_override_ms+=kPromiseTimeoutMs;
+    assert(!tick() && test_roots.empty());
+    start_berry_encounter(706);world.berry_feedable=false;
+    assert(tick() && world.berries.empty());world.berry_feedable=true;
+    assert(tick() && world.berries.size()==1);pgr_auto_raid_stop(tid);
+    reset_fixture();g_test_adapter=&g_fake_adapter;world.berry_bindings=false;
+    t_command="R2|1000|1|0|3|1|45|0|1|0|0||0|706";
+    assert(!tick() && world.gym_clicks==0 && world.join_presses==0 && world.modal_confirms==0);
+    assert(t_events.back().find("berry bindings unavailable")!=std::string::npos && test_roots.empty());
+    std::puts("PASS auto_raid runtime: lifecycle, immutable policy, catch flow, berry fallback/acknowledgement/exhaustion/revocation and excellent curve Always Hit values");
     return 0;
 }

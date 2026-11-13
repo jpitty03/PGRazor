@@ -16,9 +16,12 @@ public class SettingsBackupRulesTest {
         SettingsBackupRules.validate(valid());
         JSONObject raids=valid();raids.getJSONObject("settings").put("autoRaidTierMask","127").put("autoRaidBosses","150,384")
             .put("autoRaidMaxRaids","5").put("autoRaidMinPlayers","3").put("autoRaidWaitSeconds","60")
-            .put("autoRaidFreePass","true").put("autoRaidPremiumPass","false");SettingsBackupRules.validate(raids);
+            .put("autoRaidFreePass","true").put("autoRaidPremiumPass","false")
+            .put("autoRaidRazzBerry","true").put("autoRaidGoldenRazzBerry","false");SettingsBackupRules.validate(raids);
+        raids.getJSONObject("settings").put("autoRaidRazzBerry","false").put("autoRaidGoldenRazzBerry","true");SettingsBackupRules.validate(raids);
         for(String[] invalid:new String[][]{{"autoRaidTierMask","128"},{"autoRaidBosses","0"},{"autoRaidMaxRaids","0"},
-                {"autoRaidMinPlayers","21"},{"autoRaidWaitSeconds","121"},{"autoRaidPremiumPass","yes"},{"autoRaidRunning","true"}}){
+                {"autoRaidMinPlayers","21"},{"autoRaidWaitSeconds","121"},{"autoRaidPremiumPass","yes"},
+                {"autoRaidRazzBerry","yes"},{"autoRaidGoldenRazzBerry","701"},{"autoRaidRunning","true"}}){
             JSONObject badRaid=valid();badRaid.getJSONObject("settings").put(invalid[0],invalid[1]);rejects(badRaid);
         }
         JSONObject buddyOrder=valid();buddyOrder.getJSONObject("settings").put("buddyEmotionBerries","708,703,701");SettingsBackupRules.validate(buddyOrder);

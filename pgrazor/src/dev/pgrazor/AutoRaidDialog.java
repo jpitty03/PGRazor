@@ -62,11 +62,20 @@ public final class AutoRaidDialog {
         passNote.setText("Uses an allowed free pass before a Premium Battle Pass. Remote Raid Passes are never used.");
         body.addView(passNote);
 
+        final CheckBox razzBerry = new CheckBox(ui);
+        razzBerry.setText("Use a Razz Berry on bonus catches"); body.addView(razzBerry);
+        final CheckBox goldenRazzBerry = new CheckBox(ui);
+        goldenRazzBerry.setText("Use a Golden Razz Berry on bonus catches"); body.addView(goldenRazzBerry);
+        TextView berryNote = new TextView(ui);
+        berryNote.setText("Golden Razz takes priority and falls back to Razz when unavailable. Leave both unchecked to use no berries. "
+            + "Auto-Raid uses Excellent curveballs with Always Hit (never miss). Pokémon can still break out.");
+        body.addView(berryNote);
+
         final Button start = new Button(ui); start.setAllCaps(false); start.setText("Start"); body.addView(start);
         final Button stop = new Button(ui); stop.setAllCaps(false); stop.setText("Stop"); body.addView(stop);
 
         final boolean[] refreshing = {false};
-        final View[] config = {tiers, bosses, maxRaids, minPlayers, waitSeconds, travel, stopShiny, freePass, premiumPass};
+        final View[] config = {tiers, bosses, maxRaids, minPlayers, waitSeconds, travel, stopShiny, freePass, premiumPass, razzBerry, goldenRazzBerry};
         final Runnable update = () -> {
             refreshing[0] = true;
             boolean running = AutoRaid.running();
@@ -80,6 +89,8 @@ public final class AutoRaidDialog {
             stopShiny.setChecked(draft.stopOnShiny);
             freePass.setChecked(draft.freePass);
             premiumPass.setChecked(draft.premiumPass);
+            razzBerry.setChecked(draft.razzBerry);
+            goldenRazzBerry.setChecked(draft.goldenRazzBerry);
             for (View v : config) SettingsUi.enabled(v, !running);
             start.setEnabled(!running);
             stop.setEnabled(running);
@@ -101,6 +112,8 @@ public final class AutoRaidDialog {
         stopShiny.setOnCheckedChangeListener((v, on) -> { if (!refreshing[0]) { draft.stopOnShiny = on; apply(activity, draft, update); } });
         freePass.setOnCheckedChangeListener((v, on) -> { if (!refreshing[0]) { draft.freePass = on; apply(activity, draft, update); } });
         premiumPass.setOnCheckedChangeListener((v, on) -> { if (!refreshing[0]) { draft.premiumPass = on; apply(activity, draft, update); } });
+        razzBerry.setOnCheckedChangeListener((v, on) -> { if (!refreshing[0]) { draft.razzBerry = on; apply(activity, draft, update); } });
+        goldenRazzBerry.setOnCheckedChangeListener((v, on) -> { if (!refreshing[0]) { draft.goldenRazzBerry = on; apply(activity, draft, update); } });
 
         start.setOnClickListener(v -> {
             try { AutoRaid.start(draft); }

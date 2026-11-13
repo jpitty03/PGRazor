@@ -22,7 +22,16 @@ public final class AutoRaidPreferencesTest {
         eq(AutoRaidPreferences.TIER_ANY, p.tierMask); eq("", p.bosses); eq(5, p.maxRaids);
         eq(false, p.stopOnShiny); eq(1, p.minPlayers); eq(60, p.waitSeconds);
         eq(false, p.walk); eq(true, p.freePass); eq(false, p.premiumPass);
+        eq(false, p.razzBerry); eq(false, p.goldenRazzBerry);
         p.validate();
+
+        // berryMode(): Golden is preferred (with a Razz fallback the controller applies) and wins over the
+        // Razz box; only the Razz box selected sends a plain Razz; neither selected sends no berry.
+        eq(AutoRaidPreferences.BERRY_NONE, p.berryMode());
+        p.razzBerry = true; eq(AutoRaidPreferences.BERRY_RAZZ, p.berryMode()); eq(701, p.berryMode());
+        p.goldenRazzBerry = true; eq(AutoRaidPreferences.BERRY_GOLDEN_RAZZ, p.berryMode()); eq(706, p.berryMode());
+        p.razzBerry = false; eq(AutoRaidPreferences.BERRY_GOLDEN_RAZZ, p.berryMode()); // Golden alone keeps its fallback
+        p.goldenRazzBerry = false; eq(AutoRaidPreferences.BERRY_NONE, p.berryMode());
 
         // Tier summary: no bits is "any"; bits render in display order.
         eq("Any tier", AutoRaidPreferences.tierSummary(AutoRaidPreferences.TIER_ANY));
@@ -72,11 +81,15 @@ public final class AutoRaidPreferencesTest {
         corrupt.setProperty("autoRaidWalk", "true");           // valid -> true
         corrupt.setProperty("autoRaidFreePass", "false");      // valid -> false
         corrupt.setProperty("autoRaidPremiumPass", "true");    // valid -> true
+        corrupt.setProperty("autoRaidRazzBerry", "true");      // valid -> true
+        corrupt.setProperty("autoRaidGoldenRazzBerry", "maybe"); // not boolean -> false
         AutoRaidPreferences repaired = new AutoRaidPreferences();
         repaired.read(corrupt);
         eq(AutoRaidPreferences.TIER_ANY, repaired.tierMask); eq("", repaired.bosses); eq(5, repaired.maxRaids);
         eq(1, repaired.minPlayers); eq(60, repaired.waitSeconds); eq(false, repaired.stopOnShiny);
         eq(true, repaired.walk); eq(false, repaired.freePass); eq(true, repaired.premiumPass);
+        eq(true, repaired.razzBerry); eq(false, repaired.goldenRazzBerry);
+        eq(AutoRaidPreferences.BERRY_RAZZ, repaired.berryMode());
         repaired.validate();
 
         // read() canonicalises a valid-but-unsorted stored boss list.
@@ -92,10 +105,11 @@ public final class AutoRaidPreferencesTest {
         configured.bosses = AutoRaidPreferences.normalizeBosses("384,150");
         configured.maxRaids = 20; configured.stopOnShiny = true; configured.minPlayers = 4;
         configured.waitSeconds = 90; configured.walk = true; configured.freePass = false; configured.premiumPass = true;
+        configured.razzBerry = true; configured.goldenRazzBerry = true;
         configured.validate();
         Properties saved = new Properties();
         configured.write(saved);
-        eq(9, saved.size());
+        eq(11, saved.size());
         AutoRaidPreferences restored = new AutoRaidPreferences();
         restored.read(saved);
         eq(configured.tierMask, restored.tierMask); eq(configured.bosses, restored.bosses);
@@ -103,17 +117,21 @@ public final class AutoRaidPreferencesTest {
         eq(configured.minPlayers, restored.minPlayers); eq(configured.waitSeconds, restored.waitSeconds);
         eq(configured.walk, restored.walk); eq(configured.freePass, restored.freePass);
         eq(configured.premiumPass, restored.premiumPass);
+        eq(configured.razzBerry, restored.razzBerry); eq(configured.goldenRazzBerry, restored.goldenRazzBerry);
+        eq(AutoRaidPreferences.BERRY_GOLDEN_RAZZ, restored.berryMode());
 
         // copy() isolation: mutating the copy leaves the source untouched.
         AutoRaidPreferences source = configured.copy();
         AutoRaidPreferences clone = source.copy();
         clone.tierMask = AutoRaidPreferences.TIER_ANY; clone.bosses = ""; clone.maxRaids = 1;
         clone.stopOnShiny = false; clone.minPlayers = 1; clone.waitSeconds = 15; clone.walk = false;
-        clone.freePass = true; clone.premiumPass = false;
+        clone.freePass = true; clone.premiumPass = false; clone.razzBerry = false; clone.goldenRazzBerry = false;
         truth(source.tierMask == configured.tierMask && source.bosses.equals(configured.bosses)
-            && source.maxRaids == 20 && source.stopOnShiny && source.walk && source.premiumPass,
+            && source.maxRaids == 20 && source.stopOnShiny && source.walk && source.premiumPass
+            && source.razzBerry && source.goldenRazzBerry,
             "copy does not share mutable state with the source");
-        truth(clone.maxRaids == 1 && !clone.premiumPass && clone.bosses.isEmpty(),
+        truth(clone.maxRaids == 1 && !clone.premiumPass && clone.bosses.isEmpty()
+            && !clone.razzBerry && !clone.goldenRazzBerry && clone.berryMode() == AutoRaidPreferences.BERRY_NONE,
             "clone holds its own values");
 
         System.out.println("AutoRaidPreferences: " + checks + " checks passed");

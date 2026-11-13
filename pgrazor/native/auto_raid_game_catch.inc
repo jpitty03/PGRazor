@@ -1,5 +1,6 @@
 // Game 0.435.2 catch adapter; verified signatures in catch-owner-summary.txt.
 int32_t g_premier_ball=0, g_beast_ball=0;
+int32_t g_berry_success=0, g_berry_no_stock=0, g_berry_active_exists=0;
 // --- il2cpp method type-introspection (metadata reads only) ---------------------------------
 void* catch_method_return_type(void* m) {
     return fn<void* (*)(void*)>(exp_sym("method_get_return_type"))(m);
@@ -140,6 +141,12 @@ bool real_poll_raid_encounter(Root& io_state, Root& io_pokemon, bool& shiny, int
     return true;
 }
 
+PgrThrowValue raid_throw_value(int ball) {
+    PgrThrowValue value{};
+    value.item=ball;value.radius=0.1f;value.bullseye=1;value.spinning=1;value.missed=0;
+    return value; // Same Excellent curveball values as VGP+, submitted as a non-missed hit.
+}
+
 Root real_submit_raid_throw(void* state, void* pokemon, int ball) {
     require(state && state==session.coord_encounter.get() && pokemon==session.raid_map_pokemon.get()
             && unity_obj_alive(pokemon),"Raid catch owner unavailable");
@@ -153,15 +160,129 @@ Root real_submit_raid_throw(void* state, void* pokemon, int ball) {
         overrides?"AttemptCapture":"TryCapture",overrides?1:2,
         "Niantic.Promises.IPromise<Holoholo.Rpc.CatchPokemonOutProto>");
     require(type_name_of(catch_method_param_type(capture,0))=="Niantic.Holoholo.Encounter.PokeballThrow","Raid throw ABI mismatch");
-    alignas(8) PgrThrowValue tv{};
-    tv.item=ball;tv.radius=0.1f;tv.bullseye=1;tv.spinning=1;
+    alignas(8) PgrThrowValue tv=raid_throw_value(ball);
     // NotifyThrown decrements supplied balls. NotifyHit dispatches capture listeners;
     // do not send it as well as TryCapture and risk a duplicate request.
     void* thrown_args[]={&ball};call_obj(state,"NotifyPokeballThrown",1,thrown_args);
     void* args[]={&tv,nullptr};
     Root promise(invoke_method(capture,overrides?strategy.get():pokemon,args));
     require(bool(promise),"Raid capture returned no promise; check encounter (not retried)");
+    emit_raw_event("{\"token\":"+json_quote(std::to_string(session.command.token))+
+        ",\"phase\":\"throw\",\"throw\":"+std::to_string(session.throws_made)+
+        ",\"ball\":"+std::to_string(ball)+",\"grade\":\"excellent\",\"curve\":true,\"alwaysHit\":true,\"missed\":false,\"reticle\":0.1}");
     return promise;
+}
+
+// Use the game's inventory service with the RAID encounter context, rather than
+// constructing a wild-encounter berry RPC. Its own continuation updates inventory.
+bool real_ensure_berry_ready() {
+    void* gui=resolve_class("Niantic.Holoholo.Encounter","EncounterGuiController");
+    require_map_method(gui,"btul",0,"Niantic.Holoholo.Encounter.IEncounterInteractionState");
+    void* interaction=resolve_class("Niantic.Holoholo.Encounter","EncounterInteractionState");
+    require_map_method(interaction,"get_ActiveBerry",0,"Holoholo.Rpc.Item");
+    require_map_method(interaction,"set_ActiveBerry",1,"System.Void","Holoholo.Rpc.Item");
+    require_map_method(interaction,"get_CanUseBerry",0,"System.Boolean");
+    require_map_method(interaction,"get_IsInPhotoMode",0,"System.Boolean");
+    require_map_method(interaction,"get_PokeballInPlay",0,"System.Boolean");
+    require_map_method(interaction,"set_CaptureProbability",1,"System.Void","Holoholo.Rpc.CaptureProbabilityProto");
+    void* bag=resolve_class("Niantic.Holoholo.Internal","ItemBagImpl");
+    require_map_method(bag,"UseItemForEncounter",2,"Niantic.Promises.IPromise<Holoholo.Rpc.UseItemEncounterOutProto>",
+                       "Holoholo.Rpc.Item","Niantic.Holoholo.Map.IItemEncounterContext");
+    require_map_method(bag,"GetItemCount",1,"System.Int32","Holoholo.Rpc.Item");
+    void* response=resolve_class("Holoholo.Rpc","UseItemEncounterOutProto");
+    void* status=find_field_by_name_checked(response,"Status");
+    void* status_class=fn<void*(*)(void*)>(exp_sym("class_from_type"))(
+        fn<void*(*)(void*)>(boot.meta.field_get_type)(status));
+    g_berry_success=read_enum_literal(status_class,"Success");
+    g_berry_no_stock=read_enum_literal(status_class,"NoItemInInventory");
+    g_berry_active_exists=read_enum_literal(status_class,"ActiveItemExists");
+    find_field_by_name_checked(response,"ActiveItem","Holoholo.Rpc.Item");
+    find_field_by_name_checked(response,"CaptureProbability","Holoholo.Rpc.CaptureProbabilityProto");
+    require(item_literal_opt("RazzBerry")==701 && item_literal_opt("GoldenRazzBerry")==706,"Raid berry item metadata mismatch");
+    require(fn<bool(*)(void*,void*)>(boot.meta.class_is_assignable_from)(
+        resolve_class("Niantic.Holoholo.Map","IItemEncounterContext"),
+        resolve_class("Niantic.Holoholo.Map","RaidMapPokemon")),"Raid berry context unsupported");
+    return true;
+}
+
+Root owned_berry_interaction(void* state,void* pokemon) {
+    require(state && state==session.coord_encounter.get() && pokemon && pokemon==session.raid_map_pokemon.get(),
+            "Raid berry owner unavailable");
+    Root gui=find_live_unity_object(resolve_class("Niantic.Holoholo.Encounter","EncounterGuiController"));
+    if(!gui)return {};
+    Root owner(call_obj(gui.get(),"btuk",0));
+    require(owner && owner.get()==state,"Raid berry belongs to another encounter");
+    Root interaction(call_obj(gui.get(),"btul",0));
+    // This is a managed state, not a Unity scene object. The live GUI and its
+    // exact EncounterState owner establish liveness; keep the state GC-rooted.
+    if(!interaction)return {};
+    require(obj_class_name(interaction.get())=="EncounterInteractionState","Unsupported raid berry interaction");
+    return interaction;
+}
+
+bool real_inspect_raid_berry(void* state,void* pokemon,RaidBerrySnapshot& out) {
+    out={};
+    Root interaction=owned_berry_interaction(state,pokemon);
+    if(!interaction)return false;
+    session.berry_interaction=std::move(interaction);
+    void* scope=session.berry_interaction.get();
+    out.active=unbox_val<int32_t>(call_obj(scope,"get_ActiveBerry",0));
+    out.can_feed=unbox_val<bool>(call_obj(scope,"get_CanUseBerry",0)) &&
+                 !unbox_val<bool>(call_obj(scope,"get_IsInPhotoMode",0)) &&
+                 !unbox_val<bool>(call_obj(scope,"get_PokeballInPlay",0));
+    Root bag=resolve_di_service("Niantic.Holoholo","IItemBag");
+    require(bool(bag),"Raid berry inventory unavailable");
+    int32_t item=701;void* args[]={&item};
+    out.razz=unbox_val<int32_t>(call_obj(bag.get(),"GetItemCount",1,args));
+    item=706;out.golden=unbox_val<int32_t>(call_obj(bag.get(),"GetItemCount",1,args));
+    require(out.razz>=0 && out.golden>=0,"Raid berry inventory count invalid");
+    return true;
+}
+
+Root real_submit_raid_berry(void* state,void* pokemon,int item) {
+    require(item==701 || item==706,"Unauthorized raid berry");
+    Root interaction=owned_berry_interaction(state,pokemon);
+    require(interaction && interaction.get()==session.berry_interaction.get(),"Raid berry interaction changed");
+    Root bag=resolve_di_service("Niantic.Holoholo","IItemBag");
+    require(bool(bag),"Raid berry inventory unavailable");
+    void* method=require_map_method(obj_klass(bag.get()),"UseItemForEncounter",2,
+        "Niantic.Promises.IPromise<Holoholo.Rpc.UseItemEncounterOutProto>","Holoholo.Rpc.Item","Niantic.Holoholo.Map.IItemEncounterContext");
+    void* args[]={&item,pokemon};
+    return Root(invoke_method(method,bag.get(),args));
+}
+
+int real_poll_berry_promise(void* promise,uint64_t tid,int& result) {
+    result=BerryRefused;
+    const auto* vr=static_cast<const PgrVgpResultsApi*>(pgrazor_vgp_results_api(1));
+    require(vr && vr->poll,"Raid berry promise observer unavailable");
+    PgrVgpResultsResult response{};
+    const int rc=vr->poll(promise,PGR_VR_PHASE_ENCOUNTER,tid,&response);
+    Root value;value.h=response.value_handle;
+    if(rc!=PGR_VR_DONE)return rc;
+    require(value && obj_class_name(value.get())=="UseItemEncounterOutProto","Unexpected raid berry response");
+    void* k=obj_klass(value.get());
+    const int status=read_field_val<int32_t>(value.get(),find_field_by_name_checked(k,"Status"));
+    emit_raw_event("{\"token\":"+json_quote(std::to_string(session.command.token))+
+        ",\"phase\":\"berry-result\",\"item\":"+std::to_string(session.berry_item)+",\"status\":"+std::to_string(status)+"}");
+    if(status==g_berry_no_stock){result=BerryNoStock;return rc;}
+    if(status!=g_berry_success && status!=g_berry_active_exists)return rc;
+    Root current=owned_berry_interaction(session.coord_encounter.get(),session.raid_map_pokemon.get());
+    require(current && current.get()==session.berry_interaction.get(),"Raid berry owner changed before result");
+    // Mirror the confirmed-result property updates in EncounterInteractionState.dyo.bswy.
+    // A pre-existing server effect is also sufficient; do not send another berry.
+    int item=read_field_val<int32_t>(value.get(),find_field_by_name_checked(k,"ActiveItem","Holoholo.Rpc.Item"));
+    if(status==g_berry_success)require(item>0,"Accepted raid berry omitted active effect");
+    if(item>0){void* args[]={&item};call_obj(current.get(),"set_ActiveBerry",1,args);}
+    Root probability(read_field_val<void*>(value.get(),find_field_by_name_checked(k,"CaptureProbability","Holoholo.Rpc.CaptureProbabilityProto")));
+    if(probability){void* args[]={probability.get()};call_obj(current.get(),"set_CaptureProbability",1,args);}
+    result=BerryAccepted;return rc;
+}
+
+void real_clear_raid_berry() {
+    if(!session.berry_interaction)return;
+    Root current=owned_berry_interaction(session.coord_encounter.get(),session.raid_map_pokemon.get());
+    require(current && current.get()==session.berry_interaction.get(),"Raid berry owner changed after breakout");
+    int32_t none=0;void* args[]={&none};call_obj(current.get(),"set_ActiveBerry",1,args);
 }
 
 void finish_owned_raid_encounter(bool caught){
