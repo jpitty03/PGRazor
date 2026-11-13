@@ -45,7 +45,13 @@ final class AccountProfiles {
         initialized=true;
         // Startup must know the namespace before any feature reads its settings.
         StrictMode.ThreadPolicy policy=StrictMode.allowThreadDiskWrites();
-        try { store=new AccountProfileStore(app.getFilesDir()); startupId=store.selected().id; store.cancelPending(); diag("account-storage","opened"); }
+        try {
+            store=new AccountProfileStore(app.getFilesDir()); startupId=store.selected().id;
+            // A switch still queued here was never applied by the restart step. Counts only: no id or label.
+            boolean unapplied=!store.pendingId().isEmpty();
+            store.cancelPending();
+            diag("account-storage","opened profiles="+store.list().size()+" namespace="+("default".equals(startupId)?"default":"profile")+" unappliedSwitch="+unapplied);
+        }
         catch(Exception error) { message="Account data could not be opened. Existing data has been kept."; diag("account-storage","unavailable; existing data kept"); }
         finally { StrictMode.setThreadPolicy(policy); }
     }
@@ -97,7 +103,10 @@ final class AccountProfiles {
             final long epoch=generation;
             io.execute(()->{
                 try {
+                    final int known=store.list().size();
                     AccountProfileStore.Profile found=store.observeIdentity(id,trainer);
+                    // A profile created here starts with default settings; a matched one keeps its own.
+                    final boolean created=store.list().size()>known;
                     if(found.label.equals("Default")||found.label.equals("New account")){
                         store.rename(found.id,trainer);found=store.get(found.id);
                     }
@@ -105,7 +114,7 @@ final class AccountProfiles {
                     main.post(()->{
                         if(epoch!=generation)return;
                         if(actual.id.equals(startupId)){verified=true;message=actual.label;diag("account-state","active account verified");return;}
-                        switching=true;message="Restoring " + actual.label;diag("account-state","restoring a saved account");
+                        switching=true;message="Restoring " + actual.label;diag("account-state",created?"new account profile created; restarting with default settings":"restoring a saved account");
                         try{Control.quiesceAccounts();}catch(IOException error){fail("Could not save outgoing location. Reopen the game.");return;}
                         io.execute(()->{
                             try{flush();store.selectVerified(actual.id);main.post(AccountProfiles::restart);}

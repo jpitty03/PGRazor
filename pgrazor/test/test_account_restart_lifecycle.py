@@ -38,6 +38,7 @@ static void quiesceAccounts() throws java.io.IOException{}}''',
 static class Profile {String id="default",label="Default";}
 AccountProfileStore(java.io.File f){} Profile selected(){return new Profile();}
 void cancelPending() throws java.io.IOException{} String pendingId(){return "";}
+java.util.List<Profile> list(){return java.util.Collections.emptyList();}
 Profile get(String id){return new Profile();} Profile observeIdentity(String id,String trainer){return new Profile();}
 void rename(String id,String name){} void selectVerified(String id){} void activatePending(){}
 void prepareSwitch(String id){} Profile add(String name){return new Profile();}

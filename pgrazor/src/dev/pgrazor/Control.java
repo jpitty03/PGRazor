@@ -1270,6 +1270,7 @@ public final class Control {
                 event("settings-restored","dismiss="+quickSummaryEnabled+" fastBall="+quickBallEnabled+" grade="+throwGrade+" variety="+throwVariety+" curve="+throwCurve+" mapTap="+mapTapMode+" cameraRelative=true heal="+healConfig());
             } catch(FileNotFoundException missing) {
                 // Defaults apply only until the user first saves a choice.
+                event("settings-defaults","No saved settings for this account profile yet");
             } catch(IOException | RuntimeException error) { event("settings-load-error",error.toString()); }
             finally { StrictMode.setThreadPolicy(policy); }
         }
