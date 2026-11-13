@@ -122,6 +122,12 @@ void step_manual_throw(uint64_t tid,bool raid_owns_game) {
         return;
     }
     if(manual_throw.promise){poll_manual_throw(tid,now);return;}
+    // A reward Pokemon collected from a menu (Go Pass, research) is thrown by hand. Ending that
+    // encounter directly, as finish_manual_throw does, skips the game's own ending; with another
+    // reward still waiting, the screen it returned to stopped responding (MuMu, 2026-11-13).
+    if(!manual_throw.attempts&&obj_class_name(manual_throw.pokemon.get())=="QuestMapPokemon"){
+        manual_throw.blocked=true;throw_event("manual","Reward Pokemon: throw by hand; Auto Throw skips these");return;
+    }
     if(permission.config.cooldown_ms>0){throw_wait("Waiting for cooldown");return;}
     if(manual_throw.attempts>=100){throw_block("Throw limit reached; reopen encounter to continue");return;}
     if(!unbox_val<bool>(call_obj(manual_throw.state.get(),"get_EncounterStrategyReady"))||

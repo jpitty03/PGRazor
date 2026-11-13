@@ -41,7 +41,8 @@ PgrRuntimeTransportApi tr{};
 const PgrRuntimeTransportApi* transport(){return &tr;}
 void* resolve_class(const char*,const char*){return &gui;}
 void* obj_klass(void* o){return o;}
-std::string obj_class_name(void*){return "CatchPokemonOutProto";}
+std::string pokemon_class="WildMapPokemon";
+std::string obj_class_name(void* o);
 bool unity_obj_alive(void*){return ownership;}
 Root find_live_unity_object(void*){return Root(&gui);}
 Root resolve_di_service(const char*,const char*){return Root(&bag);}
@@ -80,6 +81,7 @@ Root submit_auto_throw(Root& s,Root& p,const PgrThrowValue& v){assert(s.get()==&
 int poll_auto_throw(Root& p,uint64_t,Root& value,int& status){assert(p.get()==&promise);++polls;if(poll_rc==PGR_VR_DONE){value=Root(&response);status=result;}return poll_rc;}
 const void* pgrazor_vgp_results_api(uint32_t){return nullptr;}
 #include "auto_throw_controller.inc"
+std::string obj_class_name(void* o){return o==&pokemon?pokemon_class:"CatchPokemonOutProto";}
 void reset(){
  manual_throw=ManualThrowSession{};assert(roots.empty());manual_throw.interaction=Root(&interaction);
  fresh=foreground=coherent=ownership=ready=true;in_play=photo=false;selected=1;stock=10;active_berry=0;
@@ -112,6 +114,8 @@ int main(){
   reset();if(wait==0)in_play=true;if(wait==1)photo=true;if(wait==2)ready=false;if(wait==3)selected=4;if(wait==4)stock=0;if(wait==5)settings="C3|1|1|75|0|0|1|100";
   tick();tick();assert(attempts==0&&!manual_throw.blocked);
  }
+ // A reward Pokemon collected from a menu is never thrown at or completed by Auto Throw.
+ reset();pokemon_class="QuestMapPokemon";tick();tick();assert(!attempts&&!completions&&manual_throw.blocked);pokemon_class="WildMapPokemon";
  manual_throw=ManualThrowSession{};assert(roots.empty());
- puts("PASS Auto Throw production controller: toggle, raid exclusion, pending, breakout, success/flee, exhausted supply, timeout/rejection/unknown, lifecycle/account, cooldown, Master Ball, stock and roots");
+ puts("PASS Auto Throw production controller: reward encounters left manual, toggle, raid exclusion, pending, breakout, success/flee, exhausted supply, timeout/rejection/unknown, lifecycle/account, cooldown, Master Ball, stock and roots");
 }
