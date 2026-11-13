@@ -37,8 +37,8 @@ export default function GetStarted() {
       <p className="cta__release">
         <span className="cta__badge">Stable</span>
         The published{' '}
-        <a href={links.releasesCurrent}>v0.2.3 release</a> adds Battery usage, Throw variety
-        and a VGP+ catch-only list.
+        <a href={links.releasesCurrent}>v0.3.0 release</a> adds Auto Throw with catch on map,
+        Auto-Raid and the experimental PGRazor Root installer.
       </p>
 
       <div className="faq">

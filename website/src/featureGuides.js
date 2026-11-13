@@ -21,7 +21,8 @@ export const featureGuides = [
       'Disabling spoofing returns the device to its normal location and stops simulated movement.',
       'Adventure Sync prompts are dismissed automatically only while spoofing is on and the app has no Android location permission.',
       'Spawn booster (80 m) is an optional, experimental General Settings toggle that widens the nearby spawn range; it appears only when the game supports it and does not prove a server-side bonus. It can cause lag in busy areas with many nearby Pokémon, so turn it off if the game stutters.',
-      'Skip cutscenes, below Show joystick, has its own guide.',
+      'Idle walking, off by default, walks a small closed loop after 3 seconds without movement, at your chosen speed up to 5 km/h. The joystick, destination walking, Autowalk, and In-game Routes take priority, and speed 0 pauses it. The game decides whether such small loops count as distance.',
+      'Skip cutscenes, below Show joystick, has its own guide. So do Battery usage and Show local time.',
     ],
   },
   {
@@ -132,15 +133,15 @@ export const featureGuides = [
     title: 'Catching & throws',
     category: 'Catching',
     summary:
-      'Quick Catch, throw rating and curveball, catch chance and Auto ball, encounter berry priorities, and IV display.',
+      'Quick Catch, throw rating, variety and curveball, catch chance and Auto ball, encounter berry priorities, and IV display.',
     where: 'Settings > Catch & summary, Settings > Throws, and Settings > General Settings > IV Display.',
     steps: [
       'In Catch & summary, turn on Quick catch to shorten the catch animation and skip the post-catch screens.',
       'In Catch & summary, turn on Quick spin to let an opened PokéStop spin and close its reward screen automatically.',
-      'In Throws, set Throw rating to Nice, Great, or Excellent, and optionally turn on Always curveball or Always hit.',
+      'In Throws, set Throw rating to Nice, Great, or Excellent, and optionally turn on Always curveball or Always hit. Throw variety picks a rating at random for each throw instead.',
       'In Throws, Show catch chance lists each ball’s chance in manual encounters, from the server’s catch rate with your berry, throw rating, and curveball. Turn on Auto ball and set a target to pick the cheapest Poké, Great, or Ultra Ball that reaches it.',
       'In General Settings > IV Display, tap Encounter, Pokémon stats screen, or Pokémon storage list to cycle Off, Lv · 15/14/12, Lv · IV, Lv · IV · 15/14/12, and Lv · IV · 15/14/12 · PvP.',
-      'Tap the Catching berry overlay icon/count to choose up to three berries in priority order; each throw uses the first choice you still have in stock.',
+      'Tap the Catching berry overlay icon/count, or Berry priority in Catch & summary, to choose up to three berries in priority order; each throw uses the first choice you still have in stock.',
     ],
     notes: [
       'Empty-stock berries can be selected; after three picks the next tap starts a new list, and Off clears it. Priorities are saved and included in settings backups.',
@@ -148,7 +149,31 @@ export const featureGuides = [
       'Requested throw ratings combine with curveball but do not guarantee a catch.',
       'Auto ball runs when the encounter opens and after each escape; a ball you pick by hand is kept until the next escape. It never uses a Master Ball. The server’s catch rate already includes your type medal bonus.',
       'The PvP format adds each league’s crest and rank: the IV rank in Great and Ultra League, and the species’ PvPoke rank in Master League.',
+      'Quick catch also speeds up Dynamax catch, breakout, and flee animations; that part is experimental.',
+      'Auto throw and Catch on map, at the bottom of Throws, have their own guide.',
       'Some controls are gated by the game’s catch-summary and ball-animation support and may be hidden on unsupported versions.',
+    ],
+  },
+  {
+    id: 'auto-throw',
+    title: 'Auto throw & catch on map',
+    category: 'Catching',
+    summary:
+      'Let PGRazor throw for you in encounters, or catch a tapped Pokémon straight from the map without opening the encounter.',
+    where: 'Settings > Throws > Auto throw and Catch on map (tap Pokémon).',
+    steps: [
+      'In Throws, turn on Auto throw. It is off by default.',
+      'Open an encounter as usual. Each throw uses your throw rating, curveball, selected ball, and berry priority, with Always Hit.',
+      'To catch without the encounter screen, also turn on Catch on map (tap Pokémon), then tap a Pokémon on the map.',
+      'During a map catch, watch the badge near the PGRazor icon: WAIT, CATCH, RETRY, then CAUGHT or FLED. A pin sits above the Pokémon being caught.',
+    ],
+    notes: [
+      'Catch on map works for wild, lure, and incense Pokémon. Any other kind opens the normal encounter, where Auto throw takes over.',
+      'A tap made while VGP+ is in the middle of its own catch shows WAIT and starts when VGP+ finishes. It is dropped if the Pokémon leaves first or VGP+ stays busy for several seconds; tap again.',
+      'A caught or fled Pokémon is removed from the map. Only one map catch runs at a time, and a second tap is ignored until it ends.',
+      'Reward Pokémon collected from Go Pass or research are left for you to throw by hand.',
+      'Catch on map needs Auto throw on. While a cooldown estimate is running, a tap opens the normal encounter instead. Every throw uses a ball, and a Pokémon can still break out or flee.',
+      'Auto-Raid always uses this throwing for its bonus catch, even with Auto throw off.',
     ],
   },
   {
@@ -160,16 +185,19 @@ export const featureGuides = [
     where: 'Settings > Catch & summary > Transfer on catch.',
     steps: [
       'Open Transfer on catch and turn on Transfer below 90% IV.',
-      'Enable the keep rules you want: legendary/mythical/Ultra Beasts, shiny, event/costume, background, XXS, and XXL.',
+      'Enable the keep rules you want: legendary/mythical/Ultra Beasts, shiny, event/costume, background, XXS, XXL, and 0% IV (0/0/0).',
       'Open Custom keep list to search and keep specific species (including all forms).',
       'Turn on Keep Great League, Ultra League, or Master League PvP IVs and tap Top to choose the rank to keep (defaults: Great top 50, Ultra top 10, Master off).',
       'Optionally turn on the Keep-all overlay button for a draggable toggle that keeps manual encounter catches without changing your rules.',
+      'Optionally turn on Evolve before transferring, choose Evolve: once or all stages, and whether it applies to your current transfer rules or to Selected species.',
     ],
     notes: [
       'Favorites and eggs are always kept.',
       'PvP keep counts the Pokémon and anything it evolves into, when that species is in PvPoke’s top 150 for the league.',
       'The main rules apply to both manual and Virtual Go Plus catches. The Keep All overlay affects only manual encounters; VGP and VGP+ continue using the main settings.',
       'Turning Keep All off restores your existing rules; it does not enable auto-transfer if the main setting is off.',
+      'Evolve before transferring covers new catches only and needs Transfer on. It spends candy on ordinary evolutions, never items, and keep rules still apply; if a Pokémon cannot evolve it is transferred as usual.',
+      'Species pickers can be browsed by category, such as Legendary, Mega-capable, or second- and third-stage evolutions.',
       'The custom list and the overlay state are saved across restarts and included in settings backups.',
     ],
   },
@@ -205,7 +233,7 @@ export const featureGuides = [
       'Pick a Standard ball (Poké Ball, Great Ball, or Ultra Ball) and a Standard berry (Off, Razz, Nanab, Pinap, Golden Razz, or Silver Pinap).',
       'Optionally turn on “Shiny or IV ≥90%: Ultra Ball + Golden Razz”, and set High CP threshold (0–10000) and High level threshold (0–50) — a threshold of 0 disables that rule.',
       'Choose a Throw rating (Default/Nice/Great/Excellent) and optional Curveball.',
-      'Open Candy species (Pinap) to select species that should get a Pinap for candy.',
+      'Open Candy species (Pinap) to select species that should get a Pinap for candy, and optionally set a catch-only list so VGP+ catches just the species you choose.',
       'Optionally turn on Auto ball to pick the cheapest Poké, Great, or Ultra Ball that reaches your target chance for each throw; the shiny, IV, and CP/level Ultra Ball rules still apply.',
       'Optionally enable Auto-spin Gym discs under VGP+. It defaults off and is separate from Nearby PokéStops; Gym Slotter and feeding need not be enabled.',
       'Use the normal VGP Start/Stop icon to run it.',
@@ -349,6 +377,46 @@ export const featureGuides = [
     ],
   },
   {
+    id: 'shundo-sniper',
+    title: 'Shundo Sniper (experimental)',
+    category: 'Automation',
+    summary:
+      'Teleport to reported 100% IV Pokémon, check each for shiny, and catch a shiny once your cooldown allows.',
+    where: 'Settings > Automation > Shundo Sniper (Experimental), or Quick Menu > Automation.',
+    steps: [
+      'Read the warning first: constant teleporting and remote catching raise the risk of an account warning or ban. Use an alt account, not your main.',
+      'Open Automation and choose Shundo Sniper (Experimental).',
+      'Pick where sightings come from: the PGRazor feed, LivePokeMap with your own sign-in, or PoGoCoordinates, which is slower.',
+      'Optionally limit it with Shundo Sniper species, and set Time between teleports.',
+      'Turn on Shundo Sniper. Its card shows progress; tap Dark to black out the screen and save battery, and tap the screen to bring the game back.',
+    ],
+    notes: [
+      'A shiny is held in its encounter until your cooldown ends, then caught.',
+      'VGP+ pauses while it runs, and it will not start during Auto-Raid.',
+      'It waits for the account and game to be ready before teleporting and shows what it is waiting for.',
+      'If the map stops loading Pokémon or the game stops following teleports, it stops and asks you to restart Pokémon GO.',
+      'Sightings are remote reports and can be gone by the time you arrive.',
+    ],
+  },
+  {
+    id: 'go-wild-safari',
+    title: 'Go Wild: Safari Balls (November 2026)',
+    category: 'Automation',
+    summary:
+      'Prefer GO Safari Balls for Mighty Pokémon in VGP+ and Auto ball during the Go Wild event.',
+    where: 'Quick Menu > Events > Go Wild November 2026.',
+    steps: [
+      'Open the Quick Menu and tap Events, then Go Wild November 2026.',
+      'Turn on Use Safari Balls in VGP+ to prefer them for Mighty Pokémon while VGP+ is running.',
+      'Turn on Use Safari Balls in Auto Ball to prefer them in manual encounters when Auto ball is on.',
+    ],
+    notes: [
+      'Both options are off by default and independent of each other.',
+      'When Safari Balls are unavailable or not allowed for an encounter, your normal ball settings apply.',
+      'The options matter only while the event’s Safari Balls and Mighty Pokémon are in the game.',
+    ],
+  },
+  {
     id: 'event-boxes',
     title: 'Event boxes (Halloween 2026)',
     category: 'Automation',
@@ -363,7 +431,7 @@ export const featureGuides = [
     notes: [
       'It opens every visible box and dismisses the Pokémon encounter screens; it does not catch those encounters.',
       'It cannot filter for candy-only boxes — it opens all visible boxes.',
-      'Experimental and off by default.',
+      'Experimental and off by default. It does nothing once the Halloween 2026 boxes are no longer on the map.',
     ],
   },
   {
@@ -414,6 +482,7 @@ export const featureGuides = [
     ],
     notes: [
       'It uses only the unlimited incubator. Limited-use, Super, and timed incubators are not used.',
+      'After a hatch, the Eggs page the game would open is skipped. An Eggs page you open yourself stays open.',
       'Walking and hatching eggs do not start a cooldown.',
     ],
   },
@@ -427,14 +496,41 @@ export const featureGuides = [
     steps: [
       'In Team Rocket, enable Auto quick attack, Auto charged attack, and/or Auto shield.',
       'Expand Gyms, Raids, or Dynamax and enable the options you want: Raids / Gyms / Dynamax auto quick attack, auto charged attack, Dynamax auto Max attack, and per-type auto dodge.',
+      'Optionally turn on Battle until defeated under Gyms to start the next full round from the same gym screen until your team is beaten.',
       'Start the battle in the game; the enabled assists act on the game’s natural callbacks.',
     ],
     notes: [
       'In Rocket battles, while any Team Rocket option is on, the next Pokémon is picked automatically when one faints.',
-      'Smart healing, at the top of the same section, has its own guide.',
+      'Smart healing, at the top of the same section, has its own guide, as does Auto-Raid.',
+      'Battle until defeated uses your gym attack settings and waits for Smart healing between rounds when that is set to run after battles.',
+      'In Max battles, your Pokémon moves toward nearby Max energy orbs automatically.',
       'Automated attacks and dodges pause while the Pokémon switch picker is open and resume after it closes.',
       'Dynamax attack controls can recover from a missed setup callback so quick and charged attacks can still start.',
       'Includes gym next-opponent continuation: when Gyms: auto quick attack or Gyms: auto charged attack is on, the next-opponent prompt starts the following gym battle instead of waiting out its countdown. Leaving the battle manually or turning those gym attack options off cancels it. User-confirmed on MuMu.',
+    ],
+  },
+  {
+    id: 'auto-raid',
+    title: 'Auto-Raid',
+    category: 'Battles',
+    summary:
+      'Find a matching raid nearby, travel to it, wait for enough players, battle, and attempt the bonus catch.',
+    where: 'Settings > Automation > Auto-Raid, or Quick Menu > Automation > Auto-Raid.',
+    steps: [
+      'Open Automation and choose Auto-Raid.',
+      'Set Raid tiers and Raid bosses to join. Leave both empty to accept any tier and any boss.',
+      'Set Maximum raids, Minimum players in lobby, and Lobby wait, and choose Travel to raids: Teleport or Walk.',
+      'Choose which passes it may use: the free daily raid pass and, separately, Premium Battle passes.',
+      'Optionally tick a Razz Berry or a Golden Razz Berry for bonus catches, and Stop after catching a shiny.',
+      'Press Start. Auto-Raid finds the nearest matching raid the game has loaded and runs it. Stop ends the session after its current raid.',
+    ],
+    notes: [
+      'It battles with your raid auto-attack settings from Team Rocket, Gyms, Raids & Dynamax, so turn those on first.',
+      'An allowed free pass is used before a Premium Battle Pass. Remote Raid Passes are never used.',
+      'Bonus catches use Excellent curveballs with Always Hit. The boss can still break out.',
+      'It stops at your raid limit, after a shiny is caught if you selected that, or after two losses in a row.',
+      'Golden Razz takes priority and falls back to Razz when you have none. Leave both unticked to use no berries.',
+      'Boss groups can include forms that are not in today’s raid line-up. VGP+ pauses while Auto-Raid runs, and Shundo Sniper cannot be started until it stops.',
     ],
   },
   {
@@ -468,7 +564,7 @@ export const featureGuides = [
       'Turn on Smart healing. It is off by default.',
       'Tap Heal to choose when it runs: After battles, Periodically, or After battles & periodically.',
       'Tap Heal when to choose the threshold: below 25%, 50%, or 75% HP, or Any HP missing. The default is below 50%.',
-      'Leave Revive fainted Pokémon on to revive fainted Pokémon too, or turn it off to heal only Pokémon that still have HP.',
+      'Leave Revive fainted Pokémon on to revive fainted Pokémon too, or turn it off to heal only Pokémon that still have HP. Items: Always heal fully trades the least-waste choice for a full heal every time.',
       'Return to the map after a battle; healing starts within a few seconds. The status line shows the items used this session.',
     ],
     notes: [
@@ -491,9 +587,30 @@ export const featureGuides = [
       'For Team GO Rocket, the grunt’s and leader’s lines are skipped, but the battle starts only when you press Battle. After a win, the rewards screen is skipped and the shadow encounter opens.',
     ],
     notes: [
-      'Also skipped: the hatched Pokémon’s page, the Rocket Radar and Purified Gem assembled pop-ups (the radar is still equipped), the shadow raid results screen, the power-up animation, the level-up screen, new medal and medal tier pop-ups, the weekly Adventure Sync summary, and the “You’re going too fast” warning. Power-up confirmations still show.',
+      'Also skipped: the hatched Pokémon’s page and the Eggs page that follows a hatch, the Rocket Radar and Purified Gem assembled pop-ups (the radar is still equipped), the shadow raid results screen, the power-up animation, the level-up screen with its “New level unlocks” and other feature-unlock cards, new medal and medal tier pop-ups, the weekly Adventure Sync summary, and the “You’re going too fast” warning. Power-up confirmations still show.',
+      'A level-up takes a few seconds to finish in the background, and each medal pop-up a couple of seconds; the game may ignore taps for that moment.',
+      'Character dialogue, such as Professor Willow’s, and small progress banners are not skipped.',
       'Rewards are granted by the server as usual; only the screens are skipped.',
       'A loss or draw keeps the Rocket results screen so you can rematch.',
+    ],
+  },
+  {
+    id: 'battery-local-time',
+    title: 'Battery usage & local time',
+    category: 'Interface',
+    summary:
+      'Lower the game’s graphics load to save battery, and show a clock for the place you are spoofed to.',
+    where: 'Settings > General Settings > Battery usage, and Show local time.',
+    steps: [
+      'In General Settings, expand Battery usage.',
+      'Turn on Lower resolution to draw the map and Pokémon at half resolution. Menus and text stay sharp.',
+      'Turn on Limit to 20 FPS, or Low graphics quality to switch off shadows, fog, water reflections, encounter grass, HDR, and anti-aliasing.',
+      'Turn on Show local time for a draggable clock showing the time at your spoofed location.',
+    ],
+    notes: [
+      'Each battery option returns to the game’s own setting when you switch it off.',
+      'The three battery options are independent; combine them for the largest saving.',
+      'The clock follows your spoofed location, not your phone’s time zone.',
     ],
   },
   {
@@ -513,6 +630,7 @@ export const featureGuides = [
       'Special, timed, and story research stay manual, and gym bonus tasks are never deleted.',
       'Tasks appear in the list as the game gives them to you while PGRazor runs.',
       'Auto-catch uses your VGP+ ball and throw settings, and each throw uses a ball. Caught Pokémon follow your transfer rules, including Keep All. It works alongside VGP.',
+      'If you open a research reward encounter yourself, Auto throw leaves it for you to throw by hand.',
     ],
   },
   {
@@ -560,7 +678,7 @@ export const featureGuides = [
     steps: [
       'Tap the theme icon in the Settings header to switch the whole interface between light and dark.',
       'In General Settings, set UI scale to 100%, 75%, 50%, or 25% to resize the launcher, quick menu, joystick, timer, and overlays.',
-      'Drag the cooldown timer, VGP icon, and Keep All toggle to reposition them.',
+      'Drag the cooldown timer, local time clock, VGP icon, and Keep All toggle to reposition them.',
       'Use Export / import settings to save a JSON file and restore it on another phone or after reinstalling.',
     ],
     notes: [
@@ -568,6 +686,29 @@ export const featureGuides = [
       'The backup includes feature preferences, speed, favorites, map layers, Feed filters/presets, and overlay positions.',
       'Login tokens, current location, cooldown history, and active routes are excluded, and import leaves VGP off.',
       'Account sessions are encrypted on-device and are never part of settings exports or Android backups.',
+    ],
+  },
+  {
+    id: 'pgrazor-root',
+    title: 'PGRazor Root (experimental)',
+    category: 'Reference',
+    summary:
+      'Run PGRazor inside the official Pokémon GO app on a rooted device, with no patched game APK.',
+    where: 'A separate download: PGRazor-Root.apk from the release page.',
+    steps: [
+      'Check your setup: Magisk 27 or newer, KernelSU, or APatch. KernelSU and APatch also need a Zygisk provider.',
+      'Install the official Pokémon GO version named in the release notes, then install PGRazor-Root.apk and open it.',
+      'Grant the installer root access in your root manager and confirm the game version it shows matches yours.',
+      'Tap Install module, then Reboot. Installing or updating the module needs one reboot.',
+      'Open Pokémon GO. The PGRazor panel appears when the module has started.',
+      'To switch PGRazor off or on later, use the switch in the installer. It takes effect the next time the game starts, with no reboot.',
+    ],
+    notes: [
+      'Experimental. It is tested less widely than the regular APK, and native features can still fail to load on some devices.',
+      'The game’s APK and signing certificate are not modified. The module only runs for the exact game version the release supports; on any other version PGRazor stays off.',
+      'Your on or off choice survives module updates. Switching off leaves the module installed; remove it in your root manager to uninstall.',
+      'Logs, settings backups, and account switching work as in the regular build.',
+      'PGRazor-Root-module.zip is the same module for installing through your root manager by hand.',
     ],
   },
   {
@@ -586,7 +727,9 @@ export const featureGuides = [
       'Profiles keep separate feature settings, last location, cooldown history, favorites, and saved routes. New profiles start with defaults.',
       'Deleting a profile removes its locally saved sign-in and data; it does not delete the game account.',
       'Saved sessions are stored encrypted on this device and excluded from settings exports. Passwords are not saved.',
+      'If the sign-in choices are missing while you are signed out, Accounts > Reset sign-in choices restarts the game and asks for your date of birth again.',
       'LivePokeMap authentication is shared; its filters are separate for each profile.',
+      'Account switching also works in PGRazor Root.',
     ],
   },
 ];

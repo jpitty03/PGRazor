@@ -4,7 +4,7 @@
 export const links = {
   releasesLatest: 'https://github.com/jpitty03/PGRazor/releases/latest',
   releasesCurrent:
-    'https://github.com/jpitty03/PGRazor/releases/tag/v0.2.3',
+    'https://github.com/jpitty03/PGRazor/releases/tag/v0.3.0',
   github: 'https://github.com/jpitty03/PGRazor',
   discord: 'https://discord.gg/9QqfkDSQX3',
   kofi: 'https://ko-fi.com/pgrazor',
@@ -19,6 +19,7 @@ export const nav = [
 
 export const heroFacts = [
   { term: 'Runs on', detail: 'ARM64 Android & MuMu — one APK' },
+  { term: 'Root option', detail: 'PGRazor Root for the official game (experimental)' },
   { term: 'License', detail: 'MIT (original source)' },
 ];
 
@@ -32,11 +33,14 @@ export const settingGroups = [
     items: [
       { name: 'Quick Catch', detail: 'Shorten catch animations and skip the post-catch screens.' },
       { name: 'Quick spin', detail: 'Let an opened PokéStop spin and close its reward screen automatically; gated by game support.' },
-      { name: 'Throw rating', detail: 'Choose Nice, Great, or Excellent, with a separate always-curveball option.' },
-      { name: 'Berry selector', detail: 'Choose up to three berries in priority order; off clears the list.' },
+      { name: 'Throw rating & variety', detail: 'Choose Nice, Great, or Excellent, with a separate always-curveball option, or let Throw variety pick a rating at random for each throw.' },
+      { name: 'Auto throw', detail: 'Off by default. Throws for you in encounters with your throw settings, selected ball and berry. Reward Pokémon from Go Pass and research are left for you to throw.' },
+      { name: 'Catch on map', detail: 'With Auto throw on, tap a wild, lure, or incense Pokémon to catch it without opening the encounter. A pin marks the one being caught, and a tap made while VGP+ is busy waits for it.' },
+      { name: 'Berry selector', detail: 'Choose up to three berries in priority order from the encounter overlay or from Settings; off clears the list.' },
       { name: 'Catch chance & Auto ball', detail: 'See each ball’s chance from the server’s catch rate, and optionally let Auto ball pick the cheapest Poké, Great, or Ultra Ball that reaches your target. Never a Master Ball.' },
       { name: 'IV display', detail: 'Show level, IVs, and optional PvP league ranks on the encounter, the Pokémon stats screen, and the storage list.' },
-      { name: 'Transfer on catch', detail: 'Transfer new catches below 90% IV, with keep rules for shiny, legendary, XXS, XXL, good PvP IVs, and a custom species list.' },
+      { name: 'Transfer on catch', detail: 'Transfer new catches below 90% IV, with keep rules for shiny, legendary, XXS, XXL, 0% IV, good PvP IVs, and a custom species list.' },
+      { name: 'Evolve before transferring', detail: 'Evolve new catches once or through every available stage before they are transferred, for your transfer rules or a separate species list.' },
       { name: 'Keep All overlay', detail: 'A draggable toggle that pauses transfer for manual encounters without changing VGP or VGP+ rules.' },
     ],
   },
@@ -52,16 +56,19 @@ export const settingGroups = [
       { name: 'Nearby layers', detail: 'See stops, gyms, and raids the game has loaded around you, with team rings, raid categories, and darkened Team GO Rocket stops; choose Walk or Teleport from a pin.' },
       { name: 'Spawn booster (80 m)', detail: 'An optional, experimental General Settings toggle that widens the nearby spawn range; it does not prove a server-side bonus. It can cause lag in busy areas with many nearby Pokémon, so turn it off if the game stutters.' },
       { name: 'Cooldown estimate', detail: 'A local timer with history — an estimate, not a guarantee.' },
+      { name: 'Local time', detail: 'An optional draggable clock showing the time at your spoofed location.' },
       { name: 'Feeds', detail: 'Remote sightings from LivePokeMap (your own separate subscription) or PoGoCoordinates (Discord sign-in or guest), with IV, level, and PvP rank filters.' },
     ],
   },
   {
     id: 'automate',
     label: 'Automate',
-    intro: 'Found under Virtual Go Plus, Eggs, Buddy Emotion Engine, Gifts, Team Rocket, Gyms, Raids & Dynamax, inventory controls, Events, and Research. Automation groups tasks you start manually.',
+    intro: 'Found under Virtual Go Plus, Eggs, Buddy Emotion Engine, Gifts, Team Rocket, Gyms, Raids & Dynamax, inventory controls, Events, and Research. Automation groups tasks you start manually, including Auto-Raid and Shundo Sniper.',
     items: [
       { name: 'Virtual Go Plus', detail: 'Catch nearby wild Pokémon with red balls only and spin stops; starts off and stops when the app is backgrounded.' },
-      { name: 'VGP+', detail: 'Includes ball, berry, throw, premium/candy, and auto ball rules, catches incense Pokémon too, reaches loaded Pokémon past the 40 m cutoff, and optionally spins nearby gym discs through the VGP controls.' },
+      { name: 'VGP+', detail: 'Includes ball, berry, throw, premium/candy, and auto ball rules, an optional catch-only species list, catches incense Pokémon too, reaches loaded Pokémon past the 40 m cutoff, and optionally spins nearby gym discs through the VGP controls.' },
+      { name: 'Auto-Raid', detail: 'Finds the nearest matching raid the game has loaded, travels there, waits for enough players, battles with your raid auto-attack settings, and attempts the bonus catch. Remote Raid Passes are never used.' },
+      { name: 'Shundo Sniper (experimental)', detail: 'Teleports to 100% IV Pokémon and checks each for shiny, holding a shiny until your cooldown ends. Constant teleporting raises the risk of a warning or ban; use an alt account.' },
       { name: 'Auto incubate eggs', detail: 'Uses the unlimited incubator only, by shortest or longest distance.' },
       { name: 'Buddy Emotion Engine', detail: 'Includes snapshots, petting, and reserve-aware berry feeding with optional gift collection; it replaces Auto feed buddy.' },
       { name: 'Gym Slotter & Berry Feeder', detail: 'Deploys Gym-tagged defenders to open friendly gym slots and feeds defenders; two independent toggles, both off by default, run from one draggable overlay.' },
@@ -70,11 +77,11 @@ export const settingGroups = [
       { name: 'Remote Gym Feeding', detail: 'Run one batch for gyms you defend, using surplus Nanab, Razz, and optional Pinap above your reserves. Stop cancels unsent work; game limits still apply.' },
       { name: 'Batch evolution', detail: 'Previews a tagged batch, then evolves each eligible Pokémon once without the cutscene; no automatic Lucky Egg. Find it as Mass Evolve under Settings or Quick Menu > Automation.' },
       { name: 'Friend gifts', detail: 'Open and send gifts, with optional stickers.' },
-      { name: 'Battles', detail: 'Assist with Team Rocket, raids, gyms, and Dynamax / Max encounters; in Rocket battles the next Pokémon is picked automatically when one faints.' },
+      { name: 'Battles', detail: 'Assist with Team Rocket, raids, gyms, and Dynamax / Max encounters; in Rocket battles the next Pokémon is picked automatically when one faints. Battle until defeated repeats gym rounds, and Max energy orbs are collected during Max battles.' },
       { name: 'Smart battling', detail: 'Fill your team with counters before gym, raid, and Rocket battles, and swap to your best counter during gym and Rocket battles.' },
       { name: 'Smart healing', detail: 'Heal damaged Pokémon after battles, periodically, or both, with the potion and revive mix that wastes the least — a Potion for 5 missing HP, not a Max Potion.' },
       { name: 'Research', detail: 'Auto-claim completed field research, delete the tasks you tick, and catch waiting research encounters without the encounter screen.' },
-      { name: 'Events (Halloween 2026)', detail: 'Optionally open every visible map box and skip encounter screens; it does not catch the encounters. Experimental and off by default.' },
+      { name: 'Events', detail: 'Go Wild November 2026 adds default-off Safari Ball preferences for Mighty Pokémon in VGP+ and Auto ball. The Halloween 2026 box opener is still listed for when its boxes are on the map.' },
     ],
   },
   {
@@ -84,9 +91,10 @@ export const settingGroups = [
     items: [
       { name: 'Light / dark themes', detail: 'The whole interface follows your chosen PGRazor theme.' },
       { name: 'Overlay scaling', detail: 'Size the launcher, quick menu, joystick, timer, and overlays at 100 / 75 / 50 / 25%.' },
-      { name: 'Reposition overlays', detail: 'Drag the cooldown timer, VGP icon, and Keep All toggle anywhere.' },
-      { name: 'Quick menu', detail: 'Reach Map, speed, Autowalk, Feeds, Favorites, Teleport, Automation, Research, and Settings fast. Customize Quick Menu hides entries you don’t use; Settings always stays visible.' },
-      { name: 'Skip cutscenes', detail: 'Bypass evolution, hatch, new-species, power-up, level-up, medal, and Team GO Rocket cutscenes and result screens so they are never drawn. Battles still start only when you press Battle.' },
+      { name: 'Reposition overlays', detail: 'Drag the cooldown timer, local time clock, VGP icon, and Keep All toggle anywhere.' },
+      { name: 'Quick menu', detail: 'Reach Map, speed, Autowalk, In-game Routes, Hotspots, Feeds, Favorites, Teleport, Automation, Research, Events, Switch account, and Settings fast. Customize Quick Menu hides entries you don’t use; Settings always stays visible.' },
+      { name: 'Skip cutscenes', detail: 'Bypass evolution, hatch, new-species, power-up, level-up, feature-unlock, medal, and Team GO Rocket cutscenes and result screens so they are never drawn. Battles still start only when you press Battle.' },
+      { name: 'Battery usage', detail: 'Lower resolution, a 20 FPS limit, or low graphics quality to save battery and keep the phone cooler.' },
       { name: 'Hide overlay', detail: 'Make the game look stock: hide every PGRazor button, status, and IV text; tap with three fingers to bring them back.' },
       { name: 'Settings backup', detail: 'Export / import settings as JSON; tokens, location, and routes are left out.' },
     ],
@@ -128,7 +136,7 @@ export const steps = [
   {
     n: '01',
     title: 'Download',
-    body: 'Open the latest release and download PGRazor.apk — not a source archive or a preview build.',
+    body: 'Open the latest release and download PGRazor.apk — not a source archive, and not the Root files unless your device is rooted.',
   },
   {
     n: '02',
@@ -145,11 +153,15 @@ export const steps = [
 export const faqs = [
   {
     q: 'What does it run on?',
-    a: 'One APK runs on ARM64 Android phones and the MuMu emulator. No root is required.',
+    a: 'One APK runs on ARM64 Android phones and the MuMu emulator. No root is required. Rooted devices can use the experimental PGRazor Root installer with the official game instead.',
   },
   {
     q: 'Can I install it over the Play Store app?',
     a: 'No. A store install is signed with a different certificate, so a PGRazor build can’t update it in place. Installing PGRazor replaces that copy instead of upgrading it.',
+  },
+  {
+    q: 'What is PGRazor Root?',
+    a: 'A separate, experimental installer for rooted devices. It loads PGRazor into the official Pokémon GO app through a Zygisk module, so the game’s own APK and signature stay untouched. It needs Magisk 27 or newer, KernelSU, or APatch, and the exact game version each release supports.',
   },
   {
     q: 'Is LivePokeMap included?',
