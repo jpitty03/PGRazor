@@ -1,6 +1,7 @@
 #include "hook_engine.h"
 #include "dobby.h"
 #include <mutex>
+#include <cerrno>
 #include <android/log.h>
 #if defined(__aarch64__)
 #include <cstdint>
@@ -11,9 +12,23 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #endif
-namespace { std::mutex engine_mutex; }
+namespace {
+std::mutex engine_mutex;
+// Guarded by engine_mutex. The failure fields latch the first failed hook.
+PgrHookDiag hook_diag{1, sizeof(PgrHookDiag), 0, 0, 0, 0, 0, 0, 0, 0, 0};
+void record_failure(void *address, int32_t reason, int32_t rc, int32_t error,
+                    uint32_t gaps, uint32_t padding) {
+    if (hook_diag.failures++) return;
+    hook_diag.reason = reason; hook_diag.rc = rc; hook_diag.error = error;
+    hook_diag.gaps = gaps; hook_diag.padding = padding;
+    hook_diag.target = reinterpret_cast<uintptr_t>(address);
+}
+}
 #if defined(__aarch64__)
 namespace {
+// What the current near_island() call tried; copied into hook_diag on failure.
+struct IslandAttempt { uint32_t gaps; uint32_t padding; int32_t error; };
+IslandAttempt attempt{};
 struct IslandPage { uintptr_t base; size_t used; size_t size; };
 std::vector<IslandPage> island_pages;
 struct IslandSlot { uintptr_t entry; void *replacement; };
@@ -59,6 +74,7 @@ int padding_callback(dl_phdr_info *info, size_t, void *opaque) {
         if (begin <= search.source && search.source - begin < ph.p_memsz) owns_source = true;
     }
     if (!owns_source) return 0;
+    attempt.padding |= PGR_HOOK_PAD_OWNER;
     for (size_t i = 0; i < info->dlpi_phnum; ++i) {
         const auto &ph = info->dlpi_phdr[i];
         if (ph.p_type != PT_LOAD || !(ph.p_flags & PF_X) || (ph.p_flags & PF_W) ||
@@ -70,33 +86,56 @@ int padding_callback(dl_phdr_info *info, size_t, void *opaque) {
         // New game builds can leave too little padding inside the last 4K page.
         // All candidate bytes still require private read-only mappings and must
         // lie outside every LOAD segment; never claim code/data or unmapped gaps.
-        uintptr_t alignment = search.page_size;
+        //
+        // On a 4K host the ELF-aligned range can start in the gap the linker
+        // leaves between segments, which is not readable, so the whole range is
+        // refused. When that happens retry with the 4K-aligned range, which lies
+        // inside the segment's own first/last mapped page. This is the range
+        // every build before the ELF-alignment change used.
+        uintptr_t alignments[2] = {search.page_size, 0};
+        size_t alignment_count = 1;
         if (ph.p_align && !(ph.p_align & (ph.p_align - 1))) {
             const uintptr_t elf_alignment = ph.p_align < 16384 ? ph.p_align : 16384;
-            if (elf_alignment > alignment) alignment = elf_alignment;
-        }
-        if (end > UINTPTR_MAX - alignment + 1) continue;
-        const uintptr_t ranges[][2] = {
-            {begin & ~(alignment - 1), begin & ~uintptr_t(3)},
-            {(end + 3) & ~uintptr_t(3), (end + alignment - 1) & ~(alignment - 1)}
-        };
-        for (const auto &range : ranges) {
-            const uintptr_t lo = range[0], hi = range[1];
-            if (hi <= lo || hi - lo < 16 || !branch_reaches(search.source, lo)) continue;
-            bool overlap = false;
-            for (size_t j = 0; j < info->dlpi_phnum; ++j) {
-                const auto &other = info->dlpi_phdr[j];
-                if (other.p_type != PT_LOAD || !other.p_memsz) continue;
-                const uintptr_t other_begin = info->dlpi_addr + other.p_vaddr;
-                if (other.p_memsz > UINTPTR_MAX - other_begin ||
-                    (lo < other_begin + other.p_memsz && other_begin < hi)) overlap = true;
+            if (elf_alignment > search.page_size) {
+                alignments[0] = elf_alignment;
+                alignments[1] = search.page_size;
+                alignment_count = 2;
             }
-            for (const auto &used : island_pages)
-                if (lo < used.base + used.size && used.base < hi) overlap = true;
-            if (overlap || !private_readable_range(lo, hi)) continue;
-            island_pages.push_back({lo, 0, hi - lo});
-            search.found = true;
-            return 1;
+        }
+        for (size_t a = 0; a < alignment_count; ++a) {
+            const uintptr_t alignment = alignments[a];
+            const bool page_aligned = alignment == search.page_size;
+            if (a) attempt.padding |= PGR_HOOK_PAD_PAGE_RETRY;
+            if (end > UINTPTR_MAX - alignment + 1) continue;
+            const PgrPaddingRanges padding = pgr_padding_ranges(begin, end, alignment);
+            const uintptr_t ranges[][2] = {
+                {padding.before_lo, padding.before_hi}, {padding.after_lo, padding.after_hi}
+            };
+            for (const auto &range : ranges) {
+                const uintptr_t lo = range[0], hi = range[1];
+                if (hi <= lo || hi - lo < 16 || !branch_reaches(search.source, lo)) continue;
+                attempt.padding |= PGR_HOOK_PAD_CANDIDATE;
+                bool overlap = false;
+                for (size_t j = 0; j < info->dlpi_phnum; ++j) {
+                    const auto &other = info->dlpi_phdr[j];
+                    if (other.p_type != PT_LOAD || !other.p_memsz) continue;
+                    const uintptr_t other_begin = info->dlpi_addr + other.p_vaddr;
+                    if (other.p_memsz > UINTPTR_MAX - other_begin ||
+                        (lo < other_begin + other.p_memsz && other_begin < hi)) overlap = true;
+                }
+                for (const auto &used : island_pages)
+                    if (lo < used.base + used.size && used.base < hi) overlap = true;
+                if (overlap) { attempt.padding |= PGR_HOOK_PAD_OVERLAP; continue; }
+                if (!private_readable_range(lo, hi)) {
+                    attempt.padding |= PGR_HOOK_PAD_NOT_READABLE;
+                    continue;
+                }
+                island_pages.push_back({lo, 0, hi - lo});
+                hook_diag.island_source = page_aligned ? PGR_HOOK_ISLAND_PAGE_PADDING
+                                                       : PGR_HOOK_ISLAND_ELF_PADDING;
+                search.found = true;
+                return 1;
+            }
         }
     }
     return 1;
@@ -104,6 +143,7 @@ int padding_callback(dl_phdr_info *info, size_t, void *opaque) {
 void *near_island(void *address, void *replacement) {
     const uintptr_t source = reinterpret_cast<uintptr_t>(address);
     constexpr size_t slot_size = 16;
+    attempt = {};
     // Islands are immutable once published and can serve later reinstalls or
     // multiple entrypoints sharing the same replacement without consuming more
     // finite ELF padding. Keep them alive for in-flight calls after unhooking.
@@ -125,7 +165,11 @@ void *near_island(void *address, void *replacement) {
         const uintptr_t low = source > reach ? source - reach : page_size;
         const uintptr_t high = source <= UINTPTR_MAX - reach ? source + reach : UINTPTR_MAX;
         FILE *maps = std::fopen("/proc/self/maps", "r");
-        if (!maps) return nullptr;
+        if (!maps) {
+            attempt.error = errno;
+            attempt.padding |= PGR_HOOK_PAD_MAPS_FAILED;
+            return nullptr;
+        }
         char line[1024];
         uintptr_t previous_end = low;
         void *allocated = MAP_FAILED;
@@ -141,8 +185,10 @@ void *near_island(void *address, void *replacement) {
                 branch_reaches(source, candidate)) {
                 // A hint never replaces a live mapping if another thread takes
                 // the gap. Accept only addresses that still satisfy B's range.
+                ++attempt.gaps;
                 allocated = mmap(reinterpret_cast<void *>(candidate), page_size,
                     PROT_READ | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+                if (allocated == MAP_FAILED) attempt.error = errno;
                 if (allocated != MAP_FAILED) {
                     if (branch_reaches(source, reinterpret_cast<uintptr_t>(allocated))) break;
                     munmap(allocated, page_size);
@@ -157,11 +203,14 @@ void *near_island(void *address, void *replacement) {
             // Start with host-page alignment; the callback also considers the
             // owning executable segment's bounded ELF alignment.
             PaddingSearch search{source, page_size < 4096 ? page_size : 4096, false};
+            attempt.padding |= PGR_HOOK_PAD_SEARCHED;
             dl_iterate_phdr(padding_callback, &search);
             if (!search.found) return nullptr;
         } else {
             island_pages.push_back({reinterpret_cast<uintptr_t>(allocated), 0, page_size});
+            hook_diag.island_source = PGR_HOOK_ISLAND_MMAP;
         }
+        hook_diag.island_pages = static_cast<uint32_t>(island_pages.size());
         chosen = &island_pages.back();
     }
     const uintptr_t entry = chosen->base + chosen->used;
@@ -169,7 +218,11 @@ void *near_island(void *address, void *replacement) {
     uint32_t code[4] = {0x58000051u, 0xd61f0220u, 0, 0};
     std::memcpy(code + 2, &replacement, sizeof(replacement));
     if (DobbyCodePatch(reinterpret_cast<void *>(entry),
-        reinterpret_cast<uint8_t *>(code), sizeof(code)) != 0) return nullptr;
+        reinterpret_cast<uint8_t *>(code), sizeof(code)) != 0) {
+        attempt.error = errno;
+        attempt.padding |= PGR_HOOK_PAD_WRITE_FAILED;
+        return nullptr;
+    }
     chosen->used += slot_size;
     island_slots.push_back({entry, replacement});
     return reinterpret_cast<void *>(entry);
@@ -182,22 +235,43 @@ int pgrazor_hook(void *address, void *replacement, void **original) {
     // Compiling the plugin does not activate it. Prefer a single instruction
     // branch so adjacent small game methods retain their entry instructions.
     // Scheduler export veneers are also resolved before reaching this engine.
-    if (!address || !replacement || !original || (reinterpret_cast<uintptr_t>(address) & 3)) return -1;
+    if (!address || !replacement || !original || (reinterpret_cast<uintptr_t>(address) & 3)) {
+        record_failure(address, PGR_HOOK_REASON_BAD_ARGS, 0, 0, 0, 0);
+        return -1;
+    }
     enable_near_once();
     // Passing an already-near destination prevents Dobby's near plugin from
     // silently falling back to a 12/16-byte patch over adjacent tiny methods.
     void *island = near_island(address, replacement);
     if (!island) {
-        __android_log_print(ANDROID_LOG_WARN, "PGRazor", "hook-install-failed target=%p reason=near-island", address);
+        record_failure(address, PGR_HOOK_REASON_NEAR_ISLAND, 0, attempt.error,
+            attempt.gaps, attempt.padding);
+        __android_log_print(ANDROID_LOG_WARN, "PGRazor",
+            "hook-install-failed target=%p reason=near-island gaps=%u padding=%u errno=%d",
+            address, attempt.gaps, attempt.padding, attempt.error);
         return -1;
     }
+    errno = 0;
     const int rc = DobbyHook(address, island, original);
-    if (rc != 0 || !*original)
-        __android_log_print(ANDROID_LOG_WARN, "PGRazor", "hook-install-failed target=%p reason=dobby rc=%d", address, rc);
+    if (rc != 0 || !*original) {
+        const int error = errno;
+        record_failure(address, PGR_HOOK_REASON_DOBBY, rc, error, attempt.gaps, attempt.padding);
+        __android_log_print(ANDROID_LOG_WARN, "PGRazor",
+            "hook-install-failed target=%p reason=dobby rc=%d errno=%d", address, rc, error);
+    }
     return rc;
 #else
-    return DobbyHook(address, replacement, original);
+    errno = 0;
+    const int rc = DobbyHook(address, replacement, original);
+    if (rc != 0) record_failure(address, PGR_HOOK_REASON_DOBBY, rc, errno, 0, 0);
+    return rc;
 #endif
+}
+int pgrazor_hook_diag(PgrHookDiag *out) {
+    if (!out) return -1;
+    std::lock_guard<std::mutex> guard(engine_mutex);
+    *out = hook_diag;
+    return 0;
 }
 int pgrazor_unhook(void *address) {
     std::lock_guard<std::mutex> guard(engine_mutex);

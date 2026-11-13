@@ -16,6 +16,7 @@
 #include "interaction_host.h"
 #include "encounter_host.h"
 #include "runtime_diag.h"
+#include "hook_engine_diag.h"
 #include <cstdio>
 #include <cmath>
 #include <atomic>
@@ -25,6 +26,9 @@
 #include <time.h>
 #include <unistd.h>
 
+// Weak: isolated fixtures include this file without linking the hook engine,
+// and then simply report no hook detail.
+int pgrazor_hook_diag(PgrHookDiag *) __attribute__((weak));
 namespace {
 template<class T> const T *as(const void *p){return static_cast<const T*>(p);}
 const auto scheduler=as<PgrUnitySchedulerApi>(pgrazor_unity_scheduler_api(2));
@@ -239,6 +243,26 @@ void pulse(void*,const PgrUnityPulse *p){
 // gameplay path: a failed emit (transport not yet installed) only means the
 // throttle heartbeat will retry delivery. identity==true appends the scheduler
 // method/hook identity (code addresses + which hook failed) for a hook failure.
+// Append the hook engine's own account of a failed hook (failure==true) or of
+// where the working island came from (failure==false). Writes at most cap-1
+// characters and returns how many, or 0 when there is nothing to add or it does
+// not fit. The caller closes the JSON object at the returned offset.
+int append_hook_diag(char *out,size_t cap,bool failure){
+ PgrHookDiag h{};
+ if(!pgrazor_hook_diag||pgrazor_hook_diag(&h)!=0||h.version!=1||h.size!=sizeof(h))return 0;
+ int m=0;
+ if(failure){
+  if(!h.failures)return 0;
+  m=std::snprintf(out,cap,",\"hookReason\":\"%s\",\"hookTarget\":\"0x%llx\",\"hookRc\":%d,\"hookErrno\":%d,\"islandGaps\":%u,\"islandPadding\":%u,\"islandPages\":%u,\"hookFailures\":%u",
+   h.reason==PGR_HOOK_REASON_NEAR_ISLAND?"near-island":h.reason==PGR_HOOK_REASON_DOBBY?"dobby":h.reason==PGR_HOOK_REASON_BAD_ARGS?"bad-args":"unknown",
+   (unsigned long long)h.target,h.rc,h.error,h.gaps,h.padding,h.island_pages,h.failures);
+ }else{
+  if(!h.island_source)return 0;
+  m=std::snprintf(out,cap,",\"island\":\"%s\",\"hookFailures\":%u",
+   h.island_source==PGR_HOOK_ISLAND_MMAP?"mmap":h.island_source==PGR_HOOK_ISLAND_ELF_PADDING?"elf-padding":"page-padding",h.failures);
+ }
+ return m<0||size_t(m)>=cap?0:m;
+}
 void emit_startup_locked(const char *stage,const char *reason,int32_t status,int32_t detail,bool identity){
  const uint64_t now=clock_ms();
  if(!pgr_rtd_should_emit(&startup_throttle,stage,reason,status,detail,now))return;
@@ -252,14 +276,22 @@ void emit_startup_locked(const char *stage,const char *reason,int32_t status,int
    hook_stage=pgr_rtd_sched_stage(d.failed_stage);inv_rc=d.invoke_hook_rc;con_rc=d.convert_hook_rc;
   }
   int m=std::snprintf(json+n,sizeof(json)-size_t(n),
-   ",\"executeTasks\":\"%p\",\"invoke\":\"%p\",\"convert\":\"%p\",\"hookStage\":\"%s\",\"invokeRc\":%d,\"convertRc\":%d,\"invokeBody\":\"0x%llx\",\"convertBody\":\"0x%llx\",\"hookOutcome\":\"%s\"}",
+   ",\"executeTasks\":\"%p\",\"invoke\":\"%p\",\"convert\":\"%p\",\"hookStage\":\"%s\",\"invokeRc\":%d,\"convertRc\":%d,\"invokeBody\":\"0x%llx\",\"convertBody\":\"0x%llx\",\"hookOutcome\":\"%s\"",
    scheduler_config.execute_tasks,scheduler_config.runtime_invoke,scheduler_config.runtime_invoke_convert_args,hook_stage,inv_rc,con_rc,
    (unsigned long long)d.invoke_body,(unsigned long long)d.convert_body,
    d.failed_stage==PGR_US_STAGE_INVOKE_HOOK?(inv_rc?"installer-error":"missing-trampoline"):
    d.failed_stage==PGR_US_STAGE_CONVERT_HOOK?(con_rc?"installer-error":"missing-trampoline"):"not-hook-failure");
-  if(m<0||size_t(n)+size_t(m)>=sizeof(json)){json[n]='}';json[n+1]=0;} // bounded fail-safe: close base object
+  if(m<0||size_t(n)+size_t(m)+1>=sizeof(json)){json[n]='}';json[n+1]=0;} // bounded fail-safe: close base object
+  else{
+   size_t t=size_t(n)+size_t(m);
+   t+=size_t(append_hook_diag(json+t,sizeof(json)-t-1,true));
+   json[t]='}';json[t+1]=0;
+  }
  }else{
-  if(size_t(n)+1>=sizeof(json))return;json[n]='}';json[n+1]=0;
+  if(size_t(n)+1>=sizeof(json))return;
+  size_t t=size_t(n);
+  t+=size_t(append_hook_diag(json+t,sizeof(json)-t-1,false));
+  json[t]='}';json[t+1]=0;
  }
  const char channel[]="native-runtime-start";
  PgrRuntimeTransportString strings[]={{channel,sizeof(channel)-1},{json,uint32_t(std::strlen(json))}};

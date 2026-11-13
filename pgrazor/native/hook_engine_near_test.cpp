@@ -11,7 +11,28 @@ static void require(bool ok, const char *what) {
 }
 static uintptr_t replacement(uintptr_t) { return 99; }
 
+// Padding arithmetic for the 0.435.2 libil2cpp executable segment (RVA
+// 0x45fd3a0..0xe296c10, 16K ELF alignment). The ELF-aligned range starts one
+// 4K page before the segment's first mapped page; the 4K-aligned retry starts
+// on that page and keeps 928 bytes (58 islands) in front of the code.
+namespace padding_check {
+constexpr uintptr_t base = 0x7000000000, begin = base + 0x45fd3a0, end = base + 0xe296c10;
+constexpr PgrPaddingRanges wide = pgr_padding_ranges(begin, end, 16384);
+constexpr PgrPaddingRanges narrow = pgr_padding_ranges(begin, end, 4096);
+static_assert(wide.before_lo == base + 0x45fc000 && wide.before_hi == begin, "ELF-aligned lead");
+static_assert(narrow.before_lo == base + 0x45fd000 && narrow.before_hi == begin, "4K-aligned lead");
+static_assert(narrow.before_hi - narrow.before_lo == 928, "4K lead holds 58 islands");
+static_assert(narrow.before_lo > wide.before_lo && narrow.after_hi <= wide.after_hi,
+    "4K ranges lie inside the ELF-aligned ranges");
+static_assert(narrow.after_lo == end && narrow.after_hi == base + 0xe297000, "4K-aligned tail");
+}
+
 int main() {
+    PgrHookDiag diag{};
+    require(pgrazor_hook_diag(nullptr) == -1 && pgrazor_hook_diag(&diag) == 0 &&
+        diag.version == 1 && diag.size == sizeof(diag) && diag.failures == 0 &&
+        diag.reason == PGR_HOOK_REASON_NONE && diag.island_source == PGR_HOOK_ISLAND_NONE,
+        "clean diagnostic before any hook");
 #if defined(__aarch64__)
     using Method = uintptr_t (*)(uintptr_t);
     const long page = sysconf(_SC_PAGESIZE);
@@ -53,6 +74,14 @@ int main() {
     require(pgrazor_unhook(code + 3) == 0 && pgrazor_unhook(code) == 0, "unhook both");
     require(std::memcmp(code, pristine, sizeof(pristine)) == 0, "restore original bytes");
     require(munmap(code, page) == 0, "unmap fixture");
+    require(pgrazor_hook_diag(&diag) == 0 && diag.failures == 0 &&
+        diag.island_source == PGR_HOOK_ISLAND_MMAP && diag.island_pages == 1,
+        "successful hooks report an mmap island and no failure");
+    void *unused = nullptr;
+    require(pgrazor_hook(nullptr, reinterpret_cast<void *>(replacement), &unused) == -1 &&
+        pgrazor_hook_diag(&diag) == 0 && diag.failures == 1 &&
+        diag.reason == PGR_HOOK_REASON_BAD_ARGS && diag.target == 0,
+        "first failure is latched");
     std::puts("hook-engine-near: PASS");
 #else
     std::puts("hook-engine-near: SKIP (ARM64 instruction fixture)");
