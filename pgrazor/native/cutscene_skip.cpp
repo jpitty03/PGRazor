@@ -136,15 +136,26 @@ DismissKind dismiss_kinds[]={{"Niantic.Holoholo.Map","SpeedModal","speed-warning
  {"Niantic.Holoholo.UI","BadgeAwardGuiController","medal",false,nullptr},
  {"Niantic.Holoholo.UI","BadgeIncrementGuiController","medal-tier",false,nullptr},
  {"Niantic.Holoholo.GymBadges","GymBadgeAwardGuiController","gym-badge",false,nullptr},
- {"Niantic.Holoholo.BgMode.UI","WeeklyFitnessDialog","weekly-fitness",false,nullptr}};
+ {"Niantic.Holoholo.BgMode.UI","WeeklyFitnessDialog","weekly-fitness",false,nullptr},
+ // Experiment: the one screen behind every "feature unlocked" card ("New level unlocks" after a
+ // level-up, "Trading Unlocked", ...). Closed through the same GuiController.Dismiss as the others.
+ // Not yet known: whether every caller treats that as the card having been read.
+ {"Niantic.Holoholo.Tutorial","ComposableTutorialGuiController","unlock-card",false,nullptr}};
 constexpr int kDismissKinds=int(sizeof(dismiss_kinds)/sizeof(dismiss_kinds[0]));
 // The level-up screen's two step screens and their tap handlers.
 void *levelup_summary=nullptr,*levelup_rewards=nullptr,*levelup_claim=nullptr,*levelup_click=nullptr;
 void *levelup_summary_canvas=nullptr,*levelup_rewards_canvas=nullptr;
 void *levelup_summary_visibility=nullptr,*levelup_rewards_visibility=nullptr;
 void *levelup_active=nullptr,*levelup_visible=nullptr,*levelup_alpha=nullptr,*levelup_interactable=nullptr;
-constexpr uint64_t kLevelUpStepMs=250,kLevelUpWatchMs=30000;
-struct PendingPopup{uintptr_t handle;int kind;uint64_t since,next;int steps;bool summary_claimed=false,rewards_wait=false,opened=false;};
+// kLevelUpRetryMs: a rewards click that changed nothing visible is repeated, as a second tap would be.
+// kLevelUpStallMs: with the screen on top and no step for this long it is shown again for taps.
+constexpr uint64_t kLevelUpStepMs=250,kLevelUpWatchMs=30000,kLevelUpRetryMs=1500,kLevelUpStallMs=10000;
+struct PendingPopup{uintptr_t handle;int kind;uint64_t since,next;int steps;bool summary_claimed=false,rewards_wait=false,opened=false;uint64_t clicked=0,progress=0;
+ // closing: nothing more is done to it; it is only watched until it has really closed, so the log
+ // shows how long a dismissed or failed screen stayed open (and could still hold map input).
+ bool closing=false;uint64_t closing_since=0;};
+constexpr uint64_t kClosingWatchMs=30000;
+const char *levelup_step="";  // the level-up call in progress, named in a failure
 constexpr int kPendingPopups=8;  // medals often open several at once
 PendingPopup pending_popups[kPendingPopups]={};int pending_popup_count=0;
 void *gui_dismiss=nullptr;
@@ -593,42 +604,77 @@ bool levelup_screen_ready(void *screen,void *canvas_field,void *visibility_field
 // One step for the hidden level-up screen; true once it has closed itself or is left for taps.
 bool advance_levelup(PendingPopup &p,void *gui){
  const uint64_t now=clock_ms();
+ levelup_step="state";
  const int32_t state=int_field(gui,gui_state);
  if(state==2)p.opened=true;
  if(state==0&&p.opened){event("{\"phase\":\"skipped\",\"kind\":\"level-up\",\"ms\":"+std::to_string(now-p.since)+",\"steps\":"+std::to_string(p.steps)+"}");return true;}
  if(now-p.since>kLevelUpWatchMs){set_alpha(gui,1.f);status("warning","level-up left for taps (state "+std::to_string(state)+")");return true;}
+ if(!p.progress)p.progress=p.since;
+ // Another screen opened over it (a tutorial, for one) takes the taps; the level-up waits underneath,
+ // hidden, exactly as it would visibly. That wait is not a stall, but the 30 s limit above still holds.
+ bool top=true;
+ levelup_step="is-top";
+ if(inventory_top){void *v=invoke(inventory_top,gui);top=!v||*static_cast<bool*>(fn<void*(*)(void*)>(boot.runtime.object_unbox)(v));}
+ if(!top)p.progress=now;
+ else if(now-p.progress>kLevelUpStallMs){set_alpha(gui,1.f);status("warning","level-up left for taps (no step for "+std::to_string(now-p.progress)+" ms, state "+std::to_string(state)+")");return true;}
+ levelup_step="hide";
  set_alpha(gui,0.f);  // every tick: its own transitions may restore the alpha
- if(state!=2)return false;
+ // Tried and removed (MuMu, 2026-11-13): turning the root canvas's blocksRaycasts off while hidden
+ // did not let taps reach PokeStops, so the canvas is not what holds map input during a level-up.
+ if(state!=2||!top)return false;
+ levelup_step="rewards-ready";
  void *summary=object_field(gui,levelup_summary),*rewards=object_field(gui,levelup_rewards);
  const bool rewards_ready=levelup_screen_ready(rewards,levelup_rewards_canvas,levelup_rewards_visibility);
  // A registered callback is not evidence that its screen is ready. In particular the summary
  // callback exists during the coin flip/avatar-stage setup. Never advance both screens together,
  // and after a rewards click observe its transition before allowing the next group to advance.
- if(!rewards_ready)p.rewards_wait=false;
+ // A click that leaves the rewards screen ready (the next group can appear without a transition)
+ // is repeated after kLevelUpRetryMs; waiting for a transition that never comes hid the screen for 30 s.
+ if(!rewards_ready||now-p.clicked>=kLevelUpRetryMs)p.rewards_wait=false;
  if(now<p.next)return false;
+ levelup_step="summary-ready";
  if(!p.summary_claimed&&levelup_screen_ready(summary,levelup_summary_canvas,levelup_summary_visibility)){
-  p.summary_claimed=true;p.next=now+kLevelUpStepMs;++p.steps;invoke(levelup_claim,summary);
+  p.summary_claimed=true;p.next=now+kLevelUpStepMs;p.progress=now;++p.steps;levelup_step="claim";invoke(levelup_claim,summary);
   event("{\"phase\":\"level-up-action\",\"action\":\"claim-rewards\"}");
  }else if(rewards_ready&&!p.rewards_wait){
-  p.rewards_wait=true;p.next=now+kLevelUpStepMs;++p.steps;invoke(levelup_click,rewards);
+  p.rewards_wait=true;p.next=now+kLevelUpStepMs;p.clicked=p.progress=now;++p.steps;levelup_step="click";invoke(levelup_click,rewards);
   event("{\"phase\":\"level-up-action\",\"action\":\"next-reward-group\"}");
  }
  return false;
 }
-// One step for a hidden pop-up; true once it is dismissed, gone or left for taps.
+// One step for a hidden pop-up; true once it has closed, is gone or is left for taps.
 bool advance_popup(PendingPopup &p){
  void *gui=fn<void*(*)(uintptr_t)>(boot.runtime.gchandle_get_target)(p.handle);
- if(!gui)return true;
  const DismissKind &k=dismiss_kinds[p.kind];
+ if(p.closing){
+  // Watch only. A screen that reports closed late, or never, is what kept taps from the map.
+  const uint64_t waited=clock_ms()-p.closing_since;
+  int32_t state=-1;
+  try{if(gui)state=int_field(gui,gui_state);}catch(...){}
+  if(!gui||state==0){event(std::string("{\"phase\":\"closed\",\"kind\":\"")+k.event+"\",\"ms\":"+std::to_string(waited)+",\"collected\":"+(gui?"false":"true")+"}");return true;}
+  if(waited>kClosingWatchMs){status("warning",std::string(k.event)+" still open "+std::to_string(waited)+" ms after it was dismissed (state "+std::to_string(state)+")");return true;}
+  return false;
+ }
+ if(!gui)return true;
  try{
   if(k.step)return advance_levelup(p,gui);
   const int32_t state=int_field(gui,gui_state);
-  if(state==2){invoke(gui_dismiss,gui);event(std::string("{\"phase\":\"skipped\",\"kind\":\"")+k.event+"\",\"ms\":"+std::to_string(clock_ms()-p.since)+"}");return true;}
+  if(state==2){
+   invoke(gui_dismiss,gui);event(std::string("{\"phase\":\"skipped\",\"kind\":\"")+k.event+"\",\"ms\":"+std::to_string(clock_ms()-p.since)+"}");
+   p.closing=true;p.closing_since=clock_ms();return false;
+  }
   if(state==0||state==3)return true;
   if(clock_ms()-p.since>kPopupWatchMs){set_alpha(gui,1.f);status("warning",std::string(k.event)+" left for taps");return true;}
   set_alpha(gui,0.f);  // every tick: its own transitions may restore the alpha
   return false;
- }catch(const Failure &f){try{set_alpha(gui,1.f);}catch(...){}status("warning",std::string(k.event)+" left for taps: "+f.where);return true;}
+ }catch(const Failure &f){
+  // Show it again, say which call failed and whether showing it worked, then keep watching it.
+  int32_t state=-1;bool shown=false;
+  try{state=int_field(gui,gui_state);}catch(...){}
+  try{set_alpha(gui,1.f);shown=true;}catch(...){}
+  status("warning",std::string(k.event)+" left for taps: "+f.where+(k.step?std::string(" at ")+levelup_step:std::string())+" (state "+std::to_string(state)+", shown "+(shown?"yes":"no")+")");
+  p.closing=true;p.closing_since=clock_ms();return false;
+ }
  catch(...){try{set_alpha(gui,1.f);}catch(...){}status("warning",std::string(k.event)+" left for taps");return true;}
 }
 void advance_popups(){
