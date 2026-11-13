@@ -16,8 +16,8 @@ import java.util.Map;
  * states are labelled "Unknown" rather than guessed. Detection runs one root shell probe and a
  * PackageManager query; {@link #detect} must be called off the main thread because of the probe.
  *
- * <p>The only writes this class performs are the two explicit, user-initiated actions
- * {@link #install} and {@link #reboot}. It makes no changes during detection.
+ * <p>Writes are limited to explicit user actions: {@link #install}, {@link #setInjection},
+ * and {@link #reboot}. It makes no changes during detection.
  */
 final class RootStatus {
     enum Manager { NONE, MAGISK, KERNELSU, APATCH }
@@ -34,10 +34,7 @@ final class RootStatus {
         "[ -x /data/adb/apd ] && echo APDPATH=/data/adb/apd",
         "echo \"ZYGISK=$(magisk --sqlite \"select value from settings where key='zygisk'\" 2>/dev/null)\"",
         "for z in zygisksu rezygisk; do if [ -d \"$S/$z\" ]; then if [ -f \"$S/$z/disable\" ] || [ -f \"$S/$z/remove\" ]; then echo ZYGDISABLED=$z; else echo ZYGMOD=$z; fi; fi; done",
-        "[ -f \"$S/pgrazor/module.prop\" ] && echo \"MODVER=$(sed -n 's/^version=//p' \"$S/pgrazor/module.prop\")\"",
-        "[ -f \"$S/pgrazor/disable\" ] && echo MODDISABLED=1",
-        "[ -f \"$S/pgrazor/remove\" ] && echo MODREMOVE=1",
-        "[ -d /data/adb/modules_update/pgrazor ] && echo MODPENDING=1");
+        RootModuleState.PROBE);
 
     boolean rooted;
     Manager manager = Manager.NONE;
@@ -49,6 +46,10 @@ final class RootStatus {
     String zygiskLabel = "Unknown";
 
     String moduleLabel = "Not installed";
+    boolean toggleSupported;              // live module advertises the on/off switch (toggle-v1 marker)
+    boolean injectionOff;                 // live injection-off flag set: installed but injection paused
+    boolean rebootNeeded;                 // a staged update must be rebooted once to apply
+    private RootModuleState module;       // pure interpretation of the module half of the probe
 
     boolean gameInstalled;
     long gameVersionCode;
@@ -73,7 +74,11 @@ final class RootStatus {
         status.rooted = "0".equals(values.get("ROOT"));
         status.resolveManager(values);
         status.resolveZygisk(values);
-        status.resolveModule(values);
+        status.module = RootModuleState.parse(values, status.rooted);
+        status.toggleSupported = status.module.toggleSupported;
+        status.injectionOff = status.module.injectionOff;
+        status.rebootNeeded = status.module.rebootNeeded;
+        status.moduleLabel = status.module.label;
         status.readGame(context);
         return status;
     }
@@ -109,7 +114,7 @@ final class RootStatus {
         String module = values.get("ZYGMOD");
         String magiskSetting = values.get("ZYGISK");
         if (module != null) {
-            zygiskLabel = "Configured (" + module + "); reboot required after changes";
+            zygiskLabel = "Configured (" + module + ")";
         } else if (magiskSetting != null && magiskSetting.contains("value=1")) {
             zygiskLabel = "Enabled";
         } else if (values.containsKey("ZYGDISABLED")) {
@@ -120,19 +125,6 @@ final class RootStatus {
             zygiskLabel = "Unknown — check Zygisk in Magisk";
         } else if (manager == Manager.KERNELSU || manager == Manager.APATCH) {
             zygiskLabel = "Unknown — needs Zygisk Next or ReZygisk";
-        }
-    }
-
-    private void resolveModule(Map<String, String> values) {
-        if ("1".equals(values.get("MODPENDING"))) {
-            moduleLabel = "Install pending — reboot to activate";
-            return;
-        }
-        String version = values.get("MODVER");
-        if (version != null) {
-            moduleLabel = "Installed " + version + ("1".equals(values.get("MODREMOVE")) ? " (removal pending)" : "1".equals(values.get("MODDISABLED")) ? " (disabled)" : "");
-        } else {
-            moduleLabel = rooted ? "Not installed" : "Unknown (root access required)";
         }
     }
 
@@ -166,8 +158,66 @@ final class RootStatus {
     /** Install may begin only with root and a supported manager; everything else is advisory. */
     boolean canInstall() { return rooted && managerSupported; }
 
-    /** Runs the manager's module-install command on the copied zip. Off-main-thread; bounded. */
+    /**
+     * May the live module be switched on/off right now? Requires root, a live install carrying the
+     * {@code toggle-v1} marker, and no root-manager disable or removal line. Reflects this snapshot;
+     * {@link #setInjection} re-validates the live state inside the shell before it writes anything.
+     */
+    boolean canToggle() { return module != null && module.canToggle(); }
+
+    /** How long the bounded on/off switch (and the Off-preservation step after an update) may run. */
+    private static final long TOGGLE_TIMEOUT = 20000;
+
+    /**
+     * Turns PGRazor injection on (remove the live {@code injection-off} flag) or off (create it) in
+     * one bounded su command. The command re-validates the live marker and the no-disable/no-remove
+     * state, writes the flag in the live and (if present) the staged module, verifies the final state,
+     * force-stops the game only after successful writes, and echoes an explicit OK/FAIL token — so a
+     * partial failure never looks like success. The module stays installed either way. Off-main-thread.
+     */
+    RootShell.Result setInjection(boolean on) {
+        if (!canToggle()) return new RootShell.Result(false,false,-1,"The installed module cannot be switched. Re-check its status.");
+        RootShell.Result result = RootShell.run(RootToggleCommand.command(on), TOGGLE_TIMEOUT);
+        if (result.ok() && !RootToggleCommand.confirmed(on,result.output))
+            return new RootShell.Result(true,false,1,result.output + "\nSwitch confirmation was missing.");
+        return result;
+    }
+
+    /**
+     * Installs the module, then — if injection is currently Off, read live at this moment rather than
+     * from a possibly stale snapshot — carries the Off choice into the freshly staged update so it
+     * survives the reboot. The returned result keeps the install's own success/uncertainty; a failure
+     * or uncertain outcome of the preservation step is appended to the output as an honest warning
+     * rather than being hidden. Off-main-thread; bounded.
+     */
     RootShell.Result install(File zip) {
+        RootShell.Result choice = RootShell.run(RootToggleCommand.LIVE_INJECTION_PROBE, 15000);
+        if (!choice.ok()) return new RootShell.Result(choice.started,choice.timedOut,1,
+            "Could not read the current on/off choice; module install was not started.\n" + choice.output);
+        boolean wasOff = RootToggleCommand.injectionOffFromProbe(choice.output);
+
+        RootShell.Result installed = runInstall(zip);
+        if (!installed.ok() || !wasOff) return installed;
+
+        RootShell.Result preserved = RootShell.run(RootToggleCommand.preserveOffCommand(), TOGGLE_TIMEOUT);
+        String note;
+        if (preserved.ok() && RootToggleCommand.hasLine(preserved.output,RootToggleCommand.OK_PREFIX + "=preserved_off")) {
+            note = "PGRazor was Off; the update keeps it Off (reboot to apply).";
+        } else if (preserved.timedOut) {
+            note = "WARNING: PGRazor was Off, but keeping it Off in the update could not be confirmed. "
+                + "After rebooting, turn PGRazor Off again if it came back On.";
+        } else {
+            note = "WARNING: PGRazor was Off, but the update may not have kept it Off. "
+                + "After rebooting, turn PGRazor Off again if it came back On.";
+        }
+        String combined = installed.output
+            + (preserved.output.isEmpty() ? "" : "\n" + preserved.output)
+            + "\n" + note;
+        return new RootShell.Result(installed.started, installed.timedOut, installed.code, combined);
+    }
+
+    /** Runs the manager's module-install command on the copied zip. Off-main-thread; bounded. */
+    private RootShell.Result runInstall(File zip) {
         String path = "\"" + zip.getAbsolutePath() + "\"";
         String command;
         switch (manager) {

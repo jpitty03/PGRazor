@@ -7,7 +7,7 @@
 - **Auto Throw:** Throws has a default-off toggle for automatic throws using your throw settings, selected ball and berry, with Always Hit, plus optional Catch on map for tapped wild Pokémon with a small catching indicator. Auto-Raid shares the throwing logic and always uses it, even when the toggle is off, with built-in Excellent curveballs.
 - **Go Wild November 2026:** Events has separate, default-off Safari Ball preferences for Mighty Pokémon in VGP+ and Auto Ball. Normal ball settings apply when Safari Balls are unavailable or the encounter is ineligible.
 - **Auto-Raid:** Automation can find nearby matching raids, travel to them, wait for enough players, battle using your auto-attack settings, and attempt the bonus catch. Run it by going to Automation -> Auto-Raid
-- **PGRazor Root (experimental):** A separate installer loads PGRazor into the official game through a Zygisk/Magisk module. It includes in-game logs, settings backups, and account-switch restart support. Native hook installation can still fail on some Samsung devices.
+- **PGRazor Root (experimental):** A separate installer loads PGRazor into the official game with logs, settings backups, account switching, an on/off switch that takes effect on the next game launch, and an always-available Reboot button. This update needs one reboot to install the new loader; switching afterward needs no reboot, and the choice survives updates.
 
 ### Improvements & fixes
 

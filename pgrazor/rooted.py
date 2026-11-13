@@ -52,6 +52,44 @@ install_module
 exit 0
 '''
 
+# Capability marker: an empty file that advertises this module understands the launch-time
+# PGRazor: On / Off switch (the loader reads pgrazor/injection-off). The installer uses its
+# presence to tell a toggle-aware module from an older one.
+TOGGLE_CAPABILITY = 'pgrazor/toggle-v1'
+
+# Soft-off flag the installer writes/removes in the live module. It is never shipped in the
+# package (a fresh install defaults to On); it only ever exists because a user turned PGRazor off.
+INJECTION_OFF_FLAG = 'pgrazor/injection-off'
+
+# Sourced by the root manager (Magisk / KernelSU / APatch) during install, after the zip is
+# unpacked into the staging directory $MODPATH. A module update replaces the whole module tree,
+# which would silently turn injection back On; this carries the user's Off choice forward from the
+# currently-installed (live) module. If it cannot preserve a known-off state it aborts the install
+# rather than silently re-enabling. A fresh install ships no flag, so injection defaults to On. The
+# same script runs whether the update is installed straight through the root manager or by the APK.
+CUSTOMIZE_SH = '''#!/system/bin/sh
+# PGRazor Root install customizer: preserve the user's PGRazor: On / Off choice across updates.
+LIVE_FLAG="/data/adb/modules/pgrazor/''' + INJECTION_OFF_FLAG + '''"
+STAGED_FLAG="${MODPATH}/''' + INJECTION_OFF_FLAG + '''"
+
+# The live module is the source of truth for the current switch state. Staging dirs are wiped and
+# re-extracted by the manager before this runs, so an earlier staged flag cannot be read here.
+if [ -e "${LIVE_FLAG}" ]; then
+  ui_print "- PGRazor is switched Off on this device; keeping it Off after this update."
+  mkdir -p "${MODPATH}/pgrazor" || abort "! Cannot preserve the PGRazor Off switch (mkdir failed); aborting instead of silently re-enabling PGRazor."
+  : > "${STAGED_FLAG}" 2>/dev/null
+  [ -f "${STAGED_FLAG}" ] || abort "! Cannot preserve the PGRazor Off switch; aborting instead of silently re-enabling PGRazor."
+else
+  rm -f "${STAGED_FLAG}" || abort "! Cannot preserve the PGRazor On switch."
+fi
+'''
+
+
+def capability_module_entries():
+    """Static module entries for the launch-time On/Off switch: the install-time preservation
+    script and the empty capability marker. Merged into the packaged module by `package()`."""
+    return {'customize.sh': CUSTOMIZE_SH, TOGGLE_CAPABILITY: b''}
+
 
 def compiled_mode(abis):
     """The release (compiled gameplay) flags, minus browser sign-in: the official app's works."""
@@ -184,6 +222,7 @@ def package(source, download=False, installer=True):
         'pgrazor/classes.dex': Path(dex),
         'pgrazor/payload.zip': payload,
     }
+    module.update(capability_module_entries())
     for abi in ABIS: module[f'zygisk/{abi}.so'] = build_loader(abi, folder / f'loader-{abi}.so')
     module_zip = write_zip(folder / f'PGRazor-Root-module-{version}.zip', module)
 

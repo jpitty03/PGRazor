@@ -6,6 +6,12 @@
 // loads the dex from memory and hands both blobs to dev.pgrazor.RootedEntry.
 // Every other process unloads this library immediately. The loader installs
 // no hooks itself and keeps no state after postAppSpecialize returns.
+//
+// Launch-time switch: PGRazor can be turned off without disabling the module.
+// When the module directory holds the empty flag pgrazor/injection-off, the
+// loader logs and skips injection for this launch (the module stays enabled).
+// The flag is read once per process start, so flipping it only takes effect at
+// the game's next cold start -- no reboot and no module toggle in the manager.
 #include <android/log.h>
 #include <fcntl.h>
 #include <jni.h>
@@ -96,6 +102,11 @@ public:
             return;
         }
         int dir = api_->getModuleDir();
+        if (dir >= 0 && faccessat(dir, "pgrazor/injection-off", F_OK, 0) == 0) {
+            LOGI("PGRazor switched off (pgrazor/injection-off present); skipping injection for this launch");
+            target_ = false;
+            return;
+        }
         if (dir < 0 || !read_at(dir, "pgrazor/classes.dex", dex_) ||
             !read_at(dir, "pgrazor/payload.zip", payload_)) {
             LOGE("module payload missing or unreadable");
