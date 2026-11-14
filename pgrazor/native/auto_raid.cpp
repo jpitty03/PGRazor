@@ -68,6 +68,14 @@ constexpr int64_t kDiscoveryScanMs        = 1500;
 constexpr int64_t kActionStepMs           = 500;
 constexpr int64_t kTravelTimeoutMs        = 7200000;
 constexpr int64_t kApproachTimeoutMs      = 25000;
+constexpr int64_t kLeaveStepMs            = 1000;
+constexpr int64_t kLeaveTimeoutMs         = 30000;
+constexpr int64_t kGymRetapMs             = 5000;   // re-tap a gym that did not open
+constexpr int64_t kMapSettleMs            = 2000;   // let the catch screen close before moving on
+// A lobby left for lack of players costs no pass (it is spent when the battle starts),
+// and a gym that failed to open is usually a transient UI state: retry both soon.
+constexpr int64_t kUnderMinRetryMs        = 180000;
+constexpr int64_t kTransientRetryMs       = 120000;
 constexpr int64_t kPassConfirmTimeoutMs   = 15000;
 constexpr int64_t kBattleTimeoutMs        = 360000;
 constexpr int64_t kResolveTimeoutMs       = 45000;
@@ -236,6 +244,7 @@ enum class RaidStage {
     Resolve,
     Encounter,
     CatchSummary,
+    Leave,
 };
 
 struct ActiveSession {
@@ -276,6 +285,7 @@ struct ActiveSession {
     // Lobby / battle / resolve / encounter tracking
     int64_t stage_started_ms = 0;
     int64_t last_step_ms = 0;
+    int64_t last_tap_ms = 0;
     int64_t last_heartbeat_ms = 0;
     int64_t lobby_entered_ms = 0;
     int64_t promise_started_ms = 0;
@@ -285,6 +295,7 @@ struct ActiveSession {
     bool uncertain_action = false;
     bool completion_shiny = false;
     std::string completion_message;
+    std::string leave_message;
     std::string last_phase;
     std::string last_message;
 
@@ -322,6 +333,7 @@ struct ActiveSession {
         join_invoked = false;
         stage_started_ms = 0;
         last_step_ms = 0;
+        last_tap_ms = 0;
         last_heartbeat_ms = 0;
         lobby_entered_ms = 0;
         promise_started_ms = 0;
@@ -331,6 +343,7 @@ struct ActiveSession {
         uncertain_action = false;
         completion_shiny = false;
         completion_message.clear();
+        leave_message.clear();
         last_phase.clear();
         last_message.clear();
     }
@@ -817,43 +830,58 @@ void handle_raid_completion(bool caught_shiny, const std::string& summary_msg, i
     transition_stage(RaidStage::Scan, now_ms, "scanning", summary_msg);
 }
 
-void handle_raid_loss(const std::string& reason, int64_t now_ms) {
-    const auto cont = tracker.record_loss(session.target_key, now_ms);
-    adapter().exit_raid_or_gym(session.approach_ui.get(), session.raid_state.get(), session.gym_root_state.get());
-    session.release_roots();
-    session.target = pgr_auto_raid::RaidCandidate{};
-    session.target_key.clear();
+// Leaving a gym, lobby or result screen is asynchronous in the game (leaving a lobby
+// is a server request). The Leave stage keeps the target and its roots, asks the game
+// to close whatever raid screen is still open, and only rescans once the map is back.
+void begin_leave(const std::string& reason, int64_t now_ms) {
     session.join_invoked = false;
     session.resolve_confirmed = false;
     session.uncertain_action = false;
+    session.leave_message = reason;
+    transition_stage(RaidStage::Leave, now_ms, "leaving", reason);
+    session.last_step_ms = now_ms; // give the game one step before the first close request
+}
 
+void step_leave(const TransportPermission& perm, int64_t now_ms) {
+    if (session.last_step_ms != 0 && now_ms - session.last_step_ms < kLeaveStepMs) {
+        maybe_emit_heartbeat(now_ms);
+        return;
+    }
+    session.last_step_ms = now_ms;
+    if (perm.item_access && adapter().map_ready()) {
+        const std::string message = session.leave_message;
+        session.release_roots();
+        session.target = pgr_auto_raid::RaidCandidate{};
+        session.target_key.clear();
+        if (session.stop_requested) {
+            finish_session("stopped", "Auto-Raid stopped by user");
+            return;
+        }
+        transition_stage(RaidStage::Scan, now_ms, "scanning", message);
+        return;
+    }
+    if (now_ms - session.stage_started_ms >= kLeaveTimeoutMs) {
+        finish_session("error", "Left the raid, but the game did not return to the map; check the game");
+        return;
+    }
+    adapter().exit_raid_or_gym(session.approach_ui.get(), session.raid_state.get(), session.gym_root_state.get());
+    maybe_emit_heartbeat(now_ms);
+}
+
+void handle_raid_loss(const std::string& reason, int64_t now_ms) {
+    const auto cont = tracker.record_loss(session.target_key, now_ms);
     if (cont == pgr_auto_raid::SessionContinuation::StopConsecutiveLosses) {
+        adapter().exit_raid_or_gym(session.approach_ui.get(), session.raid_state.get(), session.gym_root_state.get());
         finish_session("error", "Stopped after 2 consecutive raid losses (" + reason + ")");
         return;
     }
-    if (session.stop_requested) {
-        finish_session("stopped", "Auto-Raid stopped after raid loss");
-        return;
-    }
-    transition_stage(RaidStage::Scan, now_ms, "scanning",
-                     "Raid lost (" + reason + "); scanning for next active raid");
+    begin_leave("Raid lost (" + reason + "); scanning for next active raid", now_ms);
 }
 
-void quarantine_and_rescan(const std::string& reason, int64_t now_ms) {
-    tracker.quarantine_raid(session.target_key, now_ms);
-    adapter().exit_raid_or_gym(session.approach_ui.get(), session.raid_state.get(), session.gym_root_state.get());
-    session.release_roots();
-    session.target = pgr_auto_raid::RaidCandidate{};
-    session.target_key.clear();
-    session.join_invoked = false;
-    session.resolve_confirmed = false;
-    session.uncertain_action = false;
-
-    if (session.stop_requested) {
-        finish_session("stopped", "Auto-Raid stopped by user");
-        return;
-    }
-    transition_stage(RaidStage::Scan, now_ms, "scanning", reason);
+void quarantine_and_rescan(const std::string& reason, int64_t now_ms,
+                           int64_t retry_ms = pgr_auto_raid::SessionTracker::kDefaultQuarantineMs) {
+    tracker.quarantine_raid(session.target_key, now_ms, retry_ms);
+    begin_leave(reason, now_ms);
 }
 
 void step_scan(const TransportPermission& perm, int64_t now_ms) {
@@ -977,6 +1005,7 @@ void step_travel(const TransportPermission& perm, int64_t now_ms) {
     }
 
     adapter().click_gym_poi(session.target_gym.get());
+    session.last_tap_ms = now_ms;
     transition_stage(RaidStage::OpenGym, now_ms, "approaching", "Opening local raid gym");
 }
 
@@ -987,7 +1016,7 @@ void step_open_gym(int64_t now_ms) {
         return;
     }
     if (now_ms - session.stage_started_ms >= kApproachTimeoutMs) {
-        quarantine_and_rescan("Timed out waiting for gym raid approach screen", now_ms);
+        quarantine_and_rescan("Timed out waiting for gym raid approach screen", now_ms, kTransientRetryMs);
         return;
     }
     if (session.last_step_ms != 0 && now_ms - session.last_step_ms < kActionStepMs) {
@@ -999,6 +1028,16 @@ void step_open_gym(int64_t now_ms) {
     if (adapter().advance_to_raid_approach(
             session.target_gym.get(), session.gym_root_state, session.raid_state, session.approach_ui)) {
         transition_stage(RaidStage::VerifyPass, now_ms, "approaching", "Verifying allowed raid pass");
+        return;
+    }
+    // The game can ignore a tap made while it is still closing another screen. If no gym
+    // has opened (the map is still showing), tap the target again.
+    if (now_ms - session.last_tap_ms >= kGymRetapMs && adapter().map_ready() &&
+        session.target_gym && adapter().is_gym_alive(session.target_gym.get())) {
+        session.last_tap_ms = now_ms;
+        adapter().click_gym_poi(session.target_gym.get());
+        emit_status(session.command.token, "approaching", "Gym did not open; tapping it again",
+                    tracker.completed_raids);
         return;
     }
     maybe_emit_heartbeat(now_ms);
@@ -1048,7 +1087,7 @@ void step_verify_pass(int64_t now_ms) {
 
         case pgr_auto_raid::PassDecisionStatus::NoAllowedPassAvailable:
             adapter().exit_raid_or_gym(session.approach_ui.get(), session.raid_state.get(), session.gym_root_state.get());
-            finish_session("stopped", "No allowed local raid pass available in bag");
+            finish_session("stopped", "Out of allowed raid passes; Auto-Raid finished");
             return;
 
         case pgr_auto_raid::PassDecisionStatus::ForbiddenRemotePass:
@@ -1174,14 +1213,16 @@ void step_lobby(int64_t now_ms) {
             finish_session("stopped", "Left raid lobby before battle start");
             return;
 
-        case pgr_auto_raid::LobbyDecision::LeaveUnderMin:
+        case pgr_auto_raid::LobbyDecision::LeaveUnderMin: {
             adapter().leave_lobby(session.lobby_ui.get(), session.raid_state.get());
-            quarantine_and_rescan(
-                "Leaving lobby: players (" + std::to_string(current_players) + "/" +
+            tracker.quarantine_raid(session.target_key, now_ms, kUnderMinRetryMs);
+            begin_leave(
+                "Left lobby: players (" + std::to_string(current_players) + "/" +
                     std::to_string(session.command.min_players) + ") below minimum; "+
                     (has_countdown?"deadline reached":"countdown unavailable"),
                 now_ms);
             return;
+        }
 
         case pgr_auto_raid::LobbyDecision::WaitForPlayers:
         case pgr_auto_raid::LobbyDecision::StayReady:
@@ -1267,7 +1308,7 @@ void await_catch_summary(bool shiny,const std::string& message,int64_t now_ms){
 }
 
 void step_catch_summary(const TransportPermission& perm,int64_t now_ms){
-    if(perm.item_access && adapter().map_ready()){
+    if(now_ms-session.stage_started_ms>=kMapSettleMs && perm.item_access && adapter().map_ready()){
         handle_raid_completion(session.completion_shiny,session.completion_message,now_ms);
         return;
     }
@@ -1501,6 +1542,9 @@ bool step_controller(uint64_t tid) {
             break;
         case RaidStage::CatchSummary:
             step_catch_summary(perm,now_ms);
+            break;
+        case RaidStage::Leave:
+            step_leave(perm, now_ms);
             break;
         case RaidStage::Idle:
         default:

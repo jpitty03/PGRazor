@@ -578,6 +578,8 @@ int main() {
     assert(pgr_auto_raid_tick(tid,&metadata));
     assert(world.summary_closed==1&&session.active);
     t_item_access=true;
+    assert(pgr_auto_raid_tick(tid,&metadata)); // map looks ready, but the catch screen is still closing
+    test_clock_override_ms+=kMapSettleMs;
     assert(!pgr_auto_raid_tick(tid,&metadata)); // map ready -> DoneShinyCaught
     assert(!session.active && tracker.finished_token == 200);
     assert(t_events.back().find("\"phase\":\"done\"") != std::string::npos);
@@ -642,15 +644,59 @@ int main() {
     world.lobby_countdown_ms = 4000;
     test_clock_override_ms += 1000;
     assert(pgr_auto_raid_tick(tid, &metadata));
-    assert(world.lobby_leaves == 1 && session.stage == RaidStage::Scan);
+    // Leaving is asynchronous: the session waits in Leave (no exit request in the same
+    // tick as LeaveLobby) and asks the game to close the raid screen until the map is back.
+    assert(world.lobby_leaves == 1 && session.stage == RaidStage::Leave && world.exit_calls == 0);
+    assert(session.target.fort_id == "gym-a" && !test_roots.empty());
     assert(tracker.is_raid_excluded("gym-a#601", test_clock_override_ms));
+    world.map_ready = false;
+    test_clock_override_ms += 1000;
+    assert(pgr_auto_raid_tick(tid, &metadata));
+    assert(session.stage == RaidStage::Leave && world.exit_calls == 1);
+    test_clock_override_ms += 1000;
+    assert(pgr_auto_raid_tick(tid, &metadata));
+    assert(session.stage == RaidStage::Leave && world.exit_calls == 2);
+    world.map_ready = true;
+    test_clock_override_ms += 1000;
+    assert(pgr_auto_raid_tick(tid, &metadata));
+    assert(session.stage == RaidStage::Scan && world.exit_calls == 2 && session.target.fort_id.empty());
+
+    // No pass was spent, so the left raid is retried after a short delay, not 10 minutes.
+    assert(tracker.quarantined_until_ms.at("gym-a#601") <= test_clock_override_ms + kUnderMinRetryMs);
 
     // Now test 2 consecutive losses on gym-b and gym-c:
     world.lobby_players = 5;
     world.lobby_battle_started = true;
     for (int loss_num = 1; loss_num <= 2; ++loss_num) {
+        if (session.stage == RaidStage::Leave) {
+            test_clock_override_ms += 1000;
+            assert(pgr_auto_raid_tick(tid, &metadata)); // Leave -> Scan
+        }
         test_clock_override_ms += 2000;
         assert(pgr_auto_raid_tick(tid, &metadata)); // Scan -> Travel
+        assert(session.target.fort_id == (loss_num == 1 ? "gym-b" : "gym-c"));
+        if (loss_num == 1) {
+            // A tap the game ignored is repeated while the map is still showing.
+            const unsigned clicks = world.gym_clicks;
+            world.approach_ready = false;
+            test_clock_override_ms += 600;
+            assert(pgr_auto_raid_tick(tid, &metadata)); // Travel -> OpenGym (first tap)
+            assert(world.gym_clicks == clicks + 1 && session.stage == RaidStage::OpenGym);
+            test_clock_override_ms += 600;
+            assert(pgr_auto_raid_tick(tid, &metadata));
+            assert(world.gym_clicks == clicks + 1);
+            test_clock_override_ms += kGymRetapMs;
+            assert(pgr_auto_raid_tick(tid, &metadata));
+            assert(world.gym_clicks == clicks + 2 && session.stage == RaidStage::OpenGym);
+            world.approach_ready = true;
+            test_clock_override_ms += 600;
+            assert(pgr_auto_raid_tick(tid, &metadata)); // OpenGym -> VerifyPass
+            assert(session.stage == RaidStage::VerifyPass);
+            session.stage = RaidStage::Travel; // rejoin the shared tick sequence below
+            session.stage_started_ms = test_clock_override_ms;
+            session.release_roots();
+            session.target_gym = Root(&dummy_gym_objs[1]);
+        }
         test_clock_override_ms += 600;
         assert(pgr_auto_raid_tick(tid, &metadata)); // Travel -> OpenGym
         test_clock_override_ms += 600;
@@ -670,7 +716,7 @@ int main() {
         test_clock_override_ms += 600;
         const bool cont = pgr_auto_raid_tick(tid, &metadata); // Battle -> Resolve -> Defeat
         if (loss_num == 1) {
-            assert(cont && session.stage == RaidStage::Scan && tracker.consecutive_losses == 1);
+            assert(cont && session.stage == RaidStage::Leave && tracker.consecutive_losses == 1);
         } else {
             assert(!cont && !session.active && tracker.finished_token == 400);
             assert(t_events.back().find("\"phase\":\"error\"") != std::string::npos);
@@ -743,6 +789,7 @@ int main() {
     assert(session.target.fort_id=="skipped");
     quarantine_and_rescan("underfilled",test_clock_override_ms);
     test_clock_override_ms+=3000;
+    assert(pgr_auto_raid_tick(tid,&metadata)); // Leave -> Scan
     assert(pgr_auto_raid_tick(tid,&metadata));
     assert(session.target.fort_id=="next"); // Epoch clock must not instantly expire retry quarantine.
     pgr_auto_raid_stop(tid);
@@ -759,6 +806,7 @@ int main() {
     assert(pgr_auto_raid_tick(tid,&metadata));
     assert(tracker.completed_raids==0 && session.active);
     world.map_ready=true;
+    test_clock_override_ms+=kMapSettleMs;
     assert(!pgr_auto_raid_tick(tid,&metadata));
     assert(t_events.back().find("\"completed\":1")!=std::string::npos && test_roots.empty());
     auto start_berry_encounter=[&](int mode){

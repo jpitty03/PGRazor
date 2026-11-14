@@ -684,9 +684,21 @@ void real_press_approach_join(void* approach_ui) {
 
 void real_exit_raid_or_gym(void* approach_ui, void* raid_state, void* gym_root_state) {
     (void)gym_root_state;
-    if(approach_ui && unity_obj_alive(approach_ui) && unbox_val<bool>(call_obj(approach_ui,"get_IsOpen",0))){
+    // A lobby leave is a server request; wait for the lobby to close before navigating.
+    if(session.lobby_ui && unity_obj_alive(session.lobby_ui.get()) &&
+       unbox_val<bool>(call_obj(session.lobby_ui.get(),"get_IsOpen",0)))return;
+    // Leaving a lobby returns to a raid approach screen that may be a new object.
+    Root found;
+    const bool owned=approach_ui && unity_obj_alive(approach_ui);
+    if(!owned){
+        found=find_live_unity_object(resolve_class("Niantic.Holoholo.Raid","RaidApproachUIController"));
+        approach_ui=found.get();
+    }
+    if(approach_ui && unbox_val<bool>(call_obj(approach_ui,"get_IsOpen",0))){
         Root ctrl(read_field_val<void*>(approach_ui,require_map_field(obj_klass(approach_ui),"ekir","Niantic.Holoholo.Gym.IGymRootController",0x3b0)));
-        require(ctrl && gym_ctrl_matches_target(ctrl.get()),"Refusing to close an unrelated raid");
+        const bool matches=ctrl && gym_ctrl_matches_target(ctrl.get());
+        if(owned)require(matches,"Refusing to close an unrelated raid");
+        if(!matches)return;
         call_obj(approach_ui,"OnBackButtonPressed",0);
         return;
     }
