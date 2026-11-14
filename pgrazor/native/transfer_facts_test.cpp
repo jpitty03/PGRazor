@@ -316,26 +316,29 @@ int main(int argc, char **argv) {
     assert(g_handles.empty());
   }
 
-  // 4. Event via costume / original-costume / limited string length.
+  // 4. Costume via costume / original-costume (not an event); event via limited string length.
   { reset_flags();
     FakeDisplay d = make_display(); d.costume = 7;  // != costume_none
     FakePokemon pk = make_pokemon(&d);
     PgrTransferFactsRequest r = make_request(&pk, 0);
-    assert(api->inspect(&r, &out) == PGR_TF_VALID && (out.flags & PGR_TF_FLAG_EVENT));
+    assert(api->inspect(&r, &out) == PGR_TF_VALID && (out.flags & PGR_TF_FLAG_COSTUME) &&
+           !(out.flags & PGR_TF_FLAG_EVENT));
     assert(g_handles.empty());
 
     reset_flags();
     FakeDisplay d2 = make_display(); d2.original_costume = 4;
     FakePokemon pk2 = make_pokemon(&d2);
     PgrTransferFactsRequest r2 = make_request(&pk2, 0);
-    assert(api->inspect(&r2, &out) == PGR_TF_VALID && (out.flags & PGR_TF_FLAG_EVENT));
+    assert(api->inspect(&r2, &out) == PGR_TF_VALID && (out.flags & PGR_TF_FLAG_COSTUME) &&
+           !(out.flags & PGR_TF_FLAG_EVENT));
     assert(g_handles.empty());
 
     reset_flags();
     FakeString limited{&cls_string, 5};  // non-empty limited identifier
     FakeDisplay d3 = make_display(); FakePokemon pk3 = make_pokemon(&d3); pk3.limited = &limited;
     PgrTransferFactsRequest r3 = make_request(&pk3, 0);
-    assert(api->inspect(&r3, &out) == PGR_TF_VALID && (out.flags & PGR_TF_FLAG_EVENT));
+    assert(api->inspect(&r3, &out) == PGR_TF_VALID && (out.flags & PGR_TF_FLAG_EVENT) &&
+           !(out.flags & PGR_TF_FLAG_COSTUME));
     assert(g_handles.empty());
 
     // Empty limited string (length 0) is NOT an event.

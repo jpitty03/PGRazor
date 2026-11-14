@@ -14,6 +14,9 @@ public class SettingsBackupRulesTest {
     }
     public static void main(String[] args)throws Exception{
         SettingsBackupRules.validate(valid());
+        JSONObject protect=valid();protect.getJSONObject("settings").put("transferProtect","255").put("transferProtectSplit","1");
+        SettingsBackupRules.validate(protect);
+        protect.getJSONObject("settings").put("transferProtect","256");rejects(protect);
         JSONObject autoThrow=valid();autoThrow.getJSONObject("settings").put("autoThrow","true").put("autoThrowOnMap","true");
         SettingsBackupRules.validate(autoThrow);
         autoThrow.getJSONObject("settings").put("autoThrowOnMap","false");SettingsBackupRules.validate(autoThrow);

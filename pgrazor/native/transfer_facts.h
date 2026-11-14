@@ -50,7 +50,8 @@ enum PgrTransferFactsInfo {
 };
 
 // Feature-4 bit order (shared with transfer_policy flags): rare 0, shiny 1, event 2, background 3,
-// xxs 4, xxl 5, favorite 6, egg 7. The size bits (xxs/xxl) are left false when no size was requested.
+// xxs 4, xxl 5, favorite 6, egg 7, costume 8. Event is an origin event or a limited identifier;
+// a costume is reported separately. The size bits (xxs/xxl) are left false when no size was requested.
 enum PgrTransferFactsFlag {
   PGR_TF_FLAG_RARE       = 1u << 0,
   PGR_TF_FLAG_SHINY      = 1u << 1,
@@ -59,7 +60,8 @@ enum PgrTransferFactsFlag {
   PGR_TF_FLAG_XXS        = 1u << 4,
   PGR_TF_FLAG_XXL        = 1u << 5,
   PGR_TF_FLAG_FAVORITE   = 1u << 6,
-  PGR_TF_FLAG_EGG        = 1u << 7
+  PGR_TF_FLAG_EGG        = 1u << 7,
+  PGR_TF_FLAG_COSTUME    = 1u << 8
 };
 
 // inspect() returns 1 VALID (facts written), 0 REFUSED (window/owner/reentry -- NOT an authorization), or

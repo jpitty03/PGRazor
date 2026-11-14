@@ -75,7 +75,7 @@ final class SettingsPanel {
     private TextView state, steeringStatus, spawnStatus, quickSummaryStatus, transferStatus, quickSpinStatus,
         buddyStatus, giftStatus, itemStatus, rocketStatus, battleStatus, quickBallStatus, ivStatus, cameraStatus, interactionStatus;
     // Multi-option groups keep checkboxes / radios.
-    private final CheckBox[] transferProtection=new CheckBox[7];
+    private final CheckBox[] transferProtection=new CheckBox[8];
     private final Switch[] pvpKeep=new Switch[3];
     private final Button[] pvpRank=new Button[3];
     private final CheckBox[] giftChoices=new CheckBox[3];
@@ -360,8 +360,9 @@ final class SettingsPanel {
         transferStatus = caption(txC, "");
 
         LinearLayout keepC = group(transfer, "Always keep");
-        String[] protections={"Keep legendary / mythical / Ultra Beasts","Keep shiny Pokemon","Keep event / costume Pokemon","Keep background Pokemon","Keep XXS","Keep XXL","Keep 0% IV (0/0/0)"};
-        for(int i=0;i<protections.length;i++){final int bit=1<<i;CheckBox box=new CheckBox(activity);box.setText(protections[i]);box.setChecked((Control.transferProtect()&bit)!=0);transferProtection[i]=box;keepC.addView(box);
+        // Indexed by protection bit; costume (bit 7) is listed next to event.
+        String[] protections={"Keep legendary / mythical / Ultra Beasts","Keep shiny Pokemon","Keep event Pokemon","Keep background Pokemon","Keep XXS","Keep XXL","Keep 0% IV (0/0/0)","Keep costume Pokemon"};
+        for(int i:new int[]{0,1,2,7,3,4,5,6}){final int bit=1<<i;CheckBox box=new CheckBox(activity);box.setText(protections[i]);box.setChecked((Control.transferProtect()&bit)!=0);transferProtection[i]=box;keepC.addView(box);
             box.setOnClickListener(v->Control.setTransferProtect(box.isChecked()?Control.transferProtect()|bit:Control.transferProtect()&~bit));}
         transferKeepList = button("Custom keep list"); keepC.addView(transferKeepList);
         transferKeepList.setOnClickListener(v -> TransferKeepDialog.show(activity, host::refresh));

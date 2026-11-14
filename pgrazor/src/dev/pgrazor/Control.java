@@ -120,7 +120,7 @@ public final class Control {
     private static volatile boolean quickSummaryConfigured, quickSummaryReady, quickSummaryEnabled;
     private static volatile boolean quickSummaryAutoDismiss;
     private static volatile boolean autoTransferEnabled, autoTransferReady;
-    private static volatile int transferProtect=127;
+    private static volatile int transferProtect=255;
     private static volatile String transferStatus="Waiting for transfer support";
     // Custom keep list (canonical, sorted/de-duplicated positive dex IDs) plus the persistent Keep All
     // overlay. Keep All holds every catch regardless of the other rules; the keep list protects the
@@ -479,7 +479,7 @@ public final class Control {
     public static int transferProtect(){return transferProtect;}
     public static String transferStatus(){return transferStatus;}
     public static void setAutoTransferEnabled(boolean enabled){invalidateQuickBallOutcome();autoTransferEnabled=enabled;saveSettings();event("auto-transfer-setting",enabled?"ON; new catches below90percent only":"OFF");}
-    public static void setTransferProtect(int mask){transferProtect=mask>=0&&mask<=127?mask:127;saveSettings();event("auto-transfer-protection",String.valueOf(transferProtect));}
+    public static void setTransferProtect(int mask){transferProtect=mask>=0&&mask<=255?mask:255;saveSettings();event("auto-transfer-protection",String.valueOf(transferProtect));}
     public static void setAutoTransferReady(boolean ready,String status){autoTransferReady=ready&&quickSummaryReady();transferStatus=status==null?"":status;}
     public static void transferResult(String status){transferStatus=status==null?"":status;}
     /** Main transfer permission; manual Keep All is applied only by the encounter consumer. */
@@ -1222,7 +1222,10 @@ public final class Control {
                 if(!validItemRules(itemRules)||!validItemRules(itemLimits)){itemTransferEnabled=false;itemRules="";itemLimits="";}
                 quickSpinEnabled=Boolean.parseBoolean(p.getProperty("quickSpin","false"));
                 autoTransferEnabled=Boolean.parseBoolean(p.getProperty("autoTransfer","false"));
-                try { transferProtect=Integer.parseInt(p.getProperty("transferProtect","127")); if(transferProtect<0||transferProtect>127)transferProtect=127; } catch(NumberFormatException e){transferProtect=127;}
+                try { transferProtect=Integer.parseInt(p.getProperty("transferProtect","255")); if(transferProtect<0||transferProtect>255)transferProtect=255; } catch(NumberFormatException e){transferProtect=255;}
+                // "Keep event / costume" (bit 2) was one option before costume got its own bit (7):
+                // settings saved before the split keep costumes whenever they kept events.
+                if(p.getProperty("transferProtectSplit")==null&&(transferProtect&4)!=0)transferProtect|=128;
                 transferKeepAll=Boolean.parseBoolean(p.getProperty("transferKeepAll","false"));
                 transferOverlayEnabled=Boolean.parseBoolean(p.getProperty("transferOverlay","false"));
                 boolean[] keepDamaged=new boolean[1];
@@ -1310,6 +1313,8 @@ public final class Control {
             // atomic replacement below cannot race the background writer for this destination.
             Properties merged=exportSettings();merged.putAll(incoming);
             if(incoming.containsKey("autoBerry")&&!incoming.containsKey("berryPriority"))merged.remove("berryPriority");
+            // A backup from before costume had its own option carries it inside "event / costume".
+            if(incoming.containsKey("transferProtect")&&!incoming.containsKey("transferProtectSplit"))merged.remove("transferProtectSplit");
             FileOutputStream out=null;
             try{out=settingsFile.startWrite();merged.store(out,"PGRazor settings");settingsFile.finishWrite(out);out=null;}
             finally{if(out!=null)settingsFile.failWrite(out);}
@@ -1353,7 +1358,7 @@ public final class Control {
         p.setProperty("rocketOptions",String.valueOf(rocketOptions));
         p.setProperty("itemTransfer",String.valueOf(itemTransferEnabled));p.setProperty("itemRules",itemRules);p.setProperty("itemLimits",itemLimits);p.setProperty("itemCatalog",itemCatalog);
         p.setProperty("quickSpin",String.valueOf(quickSpinEnabled));
-        p.setProperty("autoTransfer",String.valueOf(autoTransferEnabled)); p.setProperty("transferProtect",String.valueOf(transferProtect));
+        p.setProperty("autoTransfer",String.valueOf(autoTransferEnabled)); p.setProperty("transferProtect",String.valueOf(transferProtect));p.setProperty("transferProtectSplit","1");
         p.setProperty("transferKeepAll",String.valueOf(transferKeepAll)); p.setProperty("transferOverlay",String.valueOf(transferOverlayEnabled)); p.setProperty("transferKeepSpecies",transferKeepSpecies);
         p.setProperty("evolveTransferEnabled",String.valueOf(evolveTransferEnabled)); p.setProperty("evolveTransferMode",String.valueOf(evolveTransferMode)); p.setProperty("evolveTransferStages",String.valueOf(evolveTransferStages)); p.setProperty("evolveTransferSpecies",evolveTransferSpecies);
         p.setProperty("ivCatch",String.valueOf(ivCatchEnabled)); p.setProperty("ivOwned",String.valueOf(ivOwnedEnabled)); p.setProperty("ivCatchFormat",String.valueOf(ivCatchFormat)); p.setProperty("ivOwnedFormat",String.valueOf(ivOwnedFormat)); p.setProperty("storageIv",String.valueOf(storageIvMode)); p.setProperty("storageIvFormat",String.valueOf(storageIvFormat));

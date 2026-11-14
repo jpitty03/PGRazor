@@ -44,6 +44,18 @@ public final class ControlSettingsReloadTest {
         Control.importSettings(app,corruptEvolve,9.3); Control.flushSettings(5000);
         if(Control.autoTransferEnabled()||Control.evolveTransferEnabled()||Control.evolveTransferMode()!=0||Control.evolveTransferStages()!=2||!Control.evolveTransferSpecies().equals("1,4,25"))
             throw new AssertionError("Corrupt evolve-transfer mode did not fail safe to disabled on reload");
+        // Backups from before costume had its own option: "event / costume" on keeps both, off keeps neither.
+        java.util.Properties oldProtect=new java.util.Properties(); oldProtect.setProperty("transferProtect","127");
+        Control.importSettings(app,oldProtect,9.3); Control.flushSettings(5000);
+        if(Control.transferProtect()!=255)throw new AssertionError("Old event/costume choice did not keep costumes");
+        oldProtect.setProperty("transferProtect","123");
+        Control.importSettings(app,oldProtect,9.3); Control.flushSettings(5000);
+        if(Control.transferProtect()!=123)throw new AssertionError("Old event/costume off turned costume keeping on");
+        // A current backup keeps the two choices apart, and the choice survives a reload.
+        oldProtect.setProperty("transferProtect","4"); oldProtect.setProperty("transferProtectSplit","1");
+        Control.importSettings(app,oldProtect,9.3); Control.flushSettings(5000);
+        load.invoke(null,app);
+        if(Control.transferProtect()!=4)throw new AssertionError("Event-only protection was not preserved");
         Control.setDarkTheme(false); Control.flushSettings(5000);
         Field writer=Control.class.getDeclaredField("settingsWriter"); writer.setAccessible(true);
         Object original=writer.get(null);

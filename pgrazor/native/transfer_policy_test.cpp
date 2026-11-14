@@ -17,10 +17,11 @@ int main(int argc,char **argv) {
   if(api->decide(&v)!=(a+d+s>=41?9:0))return 5;
  }
  v.attack=v.defense=v.stamina=0;
- for(unsigned flags=0;flags<256;++flags)for(unsigned protect=0;protect<128;++protect){
+ for(unsigned flags=0;flags<512;++flags)for(unsigned protect=0;protect<256;++protect){
   v.flags=flags;v.protect=protect;int reason=0;
   if(flags&192)reason=8;
   else for(int bit=0;bit<6;++bit)if((flags&(1u<<bit))&&(protect&(1u<<bit))){reason=10+bit;break;}
+  if(!reason&&(flags&256)&&(protect&128))reason=20; // costume kept only with its own bit
   if(!reason&&(protect&64))reason=19; // 0/0/0 kept only with its own bit
   if(api->decide(&v)!=reason)return 6;
  }

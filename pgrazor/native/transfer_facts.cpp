@@ -292,8 +292,8 @@ int do_inspect(const PgrTransferFactsRequest *req, uint64_t deadline, PgrTransfe
       goto done;
     }
 
-    bool event = count > 0 || limited_event || costume != g_cfg.costume_none ||
-                 original_costume != g_cfg.costume_none;
+    bool event = count > 0 || limited_event;
+    bool costumed = costume != g_cfg.costume_none || original_costume != g_cfg.costume_none;
     bool has_background =
         background != nullptr || art != g_cfg.art_none || art_asset != g_cfg.asset_none;
 
@@ -310,6 +310,7 @@ int do_inspect(const PgrTransferFactsRequest *req, uint64_t deadline, PgrTransfe
     if (rare) flags |= PGR_TF_FLAG_RARE;
     if (shiny) flags |= PGR_TF_FLAG_SHINY;
     if (event) flags |= PGR_TF_FLAG_EVENT;
+    if (costumed) flags |= PGR_TF_FLAG_COSTUME;
     if (has_background) flags |= PGR_TF_FLAG_BACKGROUND;
     if (xxs) flags |= PGR_TF_FLAG_XXS;
     if (xxl) flags |= PGR_TF_FLAG_XXL;
