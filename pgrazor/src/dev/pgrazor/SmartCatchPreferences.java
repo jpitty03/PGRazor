@@ -6,7 +6,7 @@ import java.util.TreeSet;
 /** Pure Java account configuration and native wire serialization. */
 public final class SmartCatchPreferences {
     private boolean enabled, premium=true, curve=true, spinGyms, autoBall;
-    private int ball=1, berry, highCp=1500, highLevel=30, grade=3, autoBallTarget=75, variety;
+    private int ball=1, berry, highCp=1500, highLevel=30, grade=3, autoBallTarget=75, variety, speed;
     private String candySpecies="",catchSpecies="";
     private static final int[] BERRIES={0,701,703,705,706,708};
 
@@ -39,7 +39,7 @@ public final class SmartCatchPreferences {
         berry=number(p,"Berry",0,0,708);if(!validBerry(berry))berry=0;
         premium=flag(p,"Premium",true);highCp=number(p,"HighCp",1500,0,10000);
         highLevel=number(p,"HighLevel",30,0,50);grade=number(p,"Grade",3,0,3);curve=flag(p,"Curve",true);
-        autoBall=flag(p,"AutoBall",false);autoBallTarget=number(p,"AutoBallTarget",75,1,99);variety=number(p,"Variety",0,0,3);
+        autoBall=flag(p,"AutoBall",false);autoBallTarget=number(p,"AutoBallTarget",75,1,99);variety=number(p,"Variety",0,0,3);speed=number(p,"Speed",0,0,2);
         String spin=p.getProperty("smartCatchSpinGyms");
         if(spin==null)spin=p.getProperty("gymAutomationSpin");
         spinGyms="true".equals(spin);
@@ -50,7 +50,7 @@ public final class SmartCatchPreferences {
         p.setProperty("smartCatchEnabled",String.valueOf(enabled));p.setProperty("smartCatchBall",String.valueOf(ball));
         p.setProperty("smartCatchBerry",String.valueOf(berry));p.setProperty("smartCatchPremium",String.valueOf(premium));
         p.setProperty("smartCatchHighCp",String.valueOf(highCp));p.setProperty("smartCatchHighLevel",String.valueOf(highLevel));
-        p.setProperty("smartCatchGrade",String.valueOf(grade));p.setProperty("smartCatchVariety",String.valueOf(variety));p.setProperty("smartCatchCurve",String.valueOf(curve));
+        p.setProperty("smartCatchGrade",String.valueOf(grade));p.setProperty("smartCatchVariety",String.valueOf(variety));p.setProperty("smartCatchSpeed",String.valueOf(speed));p.setProperty("smartCatchCurve",String.valueOf(curve));
         p.setProperty("smartCatchAutoBall",String.valueOf(autoBall));p.setProperty("smartCatchAutoBallTarget",String.valueOf(autoBallTarget));
         p.setProperty("smartCatchSpinGyms",String.valueOf(spinGyms));p.remove("gymAutomationSpin");
         p.setProperty("smartCatchCandySpecies",candySpecies);
@@ -77,6 +77,8 @@ public final class SmartCatchPreferences {
     public synchronized int highCp(){return highCp;}
     public synchronized int highLevel(){return highLevel;}
     public synchronized int grade(){return grade;}
+    /** Catch speed: 0 normal, 1 fast, 2 fastest. Sent to native by Control.smartCatchConfig (version 6), not by config(). */
+    public synchronized int speed(){return speed;}
     /** Throw variety: 0 off, 1 Excellent & Great, 2 Excellent, Great & Nice, 3 all (with a plain throw). */
     public synchronized int variety(){return variety;}
     public synchronized String candySpecies(){return candySpecies;}

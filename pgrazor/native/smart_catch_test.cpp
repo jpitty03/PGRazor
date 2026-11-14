@@ -120,6 +120,10 @@ void pure_tests(){
  s=parse("4;1;2;0;1;1500;30;3;1;0;75;25;415;2");assert(s.enabled&&s.variety==2&&s.catch_count==1&&s.species_count==1);
  assert(!s.mighty_safari);
  s=parse("5;1;2;0;1;1500;30;3;1;0;75;25;415;2;1");assert(s.enabled&&s.variety==2&&s.mighty_safari&&s.catch_count==1);
+ assert(s.speed==0&&pgr_smart_throw_base_ms(s.speed)==1200&&pgr_smart_rescan_ms(s.speed)==2500);
+ s=parse("6;1;2;0;1;1500;30;3;1;0;75;25;415;2;1;2");assert(s.enabled&&s.mighty_safari&&s.speed==2&&s.catch_count==1);
+ assert(pgr_smart_throw_base_ms(2)==500&&pgr_smart_throw_jitter_ms(2)==201&&pgr_smart_rescan_ms(2)==1000&&pgr_smart_throw_base_ms(1)==800&&pgr_smart_throw_base_ms(9)==1200);
+ for(const std::string &bad:{"6;1;2;0;1;1500;30;3;1;0;75;;;0;0","6;1;2;0;1;1500;30;3;1;0;75;;;0;0;3","6;1;2;0;1;1500;30;3;1;0;75;;;0;0;-1","6;1;2;0;1;1500;30;3;1;0;75;;;0;0;1;","5;1;2;0;1;1500;30;3;1;0;75;;;0;0;1"})assert(!parse(bad).enabled);
  for(const std::string &bad:{"5;1;2;0;1;1500;30;3;1;0;75;;;0", "5;1;2;0;1;1500;30;3;1;0;75;;;0;2", "5;1;2;0;1;1500;30;3;1;0;75;;;0;-1", "5;1;2;0;1;1500;30;3;1;0;75;;;0;1;", "4;1;2;0;1;1500;30;3;1;0;75;;;0;1"})assert(!parse(bad).enabled);
  for(const std::string &bad:{"4;1;2;0;1;1500;30;3;1;0;75;;;4","4;1;2;0;1;1500;30;3;1;0;75;;;-1","4;1;2;0;1;1500;30;3;1;0;75;;","3;1;2;0;1;1500;30;3;1;0;75;;;1","4;1;2;0;1;1500;30;3;1;0;75;;;1;"})assert(!parse(bad).enabled);
  for(int variety=1;variety<=3;++variety){

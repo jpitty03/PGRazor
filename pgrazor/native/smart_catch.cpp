@@ -122,8 +122,9 @@ extern "C" int pgr_smart_parse_settings(const char *text,size_t len,PgrSmartSett
  *out={};out->ball=1;out->premium=1;out->high_cp=1500;out->high_level=30;out->grade=3;out->curve=1;out->auto_target=75;
  if(!text||len>PGR_SMART_CONFIG_MAX)return 0;
  std::vector<std::string> parts;size_t start=0;
- for(size_t i=0;i<=len;++i)if(i==len||text[i]==';'){parts.emplace_back(text+start,i-start);start=i+1;if(parts.size()>15)return 0;}
- const bool v5=parts.size()==15&&parts[0]=="5";
+ for(size_t i=0;i<=len;++i)if(i==len||text[i]==';'){parts.emplace_back(text+start,i-start);start=i+1;if(parts.size()>16)return 0;}
+ const bool v6=parts.size()==16&&parts[0]=="6";
+ const bool v5=v6||(parts.size()==15&&parts[0]=="5");
  const bool v4=v5||(parts.size()==14&&parts[0]=="4");
  const bool v3=v4||(parts.size()==13&&parts[0]=="3");
  const bool v2=v3||(parts.size()==12&&parts[0]=="2");
@@ -138,6 +139,7 @@ extern "C" int pgr_smart_parse_settings(const char *text,size_t len,PgrSmartSett
  if(v3&&!species_list(parts[12],s.catch_species,s.catch_count))return 0;
  if(v4&&!number(parts[13],0,3,s.variety))return 0;
  if(v5&&!number(parts[14],0,1,s.mighty_safari))return 0;
+ if(v6&&!number(parts[15],0,2,s.speed))return 0;
  *out=s;return 0;
 }
 extern "C" int pgr_smart_variety_grade(int variety,uint32_t random){

@@ -267,15 +267,16 @@ public final class Control {
     private static volatile long encounterBerrySeen;
     public static void setEncounterBerry(boolean active,boolean busy){encounterBerryActive=active;encounterBerryBusy=busy;encounterBerrySeen=SystemClock.elapsedRealtime();}
     public static boolean catchScreenVisible(){long age=SystemClock.elapsedRealtime()-encounterBerrySeen;return encounterBerryActive&&age>=0&&age<2000&&foreground&&quickSummaryReady();}
-    // Wrap SmartCatchPreferences' version-4 line as version 5 and append the Go Wild November 2026
+    // Wrap SmartCatchPreferences' version-4 line as version 6: append the Go Wild November 2026
     // "Use Safari Balls in VGP+" flag (0/1). The flag applies only to Mighty Pokemon and is validated
     // independently by the native smart-catch owner, which falls back to the normal VGP+ ball rules
-    // when a permitted Safari Ball is unavailable. Null host application => flag off; v5 always emitted.
+    // when a permitted Safari Ball is unavailable. Null host application => flag off. Then append the
+    // VGP+ catch speed (0 normal, 1 fast, 2 fastest). Version 6 is always emitted.
     public static String smartCatchConfig(){
         String base=SmartCatchSettings.config();
-        if(base.startsWith("4;"))base="5;"+base.substring(2);
+        if(base.startsWith("4;"))base="6;"+base.substring(2);
         Application app=hostApplication;
-        return base+";"+(app!=null&&dev.pgrazor.events.EventSettings.wildVgpSafari(app)?1:0);
+        return base+";"+(app!=null&&dev.pgrazor.events.EventSettings.wildVgpSafari(app)?1:0)+";"+SmartCatchSettings.speed();
     }
     public static String gymAutomationConfig(){return GymAutomationSettings.config();}
     public static String buddyEmotionConfig(){return BuddyEmotionSettings.config();}

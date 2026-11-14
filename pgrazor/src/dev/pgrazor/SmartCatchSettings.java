@@ -16,6 +16,7 @@ public final class SmartCatchSettings {
     private SmartCatchSettings() {}
     private static final SmartCatchPreferences preferences=new SmartCatchPreferences();
     private static final int[] BERRIES={0,701,703,705,706,708};
+    private static final String[] SPEED_NAMES={"Normal (about 1.5 s)","Fast (about 1 s)","Fastest (about 0.5 s)"};
     private static final String[] BERRY_NAMES={"Off","Razz","Nanab","Pinap","Golden Razz","Silver Pinap"};
     public static void init(Context context) {}
     public static void read(Properties p){preferences.read(p);}
@@ -24,6 +25,7 @@ public final class SmartCatchSettings {
     /** Gym-disc spinning follows VGP's actual run/cooldown gate, not catch availability. */
     public static boolean gymSpinActive(){return preferences.enabled()&&preferences.spinGyms()&&Control.vgpEnabled();}
     public static String normalizeSpecies(String value){return SmartCatchPreferences.normalizeSpecies(value);}
+    static int speed(){return preferences.speed();}
     static String candySpecies(){return preferences.candySpecies();}
     static void setCandySpecies(String value){set("CandySpecies",value);}
     static String catchSpecies(){return preferences.catchSpecies();}
@@ -37,13 +39,13 @@ public final class SmartCatchSettings {
         LinearLayout options=new LinearLayout(ui);options.setOrientation(LinearLayout.VERTICAL);body.addView(options);
         TextView description=new TextView(ui);description.setText("Use the VGP overlay to start or stop. VGP+ adds ball, berry and throw choices. High CP/level targets use Ultra Balls; set a threshold to 0 to disable it.");options.addView(description);
         TextView standard=row(activity,options,"Standard ball",new String[]{"Poké Ball","Great Ball","Ultra Ball"},preferences.ball()-1,index->{set("Ball",index+1);});
-        CheckBox auto=new CheckBox(ui);auto.setText("Auto ball");auto.setChecked(preferences.autoBall());options.addView(auto);
-        TextView autoTarget=button(options,"Auto ball target: "+preferences.autoBallTarget()+"%");
+        CheckBox auto=new CheckBox(ui);auto.setText("VGP+ auto ball");auto.setChecked(preferences.autoBall());options.addView(auto);
+        TextView autoTarget=button(options,"VGP+ auto ball target: "+preferences.autoBallTarget()+"%");
         TextView autoHelp=new TextView(ui);autoHelp.setText("Replaces the standard ball: throws the cheapest ball whose catch chance reaches the target, from the server's catch rate with your berry, throw rating and curveball. The Ultra Ball rules below still apply, and a Master Ball is never used.");options.addView(autoHelp);
         autoTarget.setOnClickListener(v->{
             int[] targets=Control.AUTO_BALL_TARGETS;int next=targets[0];
             for(int i=0;i<targets.length;i++)if(targets[i]==preferences.autoBallTarget()){next=targets[(i+1)%targets.length];break;}
-            set("AutoBallTarget",next);autoTarget.setText("Auto ball target: "+next+"%");});
+            set("AutoBallTarget",next);autoTarget.setText("VGP+ auto ball target: "+next+"%");});
         int berryIndex=0;for(int i=0;i<BERRIES.length;i++)if(BERRIES[i]==preferences.berry())berryIndex=i;
         row(activity,options,"Standard berry",BERRY_NAMES,berryIndex,index->{set("Berry",BERRIES[index]);});
         CheckBox special=new CheckBox(ui);special.setText("Shiny or IV ≥90%: Ultra Ball + Golden Razz");special.setChecked(preferences.premium());options.addView(special);
@@ -56,6 +58,8 @@ public final class SmartCatchSettings {
         TextView varietyHelp=new TextView(ui);varietyHelp.setText("Throw variety picks a rating at random for each throw, with even odds. All includes a plain throw. It replaces the throw rating while on.");options.addView(varietyHelp);
         CheckBox curved=new CheckBox(ui);curved.setText("Curveball");curved.setChecked(preferences.curve());options.addView(curved);
         curved.setOnCheckedChangeListener((v,on)->{set("Curve",on);});
+        row(activity,options,"Catch speed",SPEED_NAMES,preferences.speed(),index->{set("Speed",index);});
+        TextView speedHelp=new TextView(ui);speedHelp.setText("How long VGP+ waits before each throw and before looking for the next Pokémon. Faster catching is less like normal play.");options.addView(speedHelp);
         CheckBox gymSpin=new CheckBox(ui);gymSpin.setText("Auto-spin Gym discs");gymSpin.setChecked(preferences.spinGyms());options.addView(gymSpin);
         TextView gymSpinHelp=new TextView(ui);gymSpinHelp.setText("While VGP is running on the map, spin nearby Gym discs of any team within 80 m when the item bag has room.");options.addView(gymSpinHelp);
         gymSpin.setOnCheckedChangeListener((v,on)->{if(on!=preferences.spinGyms())set("SpinGyms",on);});

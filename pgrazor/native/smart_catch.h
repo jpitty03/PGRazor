@@ -110,8 +110,8 @@ enum PgrSmartStatus {
 
 // Parsed Smart Catcher settings (transport index 7). Format, exactly as emitted by
 // SmartCatchSettings.config():
-//   "5;enabled;ball;berry;premium;highCp;highLevel;grade;curve;autoBall;autoTarget;<candy ids>;<catch ids>;variety;mightySafari"
-// Version 4 omits mightySafari (defaults off).
+//   "6;enabled;ball;berry;premium;highCp;highLevel;grade;curve;autoBall;autoTarget;<candy ids>;<catch ids>;variety;mightySafari;speed"
+// Version 5 omits speed (defaults to normal); version 4 also omits mightySafari (defaults off).
 // The version-3 form (without throw variety), the version-2 form (without the catch-only list) and the version-1 form (also without
 // autoBall/autoTarget) are still accepted, catching every species with auto ball off for version 1.
 // Field 0 is the schema tag "1". A malformed string, a wrong tag, an out-of-range field or an over-long
@@ -133,7 +133,14 @@ struct PgrSmartSettings {
   int32_t  catch_species[PGR_SMART_MAX_SPECIES];  // ascending, de-duplicated National Dex ids (1..2000)
   int32_t  variety;        // throw variety (version 4): 0 off, 1 Excellent & Great, 2 + Nice, 3 + a plain throw
   int32_t  mighty_safari;  // version 5: prefer owned, offered Safari Balls for Mighty Pokemon only
+  int32_t  speed;          // version 6: catch pacing, 0 normal, 1 fast, 2 fastest
 };
+
+// Pacing for a catch speed (out-of-range values pace as normal). The throw wait is base plus a
+// jitter in [0, jitter); rescan is the delay before the next map scan once a catch has resolved.
+static inline uint64_t pgr_smart_throw_base_ms(int speed) { return speed == 2 ? 500 : speed == 1 ? 800 : 1200; }
+static inline uint64_t pgr_smart_throw_jitter_ms(int speed) { return speed == 2 ? 201 : speed == 1 ? 401 : 601; }
+static inline uint64_t pgr_smart_rescan_ms(int speed) { return speed == 2 ? 1000 : speed == 1 ? 1500 : 2500; }
 
 // Catch-only list: an empty list catches every species.
 static inline bool pgr_smart_catch_wanted(const PgrSmartSettings *s, int species) {

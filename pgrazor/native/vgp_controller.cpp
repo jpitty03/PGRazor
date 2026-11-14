@@ -134,6 +134,7 @@ std::string smartConfig(){
   if(!t||t->get_string(7,text,sizeof(text),&size)!=0||size>=sizeof(text))return {};
   return std::string(text,size);
 }
+int smartSpeed(const std::string &s){PgrSmartSettings options{};pgr_smart_parse_settings(s.data(),s.size(),&options);return options.enabled?options.speed:0;}
 bool smartEnabled(const std::string &s){PgrSmartSettings options{};pgr_smart_parse_settings(s.data(),s.size(),&options);return options.enabled!=0;}
 void smartEvent(int ball,int berry,unsigned attempt,int grade=-1){
   const auto *t=static_cast<const PgrRuntimeTransportApi*>(pgrazor_runtime_transport_api(1));
@@ -428,7 +429,8 @@ bool smartMayAct(const PgrVgpControllerTick *in,bool stale){
 void smartWait(uint64_t now){
   rootFree(pend.promise);rootFree(pend.reflection);
   pend.phase=PGR_VGC_PH_SMART_WAIT;pend.berry_done=false;
-  pend.next_throw=now+1200+(now%601);pend.deadline=now+20000;
+  const int speed=smartSpeed(pend.smart_config);
+  pend.next_throw=now+pgr_smart_throw_base_ms(speed)+(now%pgr_smart_throw_jitter_ms(speed));pend.deadline=now+20000;
 }
 void tickSmartWait(const PgrVgpControllerTick *in,PgrVgpControllerOut *o,uint64_t now,bool stale){
   if(!smartMayAct(in,stale)){retrySeen(in->owner,30000);dropPending(o);setStatus(o,PGR_VGC_ST_WAIT_READY);return;}
@@ -623,8 +625,10 @@ void tickPending(const PgrVgpControllerTick *in, PgrVgpControllerOut *o, uint64_
     queued = true;
     value = 0;
   }
+  // A VGP+ catch rescans after its chosen speed's delay; spins and plain VGP keep 2.5 s.
+  const uint64_t rescan = isCatch && pend.smart ? pgr_smart_rescan_ms(smartSpeed(pend.smart_config)) : 2500;
   dropPending(o);
-  POL->arm(owner, 2500);
+  POL->arm(owner, rescan);
   o->flags |= PGR_VGC_EV_ITEM_CLEANUP;  // reset the item poll; the adapter arms vgpCleanupUntil if enabled
   if (isCatch) {
     o->flags |= PGR_VGC_EV_CATCH_RESULT;

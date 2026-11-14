@@ -177,6 +177,7 @@ public final class SmartCatchSettings {
  private static final SmartCatchPreferences prefs=new SmartCatchPreferences();
  public static boolean gymSpinActive(){return prefs.enabled()&&prefs.spinGyms()&&Control.vgpEnabled();}
  public static String config(){return prefs.config();}
+ static int speed(){return prefs.speed();}
  public static void read(java.util.Properties p){prefs.read(p);}
  public static void write(java.util.Properties p){prefs.write(p);}
 }''',
