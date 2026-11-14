@@ -19,6 +19,7 @@ public final class PokemonCategoriesTest {
         expect(!in(PokemonCategories.LEGENDARY, 151), "Mythical stays separate");
         expect(in(PokemonCategories.MYTHICAL, 719) && in(PokemonCategories.MEGA, 719), "Diancie overlaps Mythical/Mega");
         expect(in(PokemonCategories.ULTRA_BEAST, 793) && !in(PokemonCategories.LEGENDARY, 793), "Ultra Beasts stay separate");
+        expect(in(PokemonCategories.MIGHTY, 376) && in(PokemonCategories.MIGHTY, 103) && !in(PokemonCategories.MIGHTY, 1), "Mighty is the event lineup");
         expect(in(PokemonCategories.PRIMAL, 382) && in(PokemonCategories.LEGENDARY, 382), "Kyogre overlaps Primal/Legendary");
         expect(!in(PokemonCategories.MEGA, 382), "Primal is not Mega");
         expect(in(PokemonCategories.MEGA, 6) && !in(PokemonCategories.LEGENDARY, 6), "Charizard is Mega-capable");

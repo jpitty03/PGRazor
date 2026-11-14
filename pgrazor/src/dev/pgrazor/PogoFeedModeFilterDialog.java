@@ -506,7 +506,7 @@ final class PogoFeedModeFilterDialog {
             List<Integer> cats = new ArrayList<>();
             cats.add(PokemonCategories.ALL);
             for (int cat : new int[]{PokemonCategories.LEGENDARY, PokemonCategories.MYTHICAL, PokemonCategories.ULTRA_BEAST,
-                    PokemonCategories.MEGA, PokemonCategories.PRIMAL, PokemonCategories.STAGE_2, PokemonCategories.STAGE_3}) {
+                    PokemonCategories.MEGA, PokemonCategories.PRIMAL, PokemonCategories.STAGE_2, PokemonCategories.STAGE_3, PokemonCategories.MIGHTY}) {
                 for (String[] o : opts) if (PokemonCategories.matches(cat, PokemonOptionFilter.dexOf(o), false)) { cats.add(cat); break; }
             }
             cats.add(PokemonCategories.SELECTED);

@@ -7,13 +7,14 @@ package dev.pgrazor;
  * Species categories include configured forms, not current raid or release availability.
  * Mega and Primal are independent; a species can also be Legendary or Mythical.
  * Evolution stages include babies and exclude temporary Mega/Primal forms.
+ * Mighty is not in the Game Master: it is the GO Wild Area 2026: Global event lineup.
  */
 final class PokemonCategories {
     private PokemonCategories() {}
     static final int ALL = 0, LEGENDARY = 1, MYTHICAL = 2, ULTRA_BEAST = 3,
-        MEGA = 4, PRIMAL = 5, STAGE_2 = 6, STAGE_3 = 7, SELECTED = 8;
+        MEGA = 4, PRIMAL = 5, STAGE_2 = 6, STAGE_3 = 7, MIGHTY = 8, SELECTED = 9;
     static final String[] LABELS = {"All Pokemon", "Legendary", "Mythical", "Ultra Beasts",
-        "Mega-capable", "Primal-capable", "Stage 2 (e.g. Ivysaur)", "Stage 3 (e.g. Venusaur)", "Selected"};
+        "Mega-capable", "Primal-capable", "Stage 2 (e.g. Ivysaur)", "Stage 3 (e.g. Venusaur)", "Mighty (GO Wild Area)", "Selected"};
     private static final int[] LEGENDARY_IDS = {
         144, 145, 146, 150, 243, 244, 245, 249, 250, 377, 378, 379, 380, 381, 382, 383,
         384, 480, 481, 482, 483, 484, 485, 486, 487, 488, 638, 639, 640, 641, 642, 643,
@@ -72,6 +73,10 @@ final class PokemonCategories {
         791, 792, 812, 815, 818, 823, 826, 839, 858, 861, 866, 887, 901, 908, 911, 914,
         923, 930, 934, 959, 979, 983, 998, 1019
     };
+    private static final int[] MIGHTY_IDS = {
+        103, 184, 212, 230, 306, 330, 365, 376, 380, 381, 395, 462, 534, 598, 612, 635,
+        706, 715, 959, 980
+    };
 
     static boolean matches(int category, int dexId, boolean selected) {
         if (dexId < 1 || dexId > 2000) return false;
@@ -85,6 +90,7 @@ final class PokemonCategories {
             case PRIMAL: return contains(PRIMAL_IDS, dexId);
             case STAGE_2: return contains(STAGE_2_IDS, dexId);
             case STAGE_3: return contains(STAGE_3_IDS, dexId);
+            case MIGHTY: return contains(MIGHTY_IDS, dexId);
             default: return false;
         }
     }

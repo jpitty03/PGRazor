@@ -16,11 +16,16 @@ from pathlib import Path
 import re
 
 ROOT = Path(__file__).resolve().parent
-GROUPS = ('LEGENDARY', 'MYTHICAL', 'ULTRA_BEAST', 'MEGA', 'PRIMAL', 'STAGE_2', 'STAGE_3')
+GROUPS = ('LEGENDARY', 'MYTHICAL', 'ULTRA_BEAST', 'MEGA', 'PRIMAL', 'STAGE_2', 'STAGE_3', 'MIGHTY')
 CLASSES = {'POKEMON_CLASS_LEGENDARY': 'LEGENDARY',
            'POKEMON_CLASS_MYTHIC': 'MYTHICAL',
            'POKEMON_CLASS_ULTRA_BEAST': 'ULTRA_BEAST'}
 MEGA = {'TEMP_EVOLUTION_MEGA', 'TEMP_EVOLUTION_MEGA_X', 'TEMP_EVOLUTION_MEGA_Y'}
+# Mighty is a per-encounter flag set by the server, so the Game Master has no species list for
+# it. This is the published GO Wild Area 2026: Global lineup (wild both days, Incense, and the
+# ticket-only Latias/Latios); update it by hand when an event changes the lineup.
+MIGHTY = (103, 184, 212, 230, 306, 330, 365, 376, 380, 381, 395, 462, 534, 598, 612, 635,
+          706, 715, 959, 980)
 
 
 def evolution_stages(rows):
@@ -91,6 +96,7 @@ def categories(rows):
     for dex, stage in evolution_stages(rows).items():
         if stage in (2, 3):
             groups['STAGE_' + str(stage)].add(dex)
+    groups['MIGHTY'].update(MIGHTY)
     return groups
 
 
@@ -110,13 +116,14 @@ def render(groups, commit, digest):
  * Species categories include configured forms, not current raid or release availability.
  * Mega and Primal are independent; a species can also be Legendary or Mythical.
  * Evolution stages include babies and exclude temporary Mega/Primal forms.
+ * Mighty is not in the Game Master: it is the GO Wild Area 2026: Global event lineup.
  */
 final class PokemonCategories {
     private PokemonCategories() {}
     static final int ALL = 0, LEGENDARY = 1, MYTHICAL = 2, ULTRA_BEAST = 3,
-        MEGA = 4, PRIMAL = 5, STAGE_2 = 6, STAGE_3 = 7, SELECTED = 8;
+        MEGA = 4, PRIMAL = 5, STAGE_2 = 6, STAGE_3 = 7, MIGHTY = 8, SELECTED = 9;
     static final String[] LABELS = {"All Pokemon", "Legendary", "Mythical", "Ultra Beasts",
-        "Mega-capable", "Primal-capable", "Stage 2 (e.g. Ivysaur)", "Stage 3 (e.g. Venusaur)", "Selected"};
+        "Mega-capable", "Primal-capable", "Stage 2 (e.g. Ivysaur)", "Stage 3 (e.g. Venusaur)", "Mighty (GO Wild Area)", "Selected"};
 ARRAYS
 
     static boolean matches(int category, int dexId, boolean selected) {
@@ -131,6 +138,7 @@ ARRAYS
             case PRIMAL: return contains(PRIMAL_IDS, dexId);
             case STAGE_2: return contains(STAGE_2_IDS, dexId);
             case STAGE_3: return contains(STAGE_3_IDS, dexId);
+            case MIGHTY: return contains(MIGHTY_IDS, dexId);
             default: return false;
         }
     }
