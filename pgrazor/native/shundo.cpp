@@ -113,6 +113,8 @@ struct State {
  // Kept from the moment a shiny is found, so it can still be caught once its map Pokemon is gone.
  Root rpc,spawn,berry_reflection,catch_reflection;void *berry_method=nullptr,*catch_method=nullptr;
  int throws=0,species=0;
+ // A Mighty Pokemon (GO Wild Area) gets a Safari Ball while any are left, unless the game refused one.
+ bool mighty=false,safari_refused=false;int last_ball=0;
  // What the last searches saw, for a "missing" report: searches run and wild Pokemon on the map.
  unsigned scans=0,seen=0;std::string sample;
  // The wild Pokemon on the map before the server's hold ends (the area left behind, and any that show up
@@ -132,7 +134,7 @@ void event(const char *phase,const std::string &extra=""){
 }
 // A berry or a throw counts toward the cooldown estimate; the encounter itself does not.
 void cooldown(const char *action){auto tr=transport();if(!tr)return;PgrRuntimeTransportString s[]={{action,uint32_t(std::strlen(action))}};tr->emit(17,nullptr,0,s,1);}
-void reset(){st.promise.reset();st.target.reset();st.spawn.reset();st.step=IDLE;st.throws=0;st.species=0;st.scans=st.seen=0;st.sample.clear();st.next_refresh=0;st.refreshes=0;st.before.clear();st.have_before=false;st.fresh_at=st.first_fresh=st.early_ms=0;st.fresh=st.early=0;}
+void reset(){st.promise.reset();st.target.reset();st.spawn.reset();st.step=IDLE;st.throws=0;st.species=0;st.mighty=st.safari_refused=false;st.last_ball=0;st.scans=st.seen=0;st.sample.clear();st.next_refresh=0;st.refreshes=0;st.before.clear();st.have_before=false;st.fresh_at=st.first_fresh=st.early_ms=0;st.fresh=st.early=0;}
 void finish(const char *phase,const std::string &message,const std::string &extra=""){
  event(phase,",\"message\":"+quote(message)+extra);st.promise.reset();st.target.reset();st.step=DONE;
 }
@@ -223,10 +225,12 @@ void read_encounter(){
  const int a=unbox<int32_t>(call(pokemon.get(),"get_IndividualAttack")),d=unbox<int32_t>(call(pokemon.get(),"get_IndividualDefense")),s=unbox<int32_t>(call(pokemon.get(),"get_IndividualStamina"));
  const std::string facts=",\"ms\":"+std::to_string(clock_ms()-st.started)+",\"refreshes\":"+std::to_string(st.refreshes)+",\"seen\":"+std::to_string(st.seen)+",\"fresh\":"+std::to_string(st.fresh)+",\"fresh_ms\":"+std::to_string(st.first_fresh)+",\"early\":"+std::to_string(st.early)+",\"early_ms\":"+std::to_string(st.early_ms)+",\"shiny\":"+std::string(shiny?"true":"false")+",\"species\":"+std::to_string(st.species)+",\"iv\":["+std::to_string(a)+","+std::to_string(d)+","+std::to_string(s)+"]";
  if(!shiny){finish("checked","Not shiny",facts);return;}
+ // Optional: a game version without the flag just keeps the ordinary balls.
+ try{st.mighty=field<uint8_t>(display.get(),"IsStrongPokemon","System.Boolean")!=0;}catch(const Failure&){st.mighty=false;}
  // A shiny is held in its encounter until Java says a catch needs no cooldown (go).
  st.rpc=Root(field<void*>(st.target.get(),"rpcHandler","Niantic.Holoholo.Rpc.IRpcHandler"));st.spawn=Root(call(st.target.get(),"get_SpawnPointId"));
  require(st.rpc&&st.spawn,"RPC unavailable");
- event("shiny",facts);st.step=HOLD;
+ event("shiny",facts+",\"mighty\":"+(st.mighty?"true":"false"));st.step=HOLD;
 }
 // The game's typed RPC handler closed over one request/response pair, made once per pair.
 void *rpc_sender(const char *request,const char *response,Root &reflection,void *&closed_method){
@@ -260,9 +264,13 @@ void feed_berry(uint64_t now){
  cooldown("Shundo Sniper berry");st.step=BERRY_WAIT;st.since=now;
 }
 // One excellent curveball with the best ball on hand: Ultra, Great, then Poke Ball (never a Master Ball).
+// A Mighty Pokemon gets a Safari Ball first while there are any.
 // Through the map Pokemon's own TryCapture while it is on the map, else the CatchPokemon RPC.
 void throw_ball(uint64_t now){
- int ball=0;for(const char *name:{"UltraBall","GreatBall","PokeBall"}){const int id=item_id(name);if(count(id)){ball=id;break;}}
+ int ball=0,safari=0;
+ if(st.mighty&&!st.safari_refused){try{safari=item_id("WildBall");if(safari<=5||safari>=256||!count(safari))safari=0;}catch(const Failure&){safari=0;}}
+ if(safari)ball=safari;
+ else for(const char *name:{"UltraBall","GreatBall","PokeBall"}){const int id=item_id(name);if(count(id)){ball=id;break;}}
  if(!ball){finish("failed","No Poké, Great or Ultra Balls left");return;}
  if(on_map()){
   uint8_t pitch[12]{};const float reticle=0.1f;std::memcpy(pitch,&ball,4);std::memcpy(pitch+4,&reticle,4);pitch[8]=1;pitch[9]=1;
@@ -280,7 +288,8 @@ void throw_ball(uint64_t now){
   st.promise=send(sender,"CatchPokemon",request.get());
  }
  require(bool(st.promise),"throw not sent");
- cooldown("Shundo Sniper throw");++st.throws;st.step=THROW_WAIT;st.since=now;
+ if(safari&&ball!=st.last_ball)event("safari-ball",",\"ball\":"+std::to_string(ball));
+ st.last_ball=ball;cooldown("Shundo Sniper throw");++st.throws;st.step=THROW_WAIT;st.since=now;
 }
 void read_catch(Root &response,uint64_t now){
  void *k=nullptr;const int v=enum_field(response.get(),"Status",&k);const std::string name=literal_name(k,v);
@@ -288,6 +297,8 @@ void read_catch(Root &response,uint64_t now){
  if(name=="CatchSuccess"){finish("caught","Caught after "+throws,",\"species\":"+std::to_string(st.species));return;}
  if((name=="CatchEscape"||name=="CatchMissed")&&st.throws<kMaxThrows){st.step=BERRY;st.next=now+1200;return;}
  if(name=="CatchEscape"||name=="CatchMissed"||name=="CatchFlee"){finish("fled",(name=="CatchFlee"?"Fled after ":"Still free after ")+throws,",\"species\":"+std::to_string(st.species));return;}
+ // A Safari Ball the game would not take: go on with the ordinary balls instead of giving up the shiny.
+ if(st.mighty&&!st.safari_refused&&st.last_ball>5&&st.throws<kMaxThrows){st.safari_refused=true;event("safari-refused",",\"status\":"+quote(name));st.step=BERRY;st.next=now+1200;return;}
  finish("failed","Catch refused: "+name);
 }
 void step(const Config &c,uint64_t now){
