@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### New features
+
+- **Settings home screen:** Settings opens on ten categories, each with an icon and a summary of its current values, and each opens its own page with a back button. Display gains a Dark theme switch.
+- **VGP+ Catch speed:** Normal, Fast or Fastest shortens the wait before each throw and before the next scan. Normal is the default and keeps the previous timing.
+- **Keep costume Pokemon:** Auto-transfer's "Keep event / costume Pokemon" is now two options, so costumes can be kept without keeping every Pokémon caught during an event. Existing settings and backups keep both ticked if the old option was on.
+
+### Improvements & fixes
+
+- The VGP+ status shows why a Pokémon was kept, such as "Kept: IV 90%+", "Kept: shiny" or "Kept: event", instead of "Kept: protected".
+- Pokémon lists have a Mighty (GO Wild Area) category covering the GO Wild Area 2026: Global Mighty Pokémon.
+- Research auto-catch uses your current VGP+ ball, throw rating and curve settings instead of the defaults.
+- Auto-Raid waits for the map to return after leaving a lobby before opening the next gym, taps a gym again if it did not open, and retries raids left for too few players after 3 minutes instead of 10.
+- The auto ball rows under Go Plus are renamed "VGP+ auto ball".
+
 ## v0.3.0
 
 [Full release notes](docs/releases/v0.3.0.md)
