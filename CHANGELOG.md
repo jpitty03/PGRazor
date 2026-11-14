@@ -4,14 +4,6 @@
 
 [Full release notes](docs/releases/v0.3.2.md)
 
-### Improvements & fixes
-
-- Shundo Sniper throws a Safari Ball at a Mighty shiny while you have any, and goes back to Ultra, Great or Poké Balls if you run out or the game does not accept it.
-
-## v0.3.1
-
-[Full release notes](docs/releases/v0.3.1.md)
-
 ### New features
 
 - **UI Updates:** Settings opens on ten categories, each with an icon and a summary of its current values, and each opens its own page with a back button. Display gains a Dark theme switch.
@@ -25,6 +17,7 @@
 - Research auto-catch uses your current VGP+ ball, throw rating and curve settings instead of the defaults.
 - Auto-Raid waits for the map to return after leaving a lobby before opening the next gym, taps a gym again if it did not open, and retries raids left for too few players after 3 minutes instead of 10.
 - The auto ball rows under Go Plus are renamed "VGP+ auto ball".
+- Shundo Sniper throws a Safari Ball at a Mighty shiny while you have any, and goes back to Ultra, Great or Poké Balls if you run out or the game does not accept it.
 
 ## v0.3.0
 
