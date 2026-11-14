@@ -32,7 +32,7 @@ public final class EventPanel {
             : android.R.style.Theme_Material_Light_Dialog_Alert);
     }
 
-    private static void showHalloween(Activity activity, boolean dark) {
+    public static void showHalloween(Activity activity, boolean dark) {
         if (activity.isFinishing() || activity.isDestroyed()) return;
         Context context = theme(activity, dark);
         LinearLayout content = new LinearLayout(context);
@@ -80,7 +80,7 @@ public final class EventPanel {
         dialog.show();
     }
 
-    private static void showGoWild(Activity activity, boolean dark) {
+    public static void showGoWild(Activity activity, boolean dark) {
         if (activity.isFinishing() || activity.isDestroyed()) return;
         Context context = theme(activity, dark);
         LinearLayout content = new LinearLayout(context);

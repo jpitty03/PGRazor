@@ -11,8 +11,9 @@ import android.widget.*;
 import java.util.Locale;
 
 /**
- * The full-screen PGRazor settings body: every switch, checkbox, status caption and section,
- * plus their construction and per-frame refresh. Extracted from {@link Pad}, which keeps overlay
+ * The full-screen PGRazor settings body: a home screen of icon rows, one per category, each opening
+ * a page that holds that category's switches, checkboxes, status captions and groups, plus their
+ * construction and per-frame refresh. Extracted from {@link Pad}, which keeps overlay
  * attachment/lifecycle, the launcher/quick menu and the joystick. This panel never touches those
  * overlays directly; the few cross-cutting actions it triggers go through {@link Host} so Pad's
  * internals stay private. Settings keys and the {@link Control} API are unchanged.
@@ -38,10 +39,18 @@ final class SettingsPanel {
     private final Host host;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final java.util.List<AlertDialog> itemDialogs = new java.util.ArrayList<>();
-    private final LinearLayout panel, body;
+    private final LinearLayout panel, body, home;
     private final ScrollView bodyScroll;
     private final TextView coords;
-    private View closeIcon, themeIcon;
+    private View closeIcon, themeIcon, backIcon;
+    private TextView title, versionLabel;
+    private Switch darkSwitch;
+    // Category navigation: one home row and one page per category; current is -1 on the home screen.
+    private final java.util.List<LinearLayout> pages=new java.util.ArrayList<>(), homeRows=new java.util.ArrayList<>();
+    private final java.util.List<String> pageTitles=new java.util.ArrayList<>();
+    private final java.util.List<TextView> pageSummaries=new java.util.ArrayList<>(), homeNames=new java.util.ArrayList<>();
+    private final java.util.List<MenuIcon> homeIcons=new java.util.ArrayList<>();
+    private int current=-1, homeScroll;
     private Switch incubatorSwitch;
     private Button incubatorPriority;
     private Button uiScale;
@@ -74,8 +83,10 @@ final class SettingsPanel {
     private final CheckBox[] rocketChoices=new CheckBox[3];
     private final CheckBox[] battleChoices=new CheckBox[10];
     private Runnable buddyRefresh=()->{},smartRefresh=()->{};
-    // Section roots gated by backend readiness, refreshed without recreation.
-    private View catchRoot, buddyRoot, giftRoot, itemsRoot, rocketRoot, battleRoot, quickBallRoot;
+    // Groups gated by backend readiness (catch-summary support, ball-animation support), refreshed without
+    // recreation, and the per-page notes shown while some of them are hidden.
+    private final java.util.List<View> summaryGated=new java.util.ArrayList<>(), ballGated=new java.util.ArrayList<>();
+    private final java.util.List<TextView> summaryNotes=new java.util.ArrayList<>(), ballNotes=new java.util.ArrayList<>();
     private LinearLayout cameraRoot, interactionRoot;
     private final java.util.List<TextView> sectionHeads=new java.util.ArrayList<>();
     private final java.util.List<TextView> captions=new java.util.ArrayList<>();
@@ -134,22 +145,83 @@ final class SettingsPanel {
         protected void onDraw(Canvas c){super.onDraw(c);float cx=getWidth()/2f,cy=getHeight()/2f,r=dp(8);paint.setStyle(Paint.Style.STROKE);paint.setStrokeCap(Paint.Cap.ROUND);paint.setStrokeWidth(dp(2));paint.setColor(muted());c.drawLine(cx-r,cy-r,cx+r,cy+r,paint);c.drawLine(cx-r,cy+r,cx+r,cy-r,paint);}
     }
 
+    /** A drawn back chevron inside a 48dp hitbox; shown only while a category page is open. */
+    private final class BackIcon extends View {
+        private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
+        BackIcon(Context c){super(c);setContentDescription("Back to all settings");setFocusable(true);setClickable(true);
+            setBackground(new android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x3345e1ba),null,rounded(0xffffffff,24)));}
+        protected void onDraw(Canvas c){super.onDraw(c);float cx=getWidth()/2f,cy=getHeight()/2f,r=dp(7);paint.setStyle(Paint.Style.STROKE);paint.setStrokeCap(Paint.Cap.ROUND);paint.setStrokeJoin(Paint.Join.ROUND);paint.setStrokeWidth(dp(2));paint.setColor(accent());
+            Path p=new Path();p.moveTo(cx+r/2,cy-r);p.lineTo(cx-r/2,cy);p.lineTo(cx+r/2,cy+r);c.drawPath(p,paint);}
+    }
+
+    /**
+     * Adds a category: an icon row on the home screen and the page it opens. Content is built
+     * directly into the returned page container.
+     */
+    private LinearLayout page(int icon,String label){
+        final int index=pages.size();
+        LinearLayout row=new LinearLayout(activity);row.setOrientation(LinearLayout.HORIZONTAL);row.setGravity(Gravity.CENTER_VERTICAL);row.setMinimumHeight(dp(60));
+        row.setPadding(dp(12),dp(8),dp(6),dp(8));row.setClickable(true);row.setFocusable(true);
+        MenuIcon glyph=new MenuIcon(activity,icon);glyph.accent=true;row.addView(glyph,new LinearLayout.LayoutParams(dp(26),dp(26)));
+        LinearLayout texts=new LinearLayout(activity);texts.setOrientation(LinearLayout.VERTICAL);texts.setPadding(dp(10),0,0,0);
+        TextView name=text(label,15,ink());texts.addView(name);
+        TextView summary=text("",12,muted());summary.setMaxLines(2);summary.setEllipsize(android.text.TextUtils.TruncateAt.END);texts.addView(summary);
+        row.addView(texts,new LinearLayout.LayoutParams(0,-2,1f));
+        TextView chevron=text("›",22,muted());chevron.setGravity(Gravity.CENTER);row.addView(chevron,new LinearLayout.LayoutParams(dp(28),-2));
+        LinearLayout.LayoutParams rowParams=new LinearLayout.LayoutParams(-1,-2);rowParams.bottomMargin=dp(6);home.addView(row,rowParams);
+        row.setOnClickListener(v->open(index));
+        LinearLayout content=new LinearLayout(activity);content.setOrientation(LinearLayout.VERTICAL);content.setVisibility(View.GONE);body.addView(content);
+        pages.add(content);pageTitles.add(label);homeRows.add(row);homeNames.add(name);homeIcons.add(glyph);pageSummaries.add(summary);
+        captions.add(summary);captions.add(chevron);
+        return content;
+    }
+    /** A headed, always-open group inside a page. Returns its content container; the parent is the group root. */
+    private LinearLayout group(LinearLayout owner,String label){
+        LinearLayout root=new LinearLayout(activity);root.setOrientation(LinearLayout.VERTICAL);
+        TextView head=text(label,13,accent());LinearLayout.LayoutParams headParams=new LinearLayout.LayoutParams(-1,-2);headParams.topMargin=dp(14);headParams.bottomMargin=dp(2);root.addView(head,headParams);
+        LinearLayout content=new LinearLayout(activity);content.setOrientation(LinearLayout.VERTICAL);root.addView(content);
+        owner.addView(root);sectionHeads.add(head);
+        return content;
+    }
+    private LinearLayout plain(LinearLayout owner){LinearLayout v=new LinearLayout(activity);v.setOrientation(LinearLayout.VERTICAL);owner.addView(v);return v;}
+    private Button launch(LinearLayout owner,String label,Runnable action){Button b=button(label);owner.addView(b);b.setOnClickListener(v->action.run());return b;}
+    /** Shown at the top of a page while some of its groups are hidden because the game has not reported support. */
+    private void unavailableNote(LinearLayout owner,boolean needsBall){
+        TextView note=caption(owner,"Some settings here are not available yet.");
+        (needsBall?ballNotes:summaryNotes).add(note);
+    }
+    /** Shows the home screen (index -1) or one category page, keeping the home scroll position for the way back. */
+    private void open(int index){
+        if(current<0&&index>=0)homeScroll=bodyScroll.getScrollY();
+        current=index;refreshHome();
+        home.setVisibility(index<0?View.VISIBLE:View.GONE);
+        for(int i=0;i<pages.size();i++)pages.get(i).setVisibility(i==index?View.VISIBLE:View.GONE);
+        title.setText(index<0?"PGRazor":pageTitles.get(index));
+        backIcon.setVisibility(index<0?View.GONE:View.VISIBLE);
+        // The theme toggle and version make room for the longer page titles; theme is also under Display & Performance.
+        themeIcon.setVisibility(index<0?View.VISIBLE:View.GONE);versionLabel.setVisibility(index<0?View.VISIBLE:View.GONE);
+        final int y=index<0?homeScroll:0;bodyScroll.post(()->bodyScroll.scrollTo(0,y));
+    }
+
     SettingsPanel(Activity activity, Host host) {
         this.activity = activity; this.host = host;
         panel = new LinearLayout(activity); panel.setOrientation(LinearLayout.VERTICAL); panel.setPadding(dp(12), dp(8), dp(12), dp(12));
         panel.setBackgroundColor(surface()); panel.setElevation(dp(12));
-        // Full-screen settings header with theme and close controls.
+        // Full-screen settings header: back (on a category page), title, theme and close controls.
         LinearLayout header = new LinearLayout(activity); header.setOrientation(LinearLayout.HORIZONTAL); header.setGravity(Gravity.CENTER_VERTICAL);
-        TextView title = text("PGRazor", 19, accent()); title.setTypeface(Typeface.DEFAULT,Typeface.BOLD); title.setPadding(dp(4), dp(8), 0, dp(8)); sectionHeads.add(title);
+        backIcon = new BackIcon(activity); backIcon.setVisibility(View.GONE); header.addView(backIcon, new LinearLayout.LayoutParams(dp(48), dp(48)));
+        backIcon.setOnClickListener(v -> open(-1));
+        title = text("PGRazor", 19, accent()); title.setTypeface(Typeface.DEFAULT,Typeface.BOLD); title.setPadding(dp(4), dp(8), 0, dp(8)); sectionHeads.add(title);
+        title.setSingleLine(true); title.setEllipsize(android.text.TextUtils.TruncateAt.END); title.setGravity(Gravity.CENTER_VERTICAL);
         header.addView(title, new LinearLayout.LayoutParams(0, dp(48), 1f));
         themeIcon = new ThemeIcon(activity); header.addView(themeIcon,new LinearLayout.LayoutParams(dp(48),dp(48)));
         themeIcon.setOnClickListener(v -> {Control.setDarkTheme(!Control.darkTheme());host.applyTheme();});
-        TextView version = text(BuildVersion.NAME, 12, muted());
-        version.setSingleLine(true); version.setGravity(Gravity.CENTER_VERTICAL);
-        version.setPadding(dp(4), 0, dp(8), 0);
-        version.setContentDescription("PGRazor version " + BuildVersion.NAME);
-        captions.add(version);
-        header.addView(version, new LinearLayout.LayoutParams(-2, dp(48)));
+        versionLabel = text(BuildVersion.NAME, 12, muted());
+        versionLabel.setSingleLine(true); versionLabel.setGravity(Gravity.CENTER_VERTICAL);
+        versionLabel.setPadding(dp(4), 0, dp(8), 0);
+        versionLabel.setContentDescription("PGRazor version " + BuildVersion.NAME);
+        captions.add(versionLabel);
+        header.addView(versionLabel, new LinearLayout.LayoutParams(-2, dp(48)));
         closeIcon = new CloseIcon(activity); header.addView(closeIcon, new LinearLayout.LayoutParams(dp(48), dp(48)));
         panel.addView(header);
         View gap = new View(activity); panel.addView(gap, new LinearLayout.LayoutParams(-1, dp(8)));
@@ -169,20 +241,19 @@ final class SettingsPanel {
             }
         });
 
-        // Always-visible status and primary action.
-        coords = text("", 16, ink()); coords.setPadding(dp(4), dp(6), dp(4), dp(10)); body.addView(coords);
-        buildLocationSection();
-        buildCatchSection();
-        buildVgpSection();
-        buildIncubationSection();
-        buildBuddySection();
-        buildGiftsSection();
-        buildItemsSection();
-        buildBattlesSection();
-        buildAutomationSection();
-        buildThrowsSection();
-        buildBackupSection();
-        buildDiagnosticsSection();
+        // Home screen: the always-visible location status, then one icon row per category.
+        home = new LinearLayout(activity); home.setOrientation(LinearLayout.VERTICAL); body.addView(home);
+        coords = text("", 16, ink()); coords.setPadding(dp(4), dp(6), dp(4), dp(10)); home.addView(coords);
+        buildLocationPage();
+        buildCatchingPage();
+        buildPokemonPage();
+        buildGoPlusPage();
+        buildBattlesPage();
+        buildSocialPage();
+        buildAutomationPage();
+        buildEventsPage();
+        buildDisplayPage();
+        buildAccountsPage();   // last: its Diagnostics group collects status lines created by the pages above
 
         // Closing the full-screen settings panel simply returns to the game (or the quick menu on the next tap).
         closeIcon.setOnClickListener(v -> panel.setVisibility(View.GONE));
@@ -190,88 +261,115 @@ final class SettingsPanel {
         panel.setClickable(true);
     }
 
-    private void buildLocationSection() {
-        // ----- General Settings -----
-        LinearLayout loc = section(body, "General Settings", true);
-        LinearLayout menu = section(loc,"Customize Quick Menu",false);
-        caption(menu,"Choose which entries appear. This does not turn features on or off. Settings stays visible.");
-        for(int i=0;i<QuickMenu.CUSTOMIZABLE.length;i++){
-            final int bit=1<<i;
-            CheckBox box=new CheckBox(activity);box.setText(QuickMenu.CUSTOMIZABLE[i]);
-            box.setChecked(Control.quickMenuVisible(bit));quickMenuChoices[i]=box;menu.addView(box);
-            box.setOnClickListener(v->{Control.setQuickMenuVisible(bit,box.isChecked());host.refresh();});
-        }
-        buildIvDisplaySection(loc);
-        uiScale=button("UI scale: "+Control.uiScalePercent()+"%");loc.addView(uiScale);
-        uiScale.setOnClickListener(v->{final int[] values={100,75,50,25};String[] labels={"100%","75%","50%","25%"};int selected=0;for(int i=0;i<values.length;i++)if(values[i]==Control.uiScalePercent())selected=i;
-            new AlertDialog.Builder(dialogContext()).setTitle("Overlay scale").setSingleChoiceItems(labels,selected,(dialog,which)->{host.releaseJoystick(true);Control.setUiScalePercent(values[which]);host.refresh();dialog.dismiss();}).setNegativeButton("Cancel",null).show();});
+    private void buildLocationPage() {
+        LinearLayout loc = page(MenuIcon.TELEPORT, "Location & Map");
         locationSwitch=switchRow(loc,"Location spoofing");locationSwitch.setChecked(Control.desiredEnabled());
         locationSwitch.setOnCheckedChangeListener((v,checked)->{if(checked==Control.desiredEnabled())return;host.releaseJoystick(true);Control.setLocationSpoofing(checked);host.refresh();});
         steeringStatus = caption(loc, "Joystick follows the camera");
-        Button position = button("Coordinates & speed"); loc.addView(position); position.setOnClickListener(v -> host.editLocation());
-        Button map = button("World map"); loc.addView(map);
-        map.setOnClickListener(v -> host.openMap());
-        mapTap = button("Game map tap: Do nothing"); loc.addView(mapTap);
-        mapTap.setOnClickListener(v -> { Control.setMapTapMode((Control.mapTapMode()+1)%4); host.refresh(); });
-        spawnSwitch = switchRow(loc, "Spawn booster (80 m)"); spawnSwitch.setChecked(Control.spawnBooster());
-        spawnSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.spawnBooster())return; Control.setSpawnBooster(spawnSwitch.isChecked()); });
-        spawnStatus = caption(loc, "");
-        caption(loc, "Can cause lag in busy areas with many nearby Pokémon. Turn it off if the game stutters.");
-        cooldownSwitch = switchRow(loc, "Cooldown overlay"); cooldownSwitch.setChecked(Control.cooldownOverlay());
-        cooldownSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.cooldownOverlay())return; Control.setCooldownOverlay(cooldownSwitch.isChecked()); host.refresh(); });
-        Button history = button("Cooldown history"); loc.addView(history); history.setOnClickListener(v -> Cooldown.show(activity));
-        localTimeSwitch = switchRow(loc, "Show local time"); localTimeSwitch.setChecked(Control.localTimeOverlay());
-        localTimeSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.localTimeOverlay())return; Control.setLocalTimeOverlay(localTimeSwitch.isChecked()); host.refresh(); });
-        caption(loc, "Time at your spoofed location.");
+        launch(loc, "Coordinates & speed", host::editLocation);
+        launch(loc, "World map", host::openMap);
+        joystickSwitch = switchRow(loc, "Show joystick"); joystickSwitch.setChecked(Control.joystickVisible());
+        joystickSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.joystickVisible())return; host.setJoystickVisible(checked); });
         idleWalkSwitch = switchRow(loc, "Idle walking");idleWalkSwitch.setChecked(Control.idleWalking());
         idleWalkSwitch.setOnCheckedChangeListener((v,checked)->{if(checked!=Control.idleWalking())Control.setIdleWalking(checked);});
         caption(loc, "When idle, start walking in a circle. Speed 0 pauses it.");
-        joystickSwitch = switchRow(loc, "Show joystick"); joystickSwitch.setChecked(Control.joystickVisible());
-        joystickSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.joystickVisible())return; host.setJoystickVisible(checked); });
-        skipCutscenesSwitch = switchRow(loc, "Skip cutscenes"); skipCutscenesSwitch.setChecked(Control.skipCutscenes());
-        skipCutscenesSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.skipCutscenes())return; Control.setSkipCutscenes(checked); });
-        cutsceneStatus = caption(loc, "");  // shown only when the native module reports an error
-        LinearLayout battery = section(loc, "Battery usage", false);
-        caption(battery, "Lower graphics to save battery and keep the phone cooler. Each turns back to the game's own setting when switched off.");
-        batteryResSwitch = switchRow(battery, "Lower resolution"); batteryResSwitch.setChecked(Control.batteryLowRes());
-        batteryResSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked!=Control.batteryLowRes())Control.setBatteryLowRes(checked); });
-        caption(battery, "Draws the map and Pokémon at half resolution. Menus and text stay sharp.");
-        batteryFpsSwitch = switchRow(battery, "Limit to 20 FPS"); batteryFpsSwitch.setChecked(Control.batteryFps20());
-        batteryFpsSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked!=Control.batteryFps20())Control.setBatteryFps20(checked); });
-        batteryQualitySwitch = switchRow(battery, "Low graphics quality"); batteryQualitySwitch.setChecked(Control.batteryLowQuality());
-        batteryQualitySwitch.setOnCheckedChangeListener((v,checked) -> { if(checked!=Control.batteryLowQuality())Control.setBatteryLowQuality(checked); });
-        caption(battery, "Turns off shadows, fog, water reflections, grass in encounters, HDR and anti-aliasing, and shows less far detail.");
 
+        LinearLayout map = group(loc, "Game map");
+        mapTap = button("Game map tap: Do nothing"); map.addView(mapTap);
+        mapTap.setOnClickListener(v -> { Control.setMapTapMode((Control.mapTapMode()+1)%4); host.refresh(); });
+        spawnSwitch = switchRow(map, "Spawn booster (80 m)"); spawnSwitch.setChecked(Control.spawnBooster());
+        spawnSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.spawnBooster())return; Control.setSpawnBooster(spawnSwitch.isChecked()); });
+        spawnStatus = caption(map, "");
+        caption(map, "Can cause lag in busy areas with many nearby Pokémon. Turn it off if the game stutters.");
+
+        LinearLayout overlays = group(loc, "Cooldown & time");
+        cooldownSwitch = switchRow(overlays, "Cooldown overlay"); cooldownSwitch.setChecked(Control.cooldownOverlay());
+        cooldownSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.cooldownOverlay())return; Control.setCooldownOverlay(cooldownSwitch.isChecked()); host.refresh(); });
+        launch(overlays, "Cooldown history", () -> Cooldown.show(activity));
+        localTimeSwitch = switchRow(overlays, "Show local time"); localTimeSwitch.setChecked(Control.localTimeOverlay());
+        localTimeSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.localTimeOverlay())return; Control.setLocalTimeOverlay(localTimeSwitch.isChecked()); host.refresh(); });
+        caption(overlays, "Time at your spoofed location.");
     }
 
-    /** IV Display: the encounter, Pokemon details and storage list IV overlays. */
-    private void buildIvDisplaySection(LinearLayout loc) {
-        LinearLayout iv = section(loc, "IV Display", false);
-        // One button per screen; each tap moves to the next format, with Off between the last and first.
-        ivCatchMode = button(""); iv.addView(ivCatchMode);
-        ivCatchMode.setOnClickListener(v -> { Control.setIvCatchMode(Control.nextIvMode(Control.ivCatchMode())); host.refresh(); });
-        ivOwnedMode = button(""); iv.addView(ivOwnedMode);
-        ivOwnedMode.setOnClickListener(v -> { Control.setIvOwnedMode(Control.nextIvMode(Control.ivOwnedMode())); host.refresh(); });
-        storageIv = button(""); iv.addView(storageIv);
-        storageIv.setOnClickListener(v -> { Control.setStorageIvMode(Control.nextIvMode(Control.storageIvMode())); host.refresh(); });
-        ivStatus = caption(iv, "");
-    }
+    private void buildCatchingPage() {
+        LinearLayout page = page(MenuIcon.CATCH, "Catching");
+        unavailableNote(page, true);
 
-    private void buildCatchSection() {
-        // ----- Catch & summary (gated by catch-summary support) -----
-        LinearLayout catchC = section(body, "Catch & summary", false); catchRoot = (View)catchC.getParent();
+        // ----- Quick catch (gated by catch-summary support) -----
+        LinearLayout quick = group(page, "Quick catch"); summaryGated.add((View)quick.getParent());
         LinearLayout sumRow = new LinearLayout(activity); sumRow.setOrientation(LinearLayout.HORIZONTAL); sumRow.setGravity(Gravity.CENTER_VERTICAL); sumRow.setMinimumHeight(dp(44));
         quickSummaryLabel = new TextView(activity); quickSummaryLabel.setTextSize(14); sumRow.addView(quickSummaryLabel, new LinearLayout.LayoutParams(0,-2,1f));
-        quickSummarySwitch = new Switch(activity); quickSummarySwitch.setContentDescription("Quick catch"); sumRow.addView(quickSummarySwitch, new LinearLayout.LayoutParams(-2,-2)); catchC.addView(sumRow);
+        quickSummarySwitch = new Switch(activity); quickSummarySwitch.setContentDescription("Quick catch"); sumRow.addView(quickSummarySwitch, new LinearLayout.LayoutParams(-2,-2)); quick.addView(sumRow);
         quickSummarySwitch.setChecked(Control.quickSummaryEnabled());
         quickSummarySwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.quickSummaryEnabled())return; Control.setQuickSummaryEnabled(quickSummarySwitch.isChecked()); host.refresh(); });
-        quickSummaryStatus = caption(catchC, "");
-        LinearLayout txC = section(catchC, "Transfer on catch", false);
+        quickSummaryStatus = caption(quick, "");
+
+        // ----- Throws, ball choice and auto throw (gated by ball-animation support) -----
+        LinearLayout throwC = group(page, "Throws"); ballGated.add((View)throwC.getParent());
+        throwGrade = button("Throw rating: OFF"); throwC.addView(throwGrade);
+        throwGrade.setOnClickListener(v -> { Control.setThrowGrade((Control.throwRating()+1)%4); host.refresh(); });
+        throwVariety = button("Throw variety: Off"); throwC.addView(throwVariety);
+        throwVariety.setOnClickListener(v -> { Control.setThrowVariety((Control.throwVariety()+1)%4); host.refresh(); });
+        caption(throwC, "Throw variety picks a rating at random for each throw, with even odds. All includes a plain throw. It replaces the throw rating while on.");
+        curveSwitch = switchRow(throwC, "Always curveball"); curveSwitch.setChecked(Control.throwCurve());
+        curveSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.throwCurve())return; Control.setThrowCurve(curveSwitch.isChecked()); host.refresh(); });
+        alwaysHitSwitch = switchRow(throwC, "Always hit"); alwaysHitSwitch.setChecked(Control.throwAlwaysHit());
+        alwaysHitSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.throwAlwaysHit())return; Control.setThrowAlwaysHit(alwaysHitSwitch.isChecked()); host.refresh(); });
+        arSwitch = switchRow(throwC, "AR+ throw bonus"); arSwitch.setChecked(Control.throwAr());
+        arSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.throwAr())return; Control.setThrowAr(arSwitch.isChecked()); host.refresh(); });
+        caption(throwC, "Wild encounters. Combines with throw rating and curveball.");
+
+        LinearLayout ballC = group(page, "Catch chance & ball choice"); ballGated.add((View)ballC.getParent());
+        catchChanceSwitch = switchRow(ballC, "Show catch chance"); catchChanceSwitch.setChecked(Control.catchChanceShown());
+        catchChanceSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.catchChanceShown())return; Control.setCatchChanceShown(checked); host.refresh(); });
+        autoBallSwitch = switchRow(ballC, "Auto ball"); autoBallSwitch.setChecked(Control.autoBall());
+        autoBallSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.autoBall())return; Control.setAutoBall(checked); host.refresh(); });
+        autoBallTarget = button("Auto ball target: "+Control.autoBallTarget()+"%"); ballC.addView(autoBallTarget);
+        autoBallTarget.setOnClickListener(v -> {
+            int[] targets=Control.AUTO_BALL_TARGETS;int next=targets[0];
+            for(int i=0;i<targets.length;i++)if(targets[i]==Control.autoBallTarget()){next=targets[(i+1)%targets.length];break;}
+            Control.setAutoBallTarget(next); host.refresh(); });
+        caption(ballC, "Manual encounters. The chance uses the server's catch rate for each ball with your berry, throw rating and curveball; the server's rate already includes your type medal bonus. Auto ball picks the cheapest Poké, Great or Ultra Ball that reaches the target, when the encounter opens and after each escape; a ball you pick by hand is kept until the next escape. It never uses a Master Ball.");
+
+        LinearLayout autoC = group(page, "Auto throw"); ballGated.add((View)autoC.getParent());
+        autoThrowSwitch = switchRow(autoC, "Auto throw"); autoThrowSwitch.setChecked(Control.autoThrow());
+        autoThrowSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.autoThrow())return; Control.setAutoThrow(autoThrowSwitch.isChecked()); host.refresh(); });
+        autoThrowMapSwitch = switchRow(autoC, "Catch on map (tap Pokémon)");
+        autoThrowMapSwitch.setChecked(Control.autoThrowOnMap());
+        autoThrowMapSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.autoThrowOnMap())return; Control.setAutoThrowOnMap(checked); host.refresh(); });
+        quickBallStatus = caption(autoC, "");
+
+        LinearLayout berryC = group(page, "Berries"); summaryGated.add((View)berryC.getParent());
+        berrySwitch = switchRow(berryC, "Catch berries & overlay"); berrySwitch.setChecked(Control.encounterBerryEnabled());
+        berrySwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.encounterBerryEnabled())return; Control.setEncounterBerryEnabled(berrySwitch.isChecked()); host.refresh(); });
+        berryPicker = new BerryPriorityPicker(activity, host::refresh);
+        berryPriority = button("Berry priority: "+BerryPriorityPicker.summary()); berryC.addView(berryPriority);
+        berryPriority.setOnClickListener(v -> berryPicker.show());
+    }
+
+    private void buildPokemonPage() {
+        LinearLayout page = page(MenuIcon.BOX, "Pokémon & Transfer");
+        unavailableNote(page, false);
+
+        // ----- Transfer on catch (gated by catch-summary support) -----
+        LinearLayout transfer = plain(page); summaryGated.add(transfer);
+        LinearLayout txC = group(transfer, "Transfer on catch");
         autoTransferSwitch = switchRow(txC, "Transfer below 90% IV"); autoTransferSwitch.setChecked(Control.autoTransferEnabled());
         autoTransferSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.autoTransferEnabled())return; Control.setAutoTransferEnabled(autoTransferSwitch.isChecked()); host.refresh(); });
+        caption(txC, "Transfers are permanent. Favorites and unknown data are always kept.");
+        transferStatus = caption(txC, "");
+
+        LinearLayout keepC = group(transfer, "Always keep");
         String[] protections={"Keep legendary / mythical / Ultra Beasts","Keep shiny Pokemon","Keep event / costume Pokemon","Keep background Pokemon","Keep XXS","Keep XXL","Keep 0% IV (0/0/0)"};
-        for(int i=0;i<protections.length;i++){final int bit=1<<i;CheckBox box=new CheckBox(activity);box.setText(protections[i]);box.setChecked((Control.transferProtect()&bit)!=0);transferProtection[i]=box;txC.addView(box);
+        for(int i=0;i<protections.length;i++){final int bit=1<<i;CheckBox box=new CheckBox(activity);box.setText(protections[i]);box.setChecked((Control.transferProtect()&bit)!=0);transferProtection[i]=box;keepC.addView(box);
             box.setOnClickListener(v->Control.setTransferProtect(box.isChecked()?Control.transferProtect()|bit:Control.transferProtect()&~bit));}
+        transferKeepList = button("Custom keep list"); keepC.addView(transferKeepList);
+        transferKeepList.setOnClickListener(v -> TransferKeepDialog.show(activity, host::refresh));
+        transferOverlaySwitch = switchRow(keepC, "Keep-all overlay button"); transferOverlaySwitch.setChecked(Control.transferOverlayEnabled());
+        transferOverlaySwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.transferOverlayEnabled())return; Control.setTransferOverlayEnabled(transferOverlaySwitch.isChecked()); host.refresh(); });
+        caption(keepC, "Kept species are never auto-transferred, across all forms. The floating button holds every catch (Keep All) or follows the rules above.");
+
+        LinearLayout pvpC = group(transfer, "Keep for PvP");
         // One row per league: its switch, then the rank it keeps (tap to cycle).
         for(int i=0;i<3;i++){final int league=i;
             LinearLayout row=new LinearLayout(activity);row.setOrientation(LinearLayout.HORIZONTAL);row.setGravity(Gravity.CENTER_VERTICAL);row.setMinimumHeight(dp(44));
@@ -284,37 +382,41 @@ final class SettingsPanel {
                 int[] ranks=Control.PVP_RANKS;int next=ranks[0];
                 for(int j=0;j<ranks.length;j++)if(ranks[j]==Control.pvpRank(league)){next=ranks[(j+1)%ranks.length];break;}
                 Control.setPvpRank(league,next);host.refresh();});
-            txC.addView(row);}
-        caption(txC, "PvP keeps a catch whose IVs rank within the chosen top in a league that is on, for it or anything it evolves into. That species must be in PvPoke's top "+Control.PVP_META+" for the league, and it must still fit under the league's CP cap. Ranks allow levels up to 50.");
-        transferKeepList = button("Custom keep list"); txC.addView(transferKeepList);
-        transferKeepList.setOnClickListener(v -> TransferKeepDialog.show(activity, host::refresh));
-        transferOverlaySwitch = switchRow(txC, "Keep-all overlay button"); transferOverlaySwitch.setChecked(Control.transferOverlayEnabled());
-        transferOverlaySwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.transferOverlayEnabled())return; Control.setTransferOverlayEnabled(transferOverlaySwitch.isChecked()); host.refresh(); });
-        caption(txC, "Kept species are never auto-transferred, across all forms. The floating button holds every catch (Keep All) or follows the rules above.");
-        caption(txC, "Transfers are permanent. Favorites and unknown data are always kept.");
-        evolveTransferSwitch = switchRow(txC, "Evolve before transferring");
+            pvpC.addView(row);}
+        caption(pvpC, "PvP keeps a catch whose IVs rank within the chosen top in a league that is on, for it or anything it evolves into. That species must be in PvPoke's top "+Control.PVP_META+" for the league, and it must still fit under the league's CP cap. Ranks allow levels up to 50.");
+
+        LinearLayout evolveC = group(transfer, "Evolve before transferring");
+        evolveTransferSwitch = switchRow(evolveC, "Evolve before transferring");
         evolveTransferSwitch.setChecked(Control.evolveTransferEnabled());
         evolveTransferSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.evolveTransferEnabled())return; Control.setEvolveTransferEnabled(evolveTransferSwitch.isChecked()); host.refresh(); });
-        evolveTransferStages = button("Evolve: once"); txC.addView(evolveTransferStages);
+        evolveTransferStages = button("Evolve: once"); evolveC.addView(evolveTransferStages);
         evolveTransferStages.setOnClickListener(v -> { Control.setEvolveTransferStages(Control.evolveTransferStages()==2?1:2); host.refresh(); });
-        evolveTransferMode = button("Applies to: current transfer rules"); txC.addView(evolveTransferMode);
+        evolveTransferMode = button("Applies to: current transfer rules"); evolveC.addView(evolveTransferMode);
         evolveTransferMode.setOnClickListener(v -> { Control.setEvolveTransferMode(Control.evolveTransferMode()==1?0:1); host.refresh(); });
-        evolveTransferList = button("Selected species"); txC.addView(evolveTransferList);
+        evolveTransferList = button("Selected species"); evolveC.addView(evolveTransferList);
         evolveTransferList.setOnClickListener(v -> TransferKeepDialog.show(activity, "Selected species", "species selected", Control::evolveTransferSpecies, Control::setEvolveTransferSpecies, host::refresh));
-        caption(txC, "New catches only; requires Transfer above. Uses candy for ordinary evolutions, without items or special conditions. Keep rules always apply. If evolution is unavailable, transfer normally. Selected species mode keeps every species outside its list.");
-        transferStatus = caption(txC, "");
-        quickSpinSwitch = switchRow(catchC, "Quick spin"); quickSpinSwitch.setChecked(Control.quickSpinEnabled());
-        quickSpinSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.quickSpinEnabled())return; Control.setQuickSpinEnabled(quickSpinSwitch.isChecked()); });
-        quickSpinStatus = caption(catchC, "");
-        berrySwitch = switchRow(catchC, "Catch berries & overlay"); berrySwitch.setChecked(Control.encounterBerryEnabled());
-        berrySwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.encounterBerryEnabled())return; Control.setEncounterBerryEnabled(berrySwitch.isChecked()); host.refresh(); });
-        berryPicker = new BerryPriorityPicker(activity, host::refresh);
-        berryPriority = button("Berry priority: "+BerryPriorityPicker.summary()); catchC.addView(berryPriority);
-        berryPriority.setOnClickListener(v -> berryPicker.show());
+        caption(evolveC, "New catches only; requires Transfer above. Uses candy for ordinary evolutions, without items or special conditions. Keep rules always apply. If evolution is unavailable, transfer normally. Selected species mode keeps every species outside its list.");
+
+        // ----- IV display: the encounter, Pokemon details and storage list IV overlays -----
+        LinearLayout iv = group(page, "IV display");
+        // One button per screen; each tap moves to the next format, with Off between the last and first.
+        ivCatchMode = button(""); iv.addView(ivCatchMode);
+        ivCatchMode.setOnClickListener(v -> { Control.setIvCatchMode(Control.nextIvMode(Control.ivCatchMode())); host.refresh(); });
+        ivOwnedMode = button(""); iv.addView(ivOwnedMode);
+        ivOwnedMode.setOnClickListener(v -> { Control.setIvOwnedMode(Control.nextIvMode(Control.ivOwnedMode())); host.refresh(); });
+        storageIv = button(""); iv.addView(storageIv);
+        storageIv.setOnClickListener(v -> { Control.setStorageIvMode(Control.nextIvMode(Control.storageIvMode())); host.refresh(); });
+        ivStatus = caption(iv, "");
+
+        LinearLayout tools = group(page, "Tools");
+        launch(tools, "Mass Evolve", () -> BatchEvolutionSettings.show(activity));
     }
 
-    private void buildVgpSection() {
-        LinearLayout vgpC=section(body,"Virtual Go Plus",false);
+    private void buildGoPlusPage() {
+        LinearLayout page = page(MenuIcon.BAG, "Go Plus, Stops & Items");
+        unavailableNote(page, false);
+
+        LinearLayout vgpC=group(page,"Virtual Go Plus");
         vgpSwitch=switchRow(vgpC,"VGP overlay");vgpSwitch.setChecked(Control.vgpOverlay());
         vgpSwitch.setOnCheckedChangeListener((b,checked)->{if(checked!=Control.vgpOverlay())Control.setVgpOverlay(checked);host.refresh();});
         String[] vgpLabels={"Nearby Pokémon","Nearby PokéStops","Push notifications"};
@@ -327,93 +429,51 @@ final class SettingsPanel {
         vgpCooldownStop.setOnClickListener(v->{if(vgpCooldownStop.isChecked()!=Control.vgpStopOnCooldown())Control.setVgpStopOnCooldown(vgpCooldownStop.isChecked());host.refresh();});
         vgpStatus=caption(vgpC,Control.vgpStatus());
         smartRefresh=SmartCatchSettings.populate(activity,vgpC);
-    }
 
-    private void buildIncubationSection() {
-        // ----- Auto incubate eggs -----
-        LinearLayout eggsC = section(body, "Auto incubate eggs", false);
-        incubatorSwitch = switchRow(eggsC, "Auto incubate");
-        incubatorSwitch.setChecked(Control.autoIncubate());
-        incubatorSwitch.setOnCheckedChangeListener((v, checked) -> {
-            if (checked != Control.autoIncubate()) Control.setAutoIncubate(checked);
-        });
-        incubatorPriority = button("Priority: shortest distance"); eggsC.addView(incubatorPriority);
-        incubatorPriority.setOnClickListener(v -> { Control.setIncubateLongest(!Control.incubateLongest()); host.refresh(); });
-        caption(eggsC, "Unlimited incubator only");
-        incubatorStatus = caption(eggsC, Control.incubatorStatus());
-    }
+        LinearLayout stops = group(page, "PokéStops"); summaryGated.add((View)stops.getParent());
+        quickSpinSwitch = switchRow(stops, "Quick spin"); quickSpinSwitch.setChecked(Control.quickSpinEnabled());
+        quickSpinSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.quickSpinEnabled())return; Control.setQuickSpinEnabled(quickSpinSwitch.isChecked()); });
+        quickSpinStatus = caption(stops, "");
 
-    private void buildBuddySection() {
-        LinearLayout buddyC=section(body,"Buddy Emotion Engine",false);buddyRoot=(View)buddyC.getParent();
-        buddyRefresh=BuddyEmotionSettings.populate(activity,buddyC);
-        buddyStatus=caption(buddyC,"");
-    }
-
-    private void buildGiftsSection() {
-        // ----- Friend gifts -----
-        LinearLayout giftC = section(body, "Friend gifts", false); giftRoot = (View)giftC.getParent();
-        String[] giftLabels={"Auto open gifts","Auto send gifts","Add an owned sticker"};
-        for(int i=0;i<3;i++){final int bit=1<<i;CheckBox box=new CheckBox(activity);box.setText(giftLabels[i]);box.setChecked((Control.giftOptions()&bit)!=0);giftChoices[i]=box;giftC.addView(box);box.setOnClickListener(v->Control.setGiftOptions(box.isChecked()?Control.giftOptions()|bit:Control.giftOptions()&~bit));}
-
-        giftStatus = caption(giftC, "");
-    }
-
-    private void buildItemsSection() {
         // ----- Inventory (opens its modal directly) -----
-        LinearLayout itemsC = new LinearLayout(activity); itemsC.setOrientation(LinearLayout.VERTICAL); body.addView(itemsC); itemsRoot = itemsC;
+        LinearLayout itemsC = group(page, "Items"); summaryGated.add((View)itemsC.getParent());
         itemSettings = button("Auto-transfer items"); itemsC.addView(itemSettings); itemSettings.setOnClickListener(v -> showItemSettings());
         itemStatus = caption(itemsC, "");
     }
 
-    private void buildAutomationSection() {
-        // ----- Automation (one-shot manual tasks; mirrors the quick-menu Automation hub) -----
-        LinearLayout autoC = section(body, "Automation", false);
-        Button shundo = button("Shundo Sniper (Experimental)"); autoC.addView(shundo);
-        shundo.setOnClickListener(v -> ShundoSniper.show(activity));
-        Button autoRaid = button("Auto-Raid"); autoC.addView(autoRaid);
-        autoRaid.setOnClickListener(v -> AutoRaidDialog.show(activity));
-        Button incense = button("Daily Incense Session"); autoC.addView(incense);
-        incense.setOnClickListener(v -> AutomationPanel.showIncense(activity));
-        Button remoteFeed = button("Remote Gym Feeding"); autoC.addView(remoteFeed);
-        remoteFeed.setOnClickListener(v -> AutomationPanel.showRemoteFeed(activity));
-        Button gifts = button("Send & Open Gifts"); autoC.addView(gifts);
-        gifts.setOnClickListener(v -> GiftBatchDialog.show(activity));
-        Button evolve = button("Mass Evolve"); autoC.addView(evolve);
-        evolve.setOnClickListener(v -> BatchEvolutionSettings.show(activity));
-    }
+    private void buildBattlesPage() {
+        LinearLayout page = page(MenuIcon.BATTLE, "Battles");
+        unavailableNote(page, false);
+        LinearLayout battleC = plain(page); summaryGated.add(battleC);
+        LinearLayout all = group(battleC, "All battles");
+        buildSmartBattle(all);
+        buildHealing(all);
 
-    private void buildRocketSection(LinearLayout owner) {
         // ----- Team Rocket -----
-        LinearLayout rocketC = section(owner, "Team Rocket", false); rocketRoot = (View)rocketC.getParent();
+        LinearLayout rocketC = group(battleC, "Team Rocket");
         String[] rocketLabels={"Auto quick attack","Auto charged attack","Auto shield"};
         for(int i=0;i<3;i++){final int bit=1<<i;CheckBox box=new CheckBox(activity);box.setText(rocketLabels[i]);box.setChecked((Control.rocketOptions()&bit)!=0);rocketChoices[i]=box;rocketC.addView(box);
             box.setOnClickListener(v->Control.setRocketOptions(box.isChecked()?Control.rocketOptions()|bit:Control.rocketOptions()&~bit));}
-
         caption(rocketC, "While any of these is on, the next Pokémon is picked automatically when one faints.");
         rocketStatus = caption(rocketC, "");
-    }
 
-    private void buildBattlesSection() {
-        LinearLayout battleC = section(body, "Team Rocket, Gyms, Raids & Dynamax", false); battleRoot = (View)battleC.getParent();
-        buildSmartBattle(battleC);
-        buildHealing(battleC);
-        buildRocketSection(battleC);
-        LinearLayout gymC = section(battleC, "Gyms", false);
-        Button gyms=button("Gym Slotter & Berry Feeder");gymC.addView(gyms);
-        gyms.setOnClickListener(v->GymAutomationSettings.show(activity));
+        LinearLayout gymC = group(battleC, "Gyms");
+        launch(gymC, "Gym Slotter & Berry Feeder", () -> GymAutomationSettings.show(activity));
         battleChoice(gymC,2,"Auto quick attack");
         battleChoice(gymC,3,"Auto charged attack");
         battleChoice(gymC,8,"Auto dodge");
         gymRepeatSwitch = switchRow(gymC, "Battle until defeated"); gymRepeatSwitch.setChecked(Control.gymRepeatEnabled());
         gymRepeatSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.gymRepeatEnabled())return; Control.setGymRepeatEnabled(checked); });
         caption(gymC, "After you start a gym battle, automatically starts the next full round from the same gym screen until defeated. Uses your attack settings and waits for Smart healing when set to After battle or Both. Turn off or leave manually to stop.");
+        launch(gymC, "Remote Gym Feeding", () -> AutomationPanel.showRemoteFeed(activity));
 
-        LinearLayout raidC = section(battleC, "Raids", false);
+        LinearLayout raidC = group(battleC, "Raids");
         battleChoice(raidC,0,"Auto quick attack");
         battleChoice(raidC,1,"Auto charged attack");
         battleChoice(raidC,7,"Auto dodge");
+        launch(raidC, "Auto-Raid", () -> AutoRaidDialog.show(activity));
 
-        LinearLayout maxC = section(battleC, "Dynamax", false);
+        LinearLayout maxC = group(battleC, "Dynamax");
         battleChoice(maxC,4,"Auto quick attack");
         battleChoice(maxC,5,"Auto charged attack");
         battleChoice(maxC,6,"Auto Max attack");
@@ -470,53 +530,96 @@ final class SettingsPanel {
         box.setOnClickListener(v->Control.setBattleOptions(box.isChecked()?Control.battleOptions()|bit:Control.battleOptions()&~bit));
     }
 
-    private void buildThrowsSection() {
-        // ----- Throws & catch animation (gated by ball-animation support) -----
-        LinearLayout throwC = section(body, "Throws", false); quickBallRoot = (View)throwC.getParent();
+    private void buildSocialPage() {
+        LinearLayout page = page(MenuIcon.HEART, "Buddy, Eggs & Friends");
+        unavailableNote(page, false);
 
-        throwGrade = button("Throw rating: OFF"); throwC.addView(throwGrade);
-        throwGrade.setOnClickListener(v -> { Control.setThrowGrade((Control.throwRating()+1)%4); host.refresh(); });
-        throwVariety = button("Throw variety: Off"); throwC.addView(throwVariety);
-        throwVariety.setOnClickListener(v -> { Control.setThrowVariety((Control.throwVariety()+1)%4); host.refresh(); });
-        caption(throwC, "Throw variety picks a rating at random for each throw, with even odds. All includes a plain throw. It replaces the throw rating while on.");
-        curveSwitch = switchRow(throwC, "Always curveball"); curveSwitch.setChecked(Control.throwCurve());
-        curveSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.throwCurve())return; Control.setThrowCurve(curveSwitch.isChecked()); host.refresh(); });
-        alwaysHitSwitch = switchRow(throwC, "Always hit"); alwaysHitSwitch.setChecked(Control.throwAlwaysHit());
-        alwaysHitSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.throwAlwaysHit())return; Control.setThrowAlwaysHit(alwaysHitSwitch.isChecked()); host.refresh(); });
-        arSwitch = switchRow(throwC, "AR+ throw bonus"); arSwitch.setChecked(Control.throwAr());
-        arSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.throwAr())return; Control.setThrowAr(arSwitch.isChecked()); host.refresh(); });
-        caption(throwC, "Wild encounters. Combines with throw rating and curveball.");
-        catchChanceSwitch = switchRow(throwC, "Show catch chance"); catchChanceSwitch.setChecked(Control.catchChanceShown());
-        catchChanceSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.catchChanceShown())return; Control.setCatchChanceShown(checked); host.refresh(); });
-        autoBallSwitch = switchRow(throwC, "Auto ball"); autoBallSwitch.setChecked(Control.autoBall());
-        autoBallSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.autoBall())return; Control.setAutoBall(checked); host.refresh(); });
-        autoBallTarget = button("Auto ball target: "+Control.autoBallTarget()+"%"); throwC.addView(autoBallTarget);
-        autoBallTarget.setOnClickListener(v -> {
-            int[] targets=Control.AUTO_BALL_TARGETS;int next=targets[0];
-            for(int i=0;i<targets.length;i++)if(targets[i]==Control.autoBallTarget()){next=targets[(i+1)%targets.length];break;}
-            Control.setAutoBallTarget(next); host.refresh(); });
-        caption(throwC, "Manual encounters. The chance uses the server's catch rate for each ball with your berry, throw rating and curveball; the server's rate already includes your type medal bonus. Auto ball picks the cheapest Poké, Great or Ultra Ball that reaches the target, when the encounter opens and after each escape; a ball you pick by hand is kept until the next escape. It never uses a Master Ball.");
-        autoThrowSwitch = switchRow(throwC, "Auto throw"); autoThrowSwitch.setChecked(Control.autoThrow());
-        autoThrowSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.autoThrow())return; Control.setAutoThrow(autoThrowSwitch.isChecked()); host.refresh(); });
-        autoThrowMapSwitch = switchRow(throwC, "Catch on map (tap Pok\u00e9mon)");
-        autoThrowMapSwitch.setChecked(Control.autoThrowOnMap());
-        autoThrowMapSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.autoThrowOnMap())return; Control.setAutoThrowOnMap(checked); host.refresh(); });
-        quickBallStatus = caption(throwC, "");
+        LinearLayout buddyC=group(page,"Buddy Emotion Engine"); summaryGated.add((View)buddyC.getParent());
+        buddyRefresh=BuddyEmotionSettings.populate(activity,buddyC);
+        buddyStatus=caption(buddyC,"");
+
+        LinearLayout eggsC = group(page, "Eggs");
+        incubatorSwitch = switchRow(eggsC, "Auto incubate");
+        incubatorSwitch.setChecked(Control.autoIncubate());
+        incubatorSwitch.setOnCheckedChangeListener((v, checked) -> {
+            if (checked != Control.autoIncubate()) Control.setAutoIncubate(checked);
+        });
+        incubatorPriority = button("Priority: shortest distance"); eggsC.addView(incubatorPriority);
+        incubatorPriority.setOnClickListener(v -> { Control.setIncubateLongest(!Control.incubateLongest()); host.refresh(); });
+        caption(eggsC, "Unlimited incubator only");
+        incubatorStatus = caption(eggsC, Control.incubatorStatus());
+
+        LinearLayout giftC = group(page, "Friend gifts"); summaryGated.add((View)giftC.getParent());
+        String[] giftLabels={"Auto open gifts","Auto send gifts","Add an owned sticker"};
+        for(int i=0;i<3;i++){final int bit=1<<i;CheckBox box=new CheckBox(activity);box.setText(giftLabels[i]);box.setChecked((Control.giftOptions()&bit)!=0);giftChoices[i]=box;giftC.addView(box);box.setOnClickListener(v->Control.setGiftOptions(box.isChecked()?Control.giftOptions()|bit:Control.giftOptions()&~bit));}
+        giftStatus = caption(giftC, "");
+        launch(giftC, "Send & Open Gifts", () -> GiftBatchDialog.show(activity));
     }
 
-    private void buildBackupSection() {
-        Button accounts=button("Accounts");body.addView(accounts);
-        accounts.setOnClickListener(v->AccountsDialog.show(activity));
-        Button settingsBackup=button("Export / import settings");body.addView(settingsBackup);
-        settingsBackup.setOnClickListener(v->{
+    private void buildAutomationPage() {
+        // One-shot manual tasks; mirrors the quick-menu Automation hub, plus Research.
+        LinearLayout page = page(MenuIcon.AUTOMATION, "Automation");
+        caption(page, "Each task runs when you start it.");
+        launch(page, "Shundo Sniper (Experimental)", () -> ShundoSniper.show(activity));
+        launch(page, "Auto-Raid", () -> AutoRaidDialog.show(activity));
+        launch(page, "Daily Incense Session", () -> AutomationPanel.showIncense(activity));
+        launch(page, "Remote Gym Feeding", () -> AutomationPanel.showRemoteFeed(activity));
+        launch(page, "Send & Open Gifts", () -> GiftBatchDialog.show(activity));
+        launch(page, "Mass Evolve", () -> BatchEvolutionSettings.show(activity));
+        LinearLayout research = group(page, "Field research");
+        launch(research, "Research", () -> ResearchSettings.show(activity));
+    }
+
+    private void buildEventsPage() {
+        LinearLayout page = page(MenuIcon.EVENTS, "Events");
+        caption(page, "Settings for limited-time events.");
+        launch(page, "Halloween 2026", () -> dev.pgrazor.events.EventPanel.showHalloween(activity, Control.darkTheme()));
+        launch(page, "Go Wild November 2026", () -> dev.pgrazor.events.EventPanel.showGoWild(activity, Control.darkTheme()));
+    }
+
+    private void buildDisplayPage() {
+        LinearLayout page = page(MenuIcon.SETTINGS, "Display & Performance");
+        darkSwitch = switchRow(page, "Dark theme"); darkSwitch.setChecked(Control.darkTheme());
+        darkSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.darkTheme())return; Control.setDarkTheme(checked); host.applyTheme(); });
+        uiScale=button("UI scale: "+Control.uiScalePercent()+"%");page.addView(uiScale);
+        uiScale.setOnClickListener(v->{final int[] values={100,75,50,25};String[] labels={"100%","75%","50%","25%"};int selected=0;for(int i=0;i<values.length;i++)if(values[i]==Control.uiScalePercent())selected=i;
+            new AlertDialog.Builder(dialogContext()).setTitle("Overlay scale").setSingleChoiceItems(labels,selected,(dialog,which)->{host.releaseJoystick(true);Control.setUiScalePercent(values[which]);host.refresh();dialog.dismiss();}).setNegativeButton("Cancel",null).show();});
+        skipCutscenesSwitch = switchRow(page, "Skip cutscenes"); skipCutscenesSwitch.setChecked(Control.skipCutscenes());
+        skipCutscenesSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.skipCutscenes())return; Control.setSkipCutscenes(checked); });
+        cutsceneStatus = caption(page, "");  // shown only when the native module reports an error
+
+        LinearLayout battery = group(page, "Battery usage");
+        caption(battery, "Lower graphics to save battery and keep the phone cooler. Each turns back to the game's own setting when switched off.");
+        batteryResSwitch = switchRow(battery, "Lower resolution"); batteryResSwitch.setChecked(Control.batteryLowRes());
+        batteryResSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked!=Control.batteryLowRes())Control.setBatteryLowRes(checked); });
+        caption(battery, "Draws the map and Pokémon at half resolution. Menus and text stay sharp.");
+        batteryFpsSwitch = switchRow(battery, "Limit to 20 FPS"); batteryFpsSwitch.setChecked(Control.batteryFps20());
+        batteryFpsSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked!=Control.batteryFps20())Control.setBatteryFps20(checked); });
+        batteryQualitySwitch = switchRow(battery, "Low graphics quality"); batteryQualitySwitch.setChecked(Control.batteryLowQuality());
+        batteryQualitySwitch.setOnCheckedChangeListener((v,checked) -> { if(checked!=Control.batteryLowQuality())Control.setBatteryLowQuality(checked); });
+        caption(battery, "Turns off shadows, fog, water reflections, grass in encounters, HDR and anti-aliasing, and shows less far detail.");
+
+        LinearLayout menu = group(page,"Quick menu entries");
+        caption(menu,"Choose which entries appear. This does not turn features on or off. Settings stays visible.");
+        for(int i=0;i<QuickMenu.CUSTOMIZABLE.length;i++){
+            final int bit=1<<i;
+            CheckBox box=new CheckBox(activity);box.setText(QuickMenu.CUSTOMIZABLE[i]);
+            box.setChecked(Control.quickMenuVisible(bit));quickMenuChoices[i]=box;menu.addView(box);
+            box.setOnClickListener(v->{Control.setQuickMenuVisible(bit,box.isChecked());host.refresh();});
+        }
+    }
+
+    private void buildAccountsPage() {
+        LinearLayout page = page(MenuIcon.ACCOUNTS, "Accounts & Backup");
+        launch(page, "Accounts", () -> AccountsDialog.show(activity));
+        launch(page, "Export / import settings", () -> {
             if(PgAssets.rooted())new SettingsBackup(activity).show();
             else activity.startActivity(new Intent(activity,LogActivity.class).putExtra("settingsBackup",true));
         });
-    }
+        launch(page, "Run log / export", () -> LogActivity.open(activity));
 
-    private void buildDiagnosticsSection() {
         // ----- Diagnostics (status plumbing kept out of everyday settings) -----
-        LinearLayout diag = section(body, "Diagnostics", false);
+        LinearLayout diag = section(page, "Diagnostics", false);
         state = caption(diag, Control.connection);
         for(TextView status:new TextView[]{steeringStatus,spawnStatus,quickSummaryStatus,transferStatus,quickSpinStatus,buddyStatus,giftStatus,itemStatus,rocketStatus,battleStatus,quickBallStatus}){
             ((ViewGroup)status.getParent()).removeView(status);diag.addView(status);
@@ -533,15 +636,34 @@ final class SettingsPanel {
             else if (Control.requestInteractionTrace()) host.releaseJoystick(false);
             host.refresh();
         });
-        Button logs = button("Run log / export"); diag.addView(logs);
-        logs.setOnClickListener(v -> LogActivity.open(activity));
+    }
+
+    /** Home-row summary: the features that are on, or a plain "All off". Arguments alternate name, state. */
+    private static String active(Object... pairs){
+        StringBuilder out=new StringBuilder();
+        for(int i=0;i+1<pairs.length;i+=2)if(Boolean.TRUE.equals(pairs[i+1])){if(out.length()>0)out.append(" · ");out.append(pairs[i]);}
+        return out.length()==0?"All off":out.toString();
+    }
+    private void summary(int index,String value){TextView view=pageSummaries.get(index);if(!value.contentEquals(view.getText()))view.setText(value);}
+    private void refreshHome(){
+        if(current>=0)return;
+        summary(0,(Control.desiredEnabled()?"Spoofing on":"Spoofing off")+String.format(Locale.US," · %.1f km/h",Control.engine.speedKmh));
+        summary(1,active("Quick catch",Control.quickSummaryEnabled(),"Auto throw",Control.autoThrow(),"Auto ball",Control.autoBall(),"Curveball",Control.throwCurve(),"Always hit",Control.throwAlwaysHit(),"Berries",Control.encounterBerryEnabled()));
+        summary(2,active("Auto-transfer",Control.autoTransferEnabled(),"Evolve first",Control.autoTransferEnabled()&&Control.evolveTransferEnabled(),"IVs shown",Control.ivCatchMode()!=0||Control.ivOwnedMode()!=0||Control.storageIvMode()!=0));
+        summary(3,active("Go Plus overlay",Control.vgpOverlay(),"Quick spin",Control.quickSpinEnabled(),"Item cleanup",Control.itemTransferEnabled()));
+        summary(4,active("Smart battling",Control.smartBattle(),"Smart healing",Control.healEnabled(),"Auto attacks",Control.battleOptions()!=0||Control.rocketOptions()!=0,"Gym repeat",Control.gymRepeatEnabled()));
+        summary(5,active("Buddy engine",BuddyEmotionSettings.enabled(),"Auto incubate",Control.autoIncubate(),"Open gifts",(Control.giftOptions()&1)!=0,"Send gifts",(Control.giftOptions()&2)!=0));
+        summary(6,AutoRaid.running()?"Auto-Raid running":ShundoSniper.active()?"Shundo Sniper running":"Shundo, raids, incense, gym feeding, gifts, evolve, research");
+        summary(7,"Halloween · Go Wild");
+        summary(8,"UI "+Control.uiScalePercent()+"% · "+(Control.darkTheme()?"Dark":"Light")+" theme"+(Control.skipCutscenes()?" · Skip cutscenes":""));
+        summary(9,"Accounts, export / import, run log, diagnostics");
     }
 
     /** The root panel view; Pad owns attachment to the window and insets wiring. */
     View view(){return panel;}
     boolean isVisible(){return panel.getVisibility()==View.VISIBLE;}
     /** Bring the full-screen panel up; Pad applies current insets immediately after. */
-    void show(){panel.setVisibility(View.VISIBLE);panel.bringToFront();panel.requestApplyInsets();}
+    void show(){homeScroll=0;open(-1);panel.setVisibility(View.VISIBLE);panel.bringToFront();panel.requestApplyInsets();}
     /** Hidden state matches the original startup and the close affix: returns to the game underneath. */
     void hide(){panel.setVisibility(View.GONE);}
     /** Release this panel's dialog polling when its owning activity panel is detached. */
@@ -572,6 +694,10 @@ final class SettingsPanel {
         for(TextView head:sectionHeads){head.setTextColor(accent());head.setTypeface(Typeface.DEFAULT,Typeface.BOLD);}
         for(TextView c:captions)c.setTextColor(muted());
         if(coords!=null)coords.setTextColor(ink());
+        for(LinearLayout row:homeRows)MapTheme.setButtonBackground(row);
+        for(TextView name:homeNames)name.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
+        for(MenuIcon icon:homeIcons)icon.invalidate();
+        if(backIcon!=null)backIcon.invalidate();
         if(closeIcon!=null)closeIcon.invalidate();
         if(themeIcon!=null){themeIcon.setContentDescription(Control.darkTheme()?"Switch to light theme":"Switch to dark theme");themeIcon.invalidate();}
     }
@@ -603,6 +729,8 @@ final class SettingsPanel {
     }
 
     void refresh() {
+        refreshHome();
+        darkSwitch.setChecked(Control.darkTheme());
         refreshLocationStatus();
         refreshDiagnostics();
         refreshSummaryVisibility();
@@ -669,9 +797,11 @@ final class SettingsPanel {
     }
 
     private void refreshSummaryVisibility() {
-        int summaryGate = Control.quickSummaryConfigured() ? View.VISIBLE : View.GONE;
-        catchRoot.setVisibility(summaryGate); buddyRoot.setVisibility(summaryGate); giftRoot.setVisibility(summaryGate);
-        itemsRoot.setVisibility(summaryGate); rocketRoot.setVisibility(summaryGate); battleRoot.setVisibility(summaryGate);
+        boolean summary = Control.quickSummaryConfigured(), ball = Control.quickBallConfigured();
+        for(View root:summaryGated)root.setVisibility(summary ? View.VISIBLE : View.GONE);
+        for(View root:ballGated)root.setVisibility(ball ? View.VISIBLE : View.GONE);
+        for(TextView note:summaryNotes)note.setVisibility(summary ? View.GONE : View.VISIBLE);
+        for(TextView note:ballNotes)note.setVisibility(summary && ball ? View.GONE : View.VISIBLE);
     }
 
     private void refreshTransfer() {
@@ -731,7 +861,6 @@ final class SettingsPanel {
         quickSummaryLabel.setText(Control.quickSummaryAutoDismiss() ? "Quick catch" : "Faster catch summary");
         quickSummarySwitch.setChecked(Control.quickSummaryEnabled());
         quickSummarySwitch.setEnabled(Control.quickSummaryConfigured());
-        quickBallRoot.setVisibility(Control.quickBallConfigured() ? View.VISIBLE : View.GONE);
         quickBallStatus.setText(Control.quickBallStatus());
     }
 
