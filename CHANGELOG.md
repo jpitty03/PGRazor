@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.3.2
+
+[Full release notes](docs/releases/v0.3.2.md)
+
+### Improvements & fixes
+
+- Shundo Sniper throws a Safari Ball at a Mighty shiny while you have any, and goes back to Ultra, Great or Poké Balls if you run out or the game does not accept it.
+
 ## v0.3.1
 
 [Full release notes](docs/releases/v0.3.1.md)
