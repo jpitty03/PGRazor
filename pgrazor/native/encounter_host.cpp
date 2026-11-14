@@ -841,8 +841,10 @@ static void handle_vgp_transfer_ready(const PgrVgpControllerOut &out, uint64_t t
   tx_req.pokemon = pk_obj;
   tx_req.input = tp_in;
 
-  if (pgr_evolve_transfer_offer(&tx_req, honor_keep_all) != 0) {
-    set_vgp_kept("evolve / transfer rules");
+  if (int offered = pgr_evolve_transfer_offer(&tx_req, honor_keep_all)) {
+    // 1: queued to evolve and then transfer; anything else: Evolve first left it in storage.
+    if (offered == 1) snprintf(g_vgp_kept_text, sizeof(g_vgp_kept_text), "Queued to evolve, then transfer");
+    else set_vgp_kept("Evolve first skipped it");
     if (g_vgc && out.transfer_token) g_vgc->transfer_feedback(out.transfer_token,PGR_VGC_FB_KEPT,tid);
     clear_active_vgp_transfer();return;
   }
