@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.3.3
+
+[Full release notes](docs/releases/v0.3.3.md)
+
+### New features
+
+- **Shiny Scanner (Experimental):** Automation can check wild Pokémon within 80 m for shinies without catching them. A shiny gets a popup, a phone notification, a ✨ above it on the map and a badge; walking stops and the shiny is held so it can still be caught after it leaves the map. Catch it on the popup opens the encounter, or throws for you once it has left the map. Speed, species and a 24-hour encounter limit are adjustable.
+- **VGP+ Catch only shinies:** VGP+ still opens every Pokémon but throws only at shinies and leaves the rest on the map.
+- **Encounter counter:** Wild encounters per account over a rolling 24 hours, shown next to the PGRazor title with an optional map badge. It counts encounters made on this device while PGRazor is running.
+- **Auto-Raid Stay within:** Limits raids to 1, 2, 5 or 10 km from where the session started, and returns there once when nothing is left in range. No limit is the default.
+
+### Improvements & fixes
+
+- The world map search accepts coordinates and places the destination pin there, ready for Teleport or Walk here.
+- The quick menu's Teleport dialog is now "Go to coordinates" and can Walk as well as Teleport.
+- Coordinates can be entered with a space as well as a comma.
+
 ## v0.3.2
 
 [Full release notes](docs/releases/v0.3.2.md)
