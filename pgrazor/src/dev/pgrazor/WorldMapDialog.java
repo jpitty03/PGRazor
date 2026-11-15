@@ -100,7 +100,7 @@ public final class WorldMapDialog {
             if(hotspotsDialog[0]!=null && hotspotsDialog[0].isShowing())return;
             hotspotsDialog[0]=HotspotsDialog.show(activity,spot->{map.select(spot.latitude,spot.longitude);});
         });
-        Button search = button(ui, "Search places, parks or addresses");
+        Button search = button(ui, "Search places, addresses or coordinates");
         layout.addView(search, new LinearLayout.LayoutParams(-1, dp(activity, 48)));
         final AlertDialog[] searchDialog = {null};
         search.setOnClickListener(v -> {

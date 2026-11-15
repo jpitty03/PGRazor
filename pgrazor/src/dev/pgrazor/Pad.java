@@ -200,7 +200,7 @@ public final class Pad {
             public void onGameRoutes(){stick.release(true);GameRoutesDialog.show(activity);}
             public void onFeeds(){stick.release(true);FeedChooser.show(activity);}
             public void onFavorites(){QuickLocationDialogs.showFavorites(activity,Pad.this::quickTeleport);}
-            public void onTeleport(){QuickLocationDialogs.showTeleport(activity,Pad.this::quickTeleport);}
+            public void onTeleport(){stick.release(true);QuickLocationDialogs.showTeleport(activity,Pad.this::quickTeleport,Pad.this::quickWalk);}
             public void onHotspots(){stick.release(true);HotspotsDialog.showQuick(activity,Pad.this::quickTeleport,Pad.this::quickWalk);}
             public void onAccounts(){stick.release(true);AccountsDialog.show(activity);}
             public void onSettings(){openSettings();}
@@ -529,7 +529,7 @@ public final class Pad {
         if(!Control.canEnable()){Toast.makeText(activity,"Location adapter is not ready",Toast.LENGTH_SHORT).show();return false;}
         try {
             stick.release();Control.walkTo(latitude,longitude);
-            Control.event("hotspot-walk",String.format(Locale.US,"lat=%.7f lon=%.7f",latitude,longitude));
+            Control.event("quick-walk",String.format(Locale.US,"lat=%.7f lon=%.7f",latitude,longitude));
             refresh();return true;
         } catch(IllegalArgumentException error){Toast.makeText(activity,"Select valid coordinates",Toast.LENGTH_SHORT).show();return false;}
     }

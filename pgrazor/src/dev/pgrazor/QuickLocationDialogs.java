@@ -12,7 +12,8 @@ import java.util.Locale;
 
 /**
  * Quick-teleport modals for the {@link QuickMenu}. Both delegate the actual move to a
- * {@link TeleportTarget} (the host validates readiness and calls {@link Control#teleport}),
+ * {@link TeleportTarget} (the host validates readiness and calls {@link Control#teleport}, or
+ * {@link Control#walkTo} for the coordinate modal's Walk button),
  * and reuse the shared {@link SavedPlaces} store. Persistence reads run off the UI thread.
  */
 public final class QuickLocationDialogs {
@@ -21,8 +22,8 @@ public final class QuickLocationDialogs {
     /** Applies a destination; returns false when it was rejected so the modal can stay open. */
     public interface TeleportTarget { boolean teleport(double latitude, double longitude); }
 
-    /** A simple latitude/longitude teleport modal (no speed field). */
-    public static void showTeleport(Activity activity, TeleportTarget target) {
+    /** A simple latitude/longitude modal (no speed field): Teleport there, or Walk there at the current speed. */
+    public static void showTeleport(Activity activity, TeleportTarget target, TeleportTarget walk) {
         if (activity.isFinishing() || activity.isDestroyed() || !activity.hasWindowFocus()) return;
         Context ctx = themed(activity);
         LinearLayout form = new LinearLayout(ctx); form.setOrientation(LinearLayout.VERTICAL);
@@ -48,17 +49,29 @@ public final class QuickLocationDialogs {
         form.addView(here, hereLp);
         EditText coordinates = input(ctx, "Latitude, longitude");
         form.addView(coordinates);
-        AlertDialog dialog = new AlertDialog.Builder(ctx).setTitle("Teleport to coordinates").setView(form)
-            .setNegativeButton("Cancel", null).setPositiveButton("Teleport", null).create();
-        dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
-            double[] point;
-            try { point=CoordinateInput.parse(coordinates.getText().toString()); }
-            catch (IllegalArgumentException e) { coordinates.setError(e.getMessage()); return; }
-            TeleportDialog.confirm(activity,point[0],point[1],(lat,lon)->{
-                if(!target.teleport(lat,lon))return false;
-                dialog.dismiss();return true;
+        AlertDialog dialog = new AlertDialog.Builder(ctx).setTitle("Go to coordinates").setView(form)
+            .setNegativeButton("Cancel", null).setNeutralButton("Walk", null).setPositiveButton("Teleport", null).create();
+        dialog.setOnShowListener(d -> {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                double[] point;
+                try { point=CoordinateInput.parse(coordinates.getText().toString()); }
+                catch (IllegalArgumentException e) { coordinates.setError(e.getMessage()); return; }
+                TeleportDialog.confirm(activity,point[0],point[1],(lat,lon)->{
+                    if(!target.teleport(lat,lon))return false;
+                    dialog.dismiss();return true;
+                });
             });
-        }));
+            // Walking needs no cooldown check: it starts from where you are at the current speed.
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
+                double[] point;
+                try { point=CoordinateInput.parse(coordinates.getText().toString()); }
+                catch (IllegalArgumentException e) { coordinates.setError(e.getMessage()); return; }
+                if(walk.teleport(point[0],point[1])){
+                    dialog.dismiss();
+                    Toast.makeText(activity,"Walking to "+CoordinateClipboard.text(point[0],point[1]),Toast.LENGTH_SHORT).show();
+                }
+            });
+        });
         show(activity,dialog);
     }
 

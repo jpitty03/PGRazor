@@ -24,8 +24,9 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /**
- * A place lookup dialog for the world map. The user types a place name and taps Search (or the
- * keyboard's Search action); matches are shown as a scrollable list and selecting one reports its
+ * A place lookup dialog for the world map. The user types a place name or coordinates and taps Search
+ * (or the keyboard's Search action); matches are shown as a scrollable list (coordinates as a single
+ * row, with no lookup) and selecting one reports its
  * coordinates back through {@link Selection}. Selecting a result never moves anything on its own —
  * the caller decides what to do with the coordinates (the world-map integration centres the map).
  *
@@ -54,10 +55,10 @@ public final class MapSearchDialog {
         int pad = dp(activity, 12);
         layout.setPadding(pad, pad, pad, pad);
 
-        layout.addView(label(ui, "Search near the map area. Add a city for places farther away.", 13));
+        layout.addView(label(ui, "Search near the map area, or enter coordinates (latitude, longitude). Add a city for places farther away.", 13));
 
         EditText input = new EditText(ui);
-        input.setHint("Places, parks, landmarks or addresses");
+        input.setHint("Place, address or coordinates");
         input.setSingleLine(true);
         // No live autocomplete: results appear only on an explicit Search action.
         input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
@@ -104,7 +105,7 @@ public final class MapSearchDialog {
                 searchButton.setEnabled(false);
                 status.setText("Place search is unavailable right now.");
             } else {
-                status.setText("Type a place and tap Search.");
+                status.setText("Type a place or coordinates and tap Search.");
             }
             input.requestFocus();
         });
@@ -141,8 +142,22 @@ public final class MapSearchDialog {
         }
 
         void runSearch() {
-            if (closed || client == null || !searchButton.isEnabled()) return;
+            if (closed) return;
             String query = input.getText().toString().trim();
+            // Coordinates need no lookup: offer them as the one result, even when place search is unavailable.
+            double[] point = CoordinateInput.find(query);
+            if (point != null) {
+                ++generation;  // a lookup still in flight must not replace this row
+                searchButton.setEnabled(client != null);
+                InputMethodManager typed=(InputMethodManager)activity.getSystemService(Context.INPUT_METHOD_SERVICE);
+                if(typed!=null)typed.hideSoftInputFromWindow(input.getWindowToken(),0);
+                resultList.removeAllViews();
+                status.setText("Coordinates");
+                resultList.addView(resultRow(new Place(String.format(java.util.Locale.US, "%.6f, %.6f", point[0], point[1]),
+                    "Select to place the destination pin here, then choose Teleport or Walk here.", point[0], point[1])));
+                return;
+            }
+            if (client == null || !searchButton.isEnabled()) return;
             if (query.length() < 2) { status.setText("Enter at least two characters to search."); return; }
             InputMethodManager keyboard=(InputMethodManager)activity.getSystemService(Context.INPUT_METHOD_SERVICE);
             if(keyboard!=null)keyboard.hideSoftInputFromWindow(input.getWindowToken(),0);

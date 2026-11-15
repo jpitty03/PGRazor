@@ -32,11 +32,13 @@ class DialogInputTests(unittest.TestCase):
                 public class DialogInputsTest {
                     static void check(boolean ok){if(!ok)throw new AssertionError();}
                     public static void main(String[] args){
-                        for(String text:new String[]{"42.647372, 23.337947","42.647372,23.337947"," 42.647372 , 23.337947 "}){
+                        for(String text:new String[]{"42.647372, 23.337947","42.647372,23.337947"," 42.647372 , 23.337947 ","42.647372 23.337947","  42.647372   23.337947 "}){
                             double[] p=CoordinateInput.parse(text);check(p[0]==42.647372&&p[1]==23.337947);
                         }
                         double[] p=CoordinateInput.parse("-90,-180");check(p[0]==-90&&p[1]==-180);
-                        for(String text:new String[]{"","1","1,2,3","NaN,2","1,Infinity","91,0","0,-181","1,","0x1,2"}){
+                        double[] found=CoordinateInput.find("-33.8568 151.2153");check(found!=null&&found[0]==-33.8568&&found[1]==151.2153);
+                        for(String text:new String[]{"Central Park","1 Main Street","10 Downing Street, London","91 0","",null})check(CoordinateInput.find(text)==null);
+                        for(String text:new String[]{"","1","1,2,3","1 2 3","1, 2 3","NaN,2","1,Infinity","91,0","0,-181","1,","0x1,2"}){
                             boolean rejected=false;try{CoordinateInput.parse(text);}catch(IllegalArgumentException e){rejected=true;}check(rejected);
                         }
                         Activity owner=new Activity();Dialog dialog=new Dialog();int[] calls={0,0,0};boolean[] login={true};
