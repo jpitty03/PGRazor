@@ -28,6 +28,11 @@ import urllib.request
 BASE = "https://play.livepokemap.com"
 USER_AGENT = "PGRazor-hundo-feed/1.0 (+https://github.com/jpitty03/PGRazor)"
 TIMEOUT_S = 20
+WORLD = (-85.0, 85.0, -180.0, 180.0)  # min_lat, max_lat, min_lon, max_lon
+MAX_TILE_LON = 90.0  # widest tile below the whole map: LivePokeMap sends nothing for a 180 degree one
+MIN_TILE_DEG = 1.0  # a tile side this short is not halved again
+TILE_PAUSE_S = 1.0  # pause between tile requests
+RESET_POLLS = 40  # start again from one whole-map request this often, so tiles do not stay small for ever
 
 
 def log(message):
@@ -73,10 +78,10 @@ def login(username, password):
     return token
 
 
-def viewport(token):
-    # The whole map: LivePokeMap then sends only 100% IV Pokemon (its "perfect" span tier).
+def viewport(token, tile=WORLD):
+    # A wide span: LivePokeMap then sends only 100% IV Pokemon (its "perfect" span tier).
     body = {
-        "min_lat": -85.0, "max_lat": 85.0, "min_lon": -180.0, "max_lon": 180.0, "zoom": 15,
+        "min_lat": tile[0], "max_lat": tile[1], "min_lon": tile[2], "max_lon": tile[3], "zoom": 15,
         "display_filters": {
             "show_all": True, "min_iv": 100, "max_iv": 100, "min_level": 0, "max_level": 50,
             "always_show_perfect": False, "always_show_zero": False, "always_show_rare": False,
@@ -86,10 +91,64 @@ def viewport(token):
     return post("/api/map/viewport", body, token)
 
 
+def data_of(response):
+    return response.get("data") if isinstance(response.get("data"), dict) else response  # {success, data: {...}}
+
+
+def parts(tile):
+    """The smaller tiles that replace a tile: the whole map becomes bands of MAX_TILE_LON, anything else is
+    cut in half across its longer side. None when the tile is already at the smallest size."""
+    min_lat, max_lat, min_lon, max_lon = tile
+    if max_lon - min_lon > MAX_TILE_LON:
+        count = int(-(-(max_lon - min_lon) // MAX_TILE_LON))
+        step = (max_lon - min_lon) / count
+        return tuple((min_lat, max_lat, min_lon + step * i, min_lon + step * (i + 1)) for i in range(count))
+    if max_lon - min_lon >= max_lat - min_lat:
+        if max_lon - min_lon <= MIN_TILE_DEG:
+            return None
+        middle = (min_lon + max_lon) / 2.0
+        return (min_lat, max_lat, min_lon, middle), (min_lat, max_lat, middle, max_lon)
+    if max_lat - min_lat <= MIN_TILE_DEG:
+        return None
+    middle = (min_lat + max_lat) / 2.0
+    return (min_lat, middle, min_lon, max_lon), (middle, max_lat, min_lon, max_lon)
+
+
+def world(token, tiles):
+    """(responses, tiles): viewport responses that together cover the whole map, and the tiles to ask next time.
+
+    LivePokeMap answers with limit_reached and no Pokemon when one request matches too many (about 10,000).
+    A tile that hits the limit is replaced by smaller ones; the tiles that worked are remembered, so the next
+    poll does not repeat the requests that failed. An empty whole-map answer counts as over the limit too.
+    """
+    pending = list(reversed(tiles))
+    responses, kept = [], []
+    first = True
+    while pending:
+        tile = pending.pop()
+        if not first:
+            time.sleep(TILE_PAUSE_S)
+        first = False
+        response = viewport(token, tile)
+        root = data_of(response)
+        over = root.get("limit_reached") or (tile[3] - tile[2] > MAX_TILE_LON and not root.get("pokemon"))
+        if not over:
+            responses.append(response)
+            kept.append(tile)
+            continue
+        smaller = parts(tile)
+        if smaller:
+            pending += reversed(smaller)
+        else:
+            kept.append(tile)  # asked again next time
+            log("lat %.2f..%.2f lon %.2f..%.2f is still over LivePokeMap's limit; left out of this poll" % tile)
+    return responses, kept
+
+
 def compact(response, now_ms):
     """The 100% IV Pokemon of a viewport response as [encounter_id, dex, form, lat, lon, despawn_ms, cp, level]."""
-    root = response.get("data") if isinstance(response.get("data"), dict) else response  # {success, data: {...}}
-    # At the whole-map span LivePokeMap sends only 100% IV Pokemon ("perfect" tier); stats may then be omitted.
+    root = data_of(response)
+    # At a wide span LivePokeMap sends only 100% IV Pokemon ("perfect" tier); stats may then be omitted.
     perfect_tier = root.get("span_tier") == "perfect"
     rows, seen = [], set()
     for o in root.get("pokemon") or []:
@@ -153,6 +212,7 @@ def main():
     token = read_token(state)
     failures = 0
     logged_shape = False
+    tiles, polls = [WORLD], 0
     log("hundo feed starting: every %d s -> %s" % (interval, out))
     while True:
         started = time.time()
@@ -162,19 +222,27 @@ def main():
                 token = login(username, password)
                 save_token(state, token)
                 log("signed in to LivePokeMap")
+            polls += 1
+            if polls % RESET_POLLS == 0:
+                tiles = [WORLD]
             try:
-                response = viewport(token)
+                responses, tiles = world(token, tiles)
             except FeedError as error:
                 if error.status != 401:
                     raise
                 log("session expired; signing in again")
                 token = login(username, password)
                 save_token(state, token)
-                response = viewport(token)
+                responses, tiles = world(token, tiles)
             now_ms = int(time.time() * 1000)
-            rows = compact(response, now_ms)
-            if not logged_shape:
-                root = response.get("data") if isinstance(response.get("data"), dict) else response
+            rows, seen = [], set()
+            for response in responses:
+                for row in compact(response, now_ms):
+                    if row[0] not in seen:  # a Pokemon on a tile edge can come back twice
+                        seen.add(row[0])
+                        rows.append(row)
+            if not logged_shape and responses:
+                root = data_of(responses[0])
                 sample = (root.get("pokemon") or [None])[0]
                 log("response keys %s; span_tier %s; first pokemon keys %s" % (sorted(root)[:12], root.get("span_tier"),
                     sorted(sample) if isinstance(sample, dict) else None))
@@ -184,7 +252,7 @@ def main():
             if failures:
                 log("recovered after %d failed polls" % failures)
             failures = 0
-            log("published %d hundos" % count)
+            log("published %d hundos from %d of %d map tiles" % (count, len(responses), len(tiles)))
         except FeedError as error:
             failures += 1
             if error.status == 401:
