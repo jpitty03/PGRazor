@@ -61,7 +61,7 @@ final class SettingsPanel {
     private Switch evolveTransferSwitch;
     private Button evolveTransferStages, evolveTransferMode, evolveTransferList;
     // Boolean settings use proper switches.
-    private Switch idleWalkSwitch, locationSwitch, vgpSwitch, joystickSwitch, cooldownSwitch, localTimeSwitch, spawnSwitch, autoTransferSwitch,
+    private Switch idleWalkSwitch, locationSwitch, vgpSwitch, joystickSwitch, cooldownSwitch, localTimeSwitch, encounterCounterSwitch, encounterOverlaySwitch, spawnSwitch, autoTransferSwitch,
         quickSpinSwitch, berrySwitch, quickSummarySwitch, curveSwitch, alwaysHitSwitch, arSwitch, transferOverlaySwitch, catchChanceSwitch, autoBallSwitch, autoThrowSwitch, autoThrowMapSwitch, skipCutscenesSwitch,
         batteryResSwitch, batteryFpsSwitch, batteryQualitySwitch;
     private Button autoBallTarget, berryPriority;
@@ -196,7 +196,7 @@ final class SettingsPanel {
         current=index;refreshHome();
         home.setVisibility(index<0?View.VISIBLE:View.GONE);
         for(int i=0;i<pages.size();i++)pages.get(i).setVisibility(i==index?View.VISIBLE:View.GONE);
-        title.setText(index<0?"PGRazor":pageTitles.get(index));
+        title.setText(index<0?EncounterCounter.title():pageTitles.get(index));
         backIcon.setVisibility(index<0?View.GONE:View.VISIBLE);
         // The theme toggle and version make room for the longer page titles; theme is also under Display & Performance.
         themeIcon.setVisibility(index<0?View.VISIBLE:View.GONE);versionLabel.setVisibility(index<0?View.VISIBLE:View.GONE);
@@ -289,6 +289,12 @@ final class SettingsPanel {
         localTimeSwitch = switchRow(overlays, "Show local time"); localTimeSwitch.setChecked(Control.localTimeOverlay());
         localTimeSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.localTimeOverlay())return; Control.setLocalTimeOverlay(localTimeSwitch.isChecked()); host.refresh(); });
         caption(overlays, "Time at your spoofed location.");
+        LinearLayout encounters = group(loc, "Encounter counter");
+        encounterCounterSwitch = switchRow(encounters, "Count encounters"); encounterCounterSwitch.setChecked(Control.encounterCounter());
+        encounterCounterSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.encounterCounter())return; Control.setEncounterCounter(encounterCounterSwitch.isChecked()); host.refresh(); });
+        encounterOverlaySwitch = switchRow(encounters, "Show the count on the map"); encounterOverlaySwitch.setChecked(Control.encounterOverlay());
+        encounterOverlaySwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.encounterOverlay())return; Control.setEncounterOverlay(encounterOverlaySwitch.isChecked()); host.refresh(); });
+        caption(encounters, "Wild Pokémon this account has encountered in the last 24 hours on this device while PGRazor was running, shown next to the PGRazor title. Encounters made elsewhere, and lure, incense, raid and research encounters, are not counted.");
     }
 
     private void buildCatchingPage() {
@@ -562,6 +568,7 @@ final class SettingsPanel {
         LinearLayout page = page(MenuIcon.AUTOMATION, "Automation");
         caption(page, "Each task runs when you start it.");
         launch(page, "Shundo Sniper (Experimental)", () -> ShundoSniper.show(activity));
+        launch(page, "Shiny Scanner (Experimental)", () -> ShinyScanner.show(activity));
         launch(page, "Auto-Raid", () -> AutoRaidDialog.show(activity));
         launch(page, "Daily Incense Session", () -> AutomationPanel.showIncense(activity));
         launch(page, "Remote Gym Feeding", () -> AutomationPanel.showRemoteFeed(activity));
@@ -654,7 +661,7 @@ final class SettingsPanel {
         summary(3,active("Go Plus overlay",Control.vgpOverlay(),"Quick spin",Control.quickSpinEnabled(),"Item cleanup",Control.itemTransferEnabled()));
         summary(4,active("Smart battling",Control.smartBattle(),"Smart healing",Control.healEnabled(),"Auto attacks",Control.battleOptions()!=0||Control.rocketOptions()!=0,"Gym repeat",Control.gymRepeatEnabled()));
         summary(5,active("Buddy engine",BuddyEmotionSettings.enabled(),"Auto incubate",Control.autoIncubate(),"Open gifts",(Control.giftOptions()&1)!=0,"Send gifts",(Control.giftOptions()&2)!=0));
-        summary(6,AutoRaid.running()?"Auto-Raid running":ShundoSniper.active()?"Shundo Sniper running":"Shundo, raids, incense, gym feeding, gifts, evolve, research");
+        summary(6,AutoRaid.running()?"Auto-Raid running":ShundoSniper.active()?"Shundo Sniper running":ShinyScanner.enabled()?"Shiny Scanner on":"Shundo, shiny scan, raids, incense, gym feeding, gifts, evolve, research");
         summary(7,"Halloween · Go Wild");
         summary(8,"UI "+Control.uiScalePercent()+"% · "+(Control.darkTheme()?"Dark":"Light")+" theme"+(Control.skipCutscenes()?" · Skip cutscenes":""));
         summary(9,"Accounts, export / import, run log, diagnostics");
@@ -872,6 +879,9 @@ final class SettingsPanel {
         mapTap.setEnabled(Control.quickBallConfigured());
         spawnSwitch.setChecked(Control.spawnBooster());spawnSwitch.setEnabled(Control.spawnAllowed());spawnStatus.setText(Control.spawnStatus());
         localTimeSwitch.setChecked(Control.localTimeOverlay());
+        encounterCounterSwitch.setChecked(Control.encounterCounter());encounterOverlaySwitch.setChecked(Control.encounterOverlay());
+        SettingsUi.enabled(encounterOverlaySwitch,Control.encounterCounter());
+        if(current<0){String home=EncounterCounter.title();if(!home.contentEquals(title.getText()))title.setText(home);}
     }
 
     // Indexed by IV mode: 0 off, 1 level and attack/defense/stamina, 2 level and percent, 3 all three.

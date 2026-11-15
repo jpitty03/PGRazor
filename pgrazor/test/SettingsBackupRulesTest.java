@@ -103,6 +103,10 @@ public class SettingsBackupRulesTest {
         v=valid();v.getJSONObject("settings").put("shundoSpecies","");SettingsBackupRules.validate(v);
         v=valid();v.getJSONObject("settings").put("shundoSpecies","129,129");rejects(v);           // duplicate dex id
         v=valid();v.getJSONObject("settings").put("shundoGap","60");SettingsBackupRules.validate(v);
+        v=valid();v.getJSONObject("settings").put("shinyScan","true").put("shinyScanSpeed","2").put("shinyScanSpecies","25,129")
+            .put("shinyScanDailyLimit","5000").put("encounterCounter","false").put("encounterOverlay","true");SettingsBackupRules.validate(v);
+        for(String[] bad:new String[][]{{"shinyScan","yes"},{"shinyScanSpeed","3"},{"shinyScanSpecies","0"},{"shinyScanDailyLimit","123"},{"shinyScanDay","20261115"},{"encounterOverlay","yes"}}){
+            v=valid();v.getJSONObject("settings").put(bad[0],bad[1]);rejects(v);}
         v=valid();v.getJSONObject("settings").put("shundoGap","45");rejects(v);                    // not an offered gap
         {StringBuilder many=new StringBuilder();for(int i=1;i<=501;i++){if(i>1)many.append(',');many.append(i);}
          v=valid();v.getJSONObject("settings").put("shundoSpecies",many.toString());rejects(v);}   // over 500 species

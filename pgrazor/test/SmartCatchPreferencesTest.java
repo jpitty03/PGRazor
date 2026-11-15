@@ -21,7 +21,7 @@ public final class SmartCatchPreferencesTest {
         eq("4;1;3;708;0;10000;50;0;0;1;85;1,25,2000;;0",p.config());
         p.set("CatchSpecies"," 415,415 ");eq("415",p.catchSpecies());eq("4;1;3;708;0;10000;50;0;0;1;85;1,25,2000;415;0",p.config());
         p.set("CatchSpecies","");eq("",p.catchSpecies());p.set("CatchSpecies","415,25");eq("4;1;3;708;0;10000;50;0;0;1;85;1,25,2000;25,415;0",p.config());
-        Properties saved=new Properties();p.write(saved);eq(15,saved.size());eq("0",saved.getProperty("smartCatchSpeed"));
+        Properties saved=new Properties();p.write(saved);eq(16,saved.size());eq("false",saved.getProperty("smartCatchShinyOnly"));p.set("ShinyOnly","true");eq(true,p.shinyOnly());try{p.set("ShinyOnly","yes");throw new AssertionError("shiny-only yes accepted");}catch(IllegalArgumentException expected){}eq(true,p.shinyOnly());p.set("ShinyOnly","false");eq("0",saved.getProperty("smartCatchSpeed"));
         p.set("Speed","2");eq(2,p.speed());try{p.set("Speed","3");throw new AssertionError("speed 3 accepted");}catch(IllegalArgumentException expected){}eq(2,p.speed());p.set("Speed","0");eq("25,415",saved.getProperty("smartCatchCatchSpecies"));
         SmartCatchPreferences restored=new SmartCatchPreferences();restored.read(saved);eq(p.config(),restored.config());eq(true,restored.spinGyms());
         Properties legacy=new Properties();legacy.setProperty("gymAutomationSpin","true");

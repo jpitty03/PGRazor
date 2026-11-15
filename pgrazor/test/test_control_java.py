@@ -163,6 +163,13 @@ public final class ResearchSettings {
  public static void read(java.util.Properties p){prefs.read(p);}
  public static void write(java.util.Properties p){prefs.write(p);}
 }''',
+    'dev/pgrazor/ShinyScanner.java': '''package dev.pgrazor;
+public final class ShinyScanner {
+ public static String config(){return "N2|1|0|700|2|8000|0|";}
+ public static void publish(String detail){}
+ public static void read(java.util.Properties p){}
+ public static void write(java.util.Properties p){}
+}''',
     'dev/pgrazor/ShundoSniper.java': '''package dev.pgrazor;
 public final class ShundoSniper {
  public static boolean active(){return false;}
@@ -178,6 +185,7 @@ public final class SmartCatchSettings {
  public static boolean gymSpinActive(){return prefs.enabled()&&prefs.spinGyms()&&Control.vgpEnabled();}
  public static String config(){return prefs.config();}
  static int speed(){return prefs.speed();}
+ static boolean shinyOnly(){return prefs.shinyOnly();}
  public static void read(java.util.Properties p){prefs.read(p);}
  public static void write(java.util.Properties p){prefs.write(p);}
 }''',

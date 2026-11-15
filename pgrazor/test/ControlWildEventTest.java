@@ -15,7 +15,7 @@ public final class ControlWildEventTest {
             dev.pgrazor.events.EventSettings.autoSafari=(mask&2)!=0;
             String[] smart=Control.smartCatchConfig().split(";",-1);
             String[] manual=Control.catchChanceConfig().split("\\|",-1);
-            check(smart.length==16&&smart[0].equals("6")&&smart[1].equals("0")&&smart[15].equals("0"));
+            check(smart.length==17&&smart[0].equals("7")&&smart[1].equals("0")&&smart[15].equals("0")&&smart[16].equals("0"));
             check(smart[14].equals((mask&1)!=0?"1":"0"));
             check(manual.length==9&&manual[0].equals("C4")&&manual[2].equals("0"));
             check(manual[5].equals((mask&2)!=0?"1":"0"));

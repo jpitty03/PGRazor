@@ -271,12 +271,13 @@ public final class Control {
     // "Use Safari Balls in VGP+" flag (0/1). The flag applies only to Mighty Pokemon and is validated
     // independently by the native smart-catch owner, which falls back to the normal VGP+ ball rules
     // when a permitted Safari Ball is unavailable. Null host application => flag off. Then append the
-    // VGP+ catch speed (0 normal, 1 fast, 2 fastest). Version 6 is always emitted.
+    // VGP+ catch speed (0 normal, 1 fast, 2 fastest), then the catch-only-shinies flag (0/1). Version 7 is
+    // always emitted.
     public static String smartCatchConfig(){
         String base=SmartCatchSettings.config();
-        if(base.startsWith("4;"))base="6;"+base.substring(2);
+        if(base.startsWith("4;"))base="7;"+base.substring(2);
         Application app=hostApplication;
-        return base+";"+(app!=null&&dev.pgrazor.events.EventSettings.wildVgpSafari(app)?1:0)+";"+SmartCatchSettings.speed();
+        return base+";"+(app!=null&&dev.pgrazor.events.EventSettings.wildVgpSafari(app)?1:0)+";"+SmartCatchSettings.speed()+";"+(SmartCatchSettings.shinyOnly()?1:0);
     }
     public static String gymAutomationConfig(){return GymAutomationSettings.config();}
     public static String buddyEmotionConfig(){return BuddyEmotionSettings.config();}
@@ -286,6 +287,7 @@ public final class Control {
     public static String batchEvolutionConfig(){return BatchEvolutionSettings.config();}
     public static String researchConfig(){return ResearchSettings.config();}
     public static String shundoConfig(){return ShundoSniper.config();}
+    public static String shinyScanConfig(){return ShinyScanner.config();}
     public static String buddyEmotionHistory(){return BuddyEmotionSettings.history();}
     public static boolean encounterBerryVisible(){return encounterBerryEnabled&&catchScreenVisible();}
     public static boolean encounterBerryBusy(){return encounterBerryBusy;}
@@ -298,6 +300,12 @@ public final class Control {
     private static volatile boolean localTimeOverlay;
     public static boolean localTimeOverlay(){return localTimeOverlay;}
     public static void setLocalTimeOverlay(boolean value){localTimeOverlay=value;saveSettings();}
+    // Encounter counter (rolling 24 hours, per account) and its optional map badge.
+    private static volatile boolean encounterCounter=true,encounterOverlay;
+    public static boolean encounterCounter(){return encounterCounter;}
+    public static void setEncounterCounter(boolean value){encounterCounter=value;saveSettings();}
+    public static boolean encounterOverlay(){return encounterOverlay;}
+    public static void setEncounterOverlay(boolean value){encounterOverlay=value;saveSettings();}
     public static void setCooldownEncounter(String value){cooldownEncounter=value==null?"":value.toLowerCase(java.util.Locale.US);}
     public static void cooldownAction(String action){
         if(!foreground||!backendReady||!connected())return;
@@ -1176,6 +1184,7 @@ public final class Control {
             BuddyEmotionSettings.read(new Properties());
             ResearchSettings.read(new Properties());
             ShundoSniper.read(new Properties());
+            ShinyScanner.read(new Properties());
             try(FileInputStream in=settingsFile.openRead()) {
                 Properties p=new Properties(); p.load(in);
                 SmartCatchSettings.read(p);
@@ -1184,6 +1193,7 @@ public final class Control {
                 BuddyEmotionSettings.read(p);
                 ResearchSettings.read(p);
                 ShundoSniper.read(p);
+                ShinyScanner.read(p);
                 desiredEnabled=Boolean.parseBoolean(p.getProperty("locationSpoofing","true"));
                 darkTheme=Boolean.parseBoolean(p.getProperty("darkTheme","true"));
                 quickMenuHidden=boundedSetting(p,"quickMenuHidden",8191);
@@ -1193,6 +1203,7 @@ public final class Control {
                 idleWalking=Boolean.parseBoolean(p.getProperty("idleWalking","false"));engine.setIdleWalking(idleWalking);
                 cooldownOverlay=Boolean.parseBoolean(p.getProperty("cooldownOverlay","false"));
                 localTimeOverlay=Boolean.parseBoolean(p.getProperty("localTimeOverlay","false"));
+                encounterCounter=Boolean.parseBoolean(p.getProperty("encounterCounter","true"));encounterOverlay=Boolean.parseBoolean(p.getProperty("encounterOverlay","false"));
                 quickSummaryEnabled=Boolean.parseBoolean(p.getProperty("autoDismiss","false"));
                 spawnBooster=Boolean.parseBoolean(p.getProperty("spawnBooster","false"));
                 try{giftOptions=Integer.parseInt(p.getProperty("giftOptions","0"));}catch(NumberFormatException ignored){giftOptions=0;}
@@ -1338,6 +1349,7 @@ public final class Control {
         BuddyEmotionSettings.write(p);
         ResearchSettings.write(p);
         ShundoSniper.write(p);
+        ShinyScanner.write(p);
         p.setProperty("locationSpoofing",String.valueOf(desiredEnabled));
         p.setProperty("darkTheme",String.valueOf(darkTheme));p.setProperty("uiScalePercent",String.valueOf(uiScalePercent));
         p.setProperty("joystickVisible",String.valueOf(joystickVisible));
@@ -1351,7 +1363,7 @@ public final class Control {
         p.setProperty("buddyBerry",String.valueOf(buddyBerry));
         p.setProperty("autoIncubate",String.valueOf(autoIncubate));
         p.setProperty("incubateLongest",String.valueOf(incubateLongest));
-        p.setProperty("cooldownOverlay",String.valueOf(cooldownOverlay));p.setProperty("localTimeOverlay",String.valueOf(localTimeOverlay));p.setProperty("berryPriority",berryPriority);
+        p.setProperty("cooldownOverlay",String.valueOf(cooldownOverlay));p.setProperty("localTimeOverlay",String.valueOf(localTimeOverlay));p.setProperty("encounterCounter",String.valueOf(encounterCounter));p.setProperty("encounterOverlay",String.valueOf(encounterOverlay));p.setProperty("berryPriority",berryPriority);
         p.setProperty("encounterBerry",String.valueOf(encounterBerryEnabled));
         p.setProperty("battleOptions",String.valueOf(battleOptions));
         p.setProperty("gymRepeatEnabled",String.valueOf(gymRepeatEnabled));
@@ -1448,6 +1460,7 @@ public final class Control {
         if("gift-batch".equals(kind))GiftBatchSettings.publish(detail);
         if("research".equals(kind))ResearchSettings.publish(detail);
         if("shundo-sniper".equals(kind)&&detail.startsWith("{"))ShundoSniper.publish(detail);
+        if("shiny-scan".equals(kind)&&detail.startsWith("{"))ShinyScanner.publish(detail);
         if("catch-chance".equals(kind))CatchChance.publish(detail);
         if("smart-battle".equals(kind)&&detail.startsWith("{")){
             try{org.json.JSONObject o=new org.json.JSONObject(detail);String phase=o.optString("phase");

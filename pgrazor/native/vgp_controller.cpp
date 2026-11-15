@@ -439,7 +439,8 @@ void tickSmartWait(const PgrVgpControllerTick *in,PgrVgpControllerOut *o,uint64_
   int planned=pgr_smart_plan(rootGet(pend.target),rootGet(pend.item_bag),in->owner,&decision);
   if(planned<0){pauseError(o,planned);return;}
   if(planned==PGR_SMART_NO_BALLS){retrySeen(in->owner,30000);dropPending(o);setStatus(o,PGR_VGC_ST_SMART_OUT_BALLS);return;}
-  // Not on the catch-only list: leave it on the map and don't encounter it again this hour.
+  // Not on the catch-only list, or not shiny while only shinies are caught: leave it on the map and
+  // don't encounter it again this hour.
   if(planned==PGR_SMART_SKIP_SPECIES){retrySeen(in->owner,3600000);dropPending(o);setStatus(o,PGR_VGC_ST_WATCHING);return;}
   if(!decision.enabled||!smartMayAct(in,stale)||!armActions(in,in->lease_ms)){onRefused(o,in->owner,now);return;}
   if(!pend.berry_done&&decision.berry){

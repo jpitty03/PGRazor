@@ -26,6 +26,7 @@ public final class SmartCatchSettings {
     public static boolean gymSpinActive(){return preferences.enabled()&&preferences.spinGyms()&&Control.vgpEnabled();}
     public static String normalizeSpecies(String value){return SmartCatchPreferences.normalizeSpecies(value);}
     static int speed(){return preferences.speed();}
+    static boolean shinyOnly(){return preferences.shinyOnly();}
     static String candySpecies(){return preferences.candySpecies();}
     static void setCandySpecies(String value){set("CandySpecies",value);}
     static String catchSpecies(){return preferences.catchSpecies();}
@@ -65,8 +66,11 @@ public final class SmartCatchSettings {
         gymSpin.setOnCheckedChangeListener((v,on)->{if(on!=preferences.spinGyms())set("SpinGyms",on);});
         TextView candy=button(options,"Candy species (Pinap): "+count(preferences.candySpecies(),"None"));
         candy.setOnClickListener(v->SmartCatchSpeciesDialog.show(activity,()->candy.setText("Candy species (Pinap): "+count(preferences.candySpecies(),"None"))));
+        CheckBox shinyOnly=new CheckBox(ui);shinyOnly.setText("Catch only shinies");shinyOnly.setChecked(preferences.shinyOnly());options.addView(shinyOnly);
+        TextView shinyOnlyHelp=new TextView(ui);shinyOnlyHelp.setText("VGP+ still opens every Pokémon to see whether it is shiny, but throws only at shinies and leaves the rest on the map. Each one it opens counts as an encounter.");options.addView(shinyOnlyHelp);
+        shinyOnly.setOnCheckedChangeListener((v,on)->{if(on!=preferences.shinyOnly())set("ShinyOnly",on);});
         TextView only=button(options,"Catch only: "+count(preferences.catchSpecies(),"All species"));
-        TextView onlyHelp=new TextView(ui);onlyHelp.setText("When species are selected, VGP+ catches only those and leaves every other Pokémon on the map, shiny or not.");options.addView(onlyHelp);
+        TextView onlyHelp=new TextView(ui);onlyHelp.setText("When species are selected, VGP+ catches only those and leaves every other Pokémon on the map, shiny or not. With \"Catch only shinies\" on as well, it catches only shinies of those species.");options.addView(onlyHelp);
         only.setOnClickListener(v->SmartCatchSpeciesDialog.showCatchOnly(activity,()->only.setText("Catch only: "+count(preferences.catchSpecies(),"All species"))));
         Runnable refresh=()->{mode.setChecked(preferences.enabled());gymSpin.setChecked(preferences.spinGyms());auto.setChecked(preferences.autoBall());SettingsUi.enabled(mode,Control.vgpOverlay());SettingsUi.enabled(options,Control.vgpOverlay()&&preferences.enabled());if(Control.vgpOverlay()&&preferences.enabled()){SettingsUi.enabled(autoTarget,preferences.autoBall());SettingsUi.enabled(standard,!preferences.autoBall());SettingsUi.enabled(rating,preferences.variety()==0);}};
         afterVariety[0]=refresh;

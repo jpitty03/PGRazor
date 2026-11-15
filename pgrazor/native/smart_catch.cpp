@@ -122,8 +122,9 @@ extern "C" int pgr_smart_parse_settings(const char *text,size_t len,PgrSmartSett
  *out={};out->ball=1;out->premium=1;out->high_cp=1500;out->high_level=30;out->grade=3;out->curve=1;out->auto_target=75;
  if(!text||len>PGR_SMART_CONFIG_MAX)return 0;
  std::vector<std::string> parts;size_t start=0;
- for(size_t i=0;i<=len;++i)if(i==len||text[i]==';'){parts.emplace_back(text+start,i-start);start=i+1;if(parts.size()>16)return 0;}
- const bool v6=parts.size()==16&&parts[0]=="6";
+ for(size_t i=0;i<=len;++i)if(i==len||text[i]==';'){parts.emplace_back(text+start,i-start);start=i+1;if(parts.size()>17)return 0;}
+ const bool v7=parts.size()==17&&parts[0]=="7";
+ const bool v6=v7||(parts.size()==16&&parts[0]=="6");
  const bool v5=v6||(parts.size()==15&&parts[0]=="5");
  const bool v4=v5||(parts.size()==14&&parts[0]=="4");
  const bool v3=v4||(parts.size()==13&&parts[0]=="3");
@@ -140,6 +141,7 @@ extern "C" int pgr_smart_parse_settings(const char *text,size_t len,PgrSmartSett
  if(v4&&!number(parts[13],0,3,s.variety))return 0;
  if(v5&&!number(parts[14],0,1,s.mighty_safari))return 0;
  if(v6&&!number(parts[15],0,2,s.speed))return 0;
+ if(v7&&!number(parts[16],0,1,s.shiny_only))return 0;
  *out=s;return 0;
 }
 extern "C" int pgr_smart_variety_grade(int variety,uint32_t random){
@@ -195,6 +197,8 @@ extern "C" int pgr_smart_plan(void *target,void *itemBag,uint64_t owner,PgrSmart
  const float multiplier=field<float>(pokemon.get(),b.f_proto_cpmul)+field<float>(pokemon.get(),b.f_proto_addcpmul);
  bool shiny=false;void *display=field<void*>(pokemon.get(),b.f_proto_display);
  if(display){if(!exact(display,b.class_display_proto))return PGR_SMART_ERR_IDENTITY;shiny=field<uint8_t>(display,b.f_display_shiny)!=0;}
+ // Only shinies are caught: the encounter was the check, and anything else stays on the map.
+ if(settings.shiny_only&&!shiny)return PGR_SMART_SKIP_SPECIES;
  const bool safari_bound=safari_strong_field&&safari_item>0&&safari_source;
  const bool mighty_known=safari_bound&&display;
  const bool mighty=mighty_known&&field<uint8_t>(display,safari_strong_field)==1;

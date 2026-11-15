@@ -93,7 +93,7 @@ enum PgrSmartStatus {
   PGR_SMART_OK            = 0,   // plan(): decision written (may be .enabled==false); berry(): refused
   PGR_SMART_NO_BALLS      = 2,   // plan(): no usable in-stock ball (distinct from error)
   PGR_SMART_NOT_SUCCESS   = 3,   // berry_success(): response is UseItemEncounterOutProto but not Success
-  PGR_SMART_SKIP_SPECIES  = 4,   // plan(): enabled, but the species is not on the catch-only list
+  PGR_SMART_SKIP_SPECIES  = 4,   // plan(): enabled, but the species is not on the catch-only list, or it is not shiny and only shinies are caught
   PGR_SMART_ERR_NULL_ARG      = -1,
   PGR_SMART_ERR_BAD_VERSION   = -2,
   PGR_SMART_ERR_BAD_SIZE      = -3,
@@ -110,7 +110,8 @@ enum PgrSmartStatus {
 
 // Parsed Smart Catcher settings (transport index 7). Format, exactly as emitted by
 // SmartCatchSettings.config():
-//   "6;enabled;ball;berry;premium;highCp;highLevel;grade;curve;autoBall;autoTarget;<candy ids>;<catch ids>;variety;mightySafari;speed"
+//   "7;enabled;ball;berry;premium;highCp;highLevel;grade;curve;autoBall;autoTarget;<candy ids>;<catch ids>;variety;mightySafari;speed;shinyOnly"
+// Version 6 omits shinyOnly (defaults off).
 // Version 5 omits speed (defaults to normal); version 4 also omits mightySafari (defaults off).
 // The version-3 form (without throw variety), the version-2 form (without the catch-only list) and the version-1 form (also without
 // autoBall/autoTarget) are still accepted, catching every species with auto ball off for version 1.
@@ -134,6 +135,7 @@ struct PgrSmartSettings {
   int32_t  variety;        // throw variety (version 4): 0 off, 1 Excellent & Great, 2 + Nice, 3 + a plain throw
   int32_t  mighty_safari;  // version 5: prefer owned, offered Safari Balls for Mighty Pokemon only
   int32_t  speed;          // version 6: catch pacing, 0 normal, 1 fast, 2 fastest
+  int32_t  shiny_only;     // version 7: encounter as usual, but only a shiny is thrown at
 };
 
 // Pacing for a catch speed (out-of-range values pace as normal). The throw wait is base plus a

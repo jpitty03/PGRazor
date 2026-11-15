@@ -46,6 +46,7 @@
 #include "evolve_transfer.h"
 #include "heal.h"
 #include "shundo.h"
+#include "shiny_scan.h"
 #include "battery.h"
 #include "remote_gym.h"
 #include "gift_batch.h"
@@ -2561,6 +2562,7 @@ static int api_tick(uint64_t proven_tid) {
     pgr_evolve_transfer_tick(os_tid, &g_md);
     pgr_heal_tick(os_tid, &g_md);
     pgr_shundo_tick(os_tid, &g_md);
+    pgr_shiny_scan_tick(os_tid, &g_md);
   }
   pgr_battery_tick(os_tid, &g_md);
   if(!raid_block)pgr_buddy_emotion_tick(os_tid, &g_md);
@@ -2604,6 +2606,7 @@ static int api_stop(uint64_t proven_tid) {
       pgr_evolve_transfer_stop(tid);
       pgr_heal_stop(tid);
       pgr_shundo_stop(tid);
+      pgr_shiny_scan_stop(tid);
       pgr_battery_stop(tid);
       pgr_buddy_emotion_stop(tid);
       g_vgc->stop(tid);
