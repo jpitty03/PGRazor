@@ -288,6 +288,8 @@ public final class Control {
     public static String researchConfig(){return ResearchSettings.config();}
     public static String shundoConfig(){return ShundoSniper.config();}
     public static String shinyScanConfig(){return ShinyScanner.config();}
+    /** Where the found shiny is on the screen (0..1 each way), from the native scanner ten times a second. */
+    public static void setShinyTarget(boolean visible,double x,double y){ShinyScanner.setTarget(visible,x,y);}
     public static String buddyEmotionHistory(){return BuddyEmotionSettings.history();}
     public static boolean encounterBerryVisible(){return encounterBerryEnabled&&catchScreenVisible();}
     public static boolean encounterBerryBusy(){return encounterBerryBusy;}

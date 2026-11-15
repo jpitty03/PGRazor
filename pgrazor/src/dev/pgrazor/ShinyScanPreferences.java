@@ -22,6 +22,12 @@ public final class ShinyScanPreferences {
     /** Canonical comma-separated Dex ids (sorted, unique); empty checks every species. */
     public String species = "";
     public int dailyLimit = LIMIT_DEFAULT;
+    /** Post a phone notification (sound and heads-up) when a shiny is found. */
+    public boolean notify = true;
+    /** Stop the current walk or route when a shiny is found. */
+    public boolean stopWalking = true;
+    /** Hold a found shiny: send no more checks, so its encounter stays open until it is caught or dismissed. */
+    public boolean hold = true;
 
     public static boolean validLimit(int limit) {
         for (int choice : LIMIT_CHOICES) if (choice == limit) return true;
@@ -29,7 +35,7 @@ public final class ShinyScanPreferences {
     }
     public static String limitSummary(int limit) { return limit <= 0 ? "No limit" : limit + " in 24 hours"; }
     public static String speedSummary(int speed) {
-        return SPEED_LABELS[speed] + " (" + (speed == SPEED_CAREFUL ? "one at a time" : "up to " + IN_FLIGHT[speed] + " at once") + ")";
+        return SPEED_LABELS[speed];
     }
 
     /** Checks still allowed, given the account's encounters in the last 24 hours. */
@@ -38,12 +44,13 @@ public final class ShinyScanPreferences {
     }
 
     /**
-     * {@code N2|<session>|<on>|<gap ms>|<max in flight>|<budget>|<count>|<species,...>} for the native scanner.
-     * {@code count} asks it to report every encounter for the encounter counter, scanner on or off.
+     * {@code N3|<session>|<on>|<gap ms>|<max in flight>|<budget>|<count>|<hold>|<catch>|<species,...>} for the
+     * native scanner. {@code count} asks it to report every encounter for the encounter counter, scanner on or
+     * off; {@code catchSeq} changes each time the player asks to catch the found shiny.
      */
-    public synchronized String config(long session, boolean allowed, int encounters, boolean count) {
-        return "N2|" + Math.max(1, session) + "|" + (enabled && allowed ? 1 : 0) + "|" + GAP_MS[speed] + "|" + IN_FLIGHT[speed]
-            + "|" + remaining(encounters) + "|" + (count ? 1 : 0) + "|" + species;
+    public synchronized String config(long session, boolean allowed, int encounters, boolean count, long catchSeq) {
+        return "N3|" + Math.max(1, session) + "|" + (enabled && allowed ? 1 : 0) + "|" + GAP_MS[speed] + "|" + IN_FLIGHT[speed]
+            + "|" + remaining(encounters) + "|" + (count ? 1 : 0) + "|" + (hold ? 1 : 0) + "|" + Math.max(0, catchSeq) + "|" + species;
     }
 
     public synchronized void validate() {
@@ -66,6 +73,9 @@ public final class ShinyScanPreferences {
         catch (IllegalArgumentException e) { species = ""; }
         dailyLimit = number(p, "shinyScanDailyLimit", LIMIT_DEFAULT, 0, 1000000);
         if (!validLimit(dailyLimit)) dailyLimit = LIMIT_DEFAULT;
+        notify = !"false".equals(p.getProperty("shinyScanNotify"));
+        stopWalking = !"false".equals(p.getProperty("shinyScanStopWalk"));
+        hold = !"false".equals(p.getProperty("shinyScanHold"));
     }
 
     public synchronized void write(Properties p) {
@@ -73,5 +83,8 @@ public final class ShinyScanPreferences {
         p.setProperty("shinyScanSpeed", String.valueOf(speed));
         p.setProperty("shinyScanSpecies", species == null ? "" : species);
         p.setProperty("shinyScanDailyLimit", String.valueOf(dailyLimit));
+        p.setProperty("shinyScanNotify", String.valueOf(notify));
+        p.setProperty("shinyScanStopWalk", String.valueOf(stopWalking));
+        p.setProperty("shinyScanHold", String.valueOf(hold));
     }
 }

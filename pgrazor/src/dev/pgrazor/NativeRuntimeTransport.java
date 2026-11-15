@@ -36,7 +36,7 @@ public final class NativeRuntimeTransport {
     private static final int MAGIC_SNAPSHOT = 0x53524750, MAGIC_EVENTS = 0x45524750, FRAME_VERSION = 21, FLAG_INERT = 1;
     private static final int OFF_MAGIC = 0, OFF_VERSION = 4, OFF_FRAME_SIZE = 8, OFF_FLAGS = 12, OFF_SEQ = 16,
         OFF_WALL = 24, OFF_BOOLS = 32, OFF_INTS = 80, OFF_DOUBLES = 120, OFF_PULSES = 136, OFF_STRINGS = 160;
-    private static final int EVENT_HEADER = 32, ACTION_COUNT = 59;
+    private static final int EVENT_HEADER = 32, ACTION_COUNT = 60;
 
     // Legacy translated.js reader order, split by compiled type group. Indices here equal the native field ids.
     private static final String[] BOOL_READERS = {
@@ -82,7 +82,8 @@ public final class NativeRuntimeTransport {
         "setSpawnRange:double,double:void", "setSpawnReady:boolean:void", "setThrowArReady:boolean:void",
         "setThrowAlwaysHitReady:boolean:void", "setThrowReady:boolean:void", "setVgpReady:boolean,String:void",
         "setVgpStatus:String:void", "setVgpTarget:boolean,double,double,boolean:void", "transferResult:String:void",
-        "updateCameraHeadingAt:double,int,boolean,long:void", "vgpResult:String,boolean:void"
+        "updateCameraHeadingAt:double,int,boolean,long:void", "vgpResult:String,boolean:void",
+        "setShinyTarget:boolean,double,double:void"
     };
 
     /** The native exchange seam. Production wraps the RegisterNatives method; tests inject a pure-Java fake. */

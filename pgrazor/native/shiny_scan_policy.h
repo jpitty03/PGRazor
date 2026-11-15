@@ -22,6 +22,8 @@ struct Command {
     unsigned max_in_flight = 0;   // requests waiting for an answer at once
     unsigned budget = 0;          // requests still allowed in the rolling 24 hours
     bool count = false;           // report every wild Pokemon the game has an encounter answer for
+    bool hold = false;            // once a shiny is found, send no more checks until it is caught or let go
+    uint64_t catch_seq = 0;       // changes (non-zero) each time the player asks to catch the found shiny
     std::vector<int> species;     // sorted Dex ids; empty = every species
 };
 
@@ -40,18 +42,20 @@ inline bool number(const char*& p, const char* end, uint64_t limit, uint64_t& ou
 inline bool bar(const char*& p, const char* end) { if (p >= end || *p != '|') return false; ++p; return true; }
 }  // namespace detail
 
-// "N2|<session>|<on>|<gap ms>|<max in flight>|<budget>|<count>|<species,...>"; anything else means off.
+// "N3|<session>|<on>|<gap ms>|<max in flight>|<budget>|<count>|<hold>|<catch>|<species,...>"; anything else means off.
 inline bool parse_command(const char* data, size_t size, Command& out) {
     out = Command{};
-    if (!data || size < 15 || size > 4096 || std::memcmp(data, "N2|", 3) != 0) return false;
+    if (!data || size < 19 || size > 4096 || std::memcmp(data, "N3|", 3) != 0) return false;
     const char* p = data + 3; const char* const end = data + size;
-    uint64_t session = 0, on = 0, gap = 0, flight = 0, budget = 0, count = 0;
+    uint64_t session = 0, on = 0, gap = 0, flight = 0, budget = 0, count = 0, hold = 0, catch_seq = 0;
     if (!detail::number(p, end, INT64_MAX, session) || !detail::bar(p, end) ||
         !detail::number(p, end, 1, on) || !detail::bar(p, end) ||
         !detail::number(p, end, 60000, gap) || !detail::bar(p, end) ||
         !detail::number(p, end, 8, flight) || !detail::bar(p, end) ||
         !detail::number(p, end, 1000000, budget) || !detail::bar(p, end) ||
-        !detail::number(p, end, 1, count) || !detail::bar(p, end)) return false;
+        !detail::number(p, end, 1, count) || !detail::bar(p, end) ||
+        !detail::number(p, end, 1, hold) || !detail::bar(p, end) ||
+        !detail::number(p, end, INT64_MAX, catch_seq) || !detail::bar(p, end)) return false;
     if (!session || gap < 100 || flight < 1) return false;
     Command c;
     while (p < end) {
@@ -62,7 +66,7 @@ inline bool parse_command(const char* data, size_t size, Command& out) {
         if (c.species.size() > 1000) return false;
         if (p < end) { if (*p != ',' || p + 1 == end) return false; ++p; }
     }
-    c.session = session; c.on = on == 1; c.gap_ms = unsigned(gap); c.max_in_flight = unsigned(flight); c.budget = unsigned(budget); c.count = count == 1;
+    c.session = session; c.on = on == 1; c.gap_ms = unsigned(gap); c.max_in_flight = unsigned(flight); c.budget = unsigned(budget); c.count = count == 1; c.hold = hold == 1; c.catch_seq = catch_seq;
     out = std::move(c);
     return true;
 }

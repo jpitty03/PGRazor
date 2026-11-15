@@ -138,8 +138,8 @@ public final class NativeRuntimeTransportTest {
         at += 4 + "F1|1".length(); // Smart battling slot 21.
         require(readString(snap, at).equals("1|1|1|2|10,13"));
         at += 4 + "1|1|1|2|10,13".length(); // Evolve/transfer slot 22.
-        require(readString(snap, at).equals("N2|5|1|700|2|8000|1|25,129"));
-        at += 4 + "N2|5|1|700|2|8000|1|25,129".length(); // Shiny Scanner slot 23.
+        require(readString(snap, at).equals("N3|5|1|700|2|8000|1|1|0|25,129"));
+        at += 4 + "N3|5|1|700|2|8000|1|1|0|25,129".length(); // Shiny Scanner slot 23.
         require(at == fake.lastSnapshot.length);
 
         // The new setting must reach native as true, then clear on the following snapshot.

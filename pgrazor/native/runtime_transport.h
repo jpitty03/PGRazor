@@ -46,14 +46,14 @@ enum PgrRuntimeTransportInfo {
 
   // Version 9 appends one-shot automation commands at string slot 12; version 10 appends the
   // field research config at string slot 13; version 11 appends the storage IV config at slot 14; version 12 the catch chance config at slot 15;
-  // version 13 the PvP keep config at slot 16; version 14 the skip cutscenes config at slot 17; version 15 the smart healing config at slot 18; version 16 the Shundo Sniper target at slot 19; version 17 the battery usage config at slot 20; version 18 the Smart battling config at slot 21; version 19 the evolve/transfer config at slot 22; version 20 appends the gym-repeat flag at boolean slot 40; version 21 the Shiny Scanner config at slot 23.
-  // 41+10+2+6 scalar readers plus accountCommandSnapshot; 3 pulses; 59 actions.
+  // version 13 the PvP keep config at slot 16; version 14 the skip cutscenes config at slot 17; version 15 the smart healing config at slot 18; version 16 the Shundo Sniper target at slot 19; version 17 the battery usage config at slot 20; version 18 the Smart battling config at slot 21; version 19 the evolve/transfer config at slot 22; version 20 appends the gym-repeat flag at boolean slot 40; version 21 the Shiny Scanner config at slot 23 and action 59 (setShinyTarget).
+  // 41+10+2+6 scalar readers plus accountCommandSnapshot; 3 pulses; 60 actions.
   PGR_TRANSPORT_BOOLS           = 41,
   PGR_TRANSPORT_INTS            = 10,
   PGR_TRANSPORT_DOUBLES         = 2,
   PGR_TRANSPORT_STRINGS         = 24,   // 5 strings + account command/token pair + smart catch config
   PGR_TRANSPORT_PULSES          = 3,
-  PGR_TRANSPORT_ACTIONS         = 59,
+  PGR_TRANSPORT_ACTIONS         = 60,
 
   // Bounded transport limits.
   PGR_TRANSPORT_MAX_LEASE_MS    = 2500,      // freshness-window ceiling (legacy default 500)

@@ -165,7 +165,8 @@ public final class ResearchSettings {
 }''',
     'dev/pgrazor/ShinyScanner.java': '''package dev.pgrazor;
 public final class ShinyScanner {
- public static String config(){return "N2|1|0|700|2|8000|0|";}
+ public static String config(){return "N3|1|0|700|2|8000|0|1|0|";}
+ static void setTarget(boolean visible,double x,double y){}
  public static void publish(String detail){}
  public static void read(java.util.Properties p){}
  public static void write(java.util.Properties p){}
