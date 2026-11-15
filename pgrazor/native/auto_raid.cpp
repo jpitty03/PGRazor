@@ -170,7 +170,7 @@ struct TransportPermission {
     bool snapshot_coherent = false; // sample A and Z both fresh, non-faulted, equal seq
     bool retry_snapshot = false; // Fresh host update overlapped the read; do no game work this tick.
     bool empty_command = false;     // coherent snapshot with empty slot-12 command (revoked)
-    bool valid = false;             // coherent snapshot + valid R1/R2 command
+    bool valid = false;             // coherent snapshot + valid R1/R2/R3 command
     bool foreground = false;        // bool 3: app active in foreground
     bool item_access = false;       // bool 16: map itemAccessReady
     bool has_coords = false;        // valid player coordinates in doubles 0, 1
@@ -255,6 +255,12 @@ struct ActiveSession {
     int64_t cooldown_ms = 0;
     std::string account;
 
+    // Distance limit: where the session started, and whether it already went back there to look again.
+    bool has_anchor = false;
+    bool returned_to_anchor = false;
+    double anchor_lat = 0.0;
+    double anchor_lon = 0.0;
+
     // Selected raid target
     pgr_auto_raid::RaidCandidate target{};
     std::string target_key;
@@ -326,6 +332,8 @@ struct ActiveSession {
         command = pgr_auto_raid::Command{};
         cooldown_ms = 0;
         account.clear();
+        has_anchor = returned_to_anchor = false;
+        anchor_lat = anchor_lon = 0.0;
         target = pgr_auto_raid::RaidCandidate{};
         target_key.clear();
         pass_decision = pgr_auto_raid::PassSelectionResult{};
@@ -884,6 +892,12 @@ void quarantine_and_rescan(const std::string& reason, int64_t now_ms,
     begin_leave(reason, now_ms);
 }
 
+constexpr double kAnchorReturnM = 300.0;
+
+std::string radius_text(int radius_m) {
+    return radius_m % 1000 == 0 ? std::to_string(radius_m / 1000) + " km" : std::to_string(radius_m) + " m";
+}
+
 void step_scan(const TransportPermission& perm, int64_t now_ms) {
     if (session.stop_requested) {
         finish_session("stopped", "Auto-Raid stopped by user");
@@ -902,6 +916,11 @@ void step_scan(const TransportPermission& perm, int64_t now_ms) {
         return;
     }
     session.last_step_ms = now_ms;
+    if (!session.has_anchor) {
+        session.has_anchor = true;
+        session.anchor_lat = perm.latitude;
+        session.anchor_lon = perm.longitude;
+    }
 
     std::vector<pgr_auto_raid::RaidCandidate> candidates;
     std::vector<Root> gym_roots;
@@ -909,11 +928,23 @@ void step_scan(const TransportPermission& perm, int64_t now_ms) {
 
     const int64_t game_now_ms = adapter().read_game_time_ms();
     double dist_m = 0.0;
+    size_t beyond = 0;
     const int idx = pgr_auto_raid::select_nearest_raid(
         candidates, session.command, tracker, perm.latitude, perm.longitude, game_now_ms, &dist_m,
-        pgr_auto_raid::kDefaultMinRemainingRaidMs, now_ms);
+        pgr_auto_raid::kDefaultMinRemainingRaidMs, now_ms, session.anchor_lat, session.anchor_lon, &beyond);
 
     if (idx < 0 || static_cast<size_t>(idx) >= candidates.size()) {
+        // The game only loads gyms around the player, so look again from the start point once
+        // before waiting for a new raid inside the limit.
+        if (session.command.radius_m > 0 && !session.returned_to_anchor &&
+            pgr_auto_raid::haversine_meters(perm.latitude, perm.longitude, session.anchor_lat, session.anchor_lon) > kAnchorReturnM) {
+            session.returned_to_anchor = true;
+            session.stage_started_ms = now_ms;
+            emit_travel(session.command.token, ++tracker.travel_seq, session.anchor_lat, session.anchor_lon,
+                        "No raid within " + radius_text(session.command.radius_m) + " of the start point; returning there",
+                        tracker.completed_raids);
+            return;
+        }
             size_t active=0, eggs=0, complete=0, eligible=0;
             for(const auto& c:candidates){
                 active+=c.is_raid_boss_active;eggs+=c.is_raid_egg_active;complete+=c.is_complete;
@@ -921,7 +952,8 @@ void step_scan(const TransportPermission& perm, int64_t now_ms) {
             }
             const std::string message="Scanning: "+std::to_string(candidates.size())+" gyms, "+
                         std::to_string(active)+" active raids, "+std::to_string(eggs)+" eggs, "+
-                        std::to_string(complete)+" completed, "+std::to_string(eligible)+" matching";
+                        std::to_string(complete)+" completed, "+std::to_string(eligible)+" matching"+
+                        (beyond?", "+std::to_string(beyond)+" beyond "+radius_text(session.command.radius_m):"");
         if(session.last_message!=message){
             std::string detail="{\"token\":"+json_quote(std::to_string(session.command.token))+",\"phase\":\"scan-diagnostic\",\"gameTimeMs\":"+std::to_string(game_now_ms)+",\"samples\":[";
             size_t count=0;
@@ -939,6 +971,7 @@ void step_scan(const TransportPermission& perm, int64_t now_ms) {
         return;
     }
 
+    session.returned_to_anchor = false;
     session.target = candidates[static_cast<size_t>(idx)];
     session.target_key = pgr_auto_raid::make_raid_key(session.target.fort_id, session.target.raid_seed);
     if (static_cast<size_t>(idx) < gym_roots.size()) {

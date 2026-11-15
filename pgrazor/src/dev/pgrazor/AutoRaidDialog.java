@@ -51,6 +51,7 @@ public final class AutoRaidDialog {
         final TextView minPlayers = button(body, "");
         final TextView waitSeconds = button(body, "");
         final TextView travel = button(body, "");
+        final TextView distance = button(body, "");
 
         final CheckBox stopShiny = new CheckBox(ui);
         stopShiny.setText("Stop after catching a shiny (it still counts toward the maximum)"); body.addView(stopShiny);
@@ -75,7 +76,7 @@ public final class AutoRaidDialog {
         final Button stop = new Button(ui); stop.setAllCaps(false); stop.setText("Stop"); body.addView(stop);
 
         final boolean[] refreshing = {false};
-        final View[] config = {tiers, bosses, maxRaids, minPlayers, waitSeconds, travel, stopShiny, freePass, premiumPass, razzBerry, goldenRazzBerry};
+        final View[] config = {tiers, bosses, maxRaids, minPlayers, waitSeconds, travel, distance, stopShiny, freePass, premiumPass, razzBerry, goldenRazzBerry};
         final Runnable update = () -> {
             refreshing[0] = true;
             boolean running = AutoRaid.running();
@@ -86,6 +87,7 @@ public final class AutoRaidDialog {
             minPlayers.setText("Minimum players in lobby: " + draft.minPlayers);
             waitSeconds.setText("Lobby wait: " + draft.waitSeconds + " s");
             travel.setText("Travel to raids: " + (draft.walk ? "Walk" : "Teleport"));
+            distance.setText("Stay within: " + AutoRaidPreferences.distanceSummary(draft.maxDistanceKm));
             stopShiny.setChecked(draft.stopOnShiny);
             freePass.setChecked(draft.freePass);
             premiumPass.setChecked(draft.premiumPass);
@@ -109,6 +111,7 @@ public final class AutoRaidDialog {
             + AutoRaidPreferences.WAIT_MIN + "-" + AutoRaidPreferences.WAIT_MAX + ")",
             AutoRaidPreferences.WAIT_MIN, AutoRaidPreferences.WAIT_MAX, draft.waitSeconds, n -> draft.waitSeconds = n));
         travel.setOnClickListener(v -> travelPicker(activity, draft, update));
+        distance.setOnClickListener(v -> distancePicker(activity, draft, update));
         stopShiny.setOnCheckedChangeListener((v, on) -> { if (!refreshing[0]) { draft.stopOnShiny = on; apply(activity, draft, update); } });
         freePass.setOnCheckedChangeListener((v, on) -> { if (!refreshing[0]) { draft.freePass = on; apply(activity, draft, update); } });
         premiumPass.setOnCheckedChangeListener((v, on) -> { if (!refreshing[0]) { draft.premiumPass = on; apply(activity, draft, update); } });
@@ -235,6 +238,23 @@ public final class AutoRaidDialog {
             "Teleport\nJump straight to the raid",
             "Walk\nMove there at walking speed"
         }, index -> { draft.walk = index == 1; apply(a, draft, update); });
+        DialogLifecycle.bind(a, d, null);
+        d.setOnShowListener(x -> { MapTheme.styleButtons(d);
+            d.getWindow().setBackgroundDrawable(new ColorDrawable(MapTheme.surface()));
+        });
+        d.show();
+    }
+
+    private static void distancePicker(Activity a, AutoRaidPreferences draft, Runnable update) {
+        Context ui = MapTheme.wrap(a);
+        AlertDialog d = new AlertDialog.Builder(ui).setTitle("Stay within")
+            .setNegativeButton("Cancel", null).create();
+        final int[] choices = AutoRaidPreferences.DISTANCE_CHOICES_KM;
+        String[] labels = new String[choices.length];
+        for (int i = 0; i < choices.length; i++)
+            labels[i] = choices[i] == 0 ? "No limit\nJoin the nearest raid wherever it is"
+                : choices[i] + " km\nOnly raids within " + choices[i] + " km of where you press Start";
+        ChoiceList.attach(d, labels, index -> { draft.maxDistanceKm = choices[index]; apply(a, draft, update); });
         DialogLifecycle.bind(a, d, null);
         d.setOnShowListener(x -> { MapTheme.styleButtons(d);
             d.getWindow().setBackgroundDrawable(new ColorDrawable(MapTheme.surface()));

@@ -112,6 +112,7 @@ struct Command {
     std::vector<int> boss_ids;  // sorted unique National Dex IDs (1..2000); empty = any boss
     int64_t cooldown_ms = 0;    // Current-position cooldown; wait before local entry.
     int berry_mode = 0;        // 0=off, 701=Razz, 706=Golden with Razz fallback.
+    int radius_m = 0;          // 0=no limit, else raids must be within this distance of the session's start point.
 };
 
 namespace detail {
@@ -162,13 +163,14 @@ inline bool parse_boss_list(const char* begin, const char* end, std::vector<int>
 // Parse slot-12 wire command:
 // "R1|token|enabled|tierMask|maxRaids|minPlayers|waitSeconds|walk|freePass|premiumPass|stopOnShiny|bosses|cooldownMs"
 // R2 adds a final |berryMode (0=off, 701=Razz, 706=Golden with Razz fallback).
+// R3 adds a final |radiusM (0=no limit, else 100..100000 metres from the session's start point).
 inline bool parse_command(const char* data, size_t size, Command& out) {
     if (!data || size < 26 || size > 1200) return false;
-    if (data[0] != 'R' || (data[1] != '1' && data[1] != '2') || data[2] != '|') return false;
-    const size_t expected = data[1] == '2' ? 14 : 13;
+    if (data[0] != 'R' || (data[1] < '1' || data[1] > '3') || data[2] != '|') return false;
+    const size_t expected = 13 + static_cast<size_t>(data[1] - '1');
 
-    const char* seg_starts[14]{};
-    const char* seg_ends[14]{};
+    const char* seg_starts[15]{};
+    const char* seg_ends[15]{};
     size_t seg_count = 0;
     const char* cur = data;
     const char* const end = data + size;
@@ -218,8 +220,11 @@ inline bool parse_command(const char* data, size_t size, Command& out) {
     uint64_t cooldown = 0;
     if (!detail::parse_uint64_segment(seg_starts[12], seg_ends[12], 7200000, cooldown)) return false;
     uint64_t berry = 0;
-    if (expected == 14 && (!detail::parse_uint64_segment(seg_starts[13], seg_ends[13], 706, berry) ||
+    if (expected >= 14 && (!detail::parse_uint64_segment(seg_starts[13], seg_ends[13], 706, berry) ||
         (berry != 0 && berry != 701 && berry != 706))) return false;
+    uint64_t radius = 0;
+    if (expected == 15 && (!detail::parse_uint64_segment(seg_starts[14], seg_ends[14], 100000, radius) ||
+        (radius != 0 && radius < 100))) return false;
 
     Command parsed;
     parsed.token = token;
@@ -235,6 +240,7 @@ inline bool parse_command(const char* data, size_t size, Command& out) {
     parsed.boss_ids = std::move(bosses);
     parsed.cooldown_ms = static_cast<int64_t>(cooldown);
     parsed.berry_mode = static_cast<int>(berry);
+    parsed.radius_m = static_cast<int>(radius);
     out = std::move(parsed);
     return true;
 }
@@ -737,6 +743,8 @@ struct SessionTracker {
 
 // Select the nearest eligible, non-excluded active raid candidate from `candidates`.
 // Returns -1 if no candidate qualifies.
+// With cmd.radius_m set and a valid anchor, raids further than that from the anchor are skipped and
+// counted in `out_beyond_radius`.
 inline int select_nearest_raid(
     const std::vector<RaidCandidate>& candidates,
     const Command& cmd,
@@ -746,8 +754,13 @@ inline int select_nearest_raid(
     int64_t now_ms,
     double* out_distance_m = nullptr,
     int64_t min_remaining_ms = kDefaultMinRemainingRaidMs,
-    int64_t quarantine_now_ms = -1) {
+    int64_t quarantine_now_ms = -1,
+    double anchor_lat = 0.0,
+    double anchor_lon = 0.0,
+    size_t* out_beyond_radius = nullptr) {
+    if (out_beyond_radius) *out_beyond_radius = 0;
     if (!valid_coordinates(player_lat, player_lon)) return -1;
+    const bool limited = cmd.radius_m > 0 && valid_coordinates(anchor_lat, anchor_lon);
     // Raid timestamps use server epoch time; session retry delays use monotonic time.
     const int64_t retry_now = quarantine_now_ms < 0 ? now_ms : quarantine_now_ms;
     session.prune_quarantine(retry_now);
@@ -761,6 +774,10 @@ inline int select_nearest_raid(
         if (!is_raid_candidate_eligible(c, cmd, now_ms, min_remaining_ms)) continue;
         const std::string key = make_raid_key(c.fort_id, c.raid_seed);
         if (session.is_raid_excluded(key, retry_now)) continue;
+        if (limited && haversine_meters(anchor_lat, anchor_lon, c.latitude, c.longitude) > cmd.radius_m) {
+            if (out_beyond_radius) ++*out_beyond_radius;
+            continue;
+        }
         const double dist = haversine_meters(player_lat, player_lon, c.latitude, c.longitude);
         if (best_idx < 0 || dist < best_dist - 1e-3 ||
             (std::fabs(dist - best_dist) <= 1e-3 && key < best_key)) {

@@ -27,6 +27,9 @@ public final class AutoRaidPreferences {
     public static final int MIN_PLAYERS_DEFAULT = 1, MIN_PLAYERS_MIN = 1, MIN_PLAYERS_MAX = 20;
     public static final int WAIT_DEFAULT = 60, WAIT_MIN = 15, WAIT_MAX = 120;
 
+    /** Allowed distance limits in kilometres; 0 is no limit. */
+    public static final int[] DISTANCE_CHOICES_KM = {0, 1, 2, 5, 10};
+
     /** Bonus-catch berry item ids sent to the controller. */
     public static final int BERRY_NONE = 0, BERRY_RAZZ = 701, BERRY_GOLDEN_RAZZ = 706;
 
@@ -44,6 +47,8 @@ public final class AutoRaidPreferences {
     public int waitSeconds = WAIT_DEFAULT;
     /** Travel to the raid by walking instead of teleporting (teleport is the default). */
     public boolean walk = false;
+    /** Only join raids within this many kilometres of where the session started; 0 is no limit. */
+    public int maxDistanceKm = 0;
     /** Use the free daily raid pass. */
     public boolean freePass = true;
     /** Use Premium Battle passes. Remote Raid passes are never used. */
@@ -64,6 +69,15 @@ public final class AutoRaidPreferences {
     public synchronized int berryMode() {
         return goldenRazzBerry ? BERRY_GOLDEN_RAZZ : razzBerry ? BERRY_RAZZ : BERRY_NONE;
     }
+
+    /** Whether {@code km} is one of {@link #DISTANCE_CHOICES_KM}. */
+    public static boolean validDistance(int km) {
+        for (int choice : DISTANCE_CHOICES_KM) if (choice == km) return true;
+        return false;
+    }
+
+    /** "No limit" or e.g. "5 km". */
+    public static String distanceSummary(int km) { return km <= 0 ? "No limit" : km + " km"; }
 
     /**
      * The canonical form of a comma-separated boss list: whitespace trimmed, IDs sorted ascending and
@@ -109,6 +123,7 @@ public final class AutoRaidPreferences {
         c.minPlayers = minPlayers;
         c.waitSeconds = waitSeconds;
         c.walk = walk;
+        c.maxDistanceKm = maxDistanceKm;
         c.freePass = freePass;
         c.premiumPass = premiumPass;
         c.razzBerry = razzBerry;
@@ -128,6 +143,8 @@ public final class AutoRaidPreferences {
             throw new IllegalArgumentException("Minimum players must be " + MIN_PLAYERS_MIN + "-" + MIN_PLAYERS_MAX + ".");
         if (waitSeconds < WAIT_MIN || waitSeconds > WAIT_MAX)
             throw new IllegalArgumentException("Lobby wait must be " + WAIT_MIN + "-" + WAIT_MAX + " seconds.");
+        if (!validDistance(maxDistanceKm))
+            throw new IllegalArgumentException("Choose a distance limit of 1, 2, 5 or 10 km, or no limit.");
         if (!freePass && !premiumPass)
             throw new IllegalArgumentException("Allow the free daily pass or Premium passes before starting.");
     }
@@ -151,6 +168,8 @@ public final class AutoRaidPreferences {
         minPlayers = number(p, "MinPlayers", MIN_PLAYERS_DEFAULT, MIN_PLAYERS_MIN, MIN_PLAYERS_MAX);
         waitSeconds = number(p, "WaitSeconds", WAIT_DEFAULT, WAIT_MIN, WAIT_MAX);
         walk = flag(p, "Walk", false);
+        maxDistanceKm = number(p, "MaxDistanceKm", 0, 0, 10);
+        if (!validDistance(maxDistanceKm)) maxDistanceKm = 0;
         freePass = flag(p, "FreePass", true);
         premiumPass = flag(p, "PremiumPass", false);
         razzBerry = flag(p, "RazzBerry", false);
@@ -166,6 +185,7 @@ public final class AutoRaidPreferences {
         p.setProperty("autoRaidMinPlayers", String.valueOf(minPlayers));
         p.setProperty("autoRaidWaitSeconds", String.valueOf(waitSeconds));
         p.setProperty("autoRaidWalk", String.valueOf(walk));
+        p.setProperty("autoRaidMaxDistanceKm", String.valueOf(maxDistanceKm));
         p.setProperty("autoRaidFreePass", String.valueOf(freePass));
         p.setProperty("autoRaidPremiumPass", String.valueOf(premiumPass));
         p.setProperty("autoRaidRazzBerry", String.valueOf(razzBerry));

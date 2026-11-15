@@ -794,6 +794,41 @@ int main() {
     assert(session.target.fort_id=="next"); // Epoch clock must not instantly expire retry quarantine.
     pgr_auto_raid_stop(tid);
     assert(test_roots.empty());
+    // Distance limit: a raid beyond 1 km of the start point is never chosen; after drifting away the
+    // session returns to the start point once, then keeps waiting there.
+    reset_fixture();g_test_adapter=&g_fake_adapter;
+    world.game_time_ms=1800000000000LL;
+    {
+        auto outside=make_active_raid("outside",850,t_lat+0.02,t_lon); // ~2.2 km north
+        outside.spawn_ms=world.game_time_ms-60000;outside.battle_ms=world.game_time_ms-30000;
+        outside.end_ms=world.game_time_ms+1800000;
+        world.gyms={outside};
+        const double start_lat=t_lat;
+        t_command="R3|850|1|0|3|1|45|0|1|0|0||0|0|1000";
+        assert(pgr_auto_raid_tick(tid,&metadata));
+        assert(session.stage==RaidStage::Scan && tracker.travel_seq==0); // at the start point: nothing to return to
+        assert(t_events.back().find("1 beyond 1 km")!=std::string::npos);
+        t_lat=start_lat+0.008; // ~890 m away, as after an earlier raid
+        test_clock_override_ms+=kDiscoveryScanMs;
+        assert(pgr_auto_raid_tick(tid,&metadata));
+        assert(session.stage==RaidStage::Scan && tracker.travel_seq==1);
+        assert(t_events.back().find("\"phase\":\"travel\"")!=std::string::npos);
+        assert(t_events.back().find("returning there")!=std::string::npos);
+        char want[64];std::snprintf(want,sizeof(want),"\"latitude\":%.7f",start_lat);
+        assert(t_events.back().find(want)!=std::string::npos);
+        test_clock_override_ms+=kDiscoveryScanMs;
+        assert(pgr_auto_raid_tick(tid,&metadata));
+        assert(session.stage==RaidStage::Scan && tracker.travel_seq==1); // only once per search
+        // Without the limit the same raid is taken.
+        pgr_auto_raid_stop(tid);
+        reset_fixture();g_test_adapter=&g_fake_adapter;
+        world.game_time_ms=1800000000000LL;world.gyms={outside};
+        t_command="R3|860|1|0|3|1|45|0|1|0|0||0|0|0";
+        assert(pgr_auto_raid_tick(tid,&metadata));
+        assert(session.stage==RaidStage::Travel && session.target.fort_id=="outside");
+        pgr_auto_raid_stop(tid);
+        assert(test_roots.empty());
+    }
     reset_fixture();g_test_adapter=&g_fake_adapter;
     t_command="R1|900|1|0|1|1|45|0|1|0|0||0";
     world.map_ready=false;

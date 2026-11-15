@@ -540,6 +540,30 @@ static void test_select_nearest() {
         CHECK(select_nearest_raid(cands, cmd, s, 0.0, 0.0, now) == -1);
     }
 
+    // Distance limit: the player has drifted ~850 m west of the start point (anchor), next to B.
+    {
+        Command limited; limited.radius_m = 500;
+        SessionTracker s;
+        size_t beyond = 99;
+        // B is nearest to the player but ~853 m from the anchor: skipped; A (~768 m from the player) wins.
+        int idx = select_nearest_raid(cands, limited, s, 40.0, -75.0100, now, nullptr,
+                                      kDefaultMinRemainingRaidMs, -1, plat, plon, &beyond);
+        CHECK(idx == 0 && beyond == 1);
+        limited.radius_m = 100; // only A (~85 m) is inside; C (~111 m) and B are out
+        idx = select_nearest_raid(cands, limited, s, 40.0, -75.0100, now, nullptr,
+                                  kDefaultMinRemainingRaidMs, -1, plat, plon, &beyond);
+        CHECK(idx == 0 && beyond == 2);
+        s.completed_keys.insert(make_raid_key("FORT_A", 1));
+        idx = select_nearest_raid(cands, limited, s, 40.0, -75.0100, now, nullptr,
+                                  kDefaultMinRemainingRaidMs, -1, plat, plon, &beyond);
+        CHECK(idx == -1 && beyond == 2);
+        // No limit, or no usable anchor: nearest to the player as before.
+        SessionTracker open;
+        CHECK(select_nearest_raid(cands, cmd, open, 40.0, -75.0100, now, nullptr,
+                                  kDefaultMinRemainingRaidMs, -1, plat, plon, &beyond) == 1 && beyond == 0);
+        CHECK(select_nearest_raid(cands, limited, open, 40.0, -75.0100, now) == 1);
+    }
+
     // Tie-break: two equidistant candidates -> lexicographically smaller key.
     {
         SessionTracker s;
@@ -948,6 +972,16 @@ int main() {
             std::string wire="R2"+legacy.substr(2)+suffix;
             CHECK(!parse_command(wire.data(),wire.size(),c));
         }
+        // R3 adds the distance limit in metres.
+        for(int radius:{0,100,1000,10000,100000}){
+            std::string wire="R3"+legacy.substr(2)+"|706|"+std::to_string(radius);
+            CHECK(parse_command(wire.data(),wire.size(),c) && c.radius_m==radius && c.berry_mode==706);
+        }
+        for(const char* suffix:{"|0","|0|","|0|99","|0|100001","|0|-1","|0|1000x","|0|1000|0"}){
+            std::string wire="R3"+legacy.substr(2)+suffix;
+            CHECK(!parse_command(wire.data(),wire.size(),c));
+        }
+        {std::string wire="R2"+legacy.substr(2)+"|0";CHECK(parse_command(wire.data(),wire.size(),c) && c.radius_m==0);}
         std::string extra=legacy+"|706";
         CHECK(!parse_command(extra.data(),extra.size(),c));
         CHECK(select_raid_berry(0,5,5)==0);

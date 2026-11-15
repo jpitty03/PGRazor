@@ -156,8 +156,9 @@ public final class AutoRaidControllerTest {
         require(Control.lastEvent.equals("auto-raid-session"), "start event tag");
 
         String[] f = config();
-        require(f[0].equals("R2"), "config header");
-        require(f.length == 14, "R2 carries fourteen fields");
+        require(f[0].equals("R3"), "config header");
+        require(f.length == 15, "R3 carries fifteen fields");
+        require(f[14].equals("0"), "no distance limit by default");
         require(f[2].equals("1"), "running flag in config");
         require(f[3].equals("4"), "tier mask frozen into session");
         require(f[4].equals("7"), "max raids frozen into session");
