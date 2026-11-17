@@ -55,7 +55,9 @@ final class AccountProfiles {
         catch(Exception error) { message="Account data could not be opened. Existing data has been kept."; diag("account-storage","unavailable; existing data kept"); }
         finally { StrictMode.setThreadPolicy(policy); }
     }
-    static boolean allowed(){return !initialized || verified && !switching && !restarting;}
+    // When account switching could not start this session there is no identity to wait for. Gameplay
+    // features then run on the profile chosen at startup instead of staying off until a restart.
+    static boolean allowed(){return !initialized || (supportKnown && !available && !switching && !restarting) || verified && !switching && !restarting;}
     static String command(){return commands.current();}
     static String[] commandSnapshot(){return commands.snapshot();}
     static String status(){return message;}
@@ -90,8 +92,8 @@ final class AccountProfiles {
     }
     static void support(boolean value){
         boolean changed=!supportKnown||available!=value;supportKnown=true;
-        available=value;if(!value)message="Account switching is unavailable on this game version";
-        if(changed)diag("account-support",value?"switching supported":"switching unavailable on this game version");
+        available=value;if(!value)message="Account switching could not start this session. Restart the game to try again; other features are not affected.";
+        if(changed)diag("account-support",value?"switching supported":"switching unavailable this session; other features continue on the startup profile");
     }
     static void identity(String id,String trainer) {
         if(id==null||id.isEmpty()||id.length()>256||trainer==null||trainer.isEmpty()||trainer.length()>128)return;

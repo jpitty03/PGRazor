@@ -74,6 +74,14 @@ Control.activity=new Activity();Handler.next();require(AccountRestartActivity.la
 reset();restart(false);generation.setLong(null,generation.getLong(null)+1);restart(true);require(Handler.queue.size()==2);
 Handler.next();Field restarting=AccountProfiles.class.getDeclaredField("restarting");restarting.setAccessible(true);require(restarting.getBoolean(null));
 Control.activity=new Activity();Handler.next();require(AccountRestartActivity.launches==1&&AccountRestartActivity.lastSwitch&&Handler.queue.isEmpty());
+// Account switching could not start this session: gameplay runs on the startup profile, but never mid-switch or mid-restart.
+reset();field("switching",false);field("supportKnown",false);field("available",false);require(!AccountProfiles.allowed());
+Method support=AccountProfiles.class.getDeclaredMethod("support",boolean.class);support.setAccessible(true);
+support.invoke(null,false);require(AccountProfiles.allowed());
+field("switching",true);require(!AccountProfiles.allowed());field("switching",false);
+field("restarting",true);require(!AccountProfiles.allowed());field("restarting",false);
+support.invoke(null,true);require(!AccountProfiles.allowed()); // supported: wait for the verified identity as before
+field("verified",true);require(AccountProfiles.allowed());
 System.out.println("PASS account restart lifecycle: resume gap, duplicate request, timeout, destroyed activity, unavailable helper, immediate handoff");
 }}
 ''',

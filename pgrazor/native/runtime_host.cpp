@@ -96,6 +96,7 @@ int verify(const PgrUnitySchedulerConfig *c){
 void stop_host(unsigned i){if(!slots[i].configured.load(std::memory_order_acquire))return;
  switch(i){case 0:routes->stop(uint64_t(gettid()));break;case 1:shared->stop();break;case 2:quick->stop();break;case 3:encounter->stop(uint64_t(gettid()));break;case 4:camera->stop("manager-stop");break;case 5:inventory->stop();break;case 6:combat->stop(uint64_t(gettid()));break;case 7:spin->stop();break;case 8:account->stop();break;case 9:interaction->stop("manager-stop");break;case 10:wait_host->stop();break;case 11:spawn->stop();break;}
 }
+void report_hook_failures();
 void report_host(unsigned i){
  const uint32_t state=slots[i].state.load(),caps=slots[i].caps.load();const int error=slots[i].error.load();
  if(reported_states[i]==state&&reported_errors[i]==error&&reported_caps[i]==caps)return;
@@ -237,6 +238,7 @@ void pulse(void*,const PgrUnityPulse *p){
   observe(i);
   report_host(i);
  }
+ report_hook_failures();
 }
 // Build one startup-diagnostic event and best-effort emit it. Assumes
 // startup_mutex is held. Makes no managed/il2cpp call and never aborts a
@@ -262,6 +264,21 @@ int append_hook_diag(char *out,size_t cap,bool failure){
    h.island_source==PGR_HOOK_ISLAND_MMAP?"mmap":h.island_source==PGR_HOOK_ISLAND_ELF_PADDING?"elf-padding":"page-padding",h.failures);
  }
  return m<0||size_t(m)>=cap?0:m;
+}
+// A hook that fails after startup (a feature installing later) is otherwise only in logcat. Report the
+// engine's account of it to the run log once each time the failure count grows; the reason, target and
+// island search are those of the first failure, hookFailures is the running total.
+void report_hook_failures(){
+ static uint32_t reported=0;
+ PgrHookDiag h{};
+ if(!pgrazor_hook_diag||pgrazor_hook_diag(&h)!=0||h.version!=1||h.size!=sizeof(h)||h.failures<=reported)return;
+ char json[420];size_t t=size_t(std::snprintf(json,sizeof(json),"{\"kind\":\"hook-failure\""));
+ t+=size_t(append_hook_diag(json+t,sizeof(json)-t-1,true));
+ if(t+2>sizeof(json))return;
+ json[t++]='}';json[t]=0;
+ const char channel[]="native-hook";
+ PgrRuntimeTransportString strings[]={{channel,sizeof(channel)-1},{json,uint32_t(t)}};
+ if(as<PgrRuntimeTransportApi>(pgrazor_runtime_transport_api(1))->emit(19,nullptr,0,strings,2)==0)reported=h.failures;
 }
 void emit_startup_locked(const char *stage,const char *reason,int32_t status,int32_t detail,bool identity){
  const uint64_t now=clock_ms();
