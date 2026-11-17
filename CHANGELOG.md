@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.3.4
+
+[Full release notes](docs/releases/v0.3.4.md)
+
+### Improvements & fixes
+
+- Updated to latest game version (0.437.0)
+- Gift batch sending skips friends who still have an unopened gift from you, and the pause between gift sends and opens is shorter.
+- Auto-Raid closes the "You received a free raid pass" screen itself and keeps the pass.
+- When account switching cannot start in a session, the other features keep working on the profile the game started with.
+
 ## v0.3.3
 
 [Full release notes](docs/releases/v0.3.3.md)
