@@ -143,7 +143,7 @@ bool real_ensure_ready() {
 
     require_map_method(map_gym_k, "get_FortData", 0, "Holoholo.Rpc.PokemonFortProto");
     require_map_method(map_gym_k, "OnTapped", 0, "System.Void");
-    require_map_field(map_gym_k, "dyvy", "Niantic.Holoholo.Gym.IGymRootController", 0x158);
+    require_map_field(map_gym_k, "dzso", "Niantic.Holoholo.Gym.IGymRootController", 0x170);
 
     require_map_field(fort_k, "FortId", "System.String", 0x10);
     require_map_field(fort_k, "Latitude", "System.Double", 0x20);
@@ -176,7 +176,7 @@ bool real_ensure_ready() {
     void* approach_k  = resolve_class("Niantic.Holoholo.Raid", "RaidApproachUIController");
     void* details_k   = resolve_class("Holoholo.Rpc", "RaidDetailsContainer");
 
-    require_map_field(gym_ctrl_k, "dyhl", "Niantic.Holoholo.Gym.IGymRootState", 0x30);
+    require_map_field(gym_ctrl_k, "dzdb", "Niantic.Holoholo.Gym.IGymRootState", 0x30);
     require_map_method(gym_ctrl_k, "get_IsActive", 0, "System.Boolean");
     require_map_method(gym_ctrl_k, "get_FortId", 0, "System.String");
     require_map_method(gym_ctrl_k, "get_HasRaidInfo", 0, "System.Boolean");
@@ -191,15 +191,15 @@ bool real_ensure_ready() {
 
     require_map_method(approach_k, "OnJoinButtonPressed", 0, "System.Void");
     require_map_method(approach_k, "OnBackButtonPressed", 0, "System.Void");
-    require_map_field(approach_k, "ekir", "Niantic.Holoholo.Gym.IGymRootController", 0x3b0);
-    require_map_field(approach_k, "ekis", "Niantic.Holoholo.Gym.IGymRootState", 0x3b8);
-    require_map_field(approach_k, "ekit", "Niantic.Holoholo.Raid.IRaidState", 0x3c0);
-    require_map_field(approach_k, "ekjv", "Niantic.Holoholo.IItemBag", 0x4a0);
-    require_map_field(approach_k, "ekjz", "Niantic.Holoholo.Services.IRaidEntryCostService", 0x4c0);
-    require_map_field(approach_k, "ekkk", "Niantic.Holoholo.UI.Raids.IUseRaidTicketGuiController", 0x518);
-    require_map_field(approach_k, "ekkp", "System.Boolean", 0x52b);
-    require_map_field(approach_k, "ekkr", "System.Boolean", 0x52d);
-    require_map_field(approach_k, "ekkz", "Holoholo.Rpc.RaidDetailsContainer", 0x560);
+    require_map_field(approach_k, "elbj", "Niantic.Holoholo.Gym.IGymRootController", 0x3c0);
+    require_map_field(approach_k, "elbk", "Niantic.Holoholo.Gym.IGymRootState", 0x3c8);
+    require_map_field(approach_k, "elbl", "Niantic.Holoholo.Raid.IRaidState", 0x3d0);
+    require_map_field(approach_k, "elcn", "Niantic.Holoholo.IItemBag", 0x4b0);
+    require_map_field(approach_k, "elcr", "Niantic.Holoholo.Services.IRaidEntryCostService", 0x4d0);
+    require_map_field(approach_k, "eldc", "Niantic.Holoholo.UI.Raids.IUseRaidTicketGuiController", 0x528);
+    require_map_field(approach_k, "eldh", "System.Boolean", 0x53b);
+    require_map_field(approach_k, "eldj", "System.Boolean", 0x53d);
+    require_map_field(approach_k, "elds", "Holoholo.Rpc.RaidDetailsContainer", 0x578);
 
     require_map_method(details_k, "get_HasValidInfo", 0, "System.Boolean");
     require_map_method(details_k, "get_RaidSeed", 0, "System.Int64");
@@ -239,23 +239,23 @@ bool real_ensure_ready() {
     require_map_method(modal_k, "CycleCurrency", 0, "System.Void");
     require_map_method(modal_k, "StartAnimation", 0, "System.Void");
     require_map_method(modal_k, "Dismiss", 0, "System.Void");
-    require_map_field(modal_k, "eeiq", "Niantic.Holoholo.Services.IRaidEntryCostService", 0x1e8);
-    require_map_field(modal_k, "eeiw", "Holoholo.Rpc.RaidEntryCostProto", 0x208);
-    require_map_field(modal_k, "eeix",
+    require_map_field(modal_k, "eezt", "Niantic.Holoholo.Services.IRaidEntryCostService", 0x1e8);
+    require_map_field(modal_k, "eezz", "Holoholo.Rpc.RaidEntryCostProto", 0x208);
+    require_map_field(modal_k, "efaa",
                       "System.Collections.Generic.List<Niantic.Holoholo.UI.Raids.IUseRaidEntryCostWidget>", 0x210);
-    require_map_field(modal_k, "eejb", "System.Boolean", 0x230);
+    require_map_field(modal_k, "efae", "System.Boolean", 0x230);
     require_map_method(widget_k, "OnItemTapped", 0, "System.Void");
 
     // 6. RaidLobbyGuiController & LobbyProto.
     void* lobby_k       = resolve_class("Niantic.Holoholo.Raid", "RaidLobbyGuiController");
     void* lobby_proto_k = resolve_class("Holoholo.Rpc", "LobbyProto");
 
-    require_map_field(lobby_k,"ekrr","Niantic.Holoholo.Gym.IGymRootController",0x348);
+    require_map_field(lobby_k,"elku","Niantic.Holoholo.Gym.IGymRootController",0x348);
     require_map_method(lobby_k, "get_BattleStarted", 0, "System.Boolean");
     require_map_method(lobby_k, "LeaveLobby", 0, "System.Void");
-    require_map_field(lobby_k, "ektq", "System.Int32", 0x4c8);
-    require_map_field(lobby_k, "ektx", "Holoholo.Rpc.LobbyProto", 0x4e8);
-    require_map_field(lobby_k, "ekty", "Holoholo.Rpc.RaidDetailsContainer", 0x4f0);
+    require_map_field(lobby_k, "elmt", "System.Int32", 0x4c8);
+    require_map_field(lobby_k, "elna", "Holoholo.Rpc.LobbyProto", 0x4e8);
+    require_map_field(lobby_k, "elnb", "Holoholo.Rpc.RaidDetailsContainer", 0x4f0);
 
     require_map_field(lobby_proto_k, "Players",
                       "Niantic.Protobuf.Collections.RepeatedField<Holoholo.Rpc.BattleParticipantProto>", 0x20);
@@ -269,8 +269,8 @@ bool real_ensure_ready() {
     require_map_method(gui_k, "get_IsOpen", 0, "System.Boolean");
 
     require_map_field(resolve_k, "confirmBonusRow", nullptr, 0x250);
-    require_map_field(resolve_k, "elcj", "Niantic.Holoholo.Battle.BattleStatus", 0x2e4);
-    require_map_field(resolve_k, "elcv", "System.Boolean", 0x340);
+    require_map_field(resolve_k, "elvn", "Niantic.Holoholo.Battle.BattleStatus", 0x2e4);
+    require_map_field(resolve_k, "elvz", "System.Boolean", 0x340);
     require_map_method(resolve_k, "CloseLeaderboard", 0, "System.Void");
     require_map_method(resolve_k, "CancelAreaTapped", 0, "System.Void");
     require_map_method(resolve_k, "Close", 0, "System.Void");
@@ -473,10 +473,10 @@ bool real_advance_to_raid_approach(void* target_gym,
     void* approach_k = resolve_class("Niantic.Holoholo.Raid", "RaidApproachUIController");
     if (Root app = find_live_unity_object(approach_k)) {
         void* app_k = obj_klass(app.get());
-        void* f_gym_ctrl   = require_map_field(app_k, "ekir", "Niantic.Holoholo.Gym.IGymRootController", 0x3b0);
-        void* f_gym_state  = require_map_field(app_k, "ekis", "Niantic.Holoholo.Gym.IGymRootState", 0x3b8);
-        void* f_raid_state = require_map_field(app_k, "ekit", "Niantic.Holoholo.Raid.IRaidState", 0x3c0);
-        void* f_details    = require_map_field(app_k, "ekkz", "Holoholo.Rpc.RaidDetailsContainer", 0x560);
+        void* f_gym_ctrl   = require_map_field(app_k, "elbj", "Niantic.Holoholo.Gym.IGymRootController", 0x3c0);
+        void* f_gym_state  = require_map_field(app_k, "elbk", "Niantic.Holoholo.Gym.IGymRootState", 0x3c8);
+        void* f_raid_state = require_map_field(app_k, "elbl", "Niantic.Holoholo.Raid.IRaidState", 0x3d0);
+        void* f_details    = require_map_field(app_k, "elds", "Holoholo.Rpc.RaidDetailsContainer", 0x578);
 
         Root gym_ctrl(read_field_val<void*>(app.get(), f_gym_ctrl));
         require(gym_ctrl && gym_ctrl_matches_target(gym_ctrl.get()),
@@ -500,7 +500,7 @@ bool real_advance_to_raid_approach(void* target_gym,
 
     Root gym_ctrl;
     if (target_gym && unity_obj_alive(target_gym)) {
-        void* f_ctrl = require_map_field(obj_klass(target_gym), "dyvy", "Niantic.Holoholo.Gym.IGymRootController", 0x158);
+        void* f_ctrl = require_map_field(obj_klass(target_gym), "dzso", "Niantic.Holoholo.Gym.IGymRootController", 0x170);
         gym_ctrl = Root(read_field_val<void*>(target_gym, f_ctrl));
     }
     if (!gym_ctrl) {
@@ -510,7 +510,7 @@ bool real_advance_to_raid_approach(void* target_gym,
         return false;
     }
 
-    void* f_gym_state = require_map_field(obj_klass(gym_ctrl.get()), "dyhl", "Niantic.Holoholo.Gym.IGymRootState", 0x30);
+    void* f_gym_state = require_map_field(obj_klass(gym_ctrl.get()), "dzdb", "Niantic.Holoholo.Gym.IGymRootState", 0x30);
     Root gym_state(read_field_val<void*>(gym_ctrl.get(), f_gym_state));
     if (!gym_state) return false;
 
@@ -568,6 +568,24 @@ pgr_auto_raid::EntryCostOption parse_managed_entry_cost(void* cost_svc, void* co
     return opt;
 }
 
+// "You received a free raid pass!" (ReceivedRaidTicketGuiController) opens over the raid approach screen
+// the first time a gym is opened without a daily pass. The pass is already in the bag when it shows, so
+// closing it with its own Dismiss(), as its X button does, keeps the pass. While it is open the approach
+// screen's Battle button does nothing, so entry waits until it has closed. True while it is on screen.
+bool real_close_received_pass_notice() {
+    void* k = resolve_class_optional("Niantic.Holoholo.Gym", "ReceivedRaidTicketGuiController");
+    if (!k) return false;
+    Root notice = find_live_unity_object(k);
+    if (!notice || !unity_obj_alive(notice.get())) return false;
+    // GuiController.OpenState: 0 dismissed, 1 opening, 2 open, 3 dismissing. Only an open screen is
+    // dismissed; one still opening or closing is waited for.
+    void* f_state = require_map_field(resolve_class("Niantic.Holoholo.NUI", "GuiController"), "currentState", nullptr, 0x70);
+    const int state = read_field_val<int32_t>(notice.get(), f_state);
+    if (state == 0) return false;
+    if (state == 2) call_obj(notice.get(), "Dismiss", 0);
+    return true;
+}
+
 bool real_inspect_approach_costs(void* approach_ui,
                                  bool raid_is_free,
                                  bool& out_ticket_used,
@@ -575,14 +593,15 @@ bool real_inspect_approach_costs(void* approach_ui,
                                  std::vector<pgr_auto_raid::EntryCostOption>& out_options) {
     out_options.clear();
     require(unity_obj_alive(approach_ui), "RaidApproachUIController destroyed");
+    if (real_close_received_pass_notice()) return false;  // look again once it has closed
 
     void* app_k = obj_klass(approach_ui);
-    void* f_gym_ctrl    = require_map_field(app_k, "ekir", "Niantic.Holoholo.Gym.IGymRootController", 0x3b0);
-    void* f_item_bag    = require_map_field(app_k, "ekjv", "Niantic.Holoholo.IItemBag", 0x4a0);
-    void* f_cost_svc    = require_map_field(app_k, "ekjz", "Niantic.Holoholo.Services.IRaidEntryCostService", 0x4c0);
-    void* f_ticket_used = require_map_field(app_k, "ekkp", "System.Boolean", 0x52b);
-    void* f_remote_used = require_map_field(app_k, "ekkr", "System.Boolean", 0x52d);
-    void* f_details     = require_map_field(app_k, "ekkz", "Holoholo.Rpc.RaidDetailsContainer", 0x560);
+    void* f_gym_ctrl    = require_map_field(app_k, "elbj", "Niantic.Holoholo.Gym.IGymRootController", 0x3c0);
+    void* f_item_bag    = require_map_field(app_k, "elcn", "Niantic.Holoholo.IItemBag", 0x4b0);
+    void* f_cost_svc    = require_map_field(app_k, "elcr", "Niantic.Holoholo.Services.IRaidEntryCostService", 0x4d0);
+    void* f_ticket_used = require_map_field(app_k, "eldh", "System.Boolean", 0x53b);
+    void* f_remote_used = require_map_field(app_k, "eldj", "System.Boolean", 0x53d);
+    void* f_details     = require_map_field(app_k, "elds", "Holoholo.Rpc.RaidDetailsContainer", 0x578);
 
     Root gym_ctrl(read_field_val<void*>(approach_ui, f_gym_ctrl));
     require(gym_ctrl && gym_ctrl_matches_target(gym_ctrl.get()),
@@ -672,7 +691,7 @@ bool real_inspect_approach_costs(void* approach_ui,
 void real_press_approach_join(void* approach_ui) {
     require(unity_obj_alive(approach_ui), "RaidApproachUIController unavailable for join");
     void* app_k = obj_klass(approach_ui);
-    void* f_gym_ctrl = require_map_field(app_k, "ekir", "Niantic.Holoholo.Gym.IGymRootController", 0x3b0);
+    void* f_gym_ctrl = require_map_field(app_k, "elbj", "Niantic.Holoholo.Gym.IGymRootController", 0x3c0);
     Root gym_ctrl(read_field_val<void*>(approach_ui, f_gym_ctrl));
     require(gym_ctrl && gym_ctrl_matches_target(gym_ctrl.get()),
             "Refusing OnJoinButtonPressed: RaidApproachUIController does not match target gym");
@@ -695,7 +714,7 @@ void real_exit_raid_or_gym(void* approach_ui, void* raid_state, void* gym_root_s
         approach_ui=found.get();
     }
     if(approach_ui && unbox_val<bool>(call_obj(approach_ui,"get_IsOpen",0))){
-        Root ctrl(read_field_val<void*>(approach_ui,require_map_field(obj_klass(approach_ui),"ekir","Niantic.Holoholo.Gym.IGymRootController",0x3b0)));
+        Root ctrl(read_field_val<void*>(approach_ui,require_map_field(obj_klass(approach_ui),"elbj","Niantic.Holoholo.Gym.IGymRootController",0x3c0)));
         const bool matches=ctrl && gym_ctrl_matches_target(ctrl.get());
         if(owned)require(matches,"Refusing to close an unrelated raid");
         if(!matches)return;
@@ -703,7 +722,7 @@ void real_exit_raid_or_gym(void* approach_ui, void* raid_state, void* gym_root_s
         return;
     }
     if(raid_state && obj_class_name(raid_state)=="RaidState"){
-        Root ctrl(read_field_val<void*>(raid_state,require_map_field(obj_klass(raid_state),"eldb","Niantic.Holoholo.Gym.IGymRootController",0x98)));
+        Root ctrl(read_field_val<void*>(raid_state,require_map_field(obj_klass(raid_state),"elwf","Niantic.Holoholo.Gym.IGymRootController",0x98)));
         if(!ctrl || !gym_ctrl_matches_target(ctrl.get()))return;
         void* exit=require_map_method(obj_klass(raid_state),"ExitGym",2,"System.Void",
              "Holoholo.Rpc.RaidEncounterProto","Niantic.Holoholo.Raid.RaidResolveInformation");
@@ -717,10 +736,11 @@ bool real_inspect_ticket_modal(void* approach_ui,
                                pgr_auto_raid::EntryCostOption& out_selected_cost,
                                bool& out_coin_flag) {
     out_modal.reset();
+    if (real_close_received_pass_notice()) return false;
     if (approach_ui && unity_obj_alive(approach_ui)) {
         void* f_modal = require_map_field(
-            obj_klass(approach_ui), "ekkk",
-            "Niantic.Holoholo.UI.Raids.IUseRaidTicketGuiController", 0x518);
+            obj_klass(approach_ui), "eldc",
+            "Niantic.Holoholo.UI.Raids.IUseRaidTicketGuiController", 0x528);
         Root modal(read_field_val<void*>(approach_ui, f_modal));
         if (modal && unity_obj_alive(modal.get())) {
             out_modal = std::move(modal);
@@ -734,9 +754,9 @@ bool real_inspect_ticket_modal(void* approach_ui,
     if (!unbox_val<bool>(call_obj(out_modal.get(), "get_IsOpen", 0))) return false;
 
     void* modal_k = obj_klass(out_modal.get());
-    void* f_cost_svc      = require_map_field(modal_k, "eeiq", "Niantic.Holoholo.Services.IRaidEntryCostService", 0x1e8);
-    void* f_selected_cost = require_map_field(modal_k, "eeiw", "Holoholo.Rpc.RaidEntryCostProto", 0x208);
-    void* f_coin_flag     = require_map_field(modal_k, "eejb", "System.Boolean", 0x230);
+    void* f_cost_svc      = require_map_field(modal_k, "eezt", "Niantic.Holoholo.Services.IRaidEntryCostService", 0x1e8);
+    void* f_selected_cost = require_map_field(modal_k, "eezz", "Holoholo.Rpc.RaidEntryCostProto", 0x208);
+    void* f_coin_flag     = require_map_field(modal_k, "efae", "System.Boolean", 0x230);
 
     Root selected_proto(read_field_val<void*>(out_modal.get(), f_selected_cost));
     Root cost_svc(read_field_val<void*>(out_modal.get(), f_cost_svc));
@@ -758,7 +778,7 @@ void real_confirm_modal_ticket(void* modal) {
     void* modal_k = obj_klass(modal);
 
     require(unbox_val<bool>(call_obj(modal,"get_IsOpen",0)),"Raid pass modal is no longer open");
-    Root data(read_field_val<void*>(modal,require_map_field(modal_k,"eeiv",nullptr,0x200)));
+    Root data(read_field_val<void*>(modal,require_map_field(modal_k,"eezy",nullptr,0x200)));
     require(bool(data),"Raid pass modal data unavailable");
     const bool returns_cost=read_field_val<uint8_t>(data.get(),require_map_field(obj_klass(data.get()),"ReturnChosenEntry","System.Boolean",0x18))!=0;
     emit_raw_event("{\"token\":"+json_quote(std::to_string(session.command.token))+",\"phase\":\"pass-confirm-diagnostic\",\"returnsSelectedCost\":"+(returns_cost?"true":"false")+"}");
@@ -789,7 +809,7 @@ bool real_poll_lobby_state(Root& out_lobby_ui,
 
     void* ui = out_lobby_ui.get();
     void* ui_k = obj_klass(ui);
-    Root ctrl(read_field_val<void*>(ui,require_map_field(ui_k,"ekrr","Niantic.Holoholo.Gym.IGymRootController",0x348)));
+    Root ctrl(read_field_val<void*>(ui,require_map_field(ui_k,"elku","Niantic.Holoholo.Gym.IGymRootController",0x348)));
     if(!ctrl || !gym_ctrl_matches_target(ctrl.get()))return false;
     out_battle_started = unbox_val<bool>(call_obj(ui, "get_BattleStarted", 0));
     if(!out_battle_started && !unbox_val<bool>(call_obj(ui,"get_IsOpen",0)))return false;
@@ -798,7 +818,7 @@ bool real_poll_lobby_state(Root& out_lobby_ui,
     out_has_countdown = false;
     out_countdown_ms  = 0;
 
-    void* f_lobby_proto = require_map_field(ui_k, "ektx", "Holoholo.Rpc.LobbyProto", 0x4e8);
+    void* f_lobby_proto = require_map_field(ui_k, "elna", "Holoholo.Rpc.LobbyProto", 0x4e8);
     if (Root lobby_proto = Root(read_field_val<void*>(ui, f_lobby_proto))) {
         void* lp_k = obj_klass(lobby_proto.get());
         void* f_players=require_map_field(lp_k,"Players",
@@ -819,7 +839,7 @@ bool real_poll_lobby_state(Root& out_lobby_ui,
     }
 
     if (out_player_count <= 0) {
-        void* f_details = require_map_field(ui_k, "ekty", "Holoholo.Rpc.RaidDetailsContainer", 0x4f0);
+        void* f_details = require_map_field(ui_k, "elnb", "Holoholo.Rpc.RaidDetailsContainer", 0x4f0);
         if (Root details = Root(read_field_val<void*>(ui, f_details))) {
             if (unbox_val<bool>(call_obj(details.get(), "get_HasValidInfo", 0))) {
                 const int32_t num_p = unbox_val<int32_t>(call_obj(details.get(), "get_NumPlayersInLobby", 0));
@@ -842,7 +862,7 @@ void real_leave_lobby(void* lobby_ui, void* raid_state) {
 bool real_is_battle_active() {
     if(!session.lobby_ui || !unity_obj_alive(session.lobby_ui.get()))return false;
     Root ctrl(read_field_val<void*>(session.lobby_ui.get(),require_map_field(obj_klass(session.lobby_ui.get()),
-            "ekrr","Niantic.Holoholo.Gym.IGymRootController",0x348)));
+            "elku","Niantic.Holoholo.Gym.IGymRootController",0x348)));
     if(!ctrl || !gym_ctrl_matches_target(ctrl.get()))return false;
     return unbox_val<bool>(call_obj(session.lobby_ui.get(),"get_BattleStarted",0));
 }
@@ -860,10 +880,10 @@ bool real_poll_resolve_state(Root& out_resolve_ui, int& out_battle_status, bool&
     const int32_t gui_state = read_field_val<int32_t>(gui, f_state);
     if (gui_state != 1 && gui_state != 2) return false;
 
-    void* f_closing = require_map_field(gui_k, "elcv", "System.Boolean", 0x340);
+    void* f_closing = require_map_field(gui_k, "elvz", "System.Boolean", 0x340);
     if (read_field_val<uint8_t>(gui, f_closing) != 0) return false;
 
-    void* f_status = require_map_field(gui_k, "elcj", "Niantic.Holoholo.Battle.BattleStatus", 0x2e4);
+    void* f_status = require_map_field(gui_k, "elvn", "Niantic.Holoholo.Battle.BattleStatus", 0x2e4);
     const int32_t raw_status = read_field_val<int32_t>(gui, f_status);
     void* status_k = resolve_class("Niantic.Holoholo.Battle", "BattleStatus");
     const int victory_val   = read_enum_literal(status_k, "Victory");

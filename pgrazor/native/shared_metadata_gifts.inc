@@ -79,7 +79,8 @@ int do_gifts(Ctx &c) {
   GIFT_METHOD("6195","HandleOpenComplete",VOID,nullptr,{},SHEET_READY);
   GIFT_METHOD("6195","HandleDismiss",VOID,nullptr,{},SHEET_CLOSE);
   GIFT_METHOD("6164","GetStickerInventory",nullptr,inventory_pred,(std::initializer_list<MParam>{{BOOL,nullptr}}),INVENTORY);
-  GIFT_METHOD("6258",PGR_GAME_SHARED_METADATA_GIFTS_INC_BMXC_NAME,VOID,nullptr,(std::initializer_list<MParam>{{STICKER,nullptr}}),SEL_STICKER);
+  // Fixed code keys: the method names are obfuscated and change with the game version.
+  if((rc=pinned(gift_class("6258"),"6258.bmxc",PGR_GAME_SHARED_METADATA_GIFTS_INC_BMXC_NAME,VOID,nullptr,{{STICKER,nullptr}},H_GF_M_SEL_STICKER,H_GF_M_SEL_STICKER_CODE)))return rc;
   GIFT_METHOD("6164","StickerCountExcludingReserved",INT,nullptr,(std::initializer_list<MParam>{{STICKER,nullptr}}),QUANTITY);
   GIFT_METHOD("6164","AnyStickers",BOOL,nullptr,{},ANY_STICKERS);
   if((rc=plain(c.out->opt_classes[OC_BEHAVIOUR],"get_isActiveAndEnabled",BOOL,nullptr,{},false,H_GF_M_ACTIVE)))return rc;
@@ -118,7 +119,7 @@ int do_gifts(Ctx &c) {
   if((rc=ref_field(c,gift_class("6268"),PGR_GAME_SHARED_METADATA_GIFTS_INC_H_GF_SELECTED_CLASS_NAME,PGR_GAME_SHARED_METADATA_GIFTS_INC_H_GF_SELECTED_CLASS_OFFSET,&H[H_GF_F_SELECTED],&H[H_GF_SELECTED_CLASS])))return rc;
   if((rc=plain(H[H_GF_SELECTED_CLASS],"Invoke",VOID,nullptr,{{DETAILS,nullptr}},true,H_GF_M_SEL_FIRST)))return rc;
   GIFT_METHOD("6268","ExitGui",VOID,nullptr,{},LIST_EXIT);
-  GIFT_METHOD("6258",PGR_GAME_SHARED_METADATA_GIFTS_INC_BMXM_NAME,VOID,nullptr,(std::initializer_list<MParam>{{"Holoholo.Rpc.SendGiftOutProto",nullptr}}),SEND_RESULT);
+  if((rc=pinned(gift_class("6258"),"6258.bmxm",PGR_GAME_SHARED_METADATA_GIFTS_INC_BMXM_NAME,VOID,nullptr,{{"Holoholo.Rpc.SendGiftOutProto",nullptr}},H_GF_M_SEND_RESULT,H_GF_M_SEND_RESULT_CODE)))return rc;
   if((rc=enum_i32_field(c,c.out->opt_classes[OC_SEND_GIFT_OUT],PGR_GAME_SHARED_METADATA_GIFTS_INC_H_GF_F_SEND_RESULT_NAME,PGR_GAME_SHARED_METADATA_GIFTS_INC_H_GF_F_SEND_RESULT_OFFSET,&H[H_GF_F_SEND_RESULT],&enum_class)))return rc;
   if((rc=enum_literal(c,enum_class,"Success",false,"gift-send-success",&c.out->opt_ints[I_GIFT_SEND_SUCCESS])))return rc;
   if((rc=ref_field(c,gift_class("6268"),PGR_GAME_SHARED_METADATA_GIFTS_INC_H_GF_ROWS_CLASS_NAME,PGR_GAME_SHARED_METADATA_GIFTS_INC_H_GF_ROWS_CLASS_OFFSET,&H[H_GF_F_ROWS],&H[H_GF_ROWS_CLASS])))return rc;

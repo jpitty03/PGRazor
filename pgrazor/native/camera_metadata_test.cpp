@@ -92,7 +92,7 @@ Field *vec_fields[kFieldCount]{};
 Method *slot_methods[kMethodCount]{};
 
 Image img_core{"UnityEngine.CoreModule.dll"};
-Image img_holo{"holo-game.dll"};
+Image img_holo{PGR_GAME_CAMERA_METADATA_H_GAME_IMAGE_NAME};
 Image img_corlib{"mscorlib.dll"};
 Image img_filler{"filler.dll"};
 int domain_token = 1, thread_token = 1, stub_token = 1;
@@ -356,7 +356,7 @@ Method *add_method(Class *owner, const char *name, Type *ret, bool is_static,
 
 void build_fixture() {
   assert(kClassCount == 11 && kFieldCount == 3 && kMethodCount == 8 && kTargetCount == 5);
-  assert(PGR_CAM_MAIN_CAMERA_RVA == 0xad81ea8u);
+  assert(PGR_CAM_MAIN_CAMERA_RVA == 0x93f04acu);
   assert(kDebugPrologueLen == 80 && kGetMainCameraByteLen == 8);
 
   uint64_t top = PGR_CAM_MAIN_CAMERA_RVA + 64ULL;

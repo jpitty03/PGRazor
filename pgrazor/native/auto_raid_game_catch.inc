@@ -43,7 +43,7 @@ void real_validate_catch_bindings() {
     void* sgui_k   = resolve_class("Niantic.Holoholo.Encounter", "EncounterSummaryGuiController");
 
     // EncounterGuiController.btuk() -> IEncounterState : shared-GUI encounter-state accessor.
-    require_method_ret(gui_k, "btuk", 0, "Niantic.Holoholo.Encounter.IEncounterState");
+    require_method_ret(gui_k, "bvbl", 0, "Niantic.Holoholo.Encounter.IEncounterState");
 
     // EncounterState ownership + capture-completion surface.
     require_method_ret(state_k, "get_IsRaidOrIncidentEncounter", 0, "System.Boolean");
@@ -83,11 +83,11 @@ void real_validate_catch_bindings() {
            "Niantic.Promises.IPromise<Holoholo.Rpc.CatchPokemonOutProto>");
     require(type_name_of(catch_method_param_type(capture,0))=="Niantic.Holoholo.Encounter.PokeballThrow", "TryCapture throw type");
     require(type_name_of(catch_method_param_type(capture,1))=="Holoholo.Rpc.ARPlusEncounterValuesProto", "TryCapture AR type");
-    find_field_by_name_checked(raidpk_k,"eljb","Holoholo.Rpc.RaidEncounterProto");
+    find_field_by_name_checked(raidpk_k,"emcg","Holoholo.Rpc.RaidEncounterProto");
     void* proto=resolve_class("Holoholo.Rpc","RaidEncounterProto");
     find_field_by_name_checked(proto,"FortId","System.String");
     find_field_by_name_checked(proto,"EncounterId","System.Int64");
-    require_method_ret(sgui_k,"btim",0,"Niantic.Holoholo.Encounter.IEncounterState");
+    require_method_ret(sgui_k,"bupo",0,"Niantic.Holoholo.Encounter.IEncounterState");
 }
 
 // ============================================================================================
@@ -98,8 +98,8 @@ Root resolve_live_encounter_state() {
     // Primary: the shared encounter GUI controller is a live MonoBehaviour during any encounter.
     if (void* gui_k = resolve_class_optional("Niantic.Holoholo.Encounter", "EncounterGuiController")) {
         if (Root gui = find_live_unity_object(gui_k)) {
-            if (find_method_in_hierarchy(obj_klass(gui.get()), "btuk", 0)) {
-                if (Root st = Root(call_obj(gui.get(), "btuk", 0))) {
+            if (find_method_in_hierarchy(obj_klass(gui.get()), "bvbl", 0)) {
+                if (Root st = Root(call_obj(gui.get(), "bvbl", 0))) {
                     if (obj_class_name(st.get()) == "EncounterState") return st;
                 }
             }
@@ -108,8 +108,8 @@ Root resolve_live_encounter_state() {
     // Fallback: the Coordinated2 raid encounter view exposes the same IEncounterState accessor.
     if (void* coord_k = resolve_class_optional("Niantic.Holoholo.Encounter", "Coordinated2RaidEncounter")) {
         if (Root coord = find_live_unity_object(coord_k)) {
-            if (find_method_in_hierarchy(obj_klass(coord.get()), "btzb", 0)) {
-                if (Root st = Root(call_obj(coord.get(), "btzb", 0))) {
+            if (find_method_in_hierarchy(obj_klass(coord.get()), "bvgc", 0)) {
+                if (Root st = Root(call_obj(coord.get(), "bvgc", 0))) {
                     if (obj_class_name(st.get()) == "EncounterState") return st;
                 }
             }
@@ -126,7 +126,7 @@ bool real_poll_raid_encounter(Root& io_state, Root& io_pokemon, bool& shiny, int
        !unbox_val<bool>(call_obj(state.get(),"get_EncounterStrategyReady",0))) return false;
     Root pokemon(call_obj(state.get(),"get_MapPokemon",0));
     if(!pokemon || obj_class_name(pokemon.get())!="RaidMapPokemon" || !unity_obj_alive(pokemon.get())) return false;
-    Root proto(read_field_val<void*>(pokemon.get(),find_field_by_name_checked(obj_klass(pokemon.get()),"eljb","Holoholo.Rpc.RaidEncounterProto")));
+    Root proto(read_field_val<void*>(pokemon.get(),find_field_by_name_checked(obj_klass(pokemon.get()),"emcg","Holoholo.Rpc.RaidEncounterProto")));
     require(bool(proto),"Raid catch identity unavailable");
     Root fort(read_field_val<void*>(proto.get(),find_field_by_name_checked(obj_klass(proto.get()),"FortId","System.String")));
     require(!session.target.fort_id.empty() && read_managed_string(fort.get())==session.target.fort_id,
@@ -157,7 +157,7 @@ Root real_submit_raid_throw(void* state, void* pokemon, int ball) {
 // constructing a wild-encounter berry RPC. Its own continuation updates inventory.
 bool real_ensure_berry_ready() {
     void* gui=resolve_class("Niantic.Holoholo.Encounter","EncounterGuiController");
-    require_map_method(gui,"btul",0,"Niantic.Holoholo.Encounter.IEncounterInteractionState");
+    require_map_method(gui,"bvbm",0,"Niantic.Holoholo.Encounter.IEncounterInteractionState");
     void* interaction=resolve_class("Niantic.Holoholo.Encounter","EncounterInteractionState");
     require_map_method(interaction,"get_ActiveBerry",0,"Holoholo.Rpc.Item");
     require_map_method(interaction,"set_ActiveBerry",1,"System.Void","Holoholo.Rpc.Item");
@@ -190,9 +190,9 @@ Root owned_berry_interaction(void* state,void* pokemon) {
             "Raid berry owner unavailable");
     Root gui=find_live_unity_object(resolve_class("Niantic.Holoholo.Encounter","EncounterGuiController"));
     if(!gui)return {};
-    Root owner(call_obj(gui.get(),"btuk",0));
+    Root owner(call_obj(gui.get(),"bvbl",0));
     require(owner && owner.get()==state,"Raid berry belongs to another encounter");
-    Root interaction(call_obj(gui.get(),"btul",0));
+    Root interaction(call_obj(gui.get(),"bvbm",0));
     // This is a managed state, not a Unity scene object. The live GUI and its
     // exact EncounterState owner establish liveness; keep the state GC-rooted.
     if(!interaction)return {};
@@ -308,7 +308,7 @@ int real_poll_catch_promise(void* promise, uint64_t tid, int& out_catch_status) 
 void real_close_encounter_summary(){
     Root gui=find_live_unity_object(resolve_class("Niantic.Holoholo.Encounter","EncounterSummaryGuiController"));
     if(!gui)return;
-    Root owner(call_obj(gui.get(),"btim",0));
+    Root owner(call_obj(gui.get(),"bupo",0));
     if(!owner || owner.get()!=session.coord_encounter.get())return;
     invoke_method(const_cast<void*>(md->methods[1]),gui.get(),nullptr);
 }

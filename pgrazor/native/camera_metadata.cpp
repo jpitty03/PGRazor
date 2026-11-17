@@ -390,7 +390,7 @@ int resolve(const PgrCameraMetaConfig *input, PgrCameraMetaOutput *out) {
     int rc = read_meta_string(image_name(candidate), &iname);
     if (rc != 0) return rc;
     if (iname == "UnityEngine.CoreModule.dll") core_image = candidate;
-    if (c.continuous && iname == "holo-game.dll") game_image = candidate;
+    if (c.continuous && iname == PGR_GAME_CAMERA_METADATA_H_GAME_IMAGE_NAME) game_image = candidate;
     if (core_image && (!c.continuous || game_image)) break;
   }
   if (!core_image) return set_status_reason(out, PGR_CAM_RETRY, "core-module-not-found-within-bound");

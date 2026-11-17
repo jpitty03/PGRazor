@@ -1,4 +1,4 @@
-"""Neutral metadata validation and checked 0.435.2 generated-table parity."""
+"""Neutral metadata validation and checked 0.437.0 generated-table parity."""
 import copy
 import hashlib
 import importlib.util
@@ -23,7 +23,7 @@ GIFTS = generator('native_gift_schema')
 
 
 def body_digest(text):
-    # Recorded from the 0.435.2 tables checked against signed game metadata/code.
+    # Recorded from the 0.437.0 tables checked against signed game metadata/code.
     # Excludes only whole-line comments; all C++ tables, row comments, indices,
     # declarations, ordering, byte values and literal types remain covered.
     body = '\n'.join(line for line in text.splitlines() if not line.startswith('//')) + '\n'
@@ -41,7 +41,7 @@ class NativeSchemaTests(unittest.TestCase):
         self.assertEqual((len(classes), len(fields), len(methods)), (15, 24, 18))
         self.assertEqual(list(indices.values()), list(range(15)))
         output = ROUTES.render(source)
-        self.assertEqual(body_digest(output), '9f52b194e276c74650b1217a8282dc5f727f0d286b6ea356fd17eeeb6aa37472')
+        self.assertEqual(body_digest(output), 'd33cd621c9776b20e1ab7fb196fe55f6bdcd77dd0eeafb677fccf4fc75b6ddff')
         # read_text normalizes line endings so a CRLF checkout of the LF
         # header still matches; raw bytes would differ under core.autocrlf.
         self.assertEqual(output, ROUTES.OUTPUT.read_text(encoding='utf-8'))
@@ -50,7 +50,7 @@ class NativeSchemaTests(unittest.TestCase):
         values = GIFTS.parse(json.dumps(self.gifts))
         self.assertEqual((len(values['GIFT_TYPES']), len(values['GIFT_CODE'])), (11, 36))
         output = GIFTS.render(values)
-        self.assertEqual(body_digest(output), 'c2f1bb07c98179b3ba3746274bb7ba8dda4389747bc134a38ba9864d83b24cba')
+        self.assertEqual(body_digest(output), '384a90873b388a4a0593f5729b5a05686fe23da62792a0cab862fe9187d666c8')
         self.assertEqual(output, GIFTS.OUTPUT.read_text(encoding='utf-8'))
 
     def test_production_inputs_are_neutral_json(self):

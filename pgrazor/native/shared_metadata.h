@@ -145,7 +145,7 @@ inline constexpr ClassSpec kOptClasses[] = {
   {"IENUMERATOR",         "System.Collections",                          "IEnumerator",                               "System.Collections.IEnumerator"},                   // 30
   {"IDISPOSABLE",         "System",                                      "IDisposable",                               "System.IDisposable"},                               // 31
   {"GIFT_BOX_PROTO",      "Holoholo.Rpc",                                "GiftBoxProto",                              "Holoholo.Rpc.GiftBoxProto"},                        // 32
-  {"GIFT_OPEN_SEQ",       "Niantic.Holoholo.Social.Gifting.UI.OpenGiftGuiController", PGR_GAME_SHARED_METADATA_H_DBN_NAME,                          "Niantic.Holoholo.Social.Gifting.UI.OpenGiftGuiController.dbn"}, // 33
+  {"GIFT_OPEN_SEQ",       "Niantic.Holoholo.Social.Gifting.UI.OpenGiftGuiController", PGR_GAME_SHARED_METADATA_H_DBN_NAME,                          "Niantic.Holoholo.Social.Gifting.UI.OpenGiftGuiController.dho"}, // 33
   {"OPEN_GIFT_OUT",       "Holoholo.Rpc",                                "OpenGiftOutProto",                          "Holoholo.Rpc.OpenGiftOutProto"},                    // 34
   {"SEND_GIFT_OUT",       "Holoholo.Rpc",                                "SendGiftOutProto",                          "Holoholo.Rpc.SendGiftOutProto"},                    // 35
   {"BUDDY_7757",          "Niantic.Holoholo.Buddy",                      "BuddyObservedDataExt",                      "Niantic.Holoholo.Buddy.BuddyObservedDataExt"},      // 36

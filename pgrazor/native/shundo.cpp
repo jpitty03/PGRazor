@@ -365,9 +365,10 @@ void hook_pokestop_selected(void *self,void *stop,void *done,void *flag,const vo
  if(block_now()){note_blocked("pokestop");return;}
  reinterpret_cast<void(*)(void*,void*,void*,void*,const void*)>(orig_stop.load(std::memory_order_acquire))(self,stop,done,flag,m);
 }
-void hook_gym_selected(void *self,void *gym,void *flag,void *done,void *context,const void *m){
+// 0.437.0 added a fifth argument (IncompleteRaidRecoveryData, a reference).
+void hook_gym_selected(void *self,void *gym,void *flag,void *done,void *context,void *recovery,const void *m){
  if(block_now()){note_blocked("gym");return;}
- reinterpret_cast<void(*)(void*,void*,void*,void*,void*,const void*)>(orig_gym.load(std::memory_order_acquire))(self,gym,flag,done,context,m);
+ reinterpret_cast<void(*)(void*,void*,void*,void*,void*,void*,const void*)>(orig_gym.load(std::memory_order_acquire))(self,gym,flag,done,context,recovery,m);
 }
 bool pin(void *owner,const char *name,unsigned params,uint64_t rva,const uint8_t *prologue,void *replacement,std::atomic<void*> &original){
  const auto *api=static_cast<const PgrMetaApi*>(pgrazor_runtime_metadata_api(1));if(!api)return false;
@@ -386,7 +387,7 @@ void install_block(){
  std::string missing;
  if(!pin(state,"PokemonSelected",2,PGR_GAME_SHUNDO_CPP_POKEMON_SELECTED_RVA,p_pokemon,reinterpret_cast<void*>(hook_pokemon_selected),orig_pokemon))missing+="Pokémon ";
  if(!pin(state,"PokestopSelected",3,PGR_GAME_SHUNDO_CPP_POKESTOP_SELECTED_RVA,p_stop,reinterpret_cast<void*>(hook_pokestop_selected),orig_stop))missing+="PokéStops ";
- if(!pin(state,"GymSelected",4,PGR_GAME_SHUNDO_CPP_GYM_SELECTED_RVA,p_gym,reinterpret_cast<void*>(hook_gym_selected),orig_gym))missing+="gyms ";
+ if(!pin(state,"GymSelected",5,PGR_GAME_SHUNDO_CPP_GYM_SELECTED_RVA,p_gym,reinterpret_cast<void*>(hook_gym_selected),orig_gym))missing+="gyms ";
  if(!missing.empty())event("block-unavailable",",\"message\":\"Taps not blocked on: "+missing+"\"");
 }
 }  // namespace

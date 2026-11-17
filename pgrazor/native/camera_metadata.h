@@ -220,7 +220,7 @@ struct PgrCameraMetaOutput {
   uint32_t target_count;                                 // 16..19  4 or 5 on OK, else 0
   uint32_t reserved;                                     // 20..23  0
   const void *core_image;                                // 24..31  UnityEngine.CoreModule.dll image
-  const void *game_image;                                // 32..39  holo-game.dll image (continuous)
+  const void *game_image;                                // 32..39  image defining the rig classes (continuous)
   const void *corlib_image;                              // 40..47  get_corlib() image (sampleCamera)
   const void *execute;                                   // 48..55  ExecuteTasks MethodInfo*
   const void *debug_address;                             // 56..63  debug_get_method_info (continuous)

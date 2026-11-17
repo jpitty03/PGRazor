@@ -137,7 +137,7 @@ int do_map_poi_extra(Ctx &c) {
   if(K[OC_PK]){H[H_MPE_BOSS_CLASS]=K[OC_PK];
     if((rc=map_field(c,K[OC_RAID_INFO],"RaidPokemon","Holoholo.Rpc.PokemonProto",&H[H_MPE_BOSS])))return rc;
     if((rc=map_field(c,K[OC_PK],"pokemonId_","System.Int32",&H[H_MPE_BOSS_ID])))return rc;}
-  if((rc=map_method(c,H_MPE_TEAM_M,OC_MAP_GYM,"get_GymDisplayTeam","Niantic.Holoholo.Team")))return rc;
+  if((rc=map_method(c,H_MPE_TEAM_M,OC_MAP_GYM,"get_GymDisplayTeam","Niantic.Holoholo.VisualTeam")))return rc;
   const void *team_type=reinterpret_cast<const void *(*)(const void*)>(c.core->method_get_return_type)(H[H_MPE_TEAM_M]);
   const void *team=reinterpret_cast<const void *(*)(const void*)>(c.core->class_from_type)(team_type);
   if((rc=map_enum(c,team,c.out->team_names,&c.out->team_name_count,kTeamNameMax)))return rc;
