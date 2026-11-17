@@ -74,6 +74,8 @@ int result_value(void *o){auto f=fn<void*(*)(void*,const char*)>(boot.meta.class
 bool success(void *o){auto f=fn<void*(*)(void*,const char*)>(boot.meta.class_get_field_from_name)(klass(o),"Result");require(f,"Result");auto k=fn<void*(*)(void*)>(boot.meta.class_from_type)(fn<void*(*)(void*)>(boot.meta.field_get_type)(f));return result_value(o)==literal(k,"Success");}
 int count(Root &list,int cap){int n=boxed<int>(call(list.get(),"get_Count"),"System.Int32");require(n>=0&&n<=cap,"collection bound");return n;}
 Root item(Root &list,int index){void *args[]={&index};return Root(call(list.get(),"get_Item",1,args));}
+// Pause between confirmed gift requests.
+constexpr uint64_t kGiftPauseMs=300;
 void *virtual_call(Root &o,void *m,void **args=nullptr){void *v=fn<void*(*)(void*,void*)>(exp("object_get_virtual_method"))(o.get(),m);require(v,"virtual method");return invoke(v,o.get(),args);}
 struct Command {uint64_t token=0;bool enabled=false,full_bag=false;};
 bool parse(const char *s,size_t n,Command &out){
@@ -99,7 +101,7 @@ struct Session {
  std::vector<Friend> recipients;std::vector<uint64_t> sendable;std::vector<Gift> received;
  std::set<std::string> seen_friends;std::set<uint64_t> seen_gifts;
  size_t friend_cursor=0,gift_cursor=0,open_cursor=0;unsigned scanned=0,sent=0,opened=0,skipped=0;
- Stage stage=LIST;uint64_t since=0,next=0,started=0;bool send_authorized=false;
+ Stage stage=LIST;uint64_t since=0,next=0,started=0;bool send_authorized=false,pending_lookup=true;
 };
 Session session;bool busy=false;
 std::string quote(const std::string &s){std::string out="\"";for(unsigned char c:s){if(c=='"'||c=='\\')out+='\\';if(c>=32)out+=char(c);}return out+'"';}
@@ -205,7 +207,7 @@ void poll(){
    finish("done",reason=="ErrorPlayerLimitReached"?"Daily opening limit reached":"Opening stopped: item bag full");return;
   }
  }
- session.next=clock_ms()+700;
+ session.next=clock_ms()+kGiftPauseMs;
  event("running",ok?"Gift action confirmed":"Skipped: "+reason);
  if(session.canceled)finish("stopped","Batch stopped");
 }
@@ -215,8 +217,24 @@ bool manual_request_pending(){
  auto ig=static_cast<const PgrIncomingGiftsApi*>(pgrazor_incoming_gifts_api(1));PgrIncomingGiftsSample b{};
  return ig&&!ig->sample(&b)&&b.owned&&b.attempted;
 }
+// The game's own record of a gift this friend has not opened yet (GiftingService.HasSentGiftToFriend over
+// the player's gift boxes; the friend list draws its gift-sent icon from it). Such a friend cannot be
+// sent another, so asking the server about them is skipped. A friend it does not know about still gets
+// the server's eligibility check, and a missing lookup only turns this shortcut off.
+bool gift_pending(const Friend &f){
+ if(!session.pending_lookup)return false;
+ try{
+  Root id(fn<void*(*)(const char*)>(boot.runtime.string_new)(f.id.c_str()));int64_t since=0;void *args[]={id.get(),&since};
+  return boxed<bool>(call(session.gifting.get(),"HasSentGiftToFriend",2,args),"System.Boolean");
+ }catch(const Failure&){session.pending_lookup=false;return false;}
+}
 void advance(){
  if(session.stage==DISCOVER){discover();return;}
+ if(session.stage==SEND_CHECK&&session.gift_cursor<session.sendable.size()){
+  unsigned passed=0;
+  while(session.friend_cursor<session.recipients.size()&&passed<64&&gift_pending(session.recipients[session.friend_cursor])){++session.friend_cursor;++session.skipped;++passed;}
+  if(passed==64)return;  // long list: continue on the next tick
+ }
  if(session.stage==SEND_CHECK||session.stage==SEND){
   if(session.friend_cursor>=session.recipients.size()||session.gift_cursor>=session.sendable.size()){session.stage=OPEN;event("running","Opening received gifts");return;}
   auto &f=session.recipients[session.friend_cursor];Root id(fn<void*(*)(const char*)>(boot.runtime.string_new)(f.id.c_str()));
