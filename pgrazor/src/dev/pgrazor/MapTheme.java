@@ -3,85 +3,59 @@ package dev.pgrazor;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
-import android.content.res.ColorStateList;
-import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
-import android.graphics.drawable.GradientDrawable;
-import android.graphics.drawable.RippleDrawable;
 import android.os.Build;
-import android.view.ContextThemeWrapper;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowInsets;
 import android.widget.Button;
-import android.widget.CompoundButton;
 import android.widget.TextView;
 
 /**
  * Shared dark/light palette and full-screen helpers so the world map and cooldown history match the
- * PGRazor settings panel ({@link Pad}). Map tiles keep their original raster colours; only the
- * surrounding chrome — text, buttons, checkboxes and nested dialogs — is themed.
+ * PGRazor settings panel ({@link Pad}). Every colour delegates to {@link SettingsUi}, the single token
+ * source. Map tiles keep their original raster colours; only the surrounding chrome — text, buttons,
+ * checkboxes and nested dialogs — is themed.
  */
 final class MapTheme {
     private MapTheme() {}
 
     static boolean dark() { return Control.darkTheme(); }
-    static int ink()     { return dark() ? Color.rgb(235, 241, 246) : Color.rgb(25, 35, 47); }
-    static int muted()   { return dark() ? Color.rgb(154, 171, 187) : Color.rgb(88, 105, 121); }
-    static int surface() { return dark() ? Color.rgb(20, 27, 37)    : Color.rgb(249, 251, 253); }
-    static int accent()  { return dark() ? Color.rgb(69, 225, 186)  : Color.rgb(0, 116, 92); }
+    static int ink()     { return SettingsUi.ink(); }
+    static int muted()   { return SettingsUi.muted(); }
+    static int surface() { return SettingsUi.surface(); }
+    static int accent()  { return SettingsUi.accent(); }
 
     /** A dialog-themed context so nested AlertDialogs follow the chosen dark/light appearance. */
     static Context wrap(Activity activity) {
-        return new ContextThemeWrapper(activity, dark()
-            ? android.R.style.Theme_Material_Dialog_Alert : android.R.style.Theme_Material_Light_Dialog_Alert);
+        return SettingsUi.dialogContext(activity);
     }
 
-    static int dp(Context c, float value) { return Math.round(value * c.getResources().getDisplayMetrics().density); }
+    static int dp(Context c, float value) { return SettingsUi.dp(c, value); }
 
-    private static GradientDrawable rounded(Context c, int color, int radius) {
-        GradientDrawable d = new GradientDrawable(); d.setColor(color); d.setCornerRadius(dp(c, radius)); return d;
-    }
-
-    /**
-     * The app's button look: a raised fill with a thin outline, inset slightly so buttons placed side
-     * by side keep a visible gap instead of merging into one block.
-     */
+    /** The app's button look: a raised fill with a hairline outline and the shared accent ripple. */
     static android.graphics.drawable.Drawable buttonBackground(Context c) {
-        GradientDrawable fill = rounded(c, dark() ? 0xff202b39 : 0xffedf2f6, 9);
-        fill.setStroke(dp(c, 1), dark() ? 0xff3a4d63 : 0xffc9d5df);
-        int inset = dp(c, 2);
-        return new RippleDrawable(ColorStateList.valueOf(0x3345e1ba), new android.graphics.drawable.InsetDrawable(fill, inset), null);
+        return SettingsUi.ripple(SettingsUi.shape(c, SettingsUi.raised(), 9, SettingsUi.border()));
     }
 
-    /** Applies {@link #buttonBackground}; an inset background would otherwise replace the label's padding. */
+    /** Applies {@link #buttonBackground}; the shared shape carries no inset, so label padding is untouched. */
     static void setButtonBackground(View view) {
-        int l = view.getPaddingLeft(), t = view.getPaddingTop(), r = view.getPaddingRight(), b = view.getPaddingBottom();
         view.setBackground(buttonBackground(view.getContext()));
-        view.setPadding(l, t, r, b);
     }
 
-    /** Recolours a panel: surface background, inked text, and the panel's buttons/checkboxes. */
+    /** Recolours a panel: page background, themed controls, and legible link text. */
     static void style(View root) {
         if (root == null) return;
-        root.setBackgroundColor(surface());
-        styleTree(root);
+        root.setBackgroundColor(SettingsUi.bg());
+        SettingsUi.styleTree(root.getContext(), root);
+        links(root);
     }
-    private static void styleTree(View view) {
-        Context c = view.getContext();
-        if (view instanceof TextView) {
-            TextView t = (TextView)view;
-            t.setTextColor(new ColorStateList(new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}}, new int[]{muted(), ink()}));
-            t.setLinkTextColor(accent()); // keep the OpenStreetMap attribution link legible and tappable
-        }
-        if (view instanceof Button && !(view instanceof CompoundButton)) setButtonBackground(view);
-        if (view instanceof CompoundButton) {
-            ((CompoundButton)view).setButtonTintList(new ColorStateList(new int[][]{new int[]{android.R.attr.state_checked}, new int[]{}}, new int[]{accent(), muted()}));
-        }
+    private static void links(View view) {
+        if (view instanceof TextView) ((TextView) view).setLinkTextColor(accent());
         if (view instanceof ViewGroup) {
-            ViewGroup g = (ViewGroup)view;
-            for (int i = 0; i < g.getChildCount(); i++) styleTree(g.getChildAt(i));
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) links(group.getChildAt(i));
         }
     }
 

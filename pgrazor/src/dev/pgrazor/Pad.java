@@ -76,16 +76,14 @@ public final class Pad {
     private void applyTheme(){
         settings.applyTheme();
         if(launcher!=null)launcher.invalidate();
-        if(joystickOverlay!=null){joystickOverlay.setBackground(null);stick.setAlpha(0.6f);styleTree(joystickOverlay);stick.invalidate();}
+        if(joystickOverlay!=null){joystickOverlay.setBackground(null);stick.setAlpha(0.78f);styleTree(joystickOverlay);stick.invalidate();}
         if(encounterBerry!=null)encounterBerry.invalidate();
-        if(cooldownTimer!=null)cooldownTimer.setBackground(rounded(Control.darkTheme()?0xcc141b25:0xccf1f5f8,12));
+        if(cooldownTimer!=null)cooldownTimer.setBackground(SettingsUi.pillBackground(activity));
         if(localTime!=null)localTime.applyTheme();
         // Status pill backgrounds depend only on the theme; refresh() must not reallocate them every tick.
-        if(gymAutomationStatus!=null)gymAutomationStatus.setBackground(rounded(surface(),8));
-        if(buddyEmotionStatus!=null)buddyEmotionStatus.setBackground(rounded(surface(),10));
-        if(automationStatus!=null)automationStatus.setBackground(rounded(surface(),8));
-        if(catchChance!=null)catchChance.setBackground(rounded(surface(),10));
-        if(vgpActivity!=null)vgpActivity.setBackground(rounded(surface(),10));
+        for(TextView pill:new TextView[]{gymAutomationStatus,buddyEmotionStatus,automationStatus,catchChance,vgpActivity,encounterBadge,shinyBadge}){
+            if(pill!=null)pill.setBackground(SettingsUi.pillBackground(activity));
+        }
         if(transferToggle!=null)transferToggle.invalidate();
         if(gameRoutesOverlay!=null)gameRoutesOverlay.invalidate();
         if(quickMenu!=null)quickMenu.applyTheme();
@@ -100,8 +98,14 @@ public final class Pad {
     private final class RazorIcon extends View {
         private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
         RazorIcon(Context c){super(c);setContentDescription("Open PGRazor settings. Drag to reposition.");setFocusable(true);setClickable(true);}
-        protected void onDraw(Canvas c){super.onDraw(c);float scale=Math.min(getWidth(),getHeight())/48f;c.save();c.scale(scale,scale);paint.setColor(surface());c.drawCircle(24,24,23,paint);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(1.5f);paint.setColor(accent());c.drawCircle(24,24,22,paint);paint.setStyle(Paint.Style.FILL);
-            Path r=new Path();r.moveTo(13,11);r.lineTo(29,11);r.lineTo(36,18);r.lineTo(29,26);r.lineTo(36,37);r.lineTo(26,37);r.lineTo(19,26);r.lineTo(19,37);r.lineTo(12,37);r.lineTo(17,19);r.lineTo(24,19);r.lineTo(23,22);r.lineTo(27,22);r.lineTo(30,18);r.lineTo(27,16);r.lineTo(12,16);r.close();c.drawPath(r,paint);c.restore();}
+        protected void onDraw(Canvas c){super.onDraw(c);float scale=Math.min(getWidth(),getHeight())/48f;c.save();c.scale(scale,scale);
+            paint.setStyle(Paint.Style.FILL);paint.setColor(surface());c.drawCircle(24,24,22.5f,paint);
+            paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(1.3f);paint.setColor(SettingsUi.border());c.drawCircle(24,24,22.1f,paint);
+            paint.setStyle(Paint.Style.FILL);paint.setColor(ink());
+            Path r=new Path();r.moveTo(13,11);r.lineTo(29,11);r.lineTo(36,18);r.lineTo(29,26);r.lineTo(36,37);r.lineTo(26,37);r.lineTo(19,26);r.lineTo(19,37);r.lineTo(12,37);r.lineTo(17,19);r.lineTo(24,19);r.lineTo(23,22);r.lineTo(27,22);r.lineTo(30,18);r.lineTo(27,16);r.lineTo(12,16);r.close();c.drawPath(r,paint);
+            // Status dot: the launcher doubles as a quiet "spoofing on" indicator.
+            paint.setColor(Control.desiredEnabled()?accent():SettingsUi.faint());c.drawCircle(38,38,3.6f,paint);
+            c.restore();}
     }
 
     private long lastTick = SystemClock.elapsedRealtime(), lastLog, lastPositionCheck;
@@ -124,7 +128,7 @@ public final class Pad {
 
         stick = new Stick(host);
         joystickOverlay = new LinearLayout(host); joystickOverlay.setOrientation(LinearLayout.VERTICAL);
-        TextView grip = text("• • •", 12, muted()); grip.setGravity(Gravity.CENTER); joystickOverlay.addView(grip, new LinearLayout.LayoutParams(-1, dp(28)));
+        TextView grip = text("•••", 10, SettingsUi.faint()); grip.setGravity(Gravity.CENTER); grip.setLetterSpacing(0.18f); joystickOverlay.addView(grip, new LinearLayout.LayoutParams(-1, dp(28)));
         joystickOverlay.addView(stick, new LinearLayout.LayoutParams(dp(136), dp(136))); draggable(grip, joystickOverlay, false);
 
         // The settings panel is a full-screen modal; it consumes taps so the game behind it stays inert.
@@ -142,7 +146,7 @@ public final class Pad {
         encounterBerry=new BerryOverlay(activity,this::refresh);
         FrameLayout.LayoutParams berryLayout=new FrameLayout.LayoutParams(dp(90),dp(50),Gravity.RIGHT|Gravity.CENTER_VERTICAL);berryLayout.rightMargin=dp(10);overlays.addView(encounterBerry,berryLayout);encounterBerry.setVisibility(View.GONE);
 
-        cooldownTimer=button("History  --:--");cooldownTimer.setTextSize(14);cooldownTimer.setAllCaps(false);cooldownTimer.setTextColor(accent());FrameLayout.LayoutParams timerLayout=new FrameLayout.LayoutParams(dp(165),dp(44),Gravity.TOP|Gravity.RIGHT);timerLayout.topMargin=dp(44);timerLayout.rightMargin=dp(12);overlays.addView(cooldownTimer,timerLayout);cooldownTimer.setOnClickListener(v->Cooldown.show(activity));cooldownDrag=OverlayDrag.attach(overlays,cooldownTimer,"cooldown");
+        cooldownTimer=button("History  --:--");cooldownTimer.setTextSize(13);cooldownTimer.setTypeface(SettingsUi.mono());cooldownTimer.setTextColor(accent());FrameLayout.LayoutParams timerLayout=new FrameLayout.LayoutParams(dp(168),dp(44),Gravity.TOP|Gravity.RIGHT);timerLayout.topMargin=dp(44);timerLayout.rightMargin=dp(12);overlays.addView(cooldownTimer,timerLayout);cooldownTimer.setOnClickListener(v->Cooldown.show(activity));cooldownDrag=OverlayDrag.attach(overlays,cooldownTimer,"cooldown");
 
         // Small local-time overlay: the wall-clock time at the spoofed coordinates, formatted offline by the view.
         localTime=new LocalTimeOverlay(host);FrameLayout.LayoutParams localTimeLayout=new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT,dp(32),Gravity.TOP|Gravity.RIGHT);localTimeLayout.rightMargin=dp(12);localTimeLayout.topMargin=dp(94);overlays.addView(localTime,localTimeLayout);localTime.setVisibility(View.GONE);localTimeDrag=OverlayDrag.attach(overlays,localTime,"local-time");
@@ -210,6 +214,11 @@ public final class Pad {
         });
         launcher.setOnClickListener(v->{if(quickMenu!=null)quickMenu.toggle();});draggable(launcher,launcher,true);
 
+        // Overlay status reads as telemetry: one monospace size, no per-tick font work.
+        for(TextView pill:new TextView[]{vgpActivity,buddyEmotionStatus,gymAutomationStatus,automationStatus,catchChance,encounterBadge}){
+            if(pill==null)continue;
+            pill.setTextSize(11);pill.setTypeface(SettingsUi.mono());
+        }
         settings.hide();joystickOverlay.setVisibility(Control.joystickVisible()?View.VISIBLE:View.GONE);applyTheme();
         unhideWatcher=new ThreeFingerWatcher(host);parent.addView(unhideWatcher,new FrameLayout.LayoutParams(-1,-1));
         refresh();parent.post(this::applyMapScale); handler.post(tick);
@@ -227,22 +236,24 @@ public final class Pad {
         private final Bitmap connected=decodeMapIcon("vgp-connected.png"),disconnected=decodeMapIcon("vgp-disconnected.png");
         VgpToggle(Context context){super(context);setFocusable(true);setClickable(true);}
         protected void onDraw(Canvas canvas){super.onDraw(canvas);boolean on=Control.vgpEnabled();canvas.save();canvas.scale(getWidth()/54f,getHeight()/54f);
-            paint.setStyle(Paint.Style.FILL);paint.setColor(surface());canvas.drawRoundRect(1,1,53,53,14,14,paint);
+            paint.setStyle(Paint.Style.FILL);paint.setColor(surface());canvas.drawRoundRect(1,1,53,53,13,13,paint);
+            paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(1.2f);paint.setColor(on?accent():SettingsUi.border());canvas.drawRoundRect(1,1,53,53,13,13,paint);
             Bitmap icon=on?connected:disconnected;
-            if(icon!=null&&icon.getWidth()>0&&icon.getHeight()>0){float box=32f,ratio=Math.min(box/icon.getWidth(),box/icon.getHeight()),w=icon.getWidth()*ratio,h=icon.getHeight()*ratio;dst.set(27-w/2f,21-h/2f,27+w/2f,21+h/2f);canvas.drawBitmap(icon,null,dst,art);}
-            else{paint.setColor(on?Color.rgb(33,188,125):Color.rgb(126,134,148));canvas.drawCircle(27,20,13,paint);paint.setColor(Color.WHITE);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(2.5f);canvas.drawArc(19,12,35,28,-55,290,false,paint);canvas.drawLine(27,8,27,20,paint);}
-            paint.setStyle(Paint.Style.FILL);paint.setColor(on?Color.rgb(33,188,125):muted());paint.setTextSize(11);paint.setTypeface(Typeface.DEFAULT_BOLD);paint.setTextAlign(Paint.Align.CENTER);canvas.drawText(on?"ON":"OFF",27,50,paint);
+            if(icon!=null&&icon.getWidth()>0&&icon.getHeight()>0){float box=30f,ratio=Math.min(box/icon.getWidth(),box/icon.getHeight()),w=icon.getWidth()*ratio,h=icon.getHeight()*ratio;dst.set(27-w/2f,20-h/2f,27+w/2f,20+h/2f);canvas.drawBitmap(icon,null,dst,art);}
+            else{paint.setColor(on?SettingsUi.success():SettingsUi.faint());canvas.drawCircle(27,19,12,paint);paint.setColor(surface());paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(2.5f);canvas.drawArc(19,11,35,27,-55,290,false,paint);canvas.drawLine(27,7,27,19,paint);}
+            paint.setStyle(Paint.Style.FILL);paint.setColor(on?accent():SettingsUi.faint());paint.setTextSize(9.5f);paint.setTypeface(SettingsUi.mono());paint.setTextAlign(Paint.Align.CENTER);canvas.drawText(on?"ON":"OFF",27,49,paint);
             canvas.restore();}
     }
     private final class VgpMarker extends View {
         private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
         VgpMarker(Context context){super(context);setClickable(false);setFocusable(false);setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);}
         protected void onDraw(Canvas canvas){super.onDraw(canvas);canvas.save();canvas.scale(getWidth()/38f,getHeight()/46f);
-            paint.setStyle(Paint.Style.FILL);paint.setColor(Color.WHITE);canvas.drawCircle(19,18,17,paint);
-            paint.setColor(Control.vgpTargetSpin()?Color.rgb(42,170,240):Color.rgb(235,68,85));canvas.drawCircle(19,18,14,paint);
+            paint.setStyle(Paint.Style.FILL);paint.setColor(surface());canvas.drawCircle(19,18,17,paint);
+            paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(1.2f);paint.setColor(SettingsUi.border());canvas.drawCircle(19,18,16.4f,paint);
+            paint.setStyle(Paint.Style.FILL);paint.setColor(Control.vgpTargetSpin()?accent():SettingsUi.danger());canvas.drawCircle(19,18,14,paint);
             paint.setColor(Color.WHITE);
             if(Control.vgpTargetSpin()){paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(3);canvas.drawCircle(19,18,8,paint);canvas.drawLine(19,5,19,10,paint);canvas.drawLine(19,26,19,31,paint);canvas.drawLine(6,18,11,18,paint);canvas.drawLine(27,18,32,18,paint);}
-            else{paint.setStrokeWidth(3);canvas.drawLine(5,18,33,18,paint);canvas.drawCircle(19,18,5,paint);paint.setColor(Color.rgb(50,55,65));canvas.drawCircle(19,18,2.5f,paint);}
+            else{paint.setStrokeWidth(3);canvas.drawLine(5,18,33,18,paint);canvas.drawCircle(19,18,5,paint);paint.setColor(SettingsUi.ink());canvas.drawCircle(19,18,2.5f,paint);}
             paint.setStyle(Paint.Style.FILL);paint.setColor(Color.WHITE);Path arrow=new Path();arrow.moveTo(13,36);arrow.lineTo(25,36);arrow.lineTo(19,44);arrow.close();canvas.drawPath(arrow,paint);canvas.restore();
         }
     }
@@ -257,16 +268,17 @@ public final class Pad {
         TransferToggle(Context c){super(c);setFocusable(true);setClickable(true);}
         protected void onDraw(Canvas canvas){super.onDraw(canvas);
             boolean keep=Control.transferKeepAll(),master=Control.autoTransferEnabled();
-            int tint=keep?Color.rgb(33,188,125):(master?Color.rgb(230,150,40):muted());
+            int tint=keep?SettingsUi.success():(master?SettingsUi.warn():SettingsUi.faint());
             canvas.save();canvas.scale(getWidth()/54f,getHeight()/54f);
-            paint.setStyle(Paint.Style.FILL);paint.setColor(surface());canvas.drawRoundRect(1,1,53,53,14,14,paint);
+            paint.setStyle(Paint.Style.FILL);paint.setColor(surface());canvas.drawRoundRect(1,1,53,53,13,13,paint);
+            paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(1.2f);paint.setColor(SettingsUi.border());canvas.drawRoundRect(1,1,53,53,13,13,paint);
             // Shield outline frames the state glyph.
             paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(2.4f);paint.setColor(tint);paint.setStrokeCap(Paint.Cap.ROUND);
             Path shield=new Path();shield.moveTo(27,7);shield.lineTo(40,12);shield.lineTo(40,25);shield.cubicTo(40,34,34,39,27,42);shield.cubicTo(20,39,14,34,14,25);shield.lineTo(14,12);shield.close();canvas.drawPath(shield,paint);
             if(keep){canvas.drawLine(21,24,25,29,paint);canvas.drawLine(25,29,34,18,paint);} // check
             else if(master){canvas.drawLine(19,24,33,24,paint);Path a=new Path();a.moveTo(29,19);a.lineTo(35,24);a.lineTo(29,29);canvas.drawPath(a,paint);} // transfer-out arrow
             else{canvas.drawLine(21,24,33,24,paint);} // dash: master off
-            paint.setStyle(Paint.Style.FILL);paint.setColor(tint);paint.setTextSize(10);paint.setTypeface(Typeface.DEFAULT_BOLD);paint.setTextAlign(Paint.Align.CENTER);
+            paint.setStyle(Paint.Style.FILL);paint.setColor(tint);paint.setTextSize(9);paint.setTypeface(SettingsUi.mono());paint.setTextAlign(Paint.Align.CENTER);
             canvas.drawText(keep?"KEEP":(master?"XFER":"OFF"),27,51,paint);
             canvas.restore();}
     }
@@ -310,7 +322,7 @@ public final class Pad {
         }
         if(encounterBadge!=null){String count=!Control.encounterOverlay()||settings.isVisible()||(quickMenu!=null&&quickMenu.isShowing())?"":EncounterCounter.label();
             encounterBadge.setVisibility(count.isEmpty()?View.GONE:View.VISIBLE);
-            if(!count.isEmpty()){setTextIfChanged(encounterBadge,count);encounterBadge.setTextColor(ink());encounterBadge.setBackground(rounded(surface(),10));if(encounterDrag!=null)encounterDrag.refreshBounds();}}
+            if(!count.isEmpty()){setTextIfChanged(encounterBadge,count);if(encounterDrag!=null)encounterDrag.refreshBounds();}}
         if(shinyMark!=null){boolean mark=ShinyScanner.targetVisible()&&!settings.isVisible();shinyMark.setVisibility(mark?View.VISIBLE:View.GONE);
             if(mark){// The point is the top of the Pokémon; the symbol sits just above it.
             shinyMark.setX(ShinyScanner.targetX()*parent.getWidth()-dp(16));shinyMark.setY(ShinyScanner.targetY()*parent.getHeight()-dp(34));}}
@@ -324,16 +336,16 @@ public final class Pad {
             final AlertDialog shown=shinyPopup;shown.setCanceledOnTouchOutside(false);DialogLifecycle.bind(activity,shown,null);shown.setOnShowListener(d->MapTheme.styleButtons(shown));shown.show();}}
         if(shinyBadge!=null){String found=settings.isVisible()||(quickMenu!=null&&quickMenu.isShowing())?"":ShinyScanner.foundLabel();
             shinyBadge.setVisibility(found.isEmpty()?View.GONE:View.VISIBLE);
-            if(!found.isEmpty()){setTextIfChanged(shinyBadge,found);shinyBadge.setContentDescription(found+". Tap for options.");shinyBadge.setTextColor(ink());shinyBadge.setBackground(rounded(surface(),10));if(shinyDrag!=null)shinyDrag.refreshBounds();}}
+            if(!found.isEmpty()){setTextIfChanged(shinyBadge,found);shinyBadge.setContentDescription(found+". Tap for options.");if(shinyDrag!=null)shinyDrag.refreshBounds();}}
         if(shundoOverlay!=null){shundoOverlay.refresh(!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing()));if(shundoDrag!=null)shundoDrag.refreshBounds();}
-        if(gymAutomationStatus!=null){gymAutomationStatus.setVisibility(gymFeedOverlay.getVisibility());setTextIfChanged(gymAutomationStatus,GymAutomationSettings.overlayStatus());gymAutomationStatus.setTextColor(ink());gymFeedDrag.refreshBounds();}
+        if(gymAutomationStatus!=null){gymAutomationStatus.setVisibility(gymFeedOverlay.getVisibility());setTextIfChanged(gymAutomationStatus,GymAutomationSettings.overlayStatus());gymFeedDrag.refreshBounds();}
         if(vgpToggle!=null){vgpToggle.setVisibility(Control.vgpOverlayVisible()&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);vgpToggle.setContentDescription("Virtual Go Plus "+(Control.vgpEnabled()?"on; tap to turn off":"off; tap to turn on")+". "+Control.vgpStatus());vgpToggle.invalidate();}
 
         // Pair the status line with the toggle so the cooldown shutoff reason is visible even when VGP is off.
-        if(buddyEmotionStatus!=null){buddyEmotionStatus.setVisibility(BuddyEmotionSettings.overlayEnabled()&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);setTextIfChanged(buddyEmotionStatus,BuddyEmotionSettings.status());buddyEmotionStatus.setTextColor(ink());}
-        if(catchChance!=null){catchChance.setVisibility(CatchChance.visible()&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);setTextIfChanged(catchChance,CatchChance.text());catchChance.setTextColor(ink());}
-        if(automationStatus!=null){automationStatus.setVisibility((OneShotAutomation.overlayVisible()||AutoRaid.running())&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);setTextIfChanged(automationStatus,AutoRaid.running()?"Auto-Raid | "+AutoRaid.status():OneShotAutomation.overlayStatus());automationStatus.setTextColor(ink());automationDrag.refreshBounds();}
-        if(vgpActivity!=null){vgpActivity.setVisibility(Control.vgpOverlayVisible()&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);setTextIfChanged(vgpActivity,"VGP  |  "+Control.vgpStatus());vgpActivity.setTextColor(ink());}
+        if(buddyEmotionStatus!=null){buddyEmotionStatus.setVisibility(BuddyEmotionSettings.overlayEnabled()&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);setTextIfChanged(buddyEmotionStatus,BuddyEmotionSettings.status());}
+        if(catchChance!=null){catchChance.setVisibility(CatchChance.visible()&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);setTextIfChanged(catchChance,CatchChance.text());}
+        if(automationStatus!=null){automationStatus.setVisibility((OneShotAutomation.overlayVisible()||AutoRaid.running())&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);setTextIfChanged(automationStatus,AutoRaid.running()?"Auto-Raid | "+AutoRaid.status():OneShotAutomation.overlayStatus());automationDrag.refreshBounds();}
+        if(vgpActivity!=null){vgpActivity.setVisibility(Control.vgpOverlayVisible()&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);setTextIfChanged(vgpActivity,"VGP  |  "+Control.vgpStatus());}
         if(mapCatchBadge!=null)mapCatchBadge.refresh(!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())&&!Control.catchScreenVisible());
         if(vgpMarker!=null){boolean show=Control.vgpTargetVisible()&&!settings.isVisible();vgpMarker.setVisibility(show?View.VISIBLE:View.GONE);if(show){vgpMarker.setX(Control.vgpTargetX()*parent.getWidth()-dp(19)*vgpMarker.getScaleX());vgpMarker.setY(Control.vgpTargetY()*parent.getHeight()-dp(36)-dp(46)*vgpMarker.getScaleY());vgpMarker.invalidate();}}
         if(transferToggle!=null){transferToggle.setVisibility(Control.transferOverlayVisible()&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);transferToggle.setContentDescription(transferToggleDescription());transferToggle.invalidate();}
@@ -341,7 +353,7 @@ public final class Pad {
         String routeReward=Control.takeGameRoutesRewardNotice();
         if(!routeReward.isEmpty()&&!overlaysHidden)Toast.makeText(activity,routeReward,Toast.LENGTH_LONG).show();
         if(gameRoutesOverlay!=null)gameRoutesOverlay.refresh(!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing()));
-        if(cooldownTimer!=null){cooldownTimer.setVisibility(Control.cooldownOverlay()?View.VISIBLE:View.GONE);setTextIfChanged(cooldownTimer,"☰  "+Cooldown.label());cooldownTimer.setTextColor(Cooldown.remaining()>0?Color.rgb(255,186,95):accent());}
+        if(cooldownTimer!=null){cooldownTimer.setVisibility(Control.cooldownOverlay()?View.VISIBLE:View.GONE);setTextIfChanged(cooldownTimer,"☰  "+Cooldown.label());int cooldownColor=Cooldown.remaining()>0?SettingsUi.warn():accent();if(cooldownTimer.getCurrentTextColor()!=cooldownColor)cooldownTimer.setTextColor(cooldownColor);}
         // The view combines this Pad-side gate with Control.localTimeOverlay()/desiredEnabled() and its own throttle;
         // a false gate (settings open, quick menu up, or overlays hidden) stops its clock work entirely.
         if(localTime!=null){localTime.refresh(!overlaysHidden&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing()));if(localTimeDrag!=null&&localTime.getVisibility()==View.VISIBLE)localTimeDrag.refreshBounds();}
@@ -595,11 +607,13 @@ public final class Pad {
         }
         protected void onDraw(Canvas canvas) {
             float cx=getWidth()/2f, cy=getHeight()/2f, radius=Math.min(cx,cy)-dp(12);
-            paint.setColor(Control.darkTheme()?0xff202e3e:0xffe1e9ef); canvas.drawCircle(cx,cy,radius,paint);
-            paint.setColor(Color.rgb(72,102,125)); paint.setStrokeWidth(dp(1));
-            canvas.drawLine(cx-radius,cy,cx+radius,cy,paint); canvas.drawLine(cx,cy-radius,cx,cy+radius,paint);
-            paint.setColor(Control.engine.enabled?accent():muted());
-            canvas.drawCircle(cx+x*radius*.65f,cy+y*radius*.65f,dp(22),paint);
+            // A translucent instrument disc: the game stays visible through it, the chrome stays legible.
+            paint.setStyle(Paint.Style.FILL);paint.setColor((surface()&0x00ffffff)|0xcc000000);canvas.drawCircle(cx,cy,radius,paint);
+            paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(Math.max(1,dp(1)));paint.setColor(SettingsUi.border());canvas.drawCircle(cx,cy,radius,paint);
+            paint.setColor((muted()&0x00ffffff)|0x99000000);
+            canvas.drawLine(cx-radius+dp(10),cy,cx+radius-dp(10),cy,paint); canvas.drawLine(cx,cy-radius+dp(10),cx,cy+radius-dp(10),paint);
+            paint.setStyle(Paint.Style.FILL);paint.setColor(Control.engine.enabled?accent():SettingsUi.faint());
+            canvas.drawCircle(cx+x*radius*.65f,cy+y*radius*.65f,dp(20),paint);
         }
         public boolean onTouchEvent(MotionEvent e) {
             int action=e.getActionMasked();

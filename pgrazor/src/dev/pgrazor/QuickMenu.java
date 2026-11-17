@@ -3,8 +3,6 @@ package dev.pgrazor;
 import android.app.Activity;
 import android.content.Context;
 import android.content.res.ColorStateList;
-import android.graphics.*;
-import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
 import android.view.*;
 import android.widget.*;
@@ -53,6 +51,7 @@ public final class QuickMenu {
     private final List<TextView> rowLabels = new ArrayList<>();
     private final List<MenuIcon> rowIcons = new ArrayList<>();
     private final List<Boolean> rowEnabled = new ArrayList<>();
+    private static final int CARD_WIDTH = 208;
 
     public QuickMenu(Activity activity, ViewGroup parent, View anchor, Listener listener) {
         this.activity = activity; this.anchor = anchor; this.listener = listener;
@@ -63,8 +62,11 @@ public final class QuickMenu {
 
         card = new LinearLayout(activity); card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(0, dp(6), 0, dp(6)); card.setElevation(dp(12));
+        card.setShowDividers(LinearLayout.SHOW_DIVIDER_MIDDLE);
+        card.setDividerDrawable(SettingsUi.hairline(activity));
+        card.setDividerPadding(dp(12));
         card.addView(row(MAP, "Map", true, listener::onMap, 1));
-        LinearLayout walkRow = (LinearLayout) row(WALK, "Walk", true, this::onWalk, 2); walkLabel = (TextView) walkRow.getChildAt(1);
+        LinearLayout walkRow = (LinearLayout) row(WALK, "Walk", true, this::onWalk, 2); walkLabel = (TextView) walkRow.getChildAt(2);
         card.addView(walkRow);
         card.addView(row(AUTOWALK, "Autowalk", true, listener::onAutoWalk, 4));
         card.addView(row(ROUTES, "In-game Routes", true, listener::onGameRoutes, 8));
@@ -80,7 +82,7 @@ public final class QuickMenu {
         card.addView(row(SETTINGS, "Settings", true, listener::onSettings, 0));
         viewport=new ScrollView(activity);viewport.setFillViewport(false);
         viewport.addView(card,new ScrollView.LayoutParams(-1,-2));
-        root.addView(viewport,new FrameLayout.LayoutParams(dp(196),-2));
+        root.addView(viewport,new FrameLayout.LayoutParams(dp(CARD_WIDTH),-2));
         root.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{if(isShowing()&&(r-l!=or-ol||b-t!=ob-ot))position();});
         root.setOnApplyWindowInsetsListener((v,insets)->{if(isShowing())viewport.post(this::position);return insets;});
 
@@ -91,14 +93,18 @@ public final class QuickMenu {
 
     private View row(int kind, String label, boolean enabled, Runnable action, int visibilityBit) {
         LinearLayout r = new LinearLayout(activity); r.setOrientation(LinearLayout.HORIZONTAL);
-        r.setGravity(Gravity.CENTER_VERTICAL); r.setMinimumHeight(dp(48)); r.setPadding(dp(14), dp(6), dp(16), dp(6));
+        r.setGravity(Gravity.CENTER_VERTICAL); r.setMinimumHeight(dp(48)); r.setPadding(dp(12), dp(4), dp(14), dp(4));
         MenuIcon icon = new MenuIcon(activity, kind); icon.disabled = !enabled;
-        r.addView(icon, new LinearLayout.LayoutParams(dp(22), dp(22)));
-        TextView t = new TextView(activity); t.setText(label); t.setTextSize(14.5f); t.setPadding(dp(14), 0, 0, 0);
+        r.addView(icon, new LinearLayout.LayoutParams(dp(20), dp(20)));
+        TextView t = new TextView(activity); t.setText(label); t.setTextSize(14); t.setPadding(dp(12), 0, dp(8), 0);
         r.addView(t, new LinearLayout.LayoutParams(0, -2, 1f));
+        if (kind == WALK) {
+            TextView speed = new TextView(activity); speed.setTextSize(12); speed.setTypeface(SettingsUi.mono()); speed.setGravity(Gravity.CENTER_VERTICAL);
+            r.addView(speed, new LinearLayout.LayoutParams(-2, -2));
+        }
         if (enabled && action != null) {
             r.setClickable(true); r.setFocusable(true);
-            r.setBackground(new RippleDrawable(ColorStateList.valueOf(0x3345e1ba), null, rounded(0xffffffff, 10)));
+            r.setBackground(new RippleDrawable(ColorStateList.valueOf(SettingsUi.rippleColor()), null, SettingsUi.rounded(activity, 0xffffffff, 8)));
             r.setOnClickListener(v -> {if(kind!=WALK)hide();action.run();});
         }
         rows.add(r); visibilityBits.add(visibilityBit);
@@ -113,8 +119,8 @@ public final class QuickMenu {
     }
     private void updateWalk() {
         if (walkLabel == null) return;
-        double speed = Control.engine.speedKmh;
-        walkLabel.setText(String.format(Locale.US, "%.1f km/h", speed));
+        String text = String.format(Locale.US, "%.1f km/h", Control.engine.speedKmh);
+        if (!text.contentEquals(walkLabel.getText())) walkLabel.setText(text);
     }
 
     private void updateVisibility() {
@@ -139,7 +145,7 @@ public final class QuickMenu {
         android.graphics.Rect safe=UiViewport.bounds(root);
         int margin=dp(8);safe.inset(Math.min(margin,safe.width()/4),Math.min(margin,safe.height()/4));
         float scale=Math.max(.01f,viewport.getScaleX());
-        int width=UiViewportPolicy.menuExtent(dp(196),safe.width(),scale);
+        int width=UiViewportPolicy.menuExtent(dp(CARD_WIDTH),safe.width(),scale);
         card.measure(View.MeasureSpec.makeMeasureSpec(width,View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(0,View.MeasureSpec.UNSPECIFIED));
         int height=UiViewportPolicy.menuExtent(card.getMeasuredHeight(),safe.height(),scale);
         ViewGroup.LayoutParams lp=viewport.getLayoutParams();
@@ -156,18 +162,14 @@ public final class QuickMenu {
     }
 
     public void applyTheme() {
-        card.setBackground(rounded(surface(), 14));
+        card.setBackground(SettingsUi.shape(activity, SettingsUi.surface(), SettingsUi.RADIUS_CARD, SettingsUi.border()));
+        card.setDividerDrawable(SettingsUi.hairline(activity));
         for (int i = 0; i < rowLabels.size(); i++) {
-            rowLabels.get(i).setTextColor(rowEnabled.get(i) ? ink() : muted());
+            rowLabels.get(i).setTextColor(rowEnabled.get(i) ? SettingsUi.ink() : SettingsUi.muted());
             rowIcons.get(i).invalidate();
         }
+        if (walkLabel != null) walkLabel.setTextColor(SettingsUi.accent());
     }
 
     private int dp(float x) { return Math.round(x * activity.getResources().getDisplayMetrics().density); }
-    private int ink() { return Control.darkTheme() ? Color.rgb(235, 241, 246) : Color.rgb(25, 35, 47); }
-    private int muted() { return Control.darkTheme() ? Color.rgb(154, 171, 187) : Color.rgb(88, 105, 121); }
-    private int surface() { return Control.darkTheme() ? Color.rgb(20, 27, 37) : Color.rgb(249, 251, 253); }
-    private GradientDrawable rounded(int color, int radius) {
-        GradientDrawable d = new GradientDrawable(); d.setColor(color); d.setCornerRadius(dp(radius)); return d;
-    }
 }

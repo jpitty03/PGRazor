@@ -41,15 +41,15 @@ final class FeedTheme {
     static final class Size {
         private Size() {}
         /** Screen titles such as "PGRAZOR" and dialog titles. */
-        static final float TITLE_SP = 24f;
+        static final float TITLE_SP = 20f;
         /** Row labels in cards, the quick menu and switches. */
-        static final float ROW_TEXT_SP = 16f;
+        static final float ROW_TEXT_SP = 14f;
         /** Helper / status lines under rows. */
-        static final float CAPTION_SP = 12.5f;
+        static final float CAPTION_SP = 12f;
         /** Minimum height of a list row inside a card. */
-        static final int ROW_HEIGHT_DP = 54;
+        static final int ROW_HEIGHT_DP = 52;
         /** Corner radius of the white cards. */
-        static final int CARD_RADIUS_DP = 10;
+        static final int CARD_RADIUS_DP = 14;
         /** Vertical gap between cards. */
         static final int CARD_GAP_DP = 16;
         /** Inner left/right padding of cards (text and divider inset). */
@@ -82,7 +82,7 @@ final class FeedTheme {
         /** Height of pill buttons (dialog actions). */
         static final int PILL_HEIGHT_DP = 44;
         /** Corner radius of non-full-screen dialogs. */
-        static final int DIALOG_RADIUS_DP = 18;
+        static final int DIALOG_RADIUS_DP = 14;
         /** Cooldown timer pill (top right): width. Fits its longest label, "☰  Waiting for GPS", at 14 sp. */
         static final int COOLDOWN_WIDTH_DP = 90;
         /** Cooldown timer pill: height. */
@@ -98,84 +98,64 @@ final class FeedTheme {
     }
 
     // ---------------------------------------------------------------------------------------
-    // Colour tokens.
+    // Colour tokens. Every value delegates to SettingsUi so feeds, maps, overlays and the
+    // settings panel cannot drift into separate palettes.
     // ---------------------------------------------------------------------------------------
     static boolean dark() { return Control.darkTheme(); }
-    /** Page gradient, top-left (lime) and bottom-right (mint). */
-    static int pageTop()    { return dark() ? Color.rgb(28, 58, 52)   : Color.rgb(214, 245, 166); }
-    static int pageBottom() { return dark() ? Color.rgb(15, 42, 44)   : Color.rgb(160, 226, 205); }
-    /** Primary text: the game's slate teal. */
-    static int ink()        { return dark() ? Color.rgb(228, 240, 236) : Color.rgb(66, 94, 94); }
+    /** Page backdrop: the same quiet slate/paper as Settings. */
+    static int pageTop()    { return SettingsUi.bg(); }
+    static int pageBottom() { return SettingsUi.bg(); }
+    /** Primary text. */
+    static int ink()        { return SettingsUi.ink(); }
     /** Secondary text, captions, disabled. */
-    static int muted()      { return dark() ? Color.rgb(147, 170, 166) : Color.rgb(124, 146, 146); }
-    /** Screen titles ("SETTINGS" style). */
-    static int title()      { return dark() ? Color.rgb(214, 232, 226) : Color.rgb(78, 104, 104); }
-    /** Mid page colour, used where a single solid background is needed. */
-    static int surface()    { return dark() ? Color.rgb(22, 50, 48)   : Color.rgb(188, 236, 186); }
-    /** White card. */
-    static int card()       { return dark() ? Color.rgb(32, 48, 47)   : Color.rgb(251, 252, 252); }
-    /** Subtle fill inside a card (joystick base, pressed rows). */
-    static int control()    { return dark() ? Color.rgb(42, 60, 58)   : Color.rgb(238, 243, 242); }
+    static int muted()      { return SettingsUi.muted(); }
+    /** Screen titles. */
+    static int title()      { return SettingsUi.ink(); }
+    /** A solid page colour where one is needed. */
+    static int surface()    { return SettingsUi.bg(); }
+    /** Cards and floating panels. */
+    static int card()       { return SettingsUi.surface(); }
+    /** Subtle fill inside a card (fields, pressed rows). */
+    static int control()    { return SettingsUi.raised(); }
     /** Row dividers and hairlines. */
-    static int outline()    { return dark() ? Color.rgb(50, 70, 68)   : Color.rgb(228, 233, 233); }
-    /** Grey list chevron. */
-    static int chevron()    { return dark() ? Color.rgb(120, 142, 138) : Color.rgb(160, 170, 170); }
-    /** Toggles, rings, icons. */
-    static int accent()     { return dark() ? Color.rgb(94, 214, 184) : Color.rgb(54, 184, 158); }
-    /** Second stop of the accent gradient (lime-green side). */
-    static int accentLime() { return dark() ? Color.rgb(150, 220, 140) : Color.rgb(156, 216, 136); }
-    /** Values shown on the right of a row ("0.377.1-G-64" style). */
-    static int value()      { return dark() ? Color.rgb(108, 195, 214) : Color.rgb(58, 143, 163); }
-    /** Deep teal of the round close button. */
-    static int closeFill()  { return dark() ? Color.rgb(32, 150, 146) : Color.rgb(30, 140, 140); }
+    static int outline()    { return SettingsUi.border(); }
+    /** Quiet list chevrons. */
+    static int chevron()    { return SettingsUi.faint(); }
+    /** Toggles, rings, icons and links. */
+    static int accent()     { return SettingsUi.accent(); }
+    /** Retained name for the second accent stop; one accent, no gradient. */
+    static int accentLime() { return SettingsUi.accent(); }
+    /** Values shown on the right of a row. */
+    static int value()      { return SettingsUi.accent(); }
+    /** Fill of the round close button. */
+    static int closeFill()  { return SettingsUi.accentFill(); }
     /** Accent at low alpha: ripples and selected tints. */
-    static int accentSoft() { return (accent() & 0x00ffffff) | (dark() ? 0x2e000000 : 0x26000000); }
-    /** Destructive actions ("Sign Out" red). */
-    static int danger()     { return dark() ? Color.rgb(240, 110, 116) : Color.rgb(210, 65, 75); }
-    /** Amber used for "cooldown running" and other warnings. */
-    static int warn()       { return dark() ? Color.rgb(255, 190, 100) : Color.rgb(196, 118, 10); }
+    static int accentSoft() { return SettingsUi.accentSoft(); }
+    /** Destructive actions. */
+    static int danger()     { return SettingsUi.danger(); }
+    /** Cooldown running and other warnings. */
+    static int warn()       { return SettingsUi.warn(); }
 
-    // Dialog palette sampled from the game's own cards and buttons (Social / Party Play screens).
-    /** Dialog card: plain white like the game's cards. */
-    static int dlgCard()     { return dark() ? Color.rgb(32, 48, 47)    : Color.WHITE; }
-    /** Dialog titles and body text: slate #3E5659. */
-    static int dlgInk()      { return dark() ? Color.rgb(228, 240, 236) : Color.rgb(62, 86, 89); }
-    /** Dialog helper text: #7A8E8F. */
-    static int dlgMuted()    { return dark() ? Color.rgb(160, 180, 176) : Color.rgb(122, 142, 143); }
-    /** Disabled field text: #AAB4B5. */
-    static int dlgDisabled() { return dark() ? Color.rgb(110, 128, 124) : Color.rgb(170, 180, 181); }
-    /** Teal end of the game's button gradient: #65C39E. */
-    static int dlgTeal()     { return Color.rgb(101, 195, 158); }
-    /** Launcher halves: lighter teal on top, deeper teal below. */
+    // Dialog palette: the same surfaces and ink as every other PGRazor card.
+    static int dlgCard()     { return SettingsUi.surface(); }
+    static int dlgInk()      { return SettingsUi.ink(); }
+    static int dlgMuted()    { return SettingsUi.muted(); }
+    static int dlgDisabled() { return SettingsUi.faint(); }
+    /** Accent used for dialog text, outlines and focus. */
+    static int dlgTeal()     { return SettingsUi.accent(); }
     static int dlgTealLight() { return dlgTeal(); }
-    static int dlgTealDark()  { return dark() ? Color.rgb(54, 140, 120) : Color.rgb(44, 110, 98); }
-    /** Lime start of the game's button gradient: #96D294. */
-    static int dlgLime()     { return Color.rgb(150, 210, 148); }
-    /** Outline of the game's secondary pill and of input boxes: #7EC9B4. */
-    static int dlgOutline()  { return dark() ? Color.rgb(84, 160, 138) : Color.rgb(126, 201, 180); }
-    /** Mint block behind grouped content (rewards box): #E6F2DE. */
-    static int dlgMint()     { return dark() ? Color.rgb(40, 62, 56)    : Color.rgb(230, 242, 222); }
-    /** Hairlines inside the mint block. */
-    static int dlgMintLine() { return dark() ? Color.rgb(56, 82, 74)    : Color.rgb(212, 230, 203); }
-    /** Neutral hairline under titles: #E3E3E3. */
-    static int dlgHair()     { return dark() ? Color.rgb(58, 76, 74)    : Color.rgb(227, 227, 227); }
-    /** Disabled input fill. */
-    static int dlgFieldOff() { return dark() ? Color.rgb(44, 60, 58)    : Color.rgb(243, 246, 245); }
+    /** Solid accent fill for primary buttons; dark enough for white text in both themes. */
+    static int dlgTealDark()  { return SettingsUi.accentFill(); }
+    static int dlgLime()     { return SettingsUi.accent(); }
+    static int dlgOutline()  { return SettingsUi.border(); }
+    static int dlgMint()     { return SettingsUi.raised(); }
+    static int dlgMintLine() { return SettingsUi.border(); }
+    static int dlgHair()     { return SettingsUi.border(); }
+    static int dlgFieldOff() { return SettingsUi.raised(); }
 
-    static Typeface medium() { return Typeface.create("sans-serif-medium", Typeface.NORMAL); }
-    private static Typeface brandFont;
-    /**
-     * Sharp italic brand face used ONLY for the "PGRAZOR" title: Racing Sans One (SIL OFL), bundled at
-     * assets pgrazor/fonts/title.ttf. Falls back to the heaviest system italic (Roboto Black) if the file is missing.
-     */
-    static Typeface brandFont(Context c) {
-        if (brandFont == null) {
-            brandFont = PgAssets.typeface(c, "pgrazor/fonts/title.ttf");
-            if (brandFont == null) brandFont = Build.VERSION.SDK_INT >= 28 ? Typeface.create(Typeface.create("sans-serif-black", Typeface.NORMAL), 900, true) : Typeface.create("sans-serif-black", Typeface.BOLD_ITALIC);
-        }
-        return brandFont;
-    }
-    static Typeface bold()   { return Typeface.create("sans-serif", Typeface.BOLD); }
+    static Typeface medium() { return SettingsUi.medium(); }
+    /** Kept for older call sites: PGRazor uses one medium weight instead of a second bold face. */
+    static Typeface bold()   { return SettingsUi.medium(); }
 
     static int dp(Context c, float value) { return Math.round(value * c.getResources().getDisplayMetrics().density); }
 
@@ -188,28 +168,28 @@ final class FeedTheme {
         if (stroke != 0) d.setStroke(Math.max(1, dp(c, 1)), stroke);
         return d;
     }
-    /** The lime-to-mint page gradient. */
+    /** The page backdrop: a solid surface, matching the settings shell. */
     static GradientDrawable pageBackground(Context c) {
         return new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{pageTop(), pageBottom()});
     }
-    /** Floating dialogs: a plain white rounded card, like the game's cards. */
+    /** Floating dialogs: a rounded surface card. */
     static GradientDrawable dialogBackground(Context c) {
-        return shape(c, dlgCard(), 0, Size.DIALOG_RADIUS_DP);
+        return shape(c, dlgCard(), dlgHair(), Size.DIALOG_RADIUS_DP);
     }
-    /** Mint rounded block that groups lists inside a dialog (the game's rewards box). */
+    /** Quiet inset block that groups lists inside a dialog. */
     static GradientDrawable mintBlock(Context c) {
-        return shape(c, dlgMint(), 0, 12);
+        return shape(c, dlgMint(), 0, SettingsUi.RADIUS_CARD);
     }
-    /** Game primary button: lime-to-teal gradient pill. */
+    /** Primary button: solid accent fill with white text. */
     static Drawable dialogPrimaryPill(Context c) {
-        GradientDrawable d = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{dlgLime(), dlgTeal()});
-        d.setCornerRadius(dp(c, 100));
+        GradientDrawable d = shape(c, SettingsUi.accentFill(), 0, SettingsUi.RADIUS_CONTROL);
         return new RippleDrawable(ColorStateList.valueOf(0x33ffffff), d, null);
     }
-    /** Game secondary button: white pill with a 2dp teal outline. */
+    /** Secondary button: raised fill, hairline outline, accent text. */
     static Drawable dialogSecondaryPill(Context c) {
-        GradientDrawable d = shape(c, dlgCard(), 0, 100); d.setStroke(dp(c, 2), dlgOutline());
-        return new RippleDrawable(ColorStateList.valueOf((dlgTeal() & 0x00ffffff) | 0x30000000), d, null);
+        GradientDrawable d = shape(c, SettingsUi.raised(), 0, SettingsUi.RADIUS_CONTROL);
+        d.setStroke(Math.max(1, dp(c, 1)), SettingsUi.border());
+        return new RippleDrawable(ColorStateList.valueOf((SettingsUi.accent() & 0x00ffffff) | 0x30000000), d, null);
     }
     /**
      * Rounded input box (pill) with the game's outline; numbers are centred. Disabled boxes turn grey,
@@ -217,9 +197,10 @@ final class FeedTheme {
      */
     static void styleField(android.widget.EditText e) {
         Context c = e.getContext();
-        GradientDrawable on = shape(c, dlgCard(), 0, 100); on.setStroke(Math.max(1, dp(c, 1.5f)), dlgOutline());
-        GradientDrawable focus = shape(c, dlgCard(), 0, 100); focus.setStroke(dp(c, 2), dlgTeal());
-        GradientDrawable off = shape(c, dlgFieldOff(), 0, 100); off.setStroke(Math.max(1, dp(c, 1.5f)), dlgHair());
+        int radius = SettingsUi.RADIUS_FIELD;
+        GradientDrawable on = shape(c, dlgCard(), 0, radius); on.setStroke(Math.max(1, dp(c, 1.5f)), dlgOutline());
+        GradientDrawable focus = shape(c, dlgCard(), 0, radius); focus.setStroke(dp(c, 2), dlgTeal());
+        GradientDrawable off = shape(c, dlgFieldOff(), 0, radius); off.setStroke(Math.max(1, dp(c, 1.5f)), dlgHair());
         android.graphics.drawable.StateListDrawable states = new android.graphics.drawable.StateListDrawable();
         states.addState(new int[]{-android.R.attr.state_enabled}, off);
         states.addState(new int[]{android.R.attr.state_focused}, focus);
@@ -259,19 +240,18 @@ final class FeedTheme {
         v.setElevation(dp(v.getContext(), dpValue));
         v.setOutlineProvider(android.view.ViewOutlineProvider.BACKGROUND);
     }
-    /** Lime-to-teal gradient pill: the game's primary button. */
+    /** Primary button: solid accent fill with white text. */
     static Drawable primaryPill(Context c) {
-        GradientDrawable d = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{accentLime(), accent()});
-        d.setCornerRadius(dp(c, 100));
+        GradientDrawable d = shape(c, SettingsUi.accentFill(), 0, SettingsUi.RADIUS_CONTROL);
         return new RippleDrawable(ColorStateList.valueOf(0x33ffffff), d, null);
     }
-    /** White pill with teal text: the game's secondary button. */
+    /** Secondary button: raised fill with a hairline outline. */
     static Drawable secondaryPill(Context c) {
-        return new RippleDrawable(ColorStateList.valueOf(accentSoft()), shape(c, card(), 0, 100), null);
+        return new RippleDrawable(ColorStateList.valueOf(accentSoft()), shape(c, SettingsUi.raised(), SettingsUi.border(), SettingsUi.RADIUS_CONTROL), null);
     }
     /** Transparent rippling row, used for list rows inside cards. */
     static Drawable rowRipple(Context c) {
-        return new RippleDrawable(ColorStateList.valueOf(accentSoft()), null, shape(c, 0xffffffff, 0, 6));
+        return new RippleDrawable(ColorStateList.valueOf(accentSoft()), null, shape(c, 0xffffffff, 0, SettingsUi.RADIUS_CONTROL));
     }
     /** Kept for older call sites: now the secondary pill. */
     static Drawable controlBackground(Context c) { return secondaryPill(c); }
@@ -284,8 +264,8 @@ final class FeedTheme {
     static void styleSwitch(Switch s) {
         Context c = s.getContext();
         int knob = dp(c, 28), trackH = dp(c, 22), inset = (knob - trackH) / 2;
-        int offTrack = dark() ? 0xff3e5350 : 0xffe4e9e8, ring = dark() ? 0xff6f8380 : 0xffcdd4d3;
-        GradientDrawable on = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{dlgTeal(), dlgLime()});
+        int offTrack = dark() ? 0xff2c3742 : 0xffd7e0e7, ring = muted();
+        GradientDrawable on = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{SettingsUi.accentFill(), SettingsUi.accentFill()});
         on.setCornerRadius(dp(c, 100));
         GradientDrawable off = shape(c, offTrack, 0, 100);
         GradientDrawable disabled = shape(c, (offTrack & 0x00ffffff) | 0x77000000, 0, 100);
@@ -308,14 +288,13 @@ final class FeedTheme {
         b.setButtonTintList(new ColorStateList(new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{android.R.attr.state_checked}, new int[]{}},
             new int[]{(muted() & 0x00ffffff) | 0x80000000, accent(), chevron()}));
     }
-    /** Upper-case, spaced, centred title in the game's plain style (dialogs, log and backup screens). */
+    /** Centred title in the shared type scale (dialogs, log and backup screens). */
     static void styleTitle(TextView t) {
-        t.setAllCaps(true); t.setLetterSpacing(0.05f); t.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+        t.setAllCaps(false); t.setLetterSpacing(0.01f); t.setTypeface(SettingsUi.medium());
         t.setTextSize(Size.TITLE_SP); t.setTextColor(title()); t.setGravity(Gravity.CENTER);
-    }
-    /** The "PGRAZOR" title only: same placement, sharp italic brand face. */
+    }    /** The "PGRAZOR" title only: the same title treatment as every other screen. */
     static void styleBrandTitle(TextView t) {
-        styleTitle(t); t.setTypeface(brandFont(t.getContext())); t.setLetterSpacing(0.04f);
+        styleTitle(t);
     }
 
     // ---------------------------------------------------------------------------------------
@@ -432,7 +411,7 @@ final class FeedTheme {
             View title = titleId == 0 ? null : w.findViewById(titleId);
             if (title instanceof TextView) {
                 TextView t = (TextView)title;
-                t.setAllCaps(true); t.setLetterSpacing(0.12f); t.setTypeface(medium()); t.setTextSize(17f);
+                t.setAllCaps(false); t.setLetterSpacing(0.01f); t.setTypeface(SettingsUi.medium()); t.setTextSize(18f);
                 t.setTextColor(dlgInk()); t.setGravity(Gravity.CENTER);
                 t.setSingleLine(false); t.setMaxLines(2); t.setEllipsize(null);
                 ViewGroup.LayoutParams lp = t.getLayoutParams(); if (lp != null) { lp.width = ViewGroup.LayoutParams.MATCH_PARENT; t.setLayoutParams(lp); }
@@ -461,7 +440,7 @@ final class FeedTheme {
         for (int which : new int[]{AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE, AlertDialog.BUTTON_NEUTRAL}) {
             Button b = dialog.getButton(which);
             if (b == null) continue;
-            b.setAllCaps(true); b.setLetterSpacing(0.12f); b.setTypeface(medium()); b.setTextSize(14); b.setStateListAnimator(null);
+            b.setAllCaps(false); b.setLetterSpacing(0.01f); b.setTypeface(SettingsUi.medium()); b.setTextSize(14); b.setStateListAnimator(null);
             b.setMinHeight(dp(c, 46)); b.setMinimumHeight(dp(c, 46)); b.setPadding(dp(c, 24), 0, dp(c, 24), 0);
             if (which == AlertDialog.BUTTON_POSITIVE) {
                 b.setBackground(dialogPrimaryPill(c)); b.setTextColor(Color.WHITE); elevate(b, 2);
@@ -501,21 +480,19 @@ final class FeedTheme {
     static void gamePill(Button b, boolean selected) {
         Context c = b.getContext();
         if (selected) {
-            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{dlgLime(), dlgTeal()});
-            g.setCornerRadius(dp(c, 100));
-            b.setBackground(new RippleDrawable(ColorStateList.valueOf(0x33ffffff), g, null));
+            b.setBackground(primaryPill(c));
             b.setTextColor(Color.WHITE);
         } else {
-            b.setBackground(new RippleDrawable(ColorStateList.valueOf(0x2236b89e), shape(c, card(), 0, 100), null));
+            b.setBackground(new RippleDrawable(ColorStateList.valueOf((SettingsUi.accent() & 0x00ffffff) | 0x22000000), shape(c, card(), outline(), SettingsUi.RADIUS_CONTROL), null));
             b.setTextColor(accent());
         }
-        b.setTypeface(bold()); b.setAllCaps(false); b.setStateListAnimator(null);
+        b.setTypeface(SettingsUi.medium()); b.setAllCaps(false); b.setStateListAnimator(null);
         elevate(b, 2f);
     }
 
     /** Section header on the page (outside the cards): upper-case, bold, slate, like "QUALITY". */
     static void sectionHeader(TextView t) {
-        t.setAllCaps(true); t.setTypeface(bold()); t.setTextSize(15); t.setLetterSpacing(0.04f); t.setTextColor(ink());
+        t.setAllCaps(false); t.setTypeface(SettingsUi.medium()); t.setTextSize(13); t.setLetterSpacing(0.01f); t.setTextColor(muted());
     }
 
     /** The game's round close button: white rim, deep teal disc, soft inner ring and a white X. */
@@ -606,8 +583,8 @@ final class FeedTheme {
         }
         if (b.getParent() instanceof ViewGroup) ((ViewGroup)b.getParent()).removeView(b);
         b.setMinWidth(0); b.setMinimumWidth(0); b.setMinHeight(0); b.setMinimumHeight(0);
-        b.setPadding(dp(c, 8), 0, dp(c, 8), 0); b.setTextSize(13.5f); b.setLetterSpacing(0.1f); b.setSingleLine(true);
-        b.setAllCaps(true); b.setTypeface(medium()); b.setStateListAnimator(null);
+        b.setPadding(dp(c, 8), 0, dp(c, 8), 0); b.setTextSize(14); b.setLetterSpacing(0.01f); b.setSingleLine(true);
+        b.setAllCaps(false); b.setTypeface(SettingsUi.medium()); b.setStateListAnimator(null);
         if (primary) { b.setBackground(dialogPrimaryPill(c)); b.setTextColor(new ColorStateList(new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}}, new int[]{0xccffffff, Color.WHITE})); elevate(b, 2); }
         else { b.setBackground(dialogSecondaryPill(c)); b.setTextColor(new ColorStateList(new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}}, new int[]{dlgDisabled(), dlgTeal()})); b.setElevation(0); }
         return b;
@@ -700,9 +677,9 @@ final class FeedTheme {
     /** Selected option: solid teal pill with white text; otherwise the outlined secondary pill. */
     static void gameSelected(Button b, boolean on) {
         Context c = b.getContext();
-        if (on) { b.setBackground(new RippleDrawable(ColorStateList.valueOf(0x33ffffff), shape(c, dlgTeal(), 0, 100), null)); b.setTextColor(Color.WHITE); }
+        if (on) { b.setBackground(new RippleDrawable(ColorStateList.valueOf(0x33ffffff), shape(c, SettingsUi.accentFill(), 0, SettingsUi.RADIUS_CONTROL), null)); b.setTextColor(Color.WHITE); }
         else { b.setBackground(dialogSecondaryPill(c)); b.setTextColor(new ColorStateList(new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}}, new int[]{dlgDisabled(), dlgTeal()})); }
-        b.setTypeface(medium());
+        b.setTypeface(SettingsUi.medium());
     }
     private static void applyInsets(View v, WindowInsets insets) {
         if (insets == null) return;
