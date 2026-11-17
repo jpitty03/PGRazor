@@ -4,6 +4,9 @@ set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "Pinned vendor compatibility" 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# C++23 enables module dependency scanning in CMake 4.x; clang-scan-deps fails
+# for the pinned dex_builder sources on Windows. Nothing here uses modules.
+set(CMAKE_CXX_SCAN_FOR_MODULES OFF CACHE BOOL "Pinned: nested project() calls reset this" FORCE)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_C_VISIBILITY_PRESET hidden)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
