@@ -12,23 +12,28 @@ struct MapTapAdapter {
     bool (*throw_value)(PgrThrowValue&);
     int (*choose_ball)(void*,void*,const PgrCatchChanceOptions&,const PgrThrowValue&);
     Root (*capture)(void*,const PgrThrowValue&);
-    int (*poll_capture)(void*,uint64_t,int&);
+    int (*poll_capture)(void*,uint64_t,Root&,int&);
     // Takes a caught or fled Pokemon off the map when the game has not done so itself.
     void (*remove)(void*);
+    // Hands a confirmed catch to the shared auto-transfer path: 1 handed off, 0 not ready yet
+    // (storage not updated or another transfer in flight), -1 cannot be transferred.
+    int (*transfer)(void*,uint64_t);
 };
 const MapTapAdapter& map_tap_adapter();
 // MapTapWaiting: tapped while VGP+ was mid-request. Nothing has been sent for it; it starts once
 // VGP+ is idle and is dropped if the Pokemon leaves, the mode is turned off or VGP+ stays busy.
-enum MapTapPhase {MapTapIdle,MapTapEncounter,MapTapBerry,MapTapCapture,MapTapWaiting};
-constexpr int64_t kMapTapWaitMs=6000;
+// MapTapTransfer: caught; the catch response waits for storage to list the Pokemon, then goes to the
+// same transfer rules as every other catch. VGP+ stays paused so its own transfer cannot collide.
+enum MapTapPhase {MapTapIdle,MapTapEncounter,MapTapBerry,MapTapCapture,MapTapWaiting,MapTapTransfer};
+constexpr int64_t kMapTapWaitMs=6000,kMapTransferMs=20000;
 struct MapTapSession {
-    Root target,promise,response,berry_response;
+    Root target,promise,response,berry_response,catch_response;
     std::string account;
     uint64_t id=0;
     MapTapPhase phase=MapTapIdle;
     int attempts=0,active_berry=0;
     bool uncertain=false,berry_prepared=false,stop_new=false;
-    int64_t next_ms=0,promise_ms=0,wait_ms=0;
+    int64_t next_ms=0,promise_ms=0,wait_ms=0,transfer_ms=0;
 };
 MapTapSession map_tap;
 // A waiting tap owns nothing yet, so VGP+ keeps running until the tap is started.
@@ -101,7 +106,7 @@ void map_poll(uint64_t tid,int64_t now){
     Root response;int status=0,rc=0;
     if(map_tap.phase==MapTapEncounter)rc=a.poll_encounter(map_tap.promise.get(),tid,response);
     else if(map_tap.phase==MapTapBerry)rc=a.poll_berry(map_tap.promise.get(),tid,response,status);
-    else rc=a.poll_capture(map_tap.promise.get(),tid,status);
+    else rc=a.poll_capture(map_tap.promise.get(),tid,response,status);
     if(generation!=map_tap_generation)return;
     if(rc==PGR_VR_PENDING){if(now-map_tap.promise_ms>=kPromiseTimeoutMs)map_block("Request timed out; outcome unknown, not retried");return;}
     require(rc==PGR_VR_DONE,"Request rejected; outcome not retried");
@@ -123,6 +128,10 @@ void map_poll(uint64_t tid,int64_t now){
         // would look catchable again; a failure here only leaves it visible.
         try{if(a.remove&&map_tap.target&&a.alive(map_tap.target.get()))a.remove(map_tap.target.get());}catch(...){}
         if(generation!=map_tap_generation)return;
+        if(status==1&&response){
+            map_tap.catch_response=std::move(response);map_tap.phase=MapTapTransfer;map_tap.transfer_ms=now;
+            map_event("transfer","Caught on the map; waiting for storage to check transfer rules");return;
+        }
         map_done(status==1?"caught":"fled",status==1?"Caught on the map":"Pokemon fled",true);return;
     }
     require(status==2||status==4,"Unknown catch result; no automatic retry");
@@ -136,6 +145,15 @@ void step_map_auto_throw(uint64_t tid,bool blocked,bool vgp_busy=false){
     if(a.account()!=map_tap.account){map_block("Account changed; tap abandoned without retry");return;}
     if(blocked||!map_mode_on(p))map_tap.stop_new=true;
     if(now<map_tap.next_ms)return;map_tap.next_ms=now+250;
+    // The catch is done; only the hand-off is left, so mode changes and blocking no longer apply.
+    if(map_tap.phase==MapTapTransfer){
+        int handed=-1;std::string why="transfer skipped";
+        try{handed=a.transfer(map_tap.catch_response.get(),tid);}catch(const Failure& f){why=f.where;}catch(...){}
+        if(handed>0){map_done("caught","Caught on the map; checking transfer rules",true);return;}
+        if(handed<0){map_done("caught","Caught on the map; "+why,true);return;}
+        if(now-map_tap.transfer_ms>=kMapTransferMs)map_done("caught","Caught on the map; transfer inventory update timed out",true);
+        return;
+    }
     if(map_tap.phase==MapTapWaiting){
         if(map_tap.stop_new){map_done("stopped","Map catching disabled while waiting; tap dropped");return;}
         if(!a.alive(map_tap.target.get())||a.identity(map_tap.target.get())!=map_tap.id){map_done("gone","Pokemon left or was caught while waiting");return;}

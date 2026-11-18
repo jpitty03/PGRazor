@@ -21,8 +21,9 @@ struct Root{
  void reset(){if(h){assert(roots.erase(h)==1);h=0;}}
  void* get()const{return h?roots.at(h):nullptr;}explicit operator bool()const{return get()!=nullptr;}
 };
-int target,other,enc_promise,berry_promise,catch_promise,enc_response,berry_response;
-int encounters=0,berries=0,captures=0,polls=0,values=0,removes=0,ball=1,result=1,rc=PGR_VR_PENDING;
+int target,other,enc_promise,berry_promise,catch_promise,enc_response,berry_response,catch_response;
+int encounters=0,berries=0,captures=0,polls=0,values=0,removes=0,transfers=0,transfer_rc=1,ball=1,result=1,rc=PGR_VR_PENDING;
+bool transfer_throws=false;
 bool fresh=true,foreground=true,eligible=true,alive=true,fail_capture=false;
 int64_t now=10000;constexpr int64_t kPromiseTimeoutMs=15000,kThrowCadenceMs=1200;
 std::string account="one",settings="C4|0|1|75|701|0|1|0|1";
@@ -47,12 +48,13 @@ const MapTapAdapter& map_tap_adapter(){
   +[](PgrThrowValue& value){++values;value={};value.item=1;value.radius=values%2?.8f:.4f;value.bullseye=1;value.spinning=values%2;return true;},
   +[](void*,void*,const PgrCatchChanceOptions&,const PgrThrowValue&){return ball;},
   +[](void*,const PgrThrowValue& value){++captures;last=value;return fail_capture?Root():Root(&catch_promise);},
-  +[](void*,uint64_t,int& status){++polls;status=result;return rc;},
-  +[](void*){++removes;}
+  +[](void*,uint64_t,Root& out,int& status){++polls;status=result;if(rc==PGR_VR_DONE)out=Root(&catch_response);return rc;},
+  +[](void*){++removes;},
+  +[](void* r,uint64_t)->int{assert(r==&catch_response);++transfers;if(transfer_throws)throw Failure{"storage unavailable"};return transfer_rc;}
  };return a;
 }
 void reset(){
- map_reset();assert(roots.empty());map_finished.clear();encounters=berries=captures=polls=values=removes=0;
+ map_reset();assert(roots.empty());map_finished.clear();encounters=berries=captures=polls=values=removes=transfers=0;transfer_rc=1;transfer_throws=false;
  fresh=foreground=eligible=alive=true;fail_capture=false;ball=1;result=1;rc=PGR_VR_PENDING;now=10000;
  account="one";settings="C4|0|1|75|701|0|1|0|1";
 }
@@ -72,7 +74,7 @@ int main(){
  reset();settings="C4|0|1|75|0|0|0|0|1";assert(!map_tap_consume(&target,true));
  reset();assert(!map_tap_consume(&target,false));eligible=false;assert(!map_tap_consume(&target,true));assert(roots.empty());
  reset();begin_capture();for(int i=0;i<8;i++){assert(map_tap_consume(&target,true));assert(map_tap_consume(&other,true));tick();}
- assert(encounters==1&&berries==1&&captures==1);alive=false;rc=PGR_VR_DONE;tick();assert(roots.empty());
+ assert(encounters==1&&berries==1&&captures==1);alive=false;rc=PGR_VR_DONE;tick();assert(!roots.empty()&&!transfers);tick();assert(roots.empty()&&transfers==1);
  alive=true;assert(map_tap_consume(&target,true));assert(!map_tap.target); // terminal target cannot be caught twice
  reset();begin_capture();result=2;rc=PGR_VR_DONE;tick();rc=PGR_VR_PENDING;
  tick(false,1200);assert(berries==2);tick();tick();assert(captures==2&&values>=4&&!last.missed);
@@ -108,8 +110,24 @@ int main(){
  reset();assert(map_tap_consume(&target,true,true));settings="C4|0|1|75|701|0|0|0|1";wtick(false);assert(roots.empty()&&!encounters);
  reset();assert(map_tap_consume(&target,true,true));now+=300;step_map_auto_throw(1,true,false);assert(roots.empty()&&!encounters);
  // A caught Pokemon the game left standing is taken off the map once; one the game removed is not touched.
- reset();begin_capture();rc=PGR_VR_DONE;result=1;tick();assert(roots.empty()&&removes==1);
+ reset();begin_capture();rc=PGR_VR_DONE;result=1;tick();tick();assert(roots.empty()&&removes==1&&transfers==1);
  assert(map_tap_consume(&target,true));assert(!map_tap.target&&removes==2); // a later tap on a leftover removes it
- reset();begin_capture();alive=false;rc=PGR_VR_DONE;result=1;tick();assert(roots.empty()&&removes==0);
- reset();puts("PASS production map Auto Throw: waits for VGP+, removes leftovers, inactive-command regression, explicit tap, duplicates, berry breakout, settings per attempt, off/owner/account/foreground, uncertain dedup, no balls, roots and C1-C4");
+ reset();begin_capture();alive=false;rc=PGR_VR_DONE;result=1;tick();tick();assert(roots.empty()&&removes==0);
+ // A caught Pokemon goes to the transfer rules: VGP+ stays paused while storage catches up, then it is handed off once.
+ reset();begin_capture();rc=PGR_VR_DONE;result=1;transfer_rc=0;tick();assert(map_tap_active()&&map_tap.phase==MapTapTransfer);
+ for(int i=0;i<5;i++)tick();assert(transfers==5&&map_tap_active());transfer_rc=1;tick();assert(transfers==6&&roots.empty()&&!map_tap_active());
+ assert(map_tap_consume(&target,true));assert(!map_tap.target); // never caught twice
+ // Mode off or another automation starting does not drop the hand-off of a finished catch.
+ reset();begin_capture();rc=PGR_VR_DONE;result=1;transfer_rc=0;tick();settings="C4|0|1|75|701|0|0|0|1";tick(true);assert(transfers==1&&map_tap.target);
+ transfer_rc=1;tick(true);assert(transfers==2&&roots.empty());
+ // Storage never lists it: given up after the limit, kept.
+ reset();begin_capture();rc=PGR_VR_DONE;result=1;transfer_rc=0;tick();tick(false,19000);assert(map_tap.target);tick(false,1100);assert(roots.empty());
+ // Cannot be transferred, or the hand-off fails: finished once, nothing retried.
+ reset();begin_capture();rc=PGR_VR_DONE;result=1;transfer_rc=-1;tick();tick();assert(transfers==1&&roots.empty());
+ reset();begin_capture();rc=PGR_VR_DONE;result=1;transfer_throws=true;tick();tick();assert(transfers==1&&roots.empty());
+ // Foreground lost before the hand-off: abandoned (kept), no transfer.
+ reset();begin_capture();rc=PGR_VR_DONE;result=1;transfer_rc=0;tick();foreground=false;tick();foreground=true;assert(roots.empty());
+ // A fled Pokemon is never handed off.
+ reset();begin_capture();rc=PGR_VR_DONE;result=3;tick();assert(roots.empty()&&!transfers);
+ reset();puts("PASS production map Auto Throw: transfer hand-off after catch, waits for VGP+, removes leftovers, inactive-command regression, explicit tap, duplicates, berry breakout, settings per attempt, off/owner/account/foreground, uncertain dedup, no balls, roots and C1-C4");
 }

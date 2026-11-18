@@ -173,7 +173,24 @@ Root map_real_capture(void* raw,const PgrThrowValue& value){
         "Niantic.Holoholo.Encounter.PokeballThrow","Holoholo.Rpc.ARPlusEncounterValuesProto");
     return invoke_auto_throw_capture(method,target,value);
 }
-int map_real_poll_capture(void* promise,uint64_t tid,int& status){Root hold(promise),response;return poll_auto_throw(hold,tid,response,status);}
+int map_real_poll_capture(void* promise,uint64_t tid,Root& response,int& status){Root hold(promise);return poll_auto_throw(hold,tid,response,status);}
+// Same hand-off as research catches: once storage lists the caught Pokemon, encounter_host applies the
+// user's transfer rules (protections, keep list, PvP, Evolve first). A tapped catch honors Keep All.
+int map_real_transfer(void* raw_response,uint64_t tid){
+    Root response(raw_response);require(bool(response),"catch response missing");
+    Root bag=resolve_di_service("Niantic.Holoholo","IPokemonBag");require(bool(bag),"Pokemon storage unavailable");
+    auto aux=static_cast<const PgrVgpAuxApi*>(pgrazor_vgp_aux_api(1));require(aux&&aux->transfer,"transfer lookup unavailable");
+    PgrVgpAuxTransfer out{};out.version=1;out.size=sizeof(out);
+    const int rc=aux->transfer(response.get(),bag.get(),tid,2500,&out);
+    if(rc==PGR_VX_OK)return 0;
+    if(rc!=PGR_VX_SUCCESS)return -1;
+    auto tr=transport();int keep_all=0;if(!tr||tr->get_bool(35,&keep_all)!=0)keep_all=1;
+    if(pgr_research_transfer_caught(out.caught_id,response.h,bag.h,out.pokemon_handle,out.gm_handle,tid,keep_all==1?1:0)){
+        response.h=0;bag.h=0;return 1;
+    }
+    auto free_handle=fn<void(*)(uintptr_t)>(boot.runtime.gchandle_free);
+    free_handle(out.pokemon_handle);free_handle(out.gm_handle);return 0;
+}
 void map_real_remove(void* raw){
     Root target(raw);
     // Every type needs this, wild spawns included: without it a caught wild spawn was still standing
@@ -186,7 +203,7 @@ void map_real_remove(void* raw){
 const MapTapAdapter& map_tap_adapter(){
     static const MapTapAdapter adapter{real_read_account_id,map_real_eligible,map_real_id,map_real_alive,map_real_encounter,
         map_real_poll_encounter,map_real_active_berry,map_real_berry,map_real_poll_berry,map_real_value,map_real_ball,
-        map_real_capture,map_real_poll_capture,map_real_remove};return adapter;
+        map_real_capture,map_real_poll_capture,map_real_remove,map_real_transfer};return adapter;
 }
 void map_tap_hook(void* self,void* sender,void* event,void* method){
     if(owner==uint64_t(gettid())&&map_tap.target){map_event("busy","Map catch already in progress; tap ignored");return;}

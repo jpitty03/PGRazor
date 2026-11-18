@@ -926,6 +926,8 @@ void pgr_catch_chance_enter(void*) {}
 const void* pgrazor_throws_api(uint32_t) {return nullptr;}
 
 const void* pgrazor_vgp_controller_api(uint32_t){return nullptr;}
+extern "C" const void* pgrazor_vgp_aux_api(uint32_t){return nullptr;}
+extern "C" int pgr_research_transfer_caught(uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,int){return 0;}
 bool pgr_map_throw_value(PgrThrowValue*){return false;}
 bool pgr_catch_chance_base(void*,double*){return false;}
 bool pgr_catch_chance_offers_ball(void*,int){return false;}

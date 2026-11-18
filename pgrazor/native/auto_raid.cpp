@@ -15,6 +15,7 @@ extern int pgrazor_hook(void*,void*,void**);
 #include "throws.h"
 #include "vgp_results.h"
 #include "vgp_marker.h"
+#include "vgp_aux.h"
 
 #include <algorithm>
 #include <cmath>
@@ -29,6 +30,9 @@ extern int pgrazor_hook(void*,void*,void**);
 #include <time.h>
 #include <unistd.h>
 #include <vector>
+
+// encounter_host.cpp: the shared caught-Pokemon transfer hand-off (adopts all four handles on 1).
+extern "C" int pgr_research_transfer_caught(uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,int);
 
 // Auto-Raid runs on the proven Unity main thread. Java owns explicit session tokens,
 // settings and movement; this controller owns discovery, authorized local pass selection,
@@ -1686,5 +1690,6 @@ void pgr_map_auto_throw_tick(uint64_t tid,const PgrSharedMetadataOutput* metadat
     }catch(const Failure& f){map_block(f.where);}catch(...){map_block("Unexpected native failure; not retried");}
 }
 bool pgr_map_auto_throw_active(){return map_tap_active();}
-void* pgr_map_auto_throw_target(){return owner==uint64_t(gettid())&&map_tap_active()?map_tap.target.get():nullptr;}
+// After the catch the target is gone; the marker is hidden while the transfer hand-off finishes.
+void* pgr_map_auto_throw_target(){return owner==uint64_t(gettid())&&map_tap_active()&&map_tap.phase!=MapTapTransfer?map_tap.target.get():nullptr;}
 void pgr_map_auto_throw_stop(){if(owner==uint64_t(gettid())){map_gate=false;if(map_tap.target)map_block("Runtime stopped; no retry");}}
