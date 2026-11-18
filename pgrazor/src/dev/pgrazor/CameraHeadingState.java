@@ -2,7 +2,8 @@ package dev.pgrazor;
 
 /** Monotonic heading freshness and gesture invalidation, independent of Android. */
 public final class CameraHeadingState {
-    public static final long MAX_AGE_MILLIS = 500;
+    /** The game can read its camera only about twice a second, so allow a few missed readings. */
+    public static final long MAX_AGE_MILLIS = 1500;
     private boolean valid, hasCamera;
     private int cameraId;
     private double heading;
