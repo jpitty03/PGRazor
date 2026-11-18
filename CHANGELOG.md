@@ -6,6 +6,7 @@
 
 - **Settings search:** a search field at the top of Settings finds any setting by name, description or common keyword (for example "fake gps" or "light mode"). Tapping a result opens its page and scrolls to it.
 - **Grouped settings home:** the category pages are grouped into Play, Automation and App.
+- **Exchange gifts with Mateo:** on a Route, PGRazor taps Mateo once you are in range and completes his gift exchange. Pokémon trades are left to you. Find it under Go Plus, Stops & Items → Routes.
 
 ### Improvements & fixes
 
@@ -13,6 +14,9 @@
 - Settings stay a comfortable width on tablets.
 - Status and navigation bar icons follow the light or dark theme.
 - Map catches now follow your auto-transfer rules.
+- Auto-Raid uses a newly awarded free raid pass instead of stopping when the previous one is spent.
+- Routes you walk yourself no longer pause with "your location could not be established".
+- The joystick no longer snaps back to the middle while you hold it.
 
 ## v0.3.4
 

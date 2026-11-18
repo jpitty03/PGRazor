@@ -75,7 +75,7 @@ final class SettingsPanel {
     private Button evolveTransferStages, evolveTransferMode, evolveTransferList;
     // Boolean settings use proper switches.
     private Switch idleWalkSwitch, locationSwitch, vgpSwitch, joystickSwitch, cooldownSwitch, localTimeSwitch, encounterCounterSwitch, encounterOverlaySwitch, spawnSwitch, autoTransferSwitch,
-        quickSpinSwitch, berrySwitch, quickSummarySwitch, curveSwitch, alwaysHitSwitch, arSwitch, transferOverlaySwitch, catchChanceSwitch, autoBallSwitch, autoThrowSwitch, autoThrowMapSwitch, skipCutscenesSwitch,
+        quickSpinSwitch, berrySwitch, quickSummarySwitch, curveSwitch, alwaysHitSwitch, arSwitch, transferOverlaySwitch, catchChanceSwitch, autoBallSwitch, autoThrowSwitch, autoThrowMapSwitch, skipCutscenesSwitch, routeGiftSwitch,
         batteryResSwitch, batteryFpsSwitch, batteryQualitySwitch;
     private Button autoBallTarget, berryPriority;
     private BerryPriorityPicker berryPicker;
@@ -572,6 +572,11 @@ final class SettingsPanel {
         quickSpinSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.quickSpinEnabled())return; Control.setQuickSpinEnabled(quickSpinSwitch.isChecked()); });
         quickSpinStatus = caption(stops, "");
 
+        LinearLayout routesC = group(page, "Routes"); summaryGated.add((View)routesC.getParent());
+        routeGiftSwitch = switchRow(routesC, "Exchange gifts with Mateo"); routeGiftSwitch.setChecked(Control.routeGiftExchange());
+        routeGiftSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.routeGiftExchange())return; Control.setRouteGiftExchange(checked); });
+        caption(routesC, "When Mateo offers a gift exchange on a Route, goes through it for you: taps him once you are in range, accepts, sends the suggested gift without a sticker and opens his gift. Pokémon trades are left to you.");
+
         // ----- Inventory (opens its modal directly) -----
         LinearLayout itemsC = group(page, "Items"); summaryGated.add((View)itemsC.getParent());
         itemSettings = button("Auto-transfer items"); itemsC.addView(itemSettings); itemSettings.setOnClickListener(v -> showItemSettings());
@@ -1065,6 +1070,7 @@ final class SettingsPanel {
         refreshLocationOptions();
         refreshThrows();
         skipCutscenesSwitch.setChecked(Control.skipCutscenes());
+        routeGiftSwitch.setChecked(Control.routeGiftExchange());
         batteryResSwitch.setChecked(Control.batteryLowRes());batteryFpsSwitch.setChecked(Control.batteryFps20());batteryQualitySwitch.setChecked(Control.batteryLowQuality());
         status(cutsceneStatus,Control.cutsceneSkipStatus());
         refreshHealing();

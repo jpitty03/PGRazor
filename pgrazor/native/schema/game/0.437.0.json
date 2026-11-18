@@ -11389,6 +11389,78 @@
         ],
         "purpose": "Niantic.Holoholo.Gym.GymBattleState.ExitBattleResultsState 0.435.2 first24bytes"
       }
+    },
+    "route_gift_cpp": {
+      "npc_enter_rva": {
+        "kind": "rva",
+        "value": "167291132ULL",
+        "purpose": "Niantic.Holoholo.NpcEncounter.NpcEncounterState.EnterState 0.437.0 entry"
+      },
+      "npc_enter_bytes": {
+        "kind": "bytes",
+        "value": [
+          "0xfe",
+          "0x0f",
+          "0x1b",
+          "0xf8",
+          "0xfa",
+          "0x67",
+          "0x01",
+          "0xa9",
+          "0xf8",
+          "0x5f",
+          "0x02",
+          "0xa9",
+          "0xf6",
+          "0x57",
+          "0x03",
+          "0xa9",
+          "0xf4",
+          "0x4f",
+          "0x04",
+          "0xa9",
+          "0xf6",
+          "0x93",
+          "0x02",
+          "0x90"
+        ],
+        "purpose": "Niantic.Holoholo.NpcEncounter.NpcEncounterState.EnterState 0.437.0 first24bytes"
+      },
+      "npc_exit_rva": {
+        "kind": "rva",
+        "value": "167299412ULL",
+        "purpose": "Niantic.Holoholo.NpcEncounter.NpcEncounterState.ExitState 0.437.0 entry"
+      },
+      "npc_exit_bytes": {
+        "kind": "bytes",
+        "value": [
+          "0xfe",
+          "0x0f",
+          "0x1c",
+          "0xf8",
+          "0xf8",
+          "0x5f",
+          "0x01",
+          "0xa9",
+          "0xf6",
+          "0x57",
+          "0x02",
+          "0xa9",
+          "0xf4",
+          "0x4f",
+          "0x03",
+          "0xa9",
+          "0xd4",
+          "0x93",
+          "0x02",
+          "0xd0",
+          "0xf3",
+          "0x03",
+          "0x00",
+          "0xaa"
+        ],
+        "purpose": "Niantic.Holoholo.NpcEncounter.NpcEncounterState.ExitState 0.437.0 first24bytes"
+      }
     }
   },
   "schemas": {
