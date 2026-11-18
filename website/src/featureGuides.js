@@ -6,23 +6,22 @@ export const featureGuides = [
     category: 'Movement',
     summary:
       'Spoof your location, steer with a camera-relative joystick, and choose what a tap on the game map does.',
-    where: 'Settings > General Settings, plus the on-screen joystick.',
+    where: 'Settings > Location & Map > Location & movement and Game map, plus the on-screen joystick.',
     steps: [
-      'Open Settings and expand General Settings.',
-      'Open Customize Quick Menu — the first control in General Settings — to show or hide any of the 13 Quick Menu entries. It changes visibility only, never a feature’s on/off state, and Settings always stays available. Choices are saved per account and included in settings backups.',
-      'Turn on Location spoofing. It can run with Android’s system Location switch off or the app’s location permission denied.',
+      'Open Settings and tap Location & Map.',
+      'Under Location & movement, turn on Location spoofing. It can run with Android’s system Location switch off or the app’s location permission denied.',
       'Use Coordinates & speed to set a start point and pick a speed preset: 0, 9.3, 16, or 30 km/h.',
       'Drag the joystick to walk; it steers relative to the game camera, not the screen.',
-      'Set Game map tap to Do nothing, Walk, Teleport, or Walk / double tap teleport — the combined mode walks on one ground tap and teleports on two quick taps in the same spot.',
+      'Under Game map, set Game map tap to Do nothing, Walk, Teleport, or Walk / double tap teleport — the combined mode walks on one ground tap and teleports on two quick taps in the same spot.',
     ],
     notes: [
       'Zero speed pauses travel; selecting another speed resumes it.',
-      'Show joystick toggles the handle; the panel behind it is intentionally transparent.',
+      'Show joystick, under Location & movement, toggles the handle; the panel behind it is intentionally transparent.',
       'Disabling spoofing returns the device to its normal location and stops simulated movement.',
       'Adventure Sync prompts are dismissed automatically only while spoofing is on and the app has no Android location permission.',
-      'Spawn booster (80 m) is an optional, experimental General Settings toggle that widens the nearby spawn range; it appears only when the game supports it and does not prove a server-side bonus. It can cause lag in busy areas with many nearby Pokémon, so turn it off if the game stutters.',
-      'Idle walking, off by default, walks a small closed loop after 3 seconds without movement, at your chosen speed up to 5 km/h. The joystick, destination walking, Autowalk, and In-game Routes take priority, and speed 0 pauses it. The game decides whether such small loops count as distance.',
-      'Skip cutscenes, below Show joystick, has its own guide. So do Battery usage and Show local time.',
+      'Spawn booster (80 m), under Game map, is an optional, experimental toggle that widens the nearby spawn range; it appears only when the game supports it and does not prove a server-side bonus. It can cause lag in busy areas with many nearby Pokémon, so turn it off if the game stutters.',
+      'Idle walking, under Location & movement and off by default, walks a small closed loop after 3 seconds without movement, at your chosen speed up to 5 km/h. The joystick, destination walking, Autowalk, and In-game Routes take priority, and speed 0 pauses it. The game decides whether such small loops count as distance.',
+      'The Cooldown overlay, Show local time, Skip cutscenes, and Battery usage each have their own guide.',
     ],
   },
   {
@@ -31,7 +30,7 @@ export const featureGuides = [
     category: 'Map',
     summary:
       'A full-screen map with place search, loaded nearby layers, a live location dot, and per-pin Walk or Teleport.',
-    where: 'Quick Menu > Map (full screen, in your chosen PGRazor theme).',
+    where: 'Quick Menu > Map, or Settings > Location & Map > Location & movement > World map (full screen, in your chosen PGRazor theme).',
     steps: [
       'Open the Quick Menu and tap Map.',
       'Search for a business, park, landmark, or address; results are biased toward the area you are viewing and selecting one centers the red destination pin.',
@@ -106,6 +105,26 @@ export const featureGuides = [
       'Keep the game in the foreground. Finish or quit an unfinished Route in the game’s Route menu before starting again.',
       'This is separate from GPX routes and PokéStop Autowalk.',
       'Adventure Sync prompts are declined automatically while spoofing is on without Android location permission; separate medal popups may still need dismissal.',
+      'Exchange gifts with Mateo has its own guide.',
+    ],
+  },
+  {
+    id: 'mateo-gift-exchange',
+    title: 'Exchange gifts with Mateo',
+    category: 'Automation',
+    summary:
+      'On an in-game Route, let PGRazor go through Mateo’s gift exchange for you when he offers one.',
+    where: 'Settings > Go Plus, Stops & Items > Routes > Exchange gifts with Mateo.',
+    steps: [
+      'Open Settings > Go Plus, Stops & Items and, under Routes, turn on Exchange gifts with Mateo. It is off by default and saved per account.',
+      'Walk an in-game Route, yourself or with In-game Routes.',
+      'When Mateo offers a gift exchange at a stop, PGRazor taps him once you are in range of the stop, steps through his conversation, and accepts the exchange.',
+      'It sends the gift the game suggests, without a sticker, and then opens Mateo’s gift.',
+    ],
+    notes: [
+      'Pokémon trades with Mateo are left to you. It only acts on encounters that include a gift exchange.',
+      'The game’s servers decide when Mateo appears. So far he has shown up about once per account per day, which is not guaranteed.',
+      'If a screen does not respond, it stops and leaves the rest of the exchange to you.',
     ],
   },
   {
@@ -114,18 +133,18 @@ export const featureGuides = [
     category: 'Reference',
     summary:
       'A local, draggable timer that estimates the soft-ban wait between location-sensitive actions.',
-    where: 'Settings > General Settings (Cooldown overlay); tap the timer for history.',
+    where: 'Settings > Location & Map > Cooldown & time > Cooldown overlay; tap the timer for history.',
     steps: [
-      'Turn on the Cooldown overlay in General Settings.',
+      'Open Settings > Location & Map and, under Cooldown & time, turn on Cooldown overlay.',
       'After a trigger action — a catch, throw, berry, spin, or gym action in range — read the estimated wait.',
       'Measure distance from your last location-sensitive action to the next; round up to the next listed distance on the chart.',
-      'Tap the timer to open cooldown history; drag it to reposition it.',
+      'Tap the timer, or Cooldown history in the same group, to open cooldown history; drag the timer to reposition it.',
     ],
     notes: [
       'The timer is a local estimate rephrased from community references; it does not read a server countdown and is not a guarantee.',
       'Time already spent waiting counts, and teleporting by itself does not restart the clock.',
       'Acting too early can cause fleeing catches or refused spins.',
-      'Optional Stop on cooldown (estimated) can switch VGP off for the estimated wait.',
+      'Optional Stop on cooldown (estimated), under Go Plus, Stops & Items > Virtual Go Plus, can switch VGP off for the estimated wait.',
     ],
   },
   {
@@ -134,23 +153,23 @@ export const featureGuides = [
     category: 'Catching',
     summary:
       'Quick Catch, throw rating, variety and curveball, catch chance and Auto ball, encounter berry priorities, and IV display.',
-    where: 'Settings > Catch & summary, Settings > Throws, and Settings > General Settings > IV Display.',
+    where: 'Settings > Catching (Quick catch, Throws, Catch chance & ball choice, Berries), Settings > Go Plus, Stops & Items > PokéStops > Quick spin, and Settings > Pokémon & Transfer > IV display.',
     steps: [
-      'In Catch & summary, turn on Quick catch to shorten the catch animation and skip the post-catch screens.',
-      'In Catch & summary, turn on Quick spin to let an opened PokéStop spin and close its reward screen automatically.',
-      'In Throws, set Throw rating to Nice, Great, or Excellent, and optionally turn on Always curveball or Always hit. Throw variety picks a rating at random for each throw instead.',
-      'In Throws, Show catch chance lists each ball’s chance in manual encounters, from the server’s catch rate with your berry, throw rating, and curveball. Turn on Auto ball and set a target to pick the cheapest Poké, Great, or Ultra Ball that reaches it.',
-      'In General Settings > IV Display, tap Encounter, Pokémon stats screen, or Pokémon storage list to cycle Off, Lv · 15/14/12, Lv · IV, Lv · IV · 15/14/12, and Lv · IV · 15/14/12 · PvP.',
-      'Tap the Catching berry overlay icon/count, or Berry priority in Catch & summary, to choose up to three berries in priority order; each throw uses the first choice you still have in stock.',
+      'In Settings > Catching > Quick catch, turn on Quick catch to shorten the catch animation and skip the post-catch screens.',
+      'In Settings > Go Plus, Stops & Items > PokéStops, turn on Quick spin to let an opened PokéStop spin and close its reward screen automatically.',
+      'In Catching > Throws, set Throw rating to Nice, Great, or Excellent, and optionally turn on Always curveball or Always hit. Throw variety picks a rating at random for each throw instead.',
+      'In Catching > Catch chance & ball choice, Show catch chance lists each ball’s chance in manual encounters, from the server’s catch rate with your berry, throw rating, and curveball. Turn on Auto ball and set Auto ball target to pick the cheapest Poké, Great, or Ultra Ball that reaches it.',
+      'In Settings > Pokémon & Transfer > IV display, tap Encounter, Pokémon stats screen, or Pokémon storage list to cycle Off, Lv · 15/14/12, Lv · IV, Lv · IV · 15/14/12, and Lv · IV · 15/14/12 · PvP.',
+      'In Catching > Berries, Catch berries & overlay shows the encounter berry overlay. Tap its icon/count, or Berry priority, to choose up to three berries in priority order; each throw uses the first choice you still have in stock.',
     ],
     notes: [
       'Empty-stock berries can be selected; after three picks the next tap starts a new list, and Off clears it. Priorities are saved and included in settings backups.',
-      'AR+ throw bonus and local spawn-range changes are experimental and do not prove a server-side bonus.',
+      'AR+ throw bonus (in Throws) and local spawn-range changes are experimental and do not prove a server-side bonus.',
       'Requested throw ratings combine with curveball but do not guarantee a catch.',
       'Auto ball runs when the encounter opens and after each escape; a ball you pick by hand is kept until the next escape. It never uses a Master Ball. The server’s catch rate already includes your type medal bonus.',
       'The PvP format adds each league’s crest and rank: the IV rank in Great and Ultra League, and the species’ PvPoke rank in Master League.',
       'Quick catch also speeds up Dynamax catch, breakout, and flee animations; that part is experimental.',
-      'Auto throw and Catch on map, at the bottom of Throws, have their own guide.',
+      'Auto throw and Catch on map, in Catching > Auto throw, have their own guide.',
       'Some controls are gated by the game’s catch-summary and ball-animation support and may be hidden on unsupported versions.',
     ],
   },
@@ -160,9 +179,9 @@ export const featureGuides = [
     category: 'Catching',
     summary:
       'Let PGRazor throw for you in encounters, or catch a tapped Pokémon straight from the map without opening the encounter.',
-    where: 'Settings > Throws > Auto throw and Catch on map (tap Pokémon).',
+    where: 'Settings > Catching > Auto throw > Auto throw and Catch on map (tap Pokémon).',
     steps: [
-      'In Throws, turn on Auto throw. It is off by default.',
+      'In Settings > Catching > Auto throw, turn on Auto throw. It is off by default.',
       'Open an encounter as usual. Each throw uses your throw rating, curveball, selected ball, and berry priority, with Always Hit.',
       'To catch without the encounter screen, also turn on Catch on map (tap Pokémon), then tap a Pokémon on the map.',
       'During a map catch, watch the badge near the PGRazor icon: WAIT, CATCH, RETRY, then CAUGHT or FLED. A pin sits above the Pokémon being caught.',
@@ -182,14 +201,14 @@ export const featureGuides = [
     category: 'Catching',
     summary:
       'Auto-transfer low-IV catches while protecting shinies, legendaries, sizes, good PvP IVs, and a custom species list.',
-    where: 'Settings > Catch & summary > Transfer on catch.',
+    where: 'Settings > Pokémon & Transfer > Transfer on catch, Always keep, Keep for PvP, and Evolve before transferring.',
     steps: [
-      'Open Transfer on catch and turn on Transfer below 90% IV.',
-      'Enable the keep rules you want: legendary/mythical/Ultra Beasts, shiny, event/costume, background, XXS, XXL, and 0% IV (0/0/0).',
-      'Open Custom keep list to search and keep specific species (including all forms).',
-      'Turn on Keep Great League, Ultra League, or Master League PvP IVs and tap Top to choose the rank to keep (defaults: Great top 50, Ultra top 10, Master off).',
-      'Optionally turn on the Keep-all overlay button for a draggable toggle that keeps manual encounter catches without changing your rules.',
-      'Optionally turn on Evolve before transferring, choose Evolve: once or all stages, and whether it applies to your current transfer rules or to Selected species.',
+      'Open Settings > Pokémon & Transfer and, under Transfer on catch, turn on Transfer below 90% IV.',
+      'Under Always keep, enable the keep rules you want: legendary/mythical/Ultra Beasts, shiny, event, costume, background, XXS, XXL, and 0% IV (0/0/0).',
+      'Open Custom keep list, also under Always keep, to search and keep specific species (including all forms).',
+      'Under Keep for PvP, turn on Keep Great League, Ultra League, or Master League PvP IVs and tap Top to choose the rank to keep (defaults: Great top 50, Ultra top 10, Master off).',
+      'Optionally turn on the Keep-all overlay button, under Always keep, for a draggable toggle that keeps manual encounter catches without changing your rules.',
+      'Optionally, under Evolve before transferring, turn it on, choose Evolve: once or all stages, and whether it applies to your current transfer rules or to Selected species.',
     ],
     notes: [
       'Favorites and eggs are always kept.',
@@ -207,9 +226,9 @@ export const featureGuides = [
     category: 'Automation',
     summary:
       'Catch nearby wild Pokémon with red balls only and spin nearby stops, with a target marker and status overlay.',
-    where: 'Settings > Virtual Go Plus; start/stop from the VGP overlay icon.',
+    where: 'Settings > Go Plus, Stops & Items > Virtual Go Plus; start/stop from the VGP overlay icon.',
     steps: [
-      'In Virtual Go Plus, turn on VGP overlay to show the overlay (the switch controls visibility, not the run state).',
+      'In Settings > Go Plus, Stops & Items > Virtual Go Plus, turn on VGP overlay to show the overlay (the switch controls visibility, not the run state).',
       'Choose the VGP options you want: Nearby Pokémon, Nearby PokéStops, and Push notifications.',
       'Tap the overlay device icon to start or stop VGP; the ON/OFF label shows its state.',
       'Optionally enable Stop on cooldown (estimated) to switch VGP off for the estimated wait until you restart it.',
@@ -227,9 +246,9 @@ export const featureGuides = [
     category: 'Automation',
     summary:
       'An expanded VGP mode (formerly Smart Background Catcher) with ball, berry, throw, and premium/candy rules.',
-    where: 'Settings > Virtual Go Plus > VGP+; start/stop from the same VGP overlay icon.',
+    where: 'Settings > Go Plus, Stops & Items > Virtual Go Plus > VGP+; start/stop from the same VGP overlay icon.',
     steps: [
-      'With the VGP overlay enabled, turn on VGP+ in the Virtual Go Plus section.',
+      'With the VGP overlay enabled, turn on VGP+ in the Virtual Go Plus group of Go Plus, Stops & Items.',
       'Pick a Standard ball (Poké Ball, Great Ball, or Ultra Ball) and a Standard berry (Off, Razz, Nanab, Pinap, Golden Razz, or Silver Pinap).',
       'Optionally turn on “Shiny or IV ≥90%: Ultra Ball + Golden Razz”, and set High CP threshold (0–10000) and High level threshold (0–50) — a threshold of 0 disables that rule.',
       'Choose a Throw rating (Default/Nice/Great/Excellent) and optional Curveball.',
@@ -253,7 +272,7 @@ export const featureGuides = [
     category: 'Automation',
     summary:
       'Deploy a tagged defender to an open friendly gym slot and feed your gym defenders from one draggable overlay.',
-    where: 'Settings > Team Rocket, Gyms, Raids & Dynamax > Gyms > Gym Slotter & Berry Feeder.',
+    where: 'Settings > Battles > Gyms > Gym Slotter & Berry Feeder.',
     steps: [
       'In the game’s Pokémon storage, open the Tags tab and create a tag named Gym (the #Gym shorthand is also recognized), then assign the eligible, healthy defenders you want deployed.',
       'Open Gym Slotter & Berry Feeder. Deployment and feeding are two independent switches that both default off, and VGP need not be running.',
@@ -276,9 +295,9 @@ export const featureGuides = [
     category: 'Automation',
     summary:
       'Builds buddy mood with snapshot requests, petting, and reserve-aware berry feeding, replacing the old Auto feed buddy. It keeps running while game menus are open.',
-    where: 'Settings > Buddy Emotion Engine.',
+    where: 'Settings > Buddy, Eggs & Friends > Buddy Emotion Engine.',
     steps: [
-      'Expand Buddy Emotion Engine and turn on “Run the Buddy Emotion Engine”. This one master control covers snapshots, petting, hunger-based feeding, and optional gift collection.',
+      'Open Settings > Buddy, Eggs & Friends and, under Buddy Emotion Engine, turn on “Run the Buddy Emotion Engine”. This one master control covers snapshots, petting, hunger-based feeding, and optional gift collection.',
       'Open Feeding priority and tap berries in the order to try them; uncheck and reselect a berry to move it to the end. Use Clear to empty the list or Reset to restore Nanab, Razz, then Pinap — the default for new setups.',
       'Set Reserve per berry (0–1000, default 50); each feed uses the first selected berry whose stock is above its reserve.',
       'Optionally turn on “Open gifts your buddy brings back”.',
@@ -298,7 +317,7 @@ export const featureGuides = [
     category: 'Automation',
     summary:
       'Start one timed walk and watch loaded spawns for Galarian birds, with a manual catch handoff.',
-    where: 'Settings > Automation > Daily Incense Session, or Quick Menu > Automation.',
+    where: 'Settings > Automation > One-shot tasks > Daily Incense Session, or Quick Menu > Automation.',
     steps: [
       'Activate Daily Adventure Incense yourself in the game before starting this task.',
       'Open Automation, choose Daily Incense Session, and enter a heading from 0 to 359 degrees.',
@@ -319,7 +338,7 @@ export const featureGuides = [
     category: 'Automation',
     summary:
       'Run one bounded feeding batch for gyms with your own deployed defenders, using surplus normal berries.',
-    where: 'Settings > Automation > Remote Gym Feeding, or Quick Menu > Automation.',
+    where: 'Settings > Automation > One-shot tasks > Remote Gym Feeding, Settings > Battles > Gyms > Remote Gym Feeding, or Quick Menu > Automation.',
     steps: [
       'Stop Gym automation and VGP+ gym spinning, then open Remote Gym Feeding.',
       'Set separate Nanab and Razz reserves from 0 to 1000. Optionally enable Pinap and set its reserve; Pinap starts off.',
@@ -338,7 +357,7 @@ export const featureGuides = [
     title: 'Send & Open Gifts',
     category: 'Automation',
     summary: 'Send available gifts to eligible friends, then open received gifts in one manually started pass.',
-    where: 'Settings > Automation > Send & Open Gifts, or Quick Menu > Automation.',
+    where: 'Settings > Automation > One-shot tasks > Send & Open Gifts, Settings > Buddy, Eggs & Friends > Friend gifts > Send & Open Gifts, or Quick Menu > Automation.',
     steps: [
       'Choose whether to open even when your item bag is full. This option is on by default, uses the game’s full-bag reward preference, and may provide fewer rewards.',
       'Press Start. The pass sends your available gifts to eligible friends, then opens the gifts you have received, handling each friend once. Watch the confirmed Sent and Opened counts, skipped actions, and current status.',
@@ -358,7 +377,7 @@ export const featureGuides = [
     category: 'Automation',
     summary:
       'Preview a tagged batch, then evolve each eligible Pokémon once without opening the evolution cutscene.',
-    where: 'Settings > Automation > Mass Evolve, or Quick Menu > Automation > Mass Evolve.',
+    where: 'Settings > Automation > One-shot tasks > Mass Evolve, Settings > Pokémon & Transfer > Tools > Mass Evolve, or Quick Menu > Automation > Mass Evolve.',
     steps: [
       'In Pokemon storage, open Tags, create a tag such as Evolve, and assign only the Pokemon you want evolved to it.',
       'Open Automation > Mass Evolve and enter the exact tag name you want to evolve (for example, Evolve — this is just a sample tag).',
@@ -382,7 +401,7 @@ export const featureGuides = [
     category: 'Automation',
     summary:
       'Teleport to reported 100% IV Pokémon, check each for shiny, and catch a shiny once your cooldown allows.',
-    where: 'Settings > Automation > Shundo Sniper (Experimental), or Quick Menu > Automation.',
+    where: 'Settings > Automation > One-shot tasks > Shundo Sniper (Experimental), or Quick Menu > Automation.',
     steps: [
       'Read the warning first: constant teleporting and remote catching raise the risk of an account warning or ban. Use an alt account, not your main.',
       'Open Automation and choose Shundo Sniper (Experimental).',
@@ -404,7 +423,7 @@ export const featureGuides = [
     category: 'Automation',
     summary:
       'Prefer GO Safari Balls for Mighty Pokémon in VGP+ and Auto ball during the Go Wild event.',
-    where: 'Quick Menu > Events > Go Wild November 2026.',
+    where: 'Quick Menu > Events > Go Wild November 2026, or Settings > Events > Event settings > Go Wild November 2026.',
     steps: [
       'Open the Quick Menu and tap Events, then Go Wild November 2026.',
       'Turn on Use Safari Balls in VGP+ to prefer them for Mighty Pokémon while VGP+ is running.',
@@ -422,7 +441,7 @@ export const featureGuides = [
     category: 'Automation',
     summary:
       'An Events screen that can open every visible map box and skip its encounter screens.',
-    where: 'Quick Menu > Events > Halloween 2026.',
+    where: 'Quick Menu > Events > Halloween 2026, or Settings > Events > Event settings > Halloween 2026.',
     steps: [
       'Open the Quick Menu and tap Events, then Halloween 2026.',
       'Enable “Open boxes and skip encounters”.',
@@ -440,9 +459,9 @@ export const featureGuides = [
     category: 'Inventory',
     summary:
       'Choose which items to discard and how many to keep; the same limits apply to existing stock and new items.',
-    where: 'Settings > Auto-transfer items.',
+    where: 'Settings > Go Plus, Stops & Items > Items > Auto-transfer items.',
     steps: [
-      'Open Auto-transfer items from the inventory controls.',
+      'Open Settings > Go Plus, Stops & Items and tap Auto-transfer items under Items.',
       'Select which items to discard and set a keep count for each.',
       'Let it apply the same limits to your current stock and to new items as they arrive.',
     ],
@@ -457,15 +476,16 @@ export const featureGuides = [
     category: 'Automation',
     summary:
       'Optionally open and send gifts, with an owned sticker added when available.',
-    where: 'Settings > Friend gifts.',
+    where: 'Settings > Buddy, Eggs & Friends > Friend gifts.',
     steps: [
-      'Open Friend gifts.',
+      'Open Settings > Buddy, Eggs & Friends and find the Friend gifts group.',
       'Turn on Auto open gifts and/or Auto send gifts.',
       'Optionally turn on “Add an owned sticker” to include a sticker you already have.',
     ],
     notes: [
       'Each toggle is independent and off by default.',
-      'Buddy-brought gifts are handled by the Buddy Emotion Engine’s own gift option, separately from this section.',
+      'Buddy-brought gifts are handled by the Buddy Emotion Engine’s own gift option, separately from this group.',
+      'Send & Open Gifts, at the bottom of the same group, runs a one-time batch and has its own guide.',
     ],
   },
   {
@@ -474,10 +494,10 @@ export const featureGuides = [
     category: 'Automation',
     summary:
       'Auto-incubate using only the unlimited incubator, by shortest or longest distance.',
-    where: 'Settings > Auto incubate eggs.',
+    where: 'Settings > Buddy, Eggs & Friends > Eggs > Auto incubate.',
     steps: [
-      'Open Auto incubate eggs and turn on Auto incubate.',
-      'Set Priority to shortest or longest distance.',
+      'Open Settings > Buddy, Eggs & Friends and, under Eggs, turn on Auto incubate.',
+      'Tap Priority to switch between shortest and longest distance.',
       'Stay on the game map; it starts another egg after the unlimited incubator becomes free.',
     ],
     notes: [
@@ -492,16 +512,16 @@ export const featureGuides = [
     category: 'Battles',
     summary:
       'Assist with Team Rocket, raids, gyms, and Dynamax / Max encounters.',
-    where: 'Settings > Team Rocket, Gyms, Raids & Dynamax.',
+    where: 'Settings > Battles > Team Rocket, Gyms, Raids, and Dynamax.',
     steps: [
-      'In Team Rocket, enable Auto quick attack, Auto charged attack, and/or Auto shield.',
-      'Expand Gyms, Raids, or Dynamax and enable the options you want: Raids / Gyms / Dynamax auto quick attack, auto charged attack, Dynamax auto Max attack, and per-type auto dodge.',
+      'Open Settings > Battles. Under Team Rocket, enable Auto quick attack, Auto charged attack, and/or Auto shield.',
+      'Under Gyms, Raids, or Dynamax, enable the options you want: Auto quick attack, Auto charged attack, and Auto dodge for each battle type, plus Auto Max attack for Dynamax.',
       'Optionally turn on Battle until defeated under Gyms to start the next full round from the same gym screen until your team is beaten.',
       'Start the battle in the game; the enabled assists act on the game’s natural callbacks.',
     ],
     notes: [
       'In Rocket battles, while any Team Rocket option is on, the next Pokémon is picked automatically when one faints.',
-      'Smart healing, at the top of the same section, has its own guide, as does Auto-Raid.',
+      'Smart battling and Smart healing, under All battles at the top of the same page, have their own guides, as does Auto-Raid.',
       'Battle until defeated uses your gym attack settings and waits for Smart healing between rounds when that is set to run after battles.',
       'In Max battles, your Pokémon moves toward nearby Max energy orbs automatically.',
       'Automated attacks and dodges pause while the Pokémon switch picker is open and resume after it closes.',
@@ -515,7 +535,7 @@ export const featureGuides = [
     category: 'Battles',
     summary:
       'Find a matching raid nearby, travel to it, wait for enough players, battle, and attempt the bonus catch.',
-    where: 'Settings > Automation > Auto-Raid, or Quick Menu > Automation > Auto-Raid.',
+    where: 'Settings > Automation > One-shot tasks > Auto-Raid, Settings > Battles > Raids > Auto-Raid, or Quick Menu > Automation > Auto-Raid.',
     steps: [
       'Open Automation and choose Auto-Raid.',
       'Set Raid tiers and Raid bosses to join. Leave both empty to accept any tier and any boss.',
@@ -525,7 +545,7 @@ export const featureGuides = [
       'Press Start. Auto-Raid finds the nearest matching raid the game has loaded and runs it. Stop ends the session after its current raid.',
     ],
     notes: [
-      'It battles with your raid auto-attack settings from Team Rocket, Gyms, Raids & Dynamax, so turn those on first.',
+      'It battles with your raid auto-attack settings from Settings > Battles > Raids, so turn those on first.',
       'An allowed free pass is used before a Premium Battle Pass. Remote Raid Passes are never used.',
       'Bonus catches use Excellent curveballs with Always Hit. The boss can still break out.',
       'It stops at your raid limit, after a shiny is caught if you selected that, or after two losses in a row.',
@@ -539,7 +559,7 @@ export const featureGuides = [
     category: 'Battles',
     summary:
       'Choose counters for the Pokémon you are fighting, before and during battles.',
-    where: 'Settings > Team Rocket, Gyms, Raids & Dynamax (top of the section).',
+    where: 'Settings > Battles > All battles > Smart battling.',
     steps: [
       'Turn on Smart battling. It is off by default and has no other settings.',
       'Open a gym, raid, or typed Team GO Rocket grunt battle. The recommended team is filled with your best counters from storage.',
@@ -559,7 +579,7 @@ export const featureGuides = [
     category: 'Battles',
     summary:
       'Heal damaged Pokémon automatically with the potion and revive mix that wastes the least.',
-    where: 'Settings > Team Rocket, Gyms, Raids & Dynamax (top of the section).',
+    where: 'Settings > Battles > All battles > Smart healing.',
     steps: [
       'Turn on Smart healing. It is off by default.',
       'Tap Heal to choose when it runs: After battles, Periodically, or After battles & periodically.',
@@ -580,7 +600,7 @@ export const featureGuides = [
     category: 'Interface',
     summary:
       'Bypass cutscenes and result screens so they are never drawn, instead of tapping through them.',
-    where: 'Settings > General Settings > Skip cutscenes (below Show joystick).',
+    where: 'Settings > Display & Performance > Interface > Skip cutscenes.',
     steps: [
       'Turn on Skip cutscenes. It is off by default.',
       'Play normally: evolutions, Mega Evolution, purification, fusion, form changes, new-species catches, and egg hatches go straight to their result.',
@@ -600,12 +620,12 @@ export const featureGuides = [
     category: 'Interface',
     summary:
       'Lower the game’s graphics load to save battery, and show a clock for the place you are spoofed to.',
-    where: 'Settings > General Settings > Battery usage, and Show local time.',
+    where: 'Settings > Display & Performance > Battery usage, and Settings > Location & Map > Cooldown & time > Show local time.',
     steps: [
-      'In General Settings, expand Battery usage.',
+      'Open Settings > Display & Performance and find the Battery usage group.',
       'Turn on Lower resolution to draw the map and Pokémon at half resolution. Menus and text stay sharp.',
       'Turn on Limit to 20 FPS, or Low graphics quality to switch off shadows, fog, water reflections, encounter grass, HDR, and anti-aliasing.',
-      'Turn on Show local time for a draggable clock showing the time at your spoofed location.',
+      'In Settings > Location & Map > Cooldown & time, turn on Show local time for a draggable clock showing the time at your spoofed location.',
     ],
     notes: [
       'Each battery option returns to the game’s own setting when you switch it off.',
@@ -619,9 +639,9 @@ export const featureGuides = [
     category: 'Automation',
     summary:
       'Auto-claim completed field research, delete tasks you don’t want, and catch waiting research encounters.',
-    where: 'Quick Menu > Research.',
+    where: 'Quick Menu > Research, or Settings > Automation > Field research > Research.',
     steps: [
-      'Open Research from the Quick Menu.',
+      'Open Research from the Quick Menu, or from Settings > Automation.',
       'Turn on Auto-claim completed field research to claim tasks once their goal is met.',
       'Turn on Auto-delete selected tasks and tick the tasks to delete. They are grouped into Item, Encounter, and Event; search to find one.',
       'Turn on Auto-catch research encounters to catch waiting field research encounters without the encounter screen.',
@@ -669,17 +689,35 @@ export const featureGuides = [
     ],
   },
   {
+    id: 'settings-search',
+    title: 'Settings search',
+    category: 'Interface',
+    summary:
+      'Find a setting by name, description, or a common keyword and jump straight to it.',
+    where: 'Settings > Search settings (the field at the top of the Settings home screen).',
+    steps: [
+      'Open Settings. The Search settings field sits at the top of the home screen.',
+      'Type part of a setting’s name or description, or a common keyword such as “fake gps” or “light mode”.',
+      'Tap a result to open its page and scroll to that setting.',
+    ],
+    notes: [
+      'Clear the field to return to the list of pages.',
+      'The home screen groups its pages under Play (Location & Map, Catching, Pokémon & Transfer, Go Plus, Stops & Items, Battles, and Buddy, Eggs & Friends), Automation (Automation and Events), and App (Display & Performance, and Accounts & Backup).',
+    ],
+  },
+  {
     id: 'settings-backup',
     title: 'Settings, themes & backup',
     category: 'Interface',
     summary:
       'Light/dark themes, overlay scaling, a parent-off gating behavior for dependent controls, and JSON export/import.',
-    where: 'Settings header (theme), General Settings (UI scale), and Export / import settings.',
+    where: 'Settings > Display & Performance > Interface (Dark theme, UI scale) and Quick menu entries, and Settings > Accounts & Backup > Account & data > Export / import settings.',
     steps: [
-      'Tap the theme icon in the Settings header to switch the whole interface between light and dark.',
-      'In General Settings, set UI scale to 100%, 75%, 50%, or 25% to resize the launcher, quick menu, joystick, timer, and overlays.',
+      'Turn Dark theme on or off in Settings > Display & Performance > Interface, or tap the theme icon in the Settings home header, to switch the whole interface between light and dark.',
+      'In the same group, set UI scale to 100%, 75%, 50%, or 25% to resize the launcher, quick menu, joystick, timer, and overlays.',
+      'Under Display & Performance > Quick menu entries, show or hide any of the 13 Quick Menu entries. It changes visibility only, never a feature’s on/off state, and Settings always stays available. Choices are saved per account and included in settings backups.',
       'Drag the cooldown timer, local time clock, VGP icon, and Keep All toggle to reposition them.',
-      'Use Export / import settings to save a JSON file and restore it on another phone or after reinstalling.',
+      'Use Settings > Accounts & Backup > Export / import settings to save a JSON file and restore it on another phone or after reinstalling.',
     ],
     notes: [
       'When a parent control is off, its dependent settings are grayed out but keep their saved choices (for example VGP+ under the VGP overlay, and the lowest-CP fallback under Auto-deploy).',
@@ -716,7 +754,7 @@ export const featureGuides = [
     title: 'Account profiles',
     category: 'Personalize',
     summary: 'Switch between remembered accounts while keeping their settings and locations separate.',
-    where: 'Quick Menu > Switch account, or Settings > Accounts.',
+    where: 'Quick Menu > Switch account, or Settings > Accounts & Backup > Account & data > Accounts.',
     steps: [
       'Open Switch account and sign in normally to each account once to create its saved profile.',
       'Select a saved profile to switch. Movement and automation stop and the game restarts with the selected remembered session.',

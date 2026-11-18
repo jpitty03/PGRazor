@@ -36,11 +36,11 @@ test('defaults to dark and remembers the chosen theme', async ({ page }) => {
 
 test('settings guide and screenshot viewer work with the keyboard', async ({ page }) => {
   await page.goto('./');
-  const catching = page.getByRole('tab', { name: 'Catching', exact: true });
-  await catching.focus();
+  const play = page.getByRole('tab', { name: 'Play', exact: true });
+  await play.focus();
   await page.keyboard.press('ArrowRight');
-  await expect(page.getByRole('tab', { name: 'Explore', exact: true })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByRole('tabpanel', { name: 'Explore', exact: true })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Automation', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tabpanel', { name: 'Automation', exact: true })).toBeVisible();
   const shot = page.locator('.shot-btn').first();
   await shot.focus();
   await page.keyboard.press('Enter');
