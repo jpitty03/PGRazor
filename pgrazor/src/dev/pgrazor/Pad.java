@@ -80,9 +80,9 @@ public final class Pad {
         if(encounterBerry!=null)encounterBerry.invalidate();
         if(cooldownTimer!=null)cooldownTimer.setBackground(SettingsUi.pillBackground(activity));
         if(localTime!=null)localTime.applyTheme();
-        // Status pill backgrounds depend only on the theme; refresh() must not reallocate them every tick.
+        // Status pill colours depend only on the theme; refresh() must not reallocate them every tick.
         for(TextView pill:new TextView[]{gymAutomationStatus,buddyEmotionStatus,automationStatus,catchChance,vgpActivity,encounterBadge,shinyBadge}){
-            if(pill!=null)pill.setBackground(SettingsUi.pillBackground(activity));
+            if(pill!=null){pill.setBackground(SettingsUi.pillBackground(activity));pill.setTextColor(ink());}
         }
         if(transferToggle!=null)transferToggle.invalidate();
         if(gameRoutesOverlay!=null)gameRoutesOverlay.invalidate();
@@ -110,7 +110,7 @@ public final class Pad {
 
     private long lastTick = SystemClock.elapsedRealtime(), lastLog, lastPositionCheck;
     private String lastPosition = "";
-    private boolean closed, lastEnabled;
+    private boolean closed, lastEnabled, launcherSpoofing;
     private AlertDialog stopRouteDialog;
     public Pad(Activity host) {
         activity = host;
@@ -358,6 +358,8 @@ public final class Pad {
         // a false gate (settings open, quick menu up, or overlays hidden) stops its clock work entirely.
         if(localTime!=null){localTime.refresh(!overlaysHidden&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing()));if(localTimeDrag!=null&&localTime.getVisibility()==View.VISIBLE)localTimeDrag.refreshBounds();}
         if (lastEnabled != Control.engine.enabled) { lastEnabled = Control.engine.enabled; stick.invalidate(); }
+        // The launcher's status dot shows whether spoofing is on; redraw it only when that changes.
+        if (launcher != null && launcherSpoofing != Control.desiredEnabled()) { launcherSpoofing = Control.desiredEnabled(); launcher.invalidate(); }
         if(encounterBerry!=null)encounterBerry.refresh();
         if(quickMenu!=null)quickMenu.onRefresh();
         // The hidden panel is GONE; openSettings() refreshes it immediately after show().

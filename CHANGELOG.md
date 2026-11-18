@@ -4,14 +4,15 @@
 
 ### New features
 
-- **Settings search:** the settings panel now has a search field pinned to the top. It filters as you type, ignores case and accents (`pokemon` finds `Pokémon`), matches names, descriptions, categories and common synonyms (`fake gps`, `mock location`, `light mode`), and ranks exact names first. Tapping a result opens the owning page, expands a collapsed section if needed, scrolls to the row and briefly highlights it.
-- **Grouped settings home:** the ten category pages are organised into Play, Automation and App cards, so common features are one tap from the top.
+- **Settings search:** a search field at the top of Settings finds any setting by name, description or common keyword (for example "fake gps" or "light mode"). Tapping a result opens its page and scrolls to it.
+- **Grouped settings home:** the category pages are grouped into Play, Automation and App.
 
 ### Improvements & fixes
 
-- **Redesigned interface:** settings, quick menu, overlays, dialogs, feeds and map chrome now share one design system — quiet slate surfaces, a single mint accent, a 20/14/12/11 sp type scale, 10/12/14 dp radii, monospaced telemetry, and a consistent status dot. Gradients, the italic wordmark, uppercase headings and per-tick allocations were removed.
-- The settings column is capped at 620 dp and centred on tablets, and system-bar/keyboard insets still apply.
-- Status and navigation bar icons follow the light or dark theme, and the game gets its own bar appearance back when the panel closes.
+- **Redesigned interface:** settings, the quick menu, overlays, dialogs and the map share one look, with calmer colours and a single accent.
+- Settings stay a comfortable width on tablets.
+- Status and navigation bar icons follow the light or dark theme.
+- Map catches now follow your auto-transfer rules.
 
 ## v0.3.4
 

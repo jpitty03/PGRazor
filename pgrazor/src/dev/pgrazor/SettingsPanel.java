@@ -41,7 +41,8 @@ final class SettingsPanel {
     private final java.util.List<AlertDialog> itemDialogs = new java.util.ArrayList<>();
     private final LinearLayout panel, content, body, home, results;
     private final ScrollView bodyScroll;
-    private TextView coords, speedReadout, homeStatus;    private View closeIcon, themeIcon, backIcon;
+    private TextView coords, speedReadout, homeStatus;
+    private View closeIcon, themeIcon, backIcon;
     private TextView title, versionLabel, discord;
     private SettingsUi.Dot homeDot;
     private Switch darkSwitch;

@@ -292,7 +292,8 @@ final class FeedTheme {
     static void styleTitle(TextView t) {
         t.setAllCaps(false); t.setLetterSpacing(0.01f); t.setTypeface(SettingsUi.medium());
         t.setTextSize(Size.TITLE_SP); t.setTextColor(title()); t.setGravity(Gravity.CENTER);
-    }    /** The "PGRAZOR" title only: the same title treatment as every other screen. */
+    }
+    /** The "PGRAZOR" title only: the same title treatment as every other screen. */
     static void styleBrandTitle(TextView t) {
         styleTitle(t);
     }
