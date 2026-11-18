@@ -613,6 +613,51 @@ int main() {
     assert(t_events.back().find("Remote Raid Pass is forbidden") != std::string::npos);
     assert(test_roots.empty());
 
+    // A free pass the game awards just after the raid screen opens is used, not reported as missing.
+    reset_fixture();
+    g_test_adapter = &g_fake_adapter;
+    world.gyms = {make_active_raid("gym-award", 556, 37.7749, -122.4194)};
+    pgr_auto_raid::EntryCostOption award_opt{};
+    award_opt.items = {{pgr_auto_raid::ITEM_FREE_RAID_TICKET, 1}};
+    award_opt.satisfied_in_bag = false;
+    world.entry_costs = {award_opt};
+    t_command = "R1|301|1|0|2|1|45|0|1|0|0||0";
+    assert(pgr_auto_raid_tick(tid, &metadata)); // Scan -> Travel
+    test_clock_override_ms += 600;
+    assert(pgr_auto_raid_tick(tid, &metadata)); // Travel -> OpenGym
+    test_clock_override_ms += 600;
+    assert(pgr_auto_raid_tick(tid, &metadata)); // OpenGym -> VerifyPass
+    test_clock_override_ms += 100;
+    assert(pgr_auto_raid_tick(tid, &metadata)); // no pass yet: keeps looking
+    assert(session.stage == RaidStage::VerifyPass && world.join_presses == 0 && world.exit_calls == 0);
+    assert(t_events.back().find("newly awarded free raid pass") != std::string::npos);
+    world.entry_costs[0].satisfied_in_bag = true; // the award arrives
+    test_clock_override_ms += 100;
+    assert(pgr_auto_raid_tick(tid, &metadata));
+    assert(session.stage == RaidStage::ConfirmModalPass && world.join_presses == 1);
+    pgr_auto_raid_stop(tid);
+    assert(!session.active && test_roots.empty());
+
+    // With no award, it still stops once the wait is over, without pressing join.
+    reset_fixture();
+    g_test_adapter = &g_fake_adapter;
+    world.gyms = {make_active_raid("gym-none", 557, 37.7749, -122.4194)};
+    world.entry_costs = {award_opt};
+    t_command = "R1|302|1|0|2|1|45|0|1|0|0||0";
+    assert(pgr_auto_raid_tick(tid, &metadata));
+    test_clock_override_ms += 600;
+    assert(pgr_auto_raid_tick(tid, &metadata));
+    test_clock_override_ms += 600;
+    assert(pgr_auto_raid_tick(tid, &metadata)); // VerifyPass
+    test_clock_override_ms += 100;
+    assert(pgr_auto_raid_tick(tid, &metadata));
+    assert(session.stage == RaidStage::VerifyPass);
+    test_clock_override_ms += kPassAwardWaitMs;
+    assert(!pgr_auto_raid_tick(tid, &metadata));
+    assert(world.join_presses == 0 && world.exit_calls == 1);
+    assert(t_events.back().find("Out of allowed raid passes") != std::string::npos);
+    assert(test_roots.empty());
+
     // ------------------------------------------------------------------------
     // 4. Lobby Bailout Under minPlayers & Two Consecutive Losses Stop
     // ------------------------------------------------------------------------
