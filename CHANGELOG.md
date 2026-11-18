@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## v0.3.5
+
+[Full release notes](docs/releases/v0.3.5.md)
 
 ### New features
 
@@ -17,6 +19,10 @@
 - Auto-Raid uses a newly awarded free raid pass instead of stopping when the previous one is spent.
 - Routes you walk yourself no longer pause with "your location could not be established".
 - The joystick no longer snaps back to the middle while you hold it.
+
+### Contributors
+
+- [@dhanush-c-c](https://github.com/dhanush-c-c): interface redesign and settings search ([#6](https://github.com/jpitty03/PGRazor/pull/6)), ART bridge build fix for Windows ([#5](https://github.com/jpitty03/PGRazor/pull/5)).
 
 ## v0.3.4
 
