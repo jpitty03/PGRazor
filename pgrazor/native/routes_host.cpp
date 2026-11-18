@@ -626,6 +626,10 @@ std::atomic<uint32_t> g_cached_route_count{0};
 uint64_t g_gate_handle = 0;
 bool g_desired_allowed = false;
 std::atomic<uint64_t> g_lease_until_ms{0};
+// While PGRazor supplies the location (transport "active"), a Route the player walks themselves needs the
+// same nested location-service answer as one PGRazor walks, or the game pauses it. This lease keeps only the
+// route-tracking observers live; actions, discovery and result capture still follow g_lease_until_ms.
+std::atomic<uint64_t> g_tracking_until_ms{0};
 std::atomic<bool> g_reset_cadence{false};
 ParsedCommand g_pending_cmd{};
 std::string g_last_transport_cmd;
@@ -1541,6 +1545,17 @@ uint64_t current_residual_ms() {
   return rem > PGR_RH_MAX_LEASE_MS ? PGR_RH_MAX_LEASE_MS : rem;
 }
 
+// Observer lease: the full lease, or the tracking-only lease while PGRazor supplies the location.
+uint64_t observers_residual_ms() {
+  const uint64_t full = current_residual_ms();
+  uint64_t now = 0;
+  if (!read_boottime_ms(&now)) return full;
+  const uint64_t until = g_tracking_until_ms.load(std::memory_order_acquire);
+  uint64_t track = until > now ? until - now : 0;
+  if (track > PGR_RH_MAX_LEASE_MS) track = PGR_RH_MAX_LEASE_MS;
+  return full > track ? full : track;
+}
+
 const char *map_action_reason(int32_t status, int32_t reason) {
   if (status < 0) {
     if (reason == PGR_RA_REASON_ALLOC_FAILED) return "alloc-failed";
@@ -1952,10 +1967,12 @@ int api_set_options(int allowed, const char *command_json, uint32_t command_len,
   int gate_parsed = parsed.ok ? 1 : (parsed.reason_code == PGR_RH_REASON_NO_COMMAND ? 0 : -1);
 
   int gate_rc = PGR_RG_NOT_ALLOWED;
+  bool was_allowed = false;
   {
     std::lock_guard<std::mutex> lk(g_options_mutex);
     uint64_t gh = ensure_gate_locked();
     if (!gh) return PGR_RH_ERR_BAD_TABLE;
+    was_allowed = g_desired_allowed;
     if (allow_bool && !g_desired_allowed) {
       g_reset_cadence.store(true, std::memory_order_release);
     }
@@ -1973,7 +1990,11 @@ int api_set_options(int allowed, const char *command_json, uint32_t command_len,
     if (g_meta_ready.load(std::memory_order_acquire)) {
       if (const auto *act = actions_api()) act->revoke();
       if (const auto *dsc = discovery_api()) dsc->revoke();
-      if (const auto *obs = observers_api()) obs->revoke();
+      // Revoking the observers also ends route tracking, so keep them when only the tracking lease is
+      // live; still revoke once when PGRazor's own walk ends, dropping any result capture it started.
+      if (was_allowed || g_tracking_until_ms.load(std::memory_order_acquire) <= now_ms) {
+        if (const auto *obs = observers_api()) obs->revoke();
+      }
     }
     local_out.status_code = PGR_RH_OPT_OFF;
     local_out.reason_code = PGR_RH_REASON_NOT_ALLOWED;
@@ -2015,6 +2036,13 @@ void poll_transport52_options() {
   // In Feature 52: bool[2] is gameRoutesAllowed (guarded bool: returns 0 when stale); string[1] is gameRoutesCommand.
   int allowed = 0;
   if (tr->get_bool(2u, &allowed) != PGR_TRANSPORT_OK) allowed = 0;
+  // bool[3] "active": PGRazor is supplying the player location (enabled, foreground, ready, connected).
+  int spoofing = 0;
+  if (tr->get_bool(3u, &spoofing) != PGR_TRANSPORT_OK) spoofing = 0;
+  uint64_t now_ms = 0;
+  if (read_boottime_ms(&now_ms)) {
+    g_tracking_until_ms.store(spoofing == 1 ? now_ms + PGR_RH_MAX_LEASE_MS : 0ULL, std::memory_order_release);
+  }
   char cmd_buf[PGR_RH_COMMAND_MAX_BYTES + 1]{};
   uint32_t cmd_len = 0;
   if (allowed == 1) {
@@ -2132,7 +2160,7 @@ int api_tick(uint64_t tid) {
     oreq.version = PGR_RO_REQUEST_VERSION;
     oreq.size = sizeof(oreq);
     oreq.tid = tid;
-    oreq.residual_ms = current_residual_ms();
+    oreq.residual_ms = observers_residual_ms();
     oreq.generation = obs->generation();
     int orc = obs->poll(&oreq, &g_obs_out);
     if (orc == PGR_RO_OK && g_obs_out.status == PGR_RO_OK && g_obs_out.generation == oreq.generation) {
@@ -2288,6 +2316,7 @@ int api_next_event(PgrRoutesHostEvent *out, char *json_buf, uint32_t json_cap) {
 
 int api_stop(uint64_t tid) {
   g_lease_until_ms.store(0, std::memory_order_release);
+  g_tracking_until_ms.store(0, std::memory_order_release);
   {
     std::lock_guard<std::mutex> lk(g_options_mutex);
     g_desired_allowed = false;
