@@ -76,6 +76,9 @@ Rules:
 - Status color is always paired with text (`PASS`, `Waiting`, `Mismatch`), never color alone.
 - Map tiles keep their own raster colors. Only chrome around them is themed.
 - Ripples use `accent` at 20% (`rippleColor`), so touch feedback is visible but quiet.
+- The status and navigation bars belong to the game's window, so `SettingsUi.systemBars` flips their
+  glyphs with the palette (dark glyphs in light theme) whenever the panel is visible, and hands them
+  back to the game's light-on-dark default when it closes.
 
 ## 4. Typography
 

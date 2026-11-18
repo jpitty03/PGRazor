@@ -343,7 +343,7 @@ final class SettingsPanel {
         results = new LinearLayout(activity); results.setOrientation(LinearLayout.VERTICAL); results.setVisibility(View.GONE); body.addView(results);
 
         // Closing the full-screen settings panel simply returns to the game (or the quick menu on the next tap).
-        closeIcon.setOnClickListener(v -> { hideKeyboard(); panel.setVisibility(View.GONE); });
+        closeIcon.setOnClickListener(v -> { hideKeyboard(); hide(); });
         // The settings panel is a full-screen modal now; it consumes taps so the game behind it stays inert.
         panel.setClickable(true);
         // The column stops growing on tablets and stays centred instead of stretching rows across the screen.
@@ -804,9 +804,18 @@ final class SettingsPanel {
     View view(){return panel;}
     boolean isVisible(){return panel.getVisibility()==View.VISIBLE;}
     /** Bring the full-screen panel up; Pad applies current insets immediately after. */
-    void show(){homeScroll=0;open(-1);panel.setVisibility(View.VISIBLE);panel.bringToFront();panel.requestApplyInsets();}
+    void show(){homeScroll=0;open(-1);panel.setVisibility(View.VISIBLE);panel.bringToFront();panel.requestApplyInsets();syncSystemBars();}
+    /**
+     * Applies the bar glyphs now and once more after layout. Unity re-applies its own window
+     * appearance while it is starting up, so a single call during show() can be undone before the
+     * frame is drawn; the posted repeat lands after that.
+     */
+    private void syncSystemBars(){
+        SettingsUi.systemBars(activity,!SettingsUi.dark());
+        panel.postDelayed(()->{if(panel.getVisibility()==View.VISIBLE)SettingsUi.systemBars(activity,!SettingsUi.dark());},250);
+    }
     /** Hidden state matches the original startup and the close affix: returns to the game underneath. */
-    void hide(){panel.setVisibility(View.GONE);}
+    void hide(){panel.setVisibility(View.GONE);SettingsUi.systemBars(activity,false);}
     /** Release this panel's dialog polling when its owning activity panel is detached. */
     void close(){
         if(berryPicker!=null)berryPicker.close();
@@ -983,6 +992,7 @@ final class SettingsPanel {
 
     void applyTheme(){
         panel.setBackgroundColor(SettingsUi.bg());styleTree(panel);
+        if(panel.getVisibility()==View.VISIBLE)syncSystemBars();
         for(TextView head:groupHeads){head.setTextColor(muted());head.setTypeface(SettingsUi.medium());}
         for(TextView c:captions)c.setTextColor(muted());
         if(coords!=null)coords.setTextColor(ink());

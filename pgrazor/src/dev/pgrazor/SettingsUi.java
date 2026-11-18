@@ -69,6 +69,31 @@ final class SettingsUi {
 
     static int dp(Context context, float x) { return Math.round(x * context.getResources().getDisplayMetrics().density); }
 
+    /**
+     * Flips the status/navigation bar glyphs with the palette. The panel draws inside the game's
+     * window, so its bars keep white glyphs unless we ask for dark ones; without this the clock and
+     * battery wash out on the light backdrop.
+     */
+    static void systemBars(android.app.Activity activity, boolean darkIcons) {
+        android.view.Window window = activity.getWindow();
+        if (window == null) return;
+        android.view.View decor = window.getDecorView();
+        if (android.os.Build.VERSION.SDK_INT >= 30) {
+            // SystemUI reads WindowInsetsController appearance; the legacy flags alone are not
+            // reflected in it on this platform, which leaves the clock white on a light bar.
+            android.view.WindowInsetsController controller = window.getInsetsController();
+            if (controller != null && decor.isAttachedToWindow()) {
+                int mask = android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                    | android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+                controller.setSystemBarsAppearance(darkIcons ? mask : 0, mask);
+            }
+        }
+        int flags = decor.getSystemUiVisibility();
+        int mask = android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+        int next = darkIcons ? flags | mask : flags & ~mask;
+        if (next != flags) decor.setSystemUiVisibility(next);
+    }
+
     // ---------------------------------------------------------------- type
     static Typeface medium() { return Typeface.create("sans-serif-medium", Typeface.NORMAL); }
     static Typeface mono() { return Typeface.MONOSPACE; }
