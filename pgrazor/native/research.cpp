@@ -134,6 +134,7 @@ struct State {
  std::string pending_id;std::map<std::string,int> failed;std::map<std::string,uint64_t> not_before;  // removal retries
  std::map<std::string,std::string> labels;  // template -> "task text|reward", localized once
  std::string catalog;uint64_t next_scan=0,next_action=0,retry=0,window=0,recheck=0;unsigned actions=0;
+ bool claims_waiting=false;  // logged once each time claims start waiting on the game
 };
 State st;
 constexpr uint64_t kRecheckMs=60000;
@@ -369,13 +370,23 @@ void step(uint64_t tid){
  if(!c.valid||(!c.claim&&!c.remove&&!c.catch_encounters)||now<st.next_action)return;
  if(now-st.window>=kWindowMs){st.window=now;st.actions=0;}
  if(st.actions>=kMaxActionsPerWindow)return;
- // Claims first; one request at a time, each quest instance at most once.
+ // Claims first; one request at a time, each quest instance at most once. While the game is busy
+ // completing an exclusive quest, claims wait but removals still go ahead.
+ bool claims_wait=false;
  for(auto wanted:{pgr_research::CLAIM,pgr_research::REMOVE})
   for(const auto &q:quests)
    if(!st.handled.count(q.id)&&!(st.not_before.count(q.id)&&now<st.not_before[q.id])&&pgr_research::decide(q,c,st.challenge,st.active)==wanted){
-    if(wanted==pgr_research::CLAIM&&unbox<bool>(call(st.quests.get(),"get_ExclusiveQuestCompletionInProgress")))return;
-    submit(q,wanted);return;
+    if(wanted==pgr_research::CLAIM){
+     if(claims_wait)continue;
+     if(unbox<bool>(call(st.quests.get(),"get_ExclusiveQuestCompletionInProgress"))){
+      claims_wait=true;
+      if(!st.claims_waiting){st.claims_waiting=true;status("waiting","Claims wait while the game completes a research reward",q.templ);}
+      continue;
+     }
+    }
+    st.claims_waiting=claims_wait;submit(q,wanted);return;
    }
+ st.claims_waiting=claims_wait;
  // Then the waiting research encounters, one at a time. VGP may run alongside: the caught
  // Pokemon waits for the shared transfer slot to be free.
  if(c.catch_encounters)begin_encounter();
