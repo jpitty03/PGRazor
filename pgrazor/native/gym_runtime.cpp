@@ -118,7 +118,7 @@ bool gym_valid(Root &gym,const Permission &p,std::string *why=nullptr,double *me
  if(raid){int64_t start=0,end=0;fn<void(*)(void*,void*,void*)>(boot.runtime.field_get_value)(raid.get(),h(H_MP_BATTLE),&start);fn<void(*)(void*,void*,void*)>(boot.runtime.field_get_value)(raid.get(),h(H_MP_END),&end);auto wall=int64_t(clock_ms(CLOCK_REALTIME));if(start<=wall&&end>wall)return reject("active raid");}
  return true;
 }
-struct Pending {Root gym,promise,reflection,details,enumerator,bag,gm,buddy;std::string id,config;uint64_t since=0,defender=0;int phase=0,scanned=0,last_item=0,stock_before=0;bool canceled=false,await_stock=false,stock_seen=false;std::vector<uint64_t> tags;std::vector<Defender> candidates;};
+struct Pending {Root gym,promise,keeper,reflection,details,enumerator,bag,gm,buddy;std::string id,config;uint64_t since=0,defender=0;int phase=0,scanned=0,last_item=0,stock_before=0;bool canceled=false,await_stock=false,stock_seen=false;std::vector<uint64_t> tags;std::vector<Defender> candidates;};
 Pending pending;
 Defender candidate(Root&);
 // The typed SendRpc uses the game's RPC handler. Inventory is re-read before
@@ -218,6 +218,17 @@ Root reference(void *o,const char *name,const char *prefix){
  void *ft=fn<void*(*)(void*)>(boot.meta.field_get_type)(f);void *k=fn<void*(*)(void*)>(boot.meta.class_from_type)(ft);
  require(k&&!fn<bool(*)(void*)>(boot.meta.class_is_valuetype)(k)&&typename_of(ft).find(prefix)==0,name);
  void *v=nullptr;fn<void(*)(void*,void*,void*)>(boot.runtime.field_get_value)(o,f,&v);return Root(v);
+}
+// Game 0.437.0 returns gym details as Niantic.Holoholo.PromiseKeeper`1, which holds the
+// Niantic.Promises promise in its "promise" field. Poll that inner promise and keep the
+// keeper rooted until the request finishes; older games return the promise directly.
+void request_gym_details(){
+ Root p(call(pending.gym.get(),"GetGymDetailsFromServer"));require(bool(p),"gym details promise");
+ void *k=klass(p.get());
+ if(std::string(fn<const char*(*)(void*)>(exp("class_get_namespace"))(k))=="Niantic.Holoholo"&&std::string(fn<const char*(*)(void*)>(exp("class_get_name"))(k))=="PromiseKeeper`1"){
+  Root inner=reference(p.get(),"promise","Niantic.Promises.IPromise");require(bool(inner),"gym details inner promise");
+  pending.keeper=std::move(p);pending.promise=std::move(inner);
+ }else pending.promise=std::move(p);
 }
 Defender candidate(Root &pokemon){
  Defender d;require(klass(pokemon.get())==cls("Holoholo.Rpc","PokemonProto"),"Pokemon identity");
@@ -350,7 +361,10 @@ void poll(const Permission &p){
   act(p);return;}
  if(now-pending.since>15000){paused=true;event("Paused: gym request timed out; toggle off to resume");clear_pending();return;}
  auto vr=static_cast<const PgrVgpResultsApi*>(pgrazor_vgp_results_api(1));PgrVgpResultsResult out{};int rc=vr->poll(pending.promise.get(),1,owner,&out);if(!rc)return;
- if(rc!=PGR_VR_DONE){if(pending.phase==3)history.refuse(pending.defender,now);event("Gym request rejected",rc);clear_pending();next_scan=now+10000;return;}
+ if(rc!=PGR_VR_DONE){
+  if(rc<0&&pending.promise){void *k=klass(pending.promise.get());auto nm=fn<const char*(*)(void*)>(exp("class_get_name"));auto ns=fn<const char*(*)(void*)>(exp("class_get_namespace"));
+   __android_log_print(ANDROID_LOG_INFO,"PGRazorGym","Gym request unreadable: phase=%d rc=%d promise=%s.%s",pending.phase,rc,ns(k),nm(k));}
+  if(pending.phase==3)history.refuse(pending.defender,now);event("Gym request rejected",rc);clear_pending();next_scan=now+10000;return;}
  Root response;response.h=out.value_handle;
  pending.promise.reset();pending.reflection.reset();
  if(pending.canceled){clear_pending();return;}
@@ -402,7 +416,7 @@ void discover(const Permission &p){
   if(inspected.size()<512&&find_open_gym(p,now,std::string(),&open,&open_id)){
    pending.gym=std::move(open);pending.id=open_id;pending.config=p.config;pending.phase=1;pending.since=clock_ms();
    inspected[open_id]=now+60000;
-   pending.promise=Root(call(pending.gym.get(),"GetGymDetailsFromServer"));require(bool(pending.promise),"gym details promise");event("Reading nearby gym with a free slot");return;
+   request_gym_details();event("Reading nearby gym with a free slot");return;
   }}
  Root type=type_object(cls("Niantic.Holoholo.Gym","MapGym"));void *args[]={type.get()};Root gyms(invoke(h(H_VGP_M_FIND_ALL),nullptr,args));if(!gyms)return;
  size_t n=fn<size_t(*)(void*)>(exp("array_length"))(gyms.get());require(n<=2048,"gym array bound");
@@ -423,7 +437,7 @@ void discover(const Permission &p){
   if(!p.settings.feed&&!history.deploy_allowed(id,clock_ms()))continue;
   pending.gym=std::move(gym);pending.id=id;pending.config=p.config;pending.phase=1;pending.since=clock_ms();
   inspected[id]=now+60000;
-  pending.promise=Root(call(pending.gym.get(),"GetGymDetailsFromServer"));require(bool(pending.promise),"gym details promise");event("Reading nearby friendly gym");return;
+  request_gym_details();event("Reading nearby friendly gym");return;
  }if(p.settings.spin&&!p.settings.deploy&&!p.settings.feed){if(spin_status!="Bag full; gym spin waiting"&&spin_status!="Gym spun")event("Waiting for a nearby gym disc",0,0,true);}
  else if(nearby_waiting){if(status!="Berry reserves reached")event("Waiting to recheck nearby gym");}else if(!nearest_reason.empty())event("Nearest gym: "+nearest_reason+" ("+std::to_string(int(nearest))+"m)");else event("Waiting for a friendly gym within 80m");
 }
