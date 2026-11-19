@@ -203,7 +203,8 @@ export const featureGuides = [
       'Auto-transfer low-IV catches while protecting shinies, legendaries, sizes, good PvP IVs, and a custom species list.',
     where: 'Settings > Pokémon & Transfer > Transfer on catch, Always keep, Keep for PvP, and Evolve before transferring.',
     steps: [
-      'Open Settings > Pokémon & Transfer and, under Transfer on catch, turn on Transfer below 90% IV.',
+      'Open Settings > Pokémon & Transfer and, under Transfer on catch, turn on Transfer new catches.',
+      'Set Keep IV at or above with the slider or type a value from 0 to 100 (default 90). Catches at or above it are kept; the rest are transferred.',
       'Under Always keep, enable the keep rules you want: legendary/mythical/Ultra Beasts, shiny, event, costume, background, XXS, XXL, and 0% IV (0/0/0).',
       'Open Custom keep list, also under Always keep, to search and keep specific species (including all forms).',
       'Under Keep for PvP, turn on Keep Great League, Ultra League, or Master League PvP IVs and tap Top to choose the rank to keep (defaults: Great top 50, Ultra top 10, Master off).',
