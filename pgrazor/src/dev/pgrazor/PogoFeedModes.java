@@ -18,7 +18,8 @@ import org.json.JSONObject;
  *   <li>{@code POST /raids/search} {bosses:[{pokemon_id,form_id,variant}], tiers:[1..16],
  *       exclusive_mode:all|ex_only|normal_only, status:active|egg, boosted_only}</li>
  *   <li>{@code POST /quests/search} {reward_type, reward_pokemon_ids, reward_item_ids,
- *       reward_mega_pokemon_ids, reward_stardust_amounts, reward_pokecoin_amounts, quest_titles}</li>
+ *       reward_mega_pokemon_ids, reward_candy_pokemon_ids, reward_stardust_amounts, reward_pokecoin_amounts,
+ *       quest_titles}</li>
  *   <li>{@code POST /weather/search} {weather_id:1..7}</li>
  *   <li>{@code POST /rocket/search} {type} (ids from {@code GET /rocket/types})</li>
  *   <li>{@code POST /powerspots/search} {pokemon_ids, battle_levels:[1..6], active_only}</li>
@@ -56,7 +57,8 @@ final class PogoFeedModes {
     static final String[] RAID_STATUS_LABELS = {"Active", "Egg"};
     /** Weather ids 1..7 (index + 1). */
     static final String[] WEATHERS = {"Sunny", "Rainy", "Partly Cloudy", "Cloudy", "Windy", "Snow", "Fog"};
-    static final String[] REWARD_TYPES = {"Pokemon", "Item", "Stardust", "Mega Energy", "PokéCoin"};
+    /** Reward types in the site's order ({@code reward_types} of {@code GET /quests/catalog-pairs}). */
+    static final String[] REWARD_TYPES = {"Pokemon", "Item", "Stardust", "Mega Energy", "Candy", "PokéCoin"};
     /** Power spot battle levels 1..6 (index + 1). */
     static final String[] SPOT_LEVELS = {"1★", "2★", "3★", "4★", "5★", "6★ (G-Max)"};
     /** Fallback when {@code GET /rocket/types} cannot be loaded: {id, label, group}. */
@@ -97,8 +99,9 @@ final class PogoFeedModes {
         } catch (JSONException ignored) { }
         return o;
     }
+    // reward_candy_pokemon_ids takes the catalog's candy_pokemon ids (species * 1e6 + form, e.g. 890000000).
     static final String[] QUEST_LISTS = {"reward_pokemon_ids", "reward_item_ids", "reward_mega_pokemon_ids",
-        "reward_stardust_amounts", "reward_pokecoin_amounts", "quest_titles"};
+        "reward_candy_pokemon_ids", "reward_stardust_amounts", "reward_pokecoin_amounts", "quest_titles"};
 
     /** The saved spec of a mode, layered over the defaults so a missing key never breaks a search. */
     static JSONObject load(SharedPreferences prefs, Mode m) {
@@ -117,12 +120,24 @@ final class PogoFeedModes {
         prefs.edit().putString("spec_" + m.name(), spec.toString()).apply();
     }
 
-    /** A required choice the site also insists on, or null when the spec can be searched. */
-    static String missing(Mode m, JSONObject spec) {
+    /**
+     * A required choice the site also insists on, or null when the spec can be searched. A worldwide
+     * Candy search is refused by the API ("needs at least one of: Pokémon, task, or location").
+     */
+    static String missing(Mode m, JSONObject spec, double lat, double lon, double radiusKm) {
         if (m == Mode.WEATHER && spec.isNull("weather_id")) return "Choose a weather in Filters.";
         if (m == Mode.ROCKET && (spec.isNull("type") || spec.optString("type", "").isEmpty())) return "Choose a Rocket type in Filters.";
         if (m == Mode.QUESTS && spec.optString("reward_type", "").isEmpty()) return "Choose a reward type in Filters.";
+        if (m == Mode.QUESTS && "Candy".equals(spec.optString("reward_type")) && !local(lat, lon, radiusKm)
+                && arr(spec, "reward_candy_pokemon_ids").length() == 0 && arr(spec, "quest_titles").length() == 0)
+            return "Candy: choose a Pokémon or task in Filters, or search nearby.";
         return null;
+    }
+
+    /** True when the search is limited to a radius around a valid point (otherwise worldwide). */
+    static boolean local(double lat, double lon, double radiusKm) {
+        return radiusKm > 0 && radiusKm <= PogoFeedClient.MAX_SEARCH_RADIUS_KM
+                && Double.isFinite(lat) && Double.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
     }
 
     /** Request body: the spec's API keys plus the search area ({@code radiusKm} outside 0..1000 = worldwide). */
@@ -152,8 +167,7 @@ final class PogoFeedModes {
                 break;
             default: break;
         }
-        boolean local = radiusKm > 0 && radiusKm <= PogoFeedClient.MAX_SEARCH_RADIUS_KM
-                && Double.isFinite(lat) && Double.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
+        boolean local = local(lat, lon, radiusKm);
         b.put("center_lat", local ? (Object) lat : JSONObject.NULL);
         b.put("center_lng", local ? (Object) lon : JSONObject.NULL);
         b.put("radius_km", local ? (Object) Math.max(0.1, radiusKm) : JSONObject.NULL);

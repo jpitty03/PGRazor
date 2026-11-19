@@ -982,7 +982,7 @@ public final class PogoFeedDialog {
         /** One search in a non-Pokémon mode; its rows replace that mode's list (revealed coords kept). */
         private void fetchMode(PogoFeedModes.Mode m, int g, double lat, double lon, double radiusKm) {
             final org.json.JSONObject spec = PogoFeedModes.load(prefs, m);
-            String missing = PogoFeedModes.missing(m, spec);
+            String missing = PogoFeedModes.missing(m, spec, lat, lon, radiusKm);
             if (missing != null) {
                 fetchInFlight = false;
                 note = missing; updateStatus();

@@ -195,6 +195,7 @@ final class PogoFeedModeFilterDialog {
             switch (type) {
                 case "Pokemon": listKey = "reward_pokemon"; specKey = "reward_pokemon_ids"; label = "Reward Pokémon"; idKey = "id"; nameKey = "name"; search = "Search Pokémon"; pokemon = true; break;
                 case "Mega Energy": listKey = "mega_pokemon"; specKey = "reward_mega_pokemon_ids"; label = "Mega Energy Pokémon"; idKey = "id"; nameKey = "name"; search = "Search Pokémon"; pokemon = true; break;
+                case "Candy": listKey = "candy_pokemon"; specKey = "reward_candy_pokemon_ids"; label = "Candy Pokémon"; idKey = "id"; nameKey = "name"; search = "Search Pokémon"; pokemon = true; break;
                 case "Item": listKey = "items"; specKey = "reward_item_ids"; label = "Items"; search = "Search items"; break;
                 case "Stardust": listKey = "stardust_amounts"; specKey = "reward_stardust_amounts"; label = "Stardust amount"; break;
                 case "PokéCoin": listKey = "pokecoin_amounts"; specKey = "reward_pokecoin_amounts"; label = "PokéCoin amount"; break;
