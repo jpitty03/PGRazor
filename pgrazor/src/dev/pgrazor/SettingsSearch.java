@@ -161,7 +161,8 @@ final class SettingsSearch {
         put(DESCRIPTIONS, "Catch on map (tap Pokémon)", "Catch a tapped wild, lure or incense Pokémon without opening it.");
         put(DESCRIPTIONS, "Catch berries & overlay", "Use berries automatically and show the berry picker overlay.");
         put(DESCRIPTIONS, "Berry priority", "Choose the berry order for automatic catching.");
-        put(DESCRIPTIONS, "Transfer below 90% IV", "Transfer new catches below the IV threshold after the catch summary.");
+        put(DESCRIPTIONS, "Transfer new catches", "Transfer new catches below the IV cutoff after the catch summary.");
+        put(DESCRIPTIONS, "Keep IV at or above", "IV cutoff for auto transfer: catches at or above it are kept. Slider or typed value, 0 to 100.");
         put(DESCRIPTIONS, "Custom keep list", "Keep specific species, including all forms, from auto-transfer.");
         put(DESCRIPTIONS, "Keep-all overlay button", "Show a floating Keep All button that holds every catch.");
         put(DESCRIPTIONS, "Keep Great League PvP IVs", "Keep catches that rank well in Great League.");
@@ -252,7 +253,8 @@ final class SettingsSearch {
         put(SYNONYMS, "World map", "map place search pin route");
         put(SYNONYMS, "Auto ball", "ball pokeball great ultra catch rate");
         put(SYNONYMS, "Auto throw", "throw catch automatic");
-        put(SYNONYMS, "Transfer below 90% IV", "transfer iv appraise candy");
+        put(SYNONYMS, "Transfer new catches", "transfer iv appraise candy auto");
+        put(SYNONYMS, "Keep IV at or above", "iv cutoff threshold percent transfer keep minimum slider");
         put(SYNONYMS, "Custom keep list", "keep species list transfer");
         put(SYNONYMS, "Keep Great League PvP IVs", "pvp rank great league");
         put(SYNONYMS, "Keep Ultra League PvP IVs", "pvp rank ultra league");

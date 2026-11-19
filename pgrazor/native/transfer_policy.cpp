@@ -19,7 +19,9 @@ int decide(const PgrTransferInput *v) {
     if((v->known&207)!=207)return 6; // rare/shiny/event/background/favorite/egg
     if((v->protect&48&~v->known)!=0)return 7;
     if(v->flags&192)return 8;
-    if((v->attack+v->defense+v->stamina)*100>=90*45)return 9;
+    const int keep_iv=pgr_transfer_keep_iv_percent(v->keep_iv);
+    if(keep_iv<0)return 17;
+    if((v->attack+v->defense+v->stamina)*100>=keep_iv*45)return 9;
     for(uint32_t bit=0;bit<6;++bit)if(v->protect&v->flags&(1u<<bit))return 10+bit;
     // Protect bit 7 (128): keep a costumed Pokemon (facts flag bit 8).
     if((v->protect&128)&&(v->flags&256))return 20;

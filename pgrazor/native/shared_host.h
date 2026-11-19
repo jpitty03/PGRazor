@@ -21,7 +21,7 @@ struct PgrSharedHostOptions {
  uint32_t version,size,flags,protect;
  uint64_t epoch,remaining_ms;
  const int32_t *keep_ids;
- uint32_t keep_count,reserved;
+ uint32_t keep_count,keep_iv; // keep_iv: PgrTransferInput.keep_iv (0 = the original 90% cutoff)
 };
 static_assert(sizeof(PgrSharedHostOptions)==48,"LP64 options");
 struct PgrSharedHostEvent {

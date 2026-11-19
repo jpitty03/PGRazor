@@ -78,6 +78,11 @@ final class SettingsPanel {
         quickSpinSwitch, berrySwitch, quickSummarySwitch, curveSwitch, alwaysHitSwitch, arSwitch, transferOverlaySwitch, catchChanceSwitch, autoBallSwitch, autoThrowSwitch, autoThrowMapSwitch, skipCutscenesSwitch, routeGiftSwitch,
         batteryResSwitch, batteryFpsSwitch, batteryQualitySwitch;
     private Button autoBallTarget, berryPriority;
+    // Transfer keep-IV cutoff: a slider and a number field that mirror each other.
+    private LinearLayout transferKeepIvRow;
+    private SeekBar transferKeepIvSlider;
+    private EditText transferKeepIvField;
+    private boolean transferKeepIvDragging;
     private BerryPriorityPicker berryPicker;
     private TextView quickSummaryLabel, vgpStatus, cutsceneStatus, healStatus, smartBattleStatus;
     private Switch healSwitch, healReviveSwitch, smartBattleSwitch, gymRepeatSwitch;
@@ -483,6 +488,62 @@ final class SettingsPanel {
         berryPriority.setOnClickListener(v -> berryPicker.show());
     }
 
+    /**
+     * "Keep IV at or above" row: the label and a number field on one line, the 0..100 slider under
+     * them. The slider saves when it is released (or moved by keys); the field saves on Done or when
+     * it loses focus, so a half-typed "9" never becomes the cutoff while a catch is being transferred.
+     */
+    private void keepIvRow(LinearLayout owner){
+        LinearLayout row=new LinearLayout(activity);row.setOrientation(LinearLayout.VERTICAL);row.setPadding(dp(10),dp(6),dp(6),dp(4));
+        row.setTag(SettingsUi.TAG_SEARCH_ROW,"Keep IV at or above");
+        LinearLayout line=new LinearLayout(activity);line.setOrientation(LinearLayout.HORIZONTAL);line.setGravity(Gravity.CENTER_VERTICAL);
+        TextView label=text("Keep IV at or above",14,ink());line.addView(label,new LinearLayout.LayoutParams(0,-2,1f));
+        EditText field=new EditText(activity);field.setInputType(InputType.TYPE_CLASS_NUMBER);field.setSingleLine(true);field.setGravity(Gravity.CENTER);
+        field.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(3)});field.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_DONE);
+        field.setContentDescription("Keep IV at or above, percent");field.setSelectAllOnFocus(true);
+        line.addView(field,new LinearLayout.LayoutParams(dp(72),dp(44)));
+        TextView unit=text("%",14,muted());unit.setPadding(dp(6),0,dp(4),0);line.addView(unit,new LinearLayout.LayoutParams(-2,-2));
+        row.addView(line);
+        SeekBar slider=new SeekBar(activity);slider.setMax(100);slider.setContentDescription("Keep IV at or above");
+        LinearLayout.LayoutParams sliderParams=new LinearLayout.LayoutParams(-1,dp(40));sliderParams.topMargin=dp(2);row.addView(slider,sliderParams);
+        transferKeepIvRow=row;transferKeepIvSlider=slider;transferKeepIvField=field;
+        slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
+            public void onProgressChanged(SeekBar bar,int value,boolean fromUser){
+                if(!fromUser)return;
+                set(field,String.valueOf(value));
+                if(!transferKeepIvDragging){Control.setTransferKeepIv(value);host.refresh();}
+            }
+            public void onStartTrackingTouch(SeekBar bar){transferKeepIvDragging=true;}
+            public void onStopTrackingTouch(SeekBar bar){transferKeepIvDragging=false;Control.setTransferKeepIv(bar.getProgress());host.refresh();}
+        });
+        field.setOnEditorActionListener((v,action,event)->{
+            if(action!=android.view.inputmethod.EditorInfo.IME_ACTION_DONE)return false;
+            commitKeepIvField();field.clearFocus();
+            android.view.inputmethod.InputMethodManager ime=(android.view.inputmethod.InputMethodManager)activity.getSystemService(Context.INPUT_METHOD_SERVICE);
+            if(ime!=null)ime.hideSoftInputFromWindow(field.getWindowToken(),0);
+            return true;
+        });
+        field.setOnFocusChangeListener((v,focused)->{if(!focused)commitKeepIvField();});
+        owner.addView(row);
+        showKeepIv(true);
+    }
+    /** Saves a typed cutoff; an empty or out-of-range entry snaps back to the saved value. */
+    private void commitKeepIvField(){
+        if(transferKeepIvField==null)return;
+        String typed=transferKeepIvField.getText().toString().trim();int value=-1;
+        try{value=Integer.parseInt(typed);}catch(NumberFormatException ignored){}
+        if(Control.validTransferKeepIv(value))Control.setTransferKeepIv(value);
+        showKeepIv(true);host.refresh();
+    }
+    /** Mirrors the saved cutoff into the row; leaves a field being typed in or a slider being dragged alone. */
+    private void showKeepIv(boolean force){
+        if(transferKeepIvSlider==null)return;
+        int value=Control.transferKeepIv();
+        if((force||!transferKeepIvDragging)&&transferKeepIvSlider.getProgress()!=value)transferKeepIvSlider.setProgress(value);
+        // While the slider is held, the field shows the slider's unsaved value, not the saved one.
+        if(force||(!transferKeepIvDragging&&!transferKeepIvField.hasFocus()))set(transferKeepIvField,String.valueOf(value));
+    }
+
     private void buildPokemonPage() {
         LinearLayout page = page(MenuIcon.BOX, "Pokémon & Transfer");
         unavailableNote(page, false);
@@ -490,9 +551,10 @@ final class SettingsPanel {
         // ----- Transfer on catch (gated by catch-summary support) -----
         LinearLayout transfer = plain(page); summaryGated.add(transfer);
         LinearLayout txC = group(transfer, "Transfer on catch");
-        autoTransferSwitch = switchRow(txC, "Transfer below 90% IV"); autoTransferSwitch.setChecked(Control.autoTransferEnabled());
+        autoTransferSwitch = switchRow(txC, "Transfer new catches"); autoTransferSwitch.setChecked(Control.autoTransferEnabled());
         autoTransferSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.autoTransferEnabled())return; Control.setAutoTransferEnabled(autoTransferSwitch.isChecked()); host.refresh(); });
-        caption(txC, "Transfers are permanent. Favorites and unknown data are always kept.");
+        keepIvRow(txC);
+        caption(txC, "Catches at or above the IV cutoff are kept; the rest are transferred. Drag the slider or type a value from 0 to 100. Transfers are permanent. Favorites and unknown data are always kept.");
         transferStatus = caption(txC, "");
 
         LinearLayout keepC = group(transfer, "Always keep");
@@ -874,6 +936,8 @@ final class SettingsPanel {
     private void collectSearch(View view,String category,String group,int pageIndex){
         Object tag=view.getTag(SettingsUi.TAG_GROUP);
         if(tag instanceof String)group=(String)tag;
+        Object row=view.getTag(SettingsUi.TAG_SEARCH_ROW);
+        if(row instanceof String){registerSearch((String)row,group,category,pageIndex,view);return;}
         if(view instanceof ViewGroup){
             ViewGroup list=(ViewGroup)view;
             if(hasSwitch(list)){
@@ -1083,6 +1147,7 @@ final class SettingsPanel {
         SettingsUi.enabled(vgpCooldownStop,Control.vgpOverlay());smartRefresh.run();
         for(CheckBox box:transferProtection)SettingsUi.enabled(box,Control.autoTransferEnabled());
         SettingsUi.enabled(transferKeepList,Control.autoTransferEnabled());
+        if(transferKeepIvRow!=null)SettingsUi.enabled(transferKeepIvRow,Control.autoTransferEnabled());
         SettingsUi.enabled((View)transferOverlaySwitch.getParent(),Control.autoTransferEnabled());
         // Evolve before transferring needs the auto-transfer master; its options need the feature on, and
         // the selected-species list only matters in "Selected species only" mode.
@@ -1134,6 +1199,7 @@ final class SettingsPanel {
     private void refreshTransfer() {
         status(quickSummaryStatus,Control.quickSummaryStatus());
         autoTransferSwitch.setChecked(Control.autoTransferEnabled());
+        showKeepIv(false);
         for(int i=0;i<transferProtection.length;i++)transferProtection[i].setChecked((Control.transferProtect()&(1<<i))!=0);
         for(int i=0;i<3;i++){pvpKeep[i].setChecked(Control.pvpKeep(i));set(pvpRank[i],"Top "+Control.pvpRank(i));pvpRank[i].setEnabled(Control.pvpKeep(i));}
         if(transferKeepList!=null){String kept=Control.transferKeepSpecies();int n=kept.isEmpty()?0:kept.split(",").length;set(transferKeepList,n>0?"Custom keep list ("+n+")":"Custom keep list");}

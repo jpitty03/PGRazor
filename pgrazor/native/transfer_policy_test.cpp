@@ -3,6 +3,8 @@
 #include "pgrazor_native_api.h"
 #include <dlfcn.h>
 #include <cstdio>
+#include <cstring>
+#include <algorithm>
 int main(int argc,char **argv) {
  if(argc!=2)return 1;
  void *lib=dlopen(argv[1],RTLD_NOW|RTLD_LOCAL);if(!lib)return 2;
@@ -16,6 +18,19 @@ int main(int argc,char **argv) {
   v.attack=a;v.defense=d;v.stamina=s;
   if(api->decide(&v)!=(a+d+s>=41?9:0))return 5;
  }
+ // An explicit keep-IV cutoff replaces 90%: keep when (a+d+s)/45 >= percent/100.
+ for(int pct=0;pct<=100;++pct){
+  v.keep_iv=PGR_TRANSFER_KEEP_IV_SET|unsigned(pct);
+  for(int sum=0;sum<=45;++sum){v.attack=std::min(sum,15);v.defense=std::min(sum-v.attack,15);v.stamina=sum-v.attack-v.defense;
+   if(api->decide(&v)!=(sum*100>=pct*45?9:0))return 14;}
+ }
+ // Malformed keep_iv values fail closed (kept), never transfer.
+ for(uint32_t bad:{PGR_TRANSFER_KEEP_IV_SET|101u,0x200u|90u,90u,0x1ffu}){v.keep_iv=bad;v.attack=v.defense=v.stamina=0;if(api->decide(&v)!=17)return 15;}
+ v.keep_iv=0;
+ // Slot 25 parsing: canonical "K1|<0..100>" only; anything else means the 90% default (0).
+ struct {const char *s;uint32_t want;} cases[]={{"K1|90",PGR_TRANSFER_KEEP_IV_SET|90},{"K1|0",PGR_TRANSFER_KEEP_IV_SET},{"K1|100",PGR_TRANSFER_KEEP_IV_SET|100},
+  {"K1|101",0},{"K1|",0},{"K1|09",0},{"K1|9a",0},{"K2|90",0},{"K1|1000",0},{"",0}};
+ for(auto &c:cases)if(pgr_transfer_keep_iv_parse(c.s,uint32_t(std::strlen(c.s)))!=c.want)return 16;
  v.attack=v.defense=v.stamina=0;
  for(unsigned flags=0;flags<512;++flags)for(unsigned protect=0;protect<256;++protect){
   v.flags=flags;v.protect=protect;int reason=0;
@@ -36,6 +51,6 @@ int main(int argc,char **argv) {
  v.keep_count=0xffffffff;if(api->decide(&v)!=2)return 10;
  v.keep_all=1;if(api->decide(&v)!=1)return 11;
  v.keep_all=0;v.keep_count=0;v.attack=-1;if(api->decide(&v)!=5)return 12;
- std::puts("PASS native transfer policy: exhaustive IV thresholds, 0/0/0 keep, category masks, unknown data and custom keep priority");
+ std::puts("PASS native transfer policy: exhaustive IV thresholds (default 90% and every keep-IV cutoff), 0/0/0 keep, category masks, unknown data and custom keep priority");
  return 0;
 }

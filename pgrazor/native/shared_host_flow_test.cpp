@@ -244,7 +244,7 @@ int main(int argc,char **argv){assert(argc==2||argc==3);void *lib=dlopen(argv[1]
  config.string_length=reinterpret_cast<void*>(string_length);const bool transport_mode=argc==3&&std::strcmp(argv[2],"transport")==0;
  if(transport_mode){PgrRuntimeTransportConfig transport_config{1,sizeof(transport_config),1000,256,10000,65536,0,0};assert(fixture_transport.install(&transport_config)==0);config.transport_flags=1;}
  if(transport_mode){
-  assert(host->configure(&config)==0);wire_snapshot(true,false);assert(wire_has(16)&&wire_has(45,"Ready: Quick Catch")&&wire_has(23,"Ready: new catches only; IV below 90%"));host->tick(gettid(),1);
+  assert(host->configure(&config)==0);wire_snapshot(true,false);assert(wire_has(16)&&wire_has(45,"Ready: Quick Catch")&&wire_has(23,"Ready: new catches only; IV below your keep cutoff"));host->tick(gettid(),1);
   auto present=[](){Present volatile fn=&detail_present_fn;fn(&view,&pokemon,nullptr,false,nullptr);};
   present();host->tick(gettid(),2);host->tick(gettid(),3);assert(detail_clicks==1);check_clean();wire_exchange();assert(wire_has(19,"quick-close"));PgrSharedHostEvent empty{};assert(host->next_event(&empty)==0);
   // Native parser rejects duplicate, leading-zero, whitespace and oversize IDs.

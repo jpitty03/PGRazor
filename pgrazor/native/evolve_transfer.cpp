@@ -92,7 +92,7 @@ int enum_box(void *o){require(o&&fn<bool(*)(void*)>(boot.meta.class_is_enum)(kla
 using Config=pgr_evolve_transfer::Config;
 struct Permission {
  Config config;bool valid=false,allowed=false,keep_all=false;
- uint32_t protect=255;std::set<int> keep;std::string pvp;
+ uint32_t protect=255,keep_iv=0;std::set<int> keep;std::string pvp;
 };
 Permission permission(){
  Permission p;auto tr=static_cast<const PgrRuntimeTransportApi*>(pgrazor_runtime_transport_api(1));if(!tr)return p;
@@ -101,6 +101,8 @@ Permission permission(){
  if(tr->get_bool(5,&allowed)||tr->get_bool(35,&keep_all)||tr->get_int(8,&protect)||protect<0||protect>255)return p;
  if(tr->get_string(4,text,sizeof(text),&n)||!pgr_evolve_transfer::species_list(text,n,p.keep))return p;
  if(tr->get_string(16,text,sizeof(text),&n))return p;p.pvp.assign(text,n);
+ // Keep-IV cutoff, string slot 25; missing or malformed keeps the original 90%.
+ if(tr->get_string(25,text,sizeof(text),&n)==0&&n<sizeof(text))p.keep_iv=pgr_transfer_keep_iv_parse(text,n);
  if(tr->sample(&z)||!z.snapshot_fresh||z.fault||a.snapshot_seq!=z.snapshot_seq)return p;
  p.valid=true;p.allowed=allowed&&p.config.enabled;p.keep_all=keep_all;p.protect=protect;return p;
 }
@@ -130,7 +132,7 @@ void initialize(const PgrSharedMetadataOutput *metadata=nullptr){
 Root pokemon(uint64_t id){void *a[]={&id};return Root(call(job.bag.get(),"GetPokemon",1,a));}
 int candy_stock(int family){void *a[]={&family};return boxed<int>(call(job.player.get(),"GetCandyCountForPokemonFamily",1,a),"System.Int32");}
 bool authorized(const Permission &p){return p.valid&&p.allowed&&p.config==job.config&&p.config.selects(job.original_species)&&!(job.manual&&p.keep_all);}
-bool same_rules(const Permission &a,const Permission &b){return authorized(b)&&a.protect==b.protect&&a.keep==b.keep&&a.pvp==b.pvp;}
+bool same_rules(const Permission &a,const Permission &b){return authorized(b)&&a.protect==b.protect&&a.keep_iv==b.keep_iv&&a.keep==b.keep&&a.pvp==b.pvp;}
 bool identity(){
  Root player=resolve("Niantic.Holoholo","IPlayerService"),bag=resolve("Niantic.Holoholo","IPokemonBag");
  return player&&bag&&bag.get()==job.bag.get()&&string(call(player.get(),"get_PlayerId"))==job.account;
@@ -149,7 +151,7 @@ bool classify(Root &p,const Permission &settings,PgrTransferInput &input,std::ve
  PgrTransferFactsRequest req{1,sizeof(req),owner,2500,job.id,p.get(),job.gm.get(),settings.protect,0};PgrTransferFactsOut out{};
  if(facts->inspect(&req,&out)!=1)return false;
  kept.assign(settings.keep.begin(),settings.keep.end());
- input={1,sizeof(input),out.attack,out.defense,out.stamina,out.species,settings.protect,out.known,out.flags,uint32_t(job.manual&&settings.keep_all),uint32_t(kept.size()),0,kept.data()};
+ input={1,sizeof(input),out.attack,out.defense,out.stamina,out.species,settings.protect,out.known,out.flags,uint32_t(job.manual&&settings.keep_all),uint32_t(kept.size()),settings.keep_iv,kept.data()};
  if(policy->decide(&input)!=0)return false;
  char reason[128]{};if(!pgr_pvp_keep||pgr_pvp_keep(p.get(),out.attack,out.defense,out.stamina,out.species,owner,reason,sizeof(reason))>0)return false;
  return same_rules(settings,permission());

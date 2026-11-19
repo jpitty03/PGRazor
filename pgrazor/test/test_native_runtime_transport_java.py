@@ -40,6 +40,7 @@ def control_shell():
     specs.append(('evolveTransferConfig', '', 'String'))
     specs.append(('shinyScanConfig', '', 'String'))
     specs.append(('routeGiftConfig', '', 'String'))
+    specs.append(('transferKeepIvConfig', '', 'String'))
     methods = []
     for name, params, expected_result in specs:
         actual = re.search(r'public static\s+(?:synchronized\s+)?([\w\[\]]+)\s+' + name + r'\(([^)]*)\)', source)
@@ -69,6 +70,8 @@ def control_shell():
             body = 'reads++;return "B2|1|0|1|0";'
         elif name == 'shinyScanConfig':
             body = 'reads++;return "N3|5|1|700|2|8000|1|1|0|25,129";'
+        elif name == 'transferKeepIvConfig':
+            body = 'reads++;return "K1|85";'
         elif name == 'routeGiftConfig':
             body = 'reads++;return "M1|1";'
         elif name == 'evolveTransferConfig':

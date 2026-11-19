@@ -19,6 +19,7 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.EditText;
+import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.TextView;
 
@@ -263,6 +264,12 @@ final class SettingsUi {
             choice.setButtonTintList(choiceTint());
             choice.setTextColor(textColors());
         }
+        if (view instanceof SeekBar) {
+            SeekBar bar = (SeekBar) view;
+            bar.setProgressTintList(ColorStateList.valueOf(accent()));
+            bar.setThumbTintList(ColorStateList.valueOf(accent()));
+            bar.setProgressBackgroundTintList(ColorStateList.valueOf(border()));
+        }
         if (view instanceof Switch) {
             Switch s = (Switch) view;
             s.setText(""); s.setMinHeight(0);
@@ -285,6 +292,8 @@ final class SettingsUi {
     static final int TAG_CARD = 0x0f0f0004;
     /** Marks a tappable card row: same surface as a card, with the standard ripple. */
     static final int TAG_CARD_ROW = 0x0f0f0005;
+    /** Marks a row that is not a switch, checkbox or button (a slider row) with its search name. */
+    static final int TAG_SEARCH_ROW = 0x0f0f0006;
 
     // ---------------------------------------------------------------- small drawn glyphs
     /** A quiet row chevron: points right, or down when {@link #open} is set. */

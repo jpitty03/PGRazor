@@ -390,14 +390,16 @@ static void notify_transfer_result(const char *summary) {
 
 static void notify_transfer_outcome(const char *outcome){const char *strings[]={outcome};transport_emit_op(22,nullptr,0,strings,1);}
 static void notify_transfer_error(const char *reason){char text[256];snprintf(text,sizeof(text),"Transfer Error: %s",reason);notify_transfer_result(text);notify_transfer_outcome("transfer-error");}
-static const char *transfer_reason(int code){static const char *reasons[]={"","keep-all","invalid-keep-list","unknown-species","custom-keep-list","unknown-iv","unknown-category","unknown-size","favorite-or-egg","iv-at-least-90","protected-rare","protected-shiny","protected-event","protected-background","protected-xxs","protected-xxl","invalid-input","invalid-input","pvp-rank","protected-zero-iv","protected-costume"};return code>0&&code<21?reasons[code]:"invalid-input";}
+static const char *transfer_reason(int code){static const char *reasons[]={"","keep-all","invalid-keep-list","unknown-species","custom-keep-list","unknown-iv","unknown-category","unknown-size","favorite-or-egg","iv-at-least-cutoff","protected-rare","protected-shiny","protected-event","protected-background","protected-xxs","protected-xxl","invalid-input","invalid-input","pvp-rank","protected-zero-iv","protected-costume"};return code>0&&code<21?reasons[code]:"invalid-input";}
 // Why VGP/VGP+ kept the last catch, as shown in the VGP status line.
 static char g_vgp_kept_text[96] = "Kept: protected";
 static void set_vgp_kept(const char *why){snprintf(g_vgp_kept_text,sizeof(g_vgp_kept_text),"Kept: %s",why);}
+static uint32_t g_keep_iv = 0; // PgrTransferInput.keep_iv from string slot 25; 0 = the original 90%.
 static const char *kept_label(int code){
+  static char iv_label[16];
   switch(code){
     case 1:return "Keep All is on";case 4:return "on your keep list";case 8:return "favorite";
-    case 9:return "IV 90%+";case 10:return "legendary / mythical";case 11:return "shiny";
+    case 9:snprintf(iv_label,sizeof(iv_label),"IV %d%%+",pgr_transfer_keep_iv_percent(g_keep_iv));return iv_label;case 10:return "legendary / mythical";case 11:return "shiny";
     case 12:return "event";case 13:return "background";case 14:return "XXS";case 15:return "XXL";
     case 19:return "0% IV";case 20:return "costume";
     default:return "could not be checked";
@@ -791,6 +793,7 @@ static void handle_vgp_transfer_ready(const PgrVgpControllerOut &out, uint64_t t
   tp_in.keep_all = keep_all ? 1 : 0; // VGP/VGP+ use main protection settings; research catches honor Keep All.
   tp_in.keep_count = g_keep_species_count;
   tp_in.keep_ids = g_keep_species_count ? g_keep_species : nullptr;
+  tp_in.keep_iv = g_keep_iv;
 
   int reason_code = g_tp->decide(&tp_in);
   // PvP keep runs only when every other rule would transfer.
@@ -1465,6 +1468,11 @@ static void sync_from_transport(uint64_t tid) {
   }
   if(!policy_valid)next_opts.auto_transfer_allowed=0;
 
+  // Keep-IV cutoff, string slot 25. A missing or malformed value falls back to the original 90%.
+  char keep_iv_buf[16] = {};uint32_t keep_iv_len=0, pending_keep_iv=0;
+  if(fresh && t->get_string(25,keep_iv_buf,sizeof(keep_iv_buf),&keep_iv_len)==PGR_TRANSPORT_OK && keep_iv_len<sizeof(keep_iv_buf))
+    pending_keep_iv=pgr_transfer_keep_iv_parse(keep_iv_buf,keep_iv_len);
+
   PgrRuntimeTransportSample end = {PGR_TRANSPORT_SAMPLE_VERSION, sizeof(end)};
   if (!fresh || t->sample(&end) != PGR_TRANSPORT_OK || end.snapshot_fresh == 0 ||
       end.fault != 0 || end.snapshot_seq != start.snapshot_seq ||
@@ -1482,6 +1490,7 @@ static void sync_from_transport(uint64_t tid) {
         memcpy(g_keep_species,pending_ids,pending_count*sizeof(int32_t));g_keep_species_count=pending_count;++g_transfer_epoch;
       }
     }
+    if(g_keep_iv!=pending_keep_iv){g_keep_iv=pending_keep_iv;++g_transfer_epoch;}
     next_opts.lease_remaining_ms = active > 0 ? 2500ULL : 0ULL;
     g_opts = next_opts;
     g_lease_deadline_ms = active > 0 ? (monotonic_ms() + 2500ULL) : 0ULL;
