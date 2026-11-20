@@ -183,7 +183,7 @@ extern "C" int pgr_smart_plan(void *target,void *itemBag,uint64_t owner,PgrSmart
  if(!out)return PGR_SMART_ERR_NULL_ARG;*out={};Operation op(owner);if(!op.ok)return 0;
  PgrSmartSettings settings{};std::string config;if(!read_config(config,settings))return 0;
  Root map(target),bag(itemBag);if(!map.h||!bag.h)return PGR_SMART_ERR_GCHANDLE;
- const PgrVgpIncense *incense=pgr_vgp_incense_class(klass(map.get()))?pgr_vgp_incense():nullptr;
+ const PgrVgpIncense *incense=pgr_vgp_kind(klass(map.get()));
  if((!incense&&!exact(map.get(),b.class_wildmap))||!exact(bag.get(),b.class_item_bag))return PGR_SMART_ERR_IDENTITY;
  // Incense spawns keep the encountered Pokemon on their stored IncenseEncounterOutProto.
  Root response(incense?field<void*>(map.get(),incense->f_response):nullptr);
@@ -265,8 +265,10 @@ extern "C" int pgr_smart_berry(void *target,void *itemBag,int32_t item,uint64_t 
  const uint64_t deadline=start+std::min<uint64_t>(lease,PGR_SMART_MAX_LEASE_MS);
  PgrSmartSettings settings{};std::string config;if(!read_config(config,settings)||!gate(deadline,config))return 0;
  Root map(target),bag(itemBag);if(!map.h||!bag.h)return PGR_SMART_ERR_GCHANDLE;
- const PgrVgpIncense *incense=pgr_vgp_incense_class(klass(map.get()))?pgr_vgp_incense():nullptr;
+ const PgrVgpIncense *incense=pgr_vgp_kind(klass(map.get()));
  if((!incense&&!exact(map.get(),b.class_wildmap))||!exact(bag.get(),b.class_item_bag))return PGR_SMART_ERR_IDENTITY;
+ // A spawn kind without a spawn point id cannot take an encounter berry; it is thrown at without one.
+ if(incense&&!incense->m_spawn)return 0;
  int stock=0,err=quantity(bag,item,stock);if(err)return err;if(stock<1)return 0;
  Root rpc(field<void*>(bag.get(),b.f_bag_rpc));if(!rpc.h)return PGR_SMART_ERR_GCHANDLE;
  if(!exact(rpc.get(),b.class_rpc))return PGR_SMART_ERR_IDENTITY;

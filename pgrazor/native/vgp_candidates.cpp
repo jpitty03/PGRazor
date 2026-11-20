@@ -190,7 +190,7 @@ int inspect(const PgrVgpCandidateRequest *req, PgrVgpCandidateResult *out) {
   if (!target.set(req->target)) return PGR_VC_ERR_GCHANDLE;
   if (isCatch && req->manual && !manual.set(req->manual)) return PGR_VC_ERR_GCHANDLE;
   const PgrVgpIncense *incense = nullptr;
-  if (isCatch && pgr_vgp_incense() && exact(target, pgr_vgp_incense()->klass)) incense = pgr_vgp_incense();
+  if (isCatch) incense = pgr_vgp_kind_where([&](void *k) { return exact(target, k); });
   if (!incense && !exact(target, isCatch ? cfg.class_wild : cfg.class_stop)) { out->reason = PGR_VC_REASON_INVALID; return PGR_VC_NOT; }
 
   // Liveness: static alive(obj) -> Boolean.

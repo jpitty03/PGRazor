@@ -66,7 +66,7 @@ int project(void *target,uint64_t lease,uint64_t owner,PgrVgpMarkerResult *out){
  struct BusyExit{~BusyExit(){busy.store(false);}} exit;
  Root object,camera,transform,position,screen,width,height;
  if(!object.set(target))return -4;
- const bool incense=pgr_vgp_incense()&&is(object,pgr_vgp_incense()->klass);
+ const bool incense=pgr_vgp_kind_where([&](void *k){return is(object,k);})!=nullptr;
  void *map_pokemon=g_pgr_vgp_marker_map_pokemon.load(std::memory_order_acquire);
  if(!(incense||is(object,cfg.wild_class)||is(object,cfg.stop_class)||(map_pokemon&&is(object,map_pokemon)))||!live(object))return 0;
  if(!call(cfg.camera,nullptr,nullptr,camera)||!is(camera,cfg.camera_class)||!live(camera))return 0;

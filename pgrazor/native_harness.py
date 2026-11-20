@@ -127,7 +127,7 @@ def main(argv=None):
                 entry['owner_sha256'] = native_build.sha256(owner)
             if source.stem == 'smart_catch_controller_test':
                 controller = root / 'native/vgp_controller.cpp'
-                extra_flags = [controller]
+                extra_flags = [controller, '-llog']
                 entry['controller_sha256'] = native_build.sha256(controller)
                 entry['fixture_base_sha256'] = native_build.sha256(root / 'native/vgp_controller_test.cpp')
             if source.stem in ('event_collector_test', 'profile_scroll_test'):

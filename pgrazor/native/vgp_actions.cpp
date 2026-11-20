@@ -179,8 +179,9 @@ int do_action(ActionKind kind, const PgrVgpActionsTarget *t, const PgrVgpActions
   int rc = PGR_VA_OK;
 
   if (target_root == 0) { rc = PGR_VA_ERR_GCHANDLE; goto done; }
-  // Incense spawns share TryCapture with wild ones but send their own encounter request.
-  if (kind != ACT_SPIN && pgr_vgp_incense() && is_exact(gc_get()(target_root), pgr_vgp_incense()->klass)) incense = pgr_vgp_incense();
+  // Incense, lure and other bound spawn kinds share TryCapture with wild ones but send their own
+  // encounter request.
+  if (kind != ACT_SPIN) incense = pgr_vgp_kind_where([&](void *k) { return is_exact(gc_get()(target_root), k); });
   if (!incense && !is_exact(gc_get()(target_root), kind == ACT_SPIN ? g_cfg.class_stop : g_cfg.class_wild)) { rc = PGR_VA_ERR_IDENTITY; goto done; }
 
   if (kind == ACT_SPIN) {

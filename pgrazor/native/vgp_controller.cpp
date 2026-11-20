@@ -18,6 +18,7 @@
 #include <mutex>
 #include <string>
 #include <cstdio>
+#include <android/log.h>
 #include <vector>
 #include <map>
 #include <algorithm>
@@ -443,6 +444,11 @@ void tickSmartWait(const PgrVgpControllerTick *in,PgrVgpControllerOut *o,uint64_
   // don't encounter it again this hour.
   if(planned==PGR_SMART_SKIP_SPECIES){retrySeen(in->owner,3600000);dropPending(o);setStatus(o,PGR_VGC_ST_WATCHING);return;}
   if(!decision.enabled||!smartMayAct(in,stale)||!armActions(in,in->lease_ms)){onRefused(o,in->owner,now);return;}
+  // A spawn kind without a spawn point id cannot take an encounter berry; it is thrown at without one.
+  if(!pend.berry_done&&decision.berry){
+    const PgrVgpIncense *kind=pgr_vgp_kind_where([&](void *k){return exactClass(rootGet(pend.target),k);});
+    if(kind&&!kind->m_spawn)pend.berry_done=true;
+  }
   if(!pend.berry_done&&decision.berry){
     uint64_t promise=0,reflection=0;
     pgr_smart_set_admission_guard([](void *ctx){return smartMayAct(static_cast<const PgrVgpControllerTick*>(ctx),false);},const_cast<PgrVgpControllerTick*>(in));
@@ -499,7 +505,7 @@ void tickPending(const PgrVgpControllerTick *in, PgrVgpControllerOut *o, uint64_
     int result=pgr_smart_berry_success(rootGet(value),owner);
     rootFree(value);
     // Berries work on incense encounters; if one is ever refused there, throw without it instead of pausing.
-    const bool incense=pgr_vgp_incense()&&exactClass(rootGet(pend.target),pgr_vgp_incense()->klass);
+    const bool incense=pgr_vgp_kind_where([&](void *k){return exactClass(rootGet(pend.target),k);})!=nullptr;
     if(result==PGR_SMART_NOT_SUCCESS&&incense){
       rootFree(pend.promise);rootFree(pend.reflection);pend.berry_done=true;pend.phase=PGR_VGC_PH_SMART_WAIT;
       setStatus(o,PGR_VGC_ST_SMART_WAIT);return;
@@ -610,6 +616,20 @@ void tickPending(const PgrVgpControllerTick *in, PgrVgpControllerOut *o, uint64_
   if (!isCatch && success) {
     int cr = MNT->cooldown(rootGet(pend.target), rootGet(value), owner, PGR_VGC_MAX_LEASE_MS);
     if (cr < 0) { if (value) rootFree(value); pauseError(o, cr); return; }
+  }
+  // The game leaves a spawn caught from the map standing for a while (lure and incense ones until they
+  // expire), as map tap-to-catch found; remove a caught one the same way, wild spawns included.
+  if (isCatch && success) {
+    void *target = rootGet(pend.target);
+    const PgrVgpIncense *kind = pgr_vgp_kind_where([&](void *k) { return exactClass(target, k); });
+    void *destroy = kind ? kind->m_destroy
+                         : exactClass(target, cfg.class_wild) ? g_pgr_vgp_wild_destroy.load(std::memory_order_acquire) : nullptr;
+    if (destroy && alive(target)) {
+      void *exc = nullptr;
+      reinterpret_cast<Invoke>(cfg.runtime_invoke)(destroy, target, nullptr, &exc);
+      __android_log_print(exc ? ANDROID_LOG_WARN : ANDROID_LOG_INFO, "PGRazorVgp", "Caught %s spawn %s from the map",
+                          kind ? "non-wild" : "wild", exc ? "could not be removed" : "removed");
+    }
   }
   const bool transferEnabled = in->flags & PGR_VGC_TF_TRANSFER_ENABLED;
   bool queued = false;
@@ -1014,7 +1034,7 @@ int observe(void *gui, void *target, uint64_t owner) {
   if (stopped.load()) return PGR_VGC_OK;
   if (!exactClass(gui, cfg.class_nameplate)) return PGR_VGC_OK;  // not the nameplate: ignore
   const bool wild = target && (exactClass(target, cfg.class_wild) ||
-                               (pgr_vgp_incense() && exactClass(target, pgr_vgp_incense()->klass)));
+                               pgr_vgp_kind_where([&](void *k) { return exactClass(target, k); }));
   uint64_t fresh = wild ? rootNew(target) : 0;
   // Preserve the previous rooted exclusion on allocation failure. The adapter disables VGP.
   if (wild && !fresh) return PGR_VGC_ERR_MISSING_PTR;

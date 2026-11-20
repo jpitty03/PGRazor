@@ -11,6 +11,7 @@
 #include <dlfcn.h>
 #include <cstring>
 #include <mutex>
+#include <string>
 #include <time.h>
 #include <unistd.h>
 #include <android/log.h>
@@ -171,7 +172,7 @@ bool capture_base(void *target,uint64_t owner,double base[4]){
   auto klass=reinterpret_cast<void*(*)(void*)>(g_fresh.object_get_class);
   auto read=reinterpret_cast<void(*)(void*,void*,void*)>(g_fresh.field_get_value);
   void *target_class=klass(target);
-  const PgrVgpIncense *incense=pgr_vgp_incense_class(target_class)?pgr_vgp_incense():nullptr;
+  const PgrVgpIncense *incense=pgr_vgp_kind(target_class);
   if(target_class!=g_fresh.class_wildmap&&!incense)return false;
   void *response=nullptr;read(target,incense?incense->f_response:map_encounter,&response);
   if(!response||klass(response)!=(incense?incense->class_response:encounter_class))return false;
@@ -183,7 +184,7 @@ bool safari_offered(void *target,uint64_t owner,int item){
   auto klass=reinterpret_cast<void*(*)(void*)>(g_fresh.object_get_class);
   auto read=reinterpret_cast<void(*)(void*,void*,void*)>(g_fresh.field_get_value);
   void *target_class=klass(target);
-  const PgrVgpIncense *incense=pgr_vgp_incense_class(target_class)?pgr_vgp_incense():nullptr;
+  const PgrVgpIncense *incense=pgr_vgp_kind(target_class);
   if(target_class!=g_fresh.class_wildmap&&!incense)return false;
   void *response=nullptr;read(target,incense?incense->f_response:map_encounter,&response);
   if(!response||klass(response)!=(incense?incense->class_response:encounter_class))return false;
@@ -404,7 +405,98 @@ int pgr_smart_ensure_bound(uint64_t owner) {
 namespace {
 std::mutex g_incense_mutex;
 int g_incense_rc = 1;  // 1 not tried / not ready, 0 bound, negative failed for this process
-PgrVgpIncense g_incense{};
+PgrVgpIncense g_kinds[kPgrVgpKinds]{};
+int g_kind_count = 0;
+// Map spawn kinds besides wild and incense that VGP+ catches. Each must pass the same checks as map
+// tap-to-catch: the wild encounter call, one stored *EncounterOutProto with a known success value and a
+// Pokemon, and an encounter id. Research rewards, raids and Rocket encounters have their own flows.
+const char *const kExtraKinds[] = {"TroyDiskMapPlacePokemon", "StationMapPokemon", "RouteMapPokemon",
+                                   "DailyEncounterMapPokemon"};
+
+void publish_kind(const PgrVgpIncense &v) {
+  if (g_kind_count >= kPgrVgpKinds) return;
+  g_kinds[g_kind_count] = v;
+  g_pgr_vgp_kinds[g_kind_count].store(&g_kinds[g_kind_count], std::memory_order_release);
+  if (!g_pgr_vgp_incense.load(std::memory_order_acquire))
+    g_pgr_vgp_incense.store(&g_kinds[g_kind_count], std::memory_order_release);
+  ++g_kind_count;
+}
+
+std::string type_text(const PgrBootBinding &snap, void *type) {
+  auto name = reinterpret_cast<char *(*)(void *)>(snap.meta.type_get_name);
+  auto release = reinterpret_cast<void (*)(void *)>(snap.meta.mem_free);
+  char *text = type && name ? name(type) : nullptr;
+  std::string out = text ? text : "";
+  if (text && release) release(text);
+  return out;
+}
+
+// The named instance method on klass or an ancestor up to base whose return type contains `ret`.
+void *kind_method(const PgrBootBinding &snap, void *klass, void *base, const char *method, int argc, const char *ret) {
+  auto get = reinterpret_cast<void *(*)(void *, const char *, int)>(snap.meta.class_get_method_from_name);
+  auto parent = reinterpret_cast<void *(*)(void *)>(::dlsym(snap.handle, "il2cpp_class_get_parent"));
+  auto returns = reinterpret_cast<void *(*)(void *)>(snap.meta.method_get_return_type);
+  if (!get || !parent || !returns) return nullptr;
+  for (void *at = klass; at; at = parent(at)) {
+    if (void *m = get(at, method, argc)) return type_text(snap, returns(m)).find(ret) != std::string::npos ? m : nullptr;
+    if (at == base) break;
+  }
+  return nullptr;
+}
+
+// Validates one spawn kind by name; empty on success, else why it is left out.
+std::string bind_kind(const PgrBootBinding &snap, const PgrMetaApi *md, void *base, const char *name, PgrVgpIncense *out) {
+  PgrVgpIncense v{};
+  v.base = base;
+  if (resolve_class(md, "Niantic.Holoholo.Map", name, &v.klass) || !v.klass) return "class missing";
+  auto assignable = reinterpret_cast<bool (*)(void *, void *)>(snap.meta.class_is_assignable_from);
+  if (!assignable || !assignable(base, v.klass)) return "not a map Pokemon";
+  v.m_encounter = kind_method(snap, v.klass, base, "SendEncounterRequest", 0, "<Niantic.Holoholo.Map.PokemonEncounterResponse>");
+  v.m_id = kind_method(snap, v.klass, base, "get_EncounterId", 0, "System.UInt64");
+  v.m_spawn = kind_method(snap, v.klass, base, "get_SpawnPointId", 0, "System.String");  // optional: berries
+  if (!v.m_encounter || !v.m_id) return "encounter calls";
+  v.m_destroy = kind_method(snap, v.klass, base, "Destroy", 0, "System.Void");  // optional: leftover removal
+  auto fields = reinterpret_cast<void *(*)(void *, void **)>(::dlsym(snap.handle, "il2cpp_class_get_fields"));
+  auto parent = reinterpret_cast<void *(*)(void *)>(::dlsym(snap.handle, "il2cpp_class_get_parent"));
+  auto flags = reinterpret_cast<int (*)(void *)>(snap.meta.field_get_flags);
+  auto field_type = reinterpret_cast<void *(*)(void *)>(snap.meta.field_get_type);
+  auto from_type = reinterpret_cast<void *(*)(void *)>(snap.meta.class_from_type);
+  auto by_name = reinterpret_cast<void *(*)(void *, const char *)>(snap.meta.class_get_field_from_name);
+  if (!fields || !parent || !flags || !field_type || !from_type || !by_name) return "exports";
+  const std::string prefix = "Holoholo.Rpc.", suffix = "EncounterOutProto";
+  int found = 0;
+  for (void *at = v.klass; at; at = parent(at)) {
+    void *iter = nullptr;
+    for (int n = 0; n < 512; ++n) {
+      void *f = fields(at, &iter);
+      if (!f) break;
+      if (flags(f) & 0x10) continue;
+      const std::string type = type_text(snap, field_type(f));
+      if (type.size() <= prefix.size() + suffix.size() || type.compare(0, prefix.size(), prefix) ||
+          type.compare(type.size() - suffix.size(), suffix.size(), suffix)) continue;
+      v.f_response = f;
+      ++found;
+    }
+    if (at == base) break;
+  }
+  if (found != 1) return "encounter response field missing or ambiguous";
+  v.class_response = from_type(field_type(v.f_response));
+  if (!v.class_response) return "encounter response class";
+  v.f_result = by_name(v.class_response, "Result");
+  if (!v.f_result) v.f_result = by_name(v.class_response, "Status");
+  v.f_pokemon = by_name(v.class_response, "Pokemon");
+  if (!v.f_result || (flags(v.f_result) & 0x10)) return "encounter result";
+  if (!v.f_pokemon || (flags(v.f_pokemon) & 0x10) || type_text(snap, field_type(v.f_pokemon)) != "Holoholo.Rpc.PokemonProto")
+    return "encountered Pokemon";
+  void *result_enum = from_type(field_type(v.f_result));
+  bool success = false;
+  for (const char *literal : {"EncounterSuccess", "IncenseEncounterSuccess", "Success"})
+    if (result_enum && read_enum_literal(snap.meta, snap.runtime, result_enum, literal, &v.success)) { success = true; break; }
+  if (!success) return "encounter success value";
+  *out = v;
+  return "";
+}
+int bind_incense(const PgrBootBinding &snap, const PgrMetaApi *md, PgrVgpIncense &v);
 }
 
 int pgr_vgp_incense_bind(uint64_t owner) {
@@ -419,14 +511,43 @@ int pgr_vgp_incense_bind(uint64_t owner) {
   snap.size = sizeof(snap);
   if (boot->snapshot(&snap) != PGR_BOOT_OK || !snap.handle) return 1;
   if (!on_owner_thread(owner, snap.runtime.thread_current)) return 1;
+  // Incense keeps its pinned checks; the other kinds are validated by name. One kind failing leaves the
+  // rest (and wild spawns) working.
+  PgrVgpIncense v{};
+  const int incense_rc = bind_incense(snap, md, v);
+  if (incense_rc == 0) {
+    publish_kind(v);
+    __android_log_print(ANDROID_LOG_INFO, "PGRazorSmartCatch", "Incense VGP support ready");
+  }
+  void *base = nullptr, *wild = nullptr;
+  if (resolve_class(md, "Niantic.Holoholo.Map", "MapPokemon", &base) == 0 && base &&
+      resolve_class(md, "Niantic.Holoholo.Map", "WildMapPokemon", &wild) == 0 && wild)
+    g_pgr_vgp_wild_destroy.store(kind_method(snap, wild, base, "Destroy", 0, "System.Void"), std::memory_order_release);
+  if (base) {
+    for (const char *name : kExtraKinds) {
+      PgrVgpIncense kind{};
+      const std::string why = bind_kind(snap, md, base, name, &kind);
+      if (why.empty()) {
+        publish_kind(kind);
+        __android_log_print(ANDROID_LOG_INFO, "PGRazorSmartCatch", "%s VGP support ready%s%s", name,
+                            kind.m_spawn ? "" : " (no berries)", kind.m_destroy ? "" : " (no removal)");
+      } else {
+        __android_log_print(ANDROID_LOG_WARN, "PGRazorSmartCatch", "%s VGP support unavailable (%s)", name, why.c_str());
+      }
+    }
+  }
+  g_incense_rc = g_kind_count ? 0 : (incense_rc < 0 ? incense_rc : PGR_SMARTBIND_ERR_CLASS);
+  return g_incense_rc;
+}
+
+namespace {
+int bind_incense(const PgrBootBinding &snap, const PgrMetaApi *md, PgrVgpIncense &v) {
   auto fail = [](int rc, const char *what) {
-    g_incense_rc = rc;
     __android_log_print(ANDROID_LOG_WARN, "PGRazorSmartCatch", "Incense VGP support unavailable (%s)", what);
     return rc;
   };
   auto parent = reinterpret_cast<void *(*)(void *)>(::dlsym(snap.handle, "il2cpp_class_get_parent"));
   if (!parent) return fail(PGR_SMARTBIND_ERR_EXPORT, "class parent export");
-  PgrVgpIncense v{};
   void *wild = nullptr, *result_enum = nullptr;
   if (resolve_class(md, "Niantic.Holoholo.Map", "IncenseMapPokemon", &v.klass) ||
       resolve_class(md, "Niantic.Holoholo.Map", "MapPokemon", &v.base) ||
@@ -459,12 +580,10 @@ int pgr_vgp_incense_bind(uint64_t owner) {
     return fail(PGR_SMARTBIND_ERR_FIELD, "fields");
   if (!read_enum_literal(snap.meta, snap.runtime, result_enum, "IncenseEncounterSuccess", &v.success))
     return fail(PGR_SMARTBIND_ERR_LITERAL, "result literal");
-  g_incense = v;
-  g_pgr_vgp_incense.store(&g_incense, std::memory_order_release);
-  g_incense_rc = 0;
-  __android_log_print(ANDROID_LOG_INFO, "PGRazorSmartCatch", "Incense VGP support ready");
+  v.m_destroy = kind_method(snap, v.klass, v.base, "Destroy", 0, "System.Void");  // optional: leftover removal
   return 0;
 }
+}  // namespace
 
 int pgr_smart_spawn_fresh(void *rootedWild, uint64_t owner) {
   std::unique_lock<std::mutex> lock(g_bind_mutex, std::try_to_lock);
@@ -526,8 +645,7 @@ int pgr_smart_encounter_success(void *target,void *response,uint64_t owner){
  if(!g_bound||owner!=g_fresh.owner||owner!=uint64_t(gettid())||!response)return PGR_SMARTBIND_ERR_IDENTITY;
  auto klass=reinterpret_cast<void*(*)(void*)>(g_fresh.object_get_class);
  auto read=reinterpret_cast<void(*)(void*,void*,void*)>(g_fresh.field_get_value);
- if(target&&pgr_vgp_incense_class(klass(target))){
-  const PgrVgpIncense *i=pgr_vgp_incense();
+ if(const PgrVgpIncense *i=target?pgr_vgp_kind(klass(target)):nullptr){
   PgrSmartEncounterBinding b{i->klass,encounter_wrapper,i->class_response,i->f_response,i->f_result,i->f_pokemon,i->success,klass,read};
   return pgr_smart_validate_encounter(b,target,response);
  }
