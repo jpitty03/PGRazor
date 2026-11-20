@@ -4,7 +4,8 @@ import java.util.Properties;
 
 /** Pure Java account configuration and native wire serialization for the Gym Slotter & Berry Feeder. */
 public final class GymAutomationPreferences {
-    private boolean deploy, feed, fallback, overlay=true, running;
+    // The map overlay is opt-in; a saved choice, on or off, is kept.
+    private boolean deploy, feed, fallback, overlay, running;
     private int nanabReserve=50, razzReserve=50;
 
     private static int number(Properties p,String key,int fallback,int min,int max){
@@ -17,7 +18,7 @@ public final class GymAutomationPreferences {
     public synchronized void read(Properties p){
         running=false;
         deploy=flag(p,"Deploy",false);feed=flag(p,"Feed",false);fallback=flag(p,"Fallback",false);
-        overlay=flag(p,"Overlay",true);
+        overlay=flag(p,"Overlay",false);
         nanabReserve=number(p,"NanabReserve",50,0,1000);razzReserve=number(p,"RazzReserve",50,0,1000);
     }
     public synchronized void write(Properties p){

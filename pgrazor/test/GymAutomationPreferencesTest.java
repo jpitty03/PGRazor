@@ -10,7 +10,8 @@ public final class GymAutomationPreferencesTest {
     public static void main(String[] args){
         GymAutomationPreferences p=new GymAutomationPreferences();
         String defaults="2;0;0;0;50;50;0";
-        eq(defaults,p.config());eq(false,p.running());eq(true,p.overlay());
+        eq(defaults,p.config());eq(false,p.running());eq(false,p.overlay());
+        p.set("Overlay","true");eq(true,p.overlay());p.set("Overlay","false");
         eq(false,p.start());
 
         p.set("Deploy","true");p.set("Feed","true");p.set("Fallback","true");
@@ -49,7 +50,7 @@ public final class GymAutomationPreferencesTest {
         for(String[] value:invalid){String before=p.config();reject(()->p.set(value[0],value[1]));eq(before,p.config());}
         reject(()->p.set("Unknown","1"));reject(()->p.set(null,"1"));reject(()->p.set("Deploy",null));
         reject(()->p.set("NanabReserve"," 50 "));
-        p.read(new Properties());eq(defaults,p.config());eq(false,p.running());
+        p.read(new Properties());eq(defaults,p.config());eq(false,p.running());eq(false,p.overlay());
         System.out.println("GymAutomationPreferences: "+checks+" checks passed");
     }
 }
