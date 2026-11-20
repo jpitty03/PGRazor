@@ -9,7 +9,7 @@
 
 ### Improvements & fixes
 
-- Fixed gym berry feeding.
+- Fixed gym berry feeding and defender deployment.
 - Holding the keep-IV slider still while dragging shows its current value instead of the previous one.
 - Research automation handles up to 80 claims, deletions and encounter catches every 10 minutes, and says when it pauses at that limit and when it resumes.
 
