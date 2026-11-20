@@ -10,6 +10,7 @@
 ### Improvements & fixes
 
 - Fixed gym berry feeding and defender deployment.
+- Gym automation shows why a deploy or berry is declined (for example "Gym full") and stops re-reading gyms once berry reserves are reached.
 - The gym automation map button is off by default on new installs; existing settings are kept.
 - Holding the keep-IV slider still while dragging shows its current value instead of the previous one.
 - Research automation handles up to 80 claims, deletions and encounter catches every 10 minutes, and says when it pauses at that limit and when it resumes.

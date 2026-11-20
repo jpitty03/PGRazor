@@ -80,6 +80,21 @@ Root resolve(const char *ns,const char *name){return resolve(cls(ns,name));}
 int literal(void *k,const char *name){void *f=fn<void*(*)(void*,const char*)>(boot.meta.class_get_field_from_name)(k,name);require(f,name);require((fn<int(*)(void*)>(boot.meta.field_get_flags)(f)&0x8050)==0x8050,name);int n=0;fn<void(*)(void*,void*)>(boot.runtime.field_static_get_value)(f,&n);return n;}
 int result_value(void *o){auto f=fn<void*(*)(void*,const char*)>(boot.meta.class_get_field_from_name)(klass(o),"Result");require(f,"Result");int n=0;fn<void(*)(void*,void*,void*)>(boot.runtime.field_get_value)(o,f,&n);return n;}
 bool success(void *o){auto f=fn<void*(*)(void*,const char*)>(boot.meta.class_get_field_from_name)(klass(o),"Result");require(f,"Result");auto k=fn<void*(*)(void*)>(boot.meta.class_from_type)(fn<void*(*)(void*)>(boot.meta.field_get_type)(f));return result_value(o)==literal(k,"Success");}
+// A response's Result as words, e.g. ErrorFortIsFull -> "gym full", ErrorNotInRange -> "not in range";
+// the number when the enum has no literal for it.
+std::string result_words(void *o){
+ auto f=fn<void*(*)(void*,const char*)>(boot.meta.class_get_field_from_name)(klass(o),"Result");require(f,"Result");
+ void *k=fn<void*(*)(void*)>(boot.meta.class_from_type)(fn<void*(*)(void*)>(boot.meta.field_get_type)(f));const int n=result_value(o);
+ auto fields=fn<void*(*)(void*,void**)>(exp("class_get_fields"));auto name_of=fn<const char*(*)(void*)>(exp("field_get_name"));
+ std::string name;void *iter=nullptr;
+ for(int i=0;i<256;i++){void *e=fields(k,&iter);if(!e)break;if((fn<int(*)(void*)>(boot.meta.field_get_flags)(e)&0x8050)!=0x8050)continue;
+  int v=0;fn<void(*)(void*,void*)>(boot.runtime.field_static_get_value)(e,&v);if(v==n){const char *s=name_of(e);if(s)name=s;break;}}
+ if(name=="ErrorFortIsFull")return "gym full";
+ if(name.empty())return "result "+std::to_string(n);
+ if(name.rfind("Error",0)==0)name.erase(0,5);
+ std::string words;for(char c:name){if(c>='A'&&c<='Z'){if(!words.empty())words+=' ';words+=char(c-'A'+'a');}else words+=c;}
+ return words;
+}
 int count(Root &list,int cap){int n=boxed<int>(call(list.get(),"get_Count"),"System.Int32");require(n>=0&&n<=cap,"collection bound");return n;}
 Root item(Root &list,int index){void *args[]={&index};return Root(call(list.get(),"get_Item",1,args));}
 struct Permission {Settings settings;std::string config;double lat=0,lon=0;uint64_t seq=0;bool allowed=false,valid_config=false;};
@@ -386,8 +401,15 @@ void poll(const Permission &p){
  }
  const char *name=pending.phase==2?"GymDeployOutProto":"GymFeedPokemonOutProto";require(response&&klass(response.get())==cls("Holoholo.Rpc",name),"gym response identity");
  bool ok=success(response.get());int result=result_value(response.get());int dust=pending.phase==3?field<int>(response.get(),"StardustAwarded","System.Int32"):0;
- if(pending.phase==2){event(ok?"Defender deployed":"Deployment declined",result);if(ok)cooldown("Gym defender deployed");else reserved.erase(pending.defender);}
- else{event(ok?"Gym berry accepted":"Gym berry declined",result,ok?dust:0);if(ok)cooldown("Gym berry feeding");else history.refuse(pending.defender,now);}
+ if(pending.phase==2){
+  if(ok){event("Defender deployed",result);cooldown("Gym defender deployed");}
+  else{
+   // What this attempt was based on, so a refusal shows whether the gym read was out of date.
+   std::string seen;try{seen=", saw "+std::to_string(defenders().size())+" defenders";const int open=open_slots(pending.gym);if(open>=0)seen+=", map showed "+std::to_string(open)+" free";}catch(const Failure&){}
+   event("Deployment declined: "+result_words(response.get())+seen,result);reserved.erase(pending.defender);
+  }
+ }
+ else{event(ok?"Gym berry accepted":"Gym berry declined: "+result_words(response.get()),result,ok?dust:0);if(ok)cooldown("Gym berry feeding");else history.refuse(pending.defender,now);}
  if(!ok){clear_pending();next_scan=now+10000;return;}
  pending.details=Root(field<void*>(response.get(),"GymStatusAndDefenders","Holoholo.Rpc.GymStatusAndDefendersProto"));require(bool(pending.details),"missing updated gym details");
  pending.await_stock=pending.phase==3&&!pending.stock_seen;pending.since=now;
@@ -409,6 +431,12 @@ void issue_spin(const Permission &p){
  pending.promise=send(req,"FortSearchOutProto","FortSearch",pending.reflection);
  require(bool(pending.promise),"spin outcome unknown");event("Spinning gym disc",0,0,true);
 }
+// Whether a berry above the reserves is in the bag; read locally, without a server request.
+bool berry_available(const Permission &p){
+ Root bag=resolve("Niantic.Holoholo","IItemBag");if(!bag)return true;  // unknown: let the gym read decide
+ int nanab=703,razz=701;void *na[]={&nanab},*ra[]={&razz};
+ return berry(boxed<int>(call(bag.get(),"GetItemCount",1,na),"System.Int32"),boxed<int>(call(bag.get(),"GetItemCount",1,ra),"System.Int32"),p.settings)!=0;
+}
 void discover(const Permission &p){
  auto now=clock_ms();for(auto it=inspected.begin();it!=inspected.end();)if(it->second<=now)it=inspected.erase(it);else ++it;
  // Placing a defender comes before feeding: read a nearby gym with a free slot first.
@@ -420,7 +448,7 @@ void discover(const Permission &p){
   }}
  Root type=type_object(cls("Niantic.Holoholo.Gym","MapGym"));void *args[]={type.get()};Root gyms(invoke(h(H_VGP_M_FIND_ALL),nullptr,args));if(!gyms)return;
  size_t n=fn<size_t(*)(void*)>(exp("array_length"))(gyms.get());require(n<=2048,"gym array bound");
- std::string nearest_reason;double nearest=1e30;bool nearby_waiting=false;
+ std::string nearest_reason;double nearest=1e30;bool nearby_waiting=false,reserves_held=false;int can_feed=-1;  // -1: not read yet
  for(size_t i=0;i<n;i++){Root gym(*reinterpret_cast<void**>(static_cast<char*>(gyms.get())+32+i*8));std::string why;double meters=1e30;
   if(p.settings.spin&&gym_valid(gym,p,nullptr,nullptr,false,true)){
    Root sf=fort(gym);std::string sid=string(field<void*>(sf.get(),"FortId","System.String"));
@@ -435,10 +463,17 @@ void discover(const Permission &p){
   Root f=fort(gym);std::string id=string(field<void*>(f.get(),"FortId","System.String"));if(id.empty())continue;
   if(inspected.count(id)){nearby_waiting=true;continue;}if(inspected.size()>=512)continue;
   if(!p.settings.feed&&!history.deploy_allowed(id,clock_ms()))continue;
+  // With the berries at their reserves, a gym is read only when a defender might still go in; otherwise
+  // the read would end in "Berry reserves reached" and repeat every few seconds.
+  if(p.settings.feed){
+   if(can_feed<0)can_feed=berry_available(p)?1:0;
+   if(!can_feed&&!(p.settings.deploy&&open_slots(gym)!=0&&history.deploy_allowed(id,now))){reserves_held=true;continue;}
+  }
   pending.gym=std::move(gym);pending.id=id;pending.config=p.config;pending.phase=1;pending.since=clock_ms();
   inspected[id]=now+60000;
   request_gym_details();event("Reading nearby friendly gym");return;
  }if(p.settings.spin&&!p.settings.deploy&&!p.settings.feed){if(spin_status!="Bag full; gym spin waiting"&&spin_status!="Gym spun")event("Waiting for a nearby gym disc",0,0,true);}
+ else if(reserves_held)event("Berry reserves reached");
  else if(nearby_waiting){if(status!="Berry reserves reached")event("Waiting to recheck nearby gym");}else if(!nearest_reason.empty())event("Nearest gym: "+nearest_reason+" ("+std::to_string(int(nearest))+"m)");else event("Waiting for a friendly gym within 80m");
 }
 }

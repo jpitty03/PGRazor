@@ -38,6 +38,8 @@ public final class GymAutomationSettings {
         if(raw.contains("inventory update"))return "Waiting for inventory";
         if(raw.contains("waiting")||raw.contains("nearby")||raw.contains("nearest")
             ||raw.contains("eligible"))return "Waiting for gym";
+        if(raw.contains("gym full"))return "Gym full";
+        if(raw.contains("deployment declined"))return "Deploy declined";
         if(raw.contains("rejected")||raw.contains("declined"))return "Action declined";
         return "Starting";
     }
