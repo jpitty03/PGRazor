@@ -6,13 +6,16 @@
 
 - **Keep-IV cutoff:** Auto-transfer's keep-IV option is now a slider or typed value from 0 to 100%. Pokémon at or above it are kept.
 - **Candy quest filter:** PoGoCoordinates quest search can filter by Candy rewards and the Pokémon whose candy is given, such as Eternatus Candy ×25.
+- **VGP+ catches all map Pokémon:** lure, PokéStop, Route and daily-encounter Pokémon are caught as well as wild and incense ones.
 
 ### Improvements & fixes
+
+- Pokémon caught by VGP+ disappear from the map right away.
+- Hotspots show each spot's local date and time, with the correct UTC offset all year.
 
 - Fixed gym berry feeding and defender deployment.
 - Gym automation shows why a deploy or berry is declined (for example "Gym full") and stops re-reading gyms once berry reserves are reached.
 - The gym automation map button is off by default on new installs; existing settings are kept.
-- Holding the keep-IV slider still while dragging shows its current value instead of the previous one.
 - Research automation handles up to 80 claims, deletions and encounter catches every 10 minutes, and says when it pauses at that limit and when it resumes.
 
 ## v0.3.5
