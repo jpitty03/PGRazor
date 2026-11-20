@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### New features
+
+- **Keep-IV cutoff:** Auto-transfer's keep-IV option is now a slider or typed value from 0 to 100%. Pokémon at or above it are kept.
+- **Candy quest filter:** PoGoCoordinates quest search can filter by Candy rewards and the Pokémon whose candy is given, such as Eternatus Candy ×25.
+
+### Improvements & fixes
+
+- Holding the keep-IV slider still while dragging shows its current value instead of the previous one.
+- Research automation handles up to 80 claims, deletions and encounter catches every 10 minutes, and says when it pauses at that limit and when it resumes.
+
 ## v0.3.5
 
 [Full release notes](docs/releases/v0.3.5.md)
