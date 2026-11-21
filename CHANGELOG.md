@@ -1,18 +1,19 @@
 # Changelog
 
-## Unreleased
+## v0.3.6
+
+[Full release notes](docs/releases/v0.3.6.md)
 
 ### New features
 
 - **Keep-IV cutoff:** Auto-transfer's keep-IV option is now a slider or typed value from 0 to 100%. Pokémon at or above it are kept.
 - **Candy quest filter:** PoGoCoordinates quest search can filter by Candy rewards and the Pokémon whose candy is given, such as Eternatus Candy ×25.
-- **VGP+ catches all map Pokémon:** lure, PokéStop, Route and daily-encounter Pokémon are caught as well as wild and incense ones.
 - **Session stats:** Settings shows XP, stardust gained, catches, encounters, PokéStops, distance and hatches for the last hour and the last 24 hours.
 
 ### Improvements & fixes
 
-- Quick Catch no longer leaves a blank or frozen screen after raid, Max Battle and Rocket catches.
-- Pokémon caught by VGP+ disappear from the map right away.
+- BSOA (Blue Screen of Annoyance) is fixed...hopefully.
+- Fixed VGP+ skipping lured, PokéStop, Route and daily-encounter Pokémon; caught Pokémon, incense ones included, now disappear from the map right away.
 - Hotspots show each spot's local date and time, with the correct UTC offset all year.
 - Fixed gym berry feeding and defender deployment.
 - Gym automation shows why a deploy or berry is declined (for example "Gym full") and stops re-reading gyms once berry reserves are reached.
