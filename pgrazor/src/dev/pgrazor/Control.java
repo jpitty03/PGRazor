@@ -1476,6 +1476,7 @@ public final class Control {
         if("batch-evolution".equals(kind))BatchEvolutionSettings.publish(detail);
         if("gift-batch".equals(kind))GiftBatchSettings.publish(detail);
         if("research".equals(kind))ResearchSettings.publish(detail);
+        if("session-stats".equals(kind))SessionStats.publish(detail);
         if("shundo-sniper".equals(kind)&&detail.startsWith("{"))ShundoSniper.publish(detail);
         if("shiny-scan".equals(kind)&&detail.startsWith("{"))ShinyScanner.publish(detail);
         if("catch-chance".equals(kind))CatchChance.publish(detail);

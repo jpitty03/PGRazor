@@ -381,6 +381,7 @@ final class SettingsPanel {
         return list;
     }
 
+    private SessionStatsCard statsCard;
     private void buildTelemetryCard(){
         LinearLayout card=new LinearLayout(activity);card.setOrientation(LinearLayout.VERTICAL);
         card.setBackground(SettingsUi.cardBackground(activity));card.setTag(SettingsUi.TAG_CARD,Boolean.TRUE);card.setPadding(dp(14),dp(12),dp(14),dp(12));
@@ -393,6 +394,9 @@ final class SettingsPanel {
         coords=text(String.format(Locale.US,"%.6f, %.6f",Control.engine.latitude,Control.engine.longitude),13,ink());coords.setTypeface(SettingsUi.mono());coords.setSingleLine(true);
         LinearLayout.LayoutParams coordsParams=new LinearLayout.LayoutParams(-1,-2);coordsParams.topMargin=dp(8);card.addView(coords,coordsParams);
         home.addView(card);
+        statsCard=new SessionStatsCard(activity);
+        LinearLayout.LayoutParams statsParams=new LinearLayout.LayoutParams(-1,-2);statsParams.topMargin=dp(10);
+        home.addView(statsCard.view(),statsParams);
     }
 
     private void buildLocationPage() {
@@ -1067,6 +1071,7 @@ final class SettingsPanel {
         for(TextView c:captions)c.setTextColor(muted());
         if(coords!=null)coords.setTextColor(ink());
         if(speedReadout!=null)speedReadout.setTextColor(accent());
+        if(statsCard!=null)statsCard.applyTheme();
         if(homeStatus!=null)homeStatus.setTextColor(muted());
         if(title!=null)title.setTextColor(ink());
         if(versionLabel!=null)versionLabel.setTextColor(SettingsUi.faint());
@@ -1166,6 +1171,7 @@ final class SettingsPanel {
         if(uiScale!=null)set(uiScale,"UI scale: "+Control.uiScalePercent()+"%");
         set(coords,String.format(Locale.US,"%.6f, %.6f",Control.engine.latitude,Control.engine.longitude));
         set(speedReadout,String.format(Locale.US,"%.1f km/h",Control.engine.speedKmh));
+        if(statsCard!=null)statsCard.refresh(false);
         MotionEngine.RouteProgress route=Control.engine.routeProgress();
         locationSwitch.setChecked(Control.desiredEnabled());
         String movement=!Control.desiredEnabled()?"DEVICE LOCATION":Control.engine.enabled ? (Control.engine.walking ? "WALKING" : "ON") : "WAITING FOR ADAPTER";

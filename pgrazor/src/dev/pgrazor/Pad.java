@@ -182,7 +182,7 @@ public final class Pad {
         // Shundo Sniper card: status, counts and Start/Stop; drag to move it.
         shundoOverlay=new ShundoOverlay(activity);FrameLayout.LayoutParams shundoLayout=new FrameLayout.LayoutParams(dp(290),-2,Gravity.TOP|Gravity.CENTER_HORIZONTAL);shundoLayout.topMargin=dp(96);
         overlays.addView(shundoOverlay,shundoLayout);shundoOverlay.setVisibility(View.GONE);shundoDrag=OverlayDrag.attach(overlays,shundoOverlay,"shundo");
-        EncounterCounter.prepare(activity);encounterBadge=text("",12,ink());encounterBadge.setPadding(dp(10),dp(6),dp(10),dp(6));encounterBadge.setSingleLine(true);encounterBadge.setBackground(rounded(surface(),10));
+        EncounterCounter.prepare(activity);SessionStats.prepare(activity);encounterBadge=text("",12,ink());encounterBadge.setPadding(dp(10),dp(6),dp(10),dp(6));encounterBadge.setSingleLine(true);encounterBadge.setBackground(rounded(surface(),10));
         FrameLayout.LayoutParams encounterLayout=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.RIGHT);encounterLayout.rightMargin=dp(12);encounterLayout.topMargin=dp(186);
         overlays.addView(encounterBadge,encounterLayout);encounterBadge.setVisibility(View.GONE);encounterDrag=OverlayDrag.attach(overlays,encounterBadge,"encounters");
         shinyMark=text("✨",19,Color.WHITE);shinyMark.setGravity(Gravity.CENTER);shinyMark.setShadowLayer(dp(4),0,0,Color.BLACK);shinyMark.setClickable(false);shinyMark.setFocusable(false);
@@ -571,7 +571,7 @@ public final class Pad {
         if(automationStatus!=null){overlays.removeView(automationStatus);automationStatus=null;}
         if(catchChanceDrag!=null){catchChanceDrag.detach();catchChanceDrag=null;}if(catchChance!=null){overlays.removeView(catchChance);catchChance=null;}
         if(gymFeedDrag!=null){gymFeedDrag.detach();gymFeedDrag=null;}
-        EncounterCounter.flush();if(encounterDrag!=null){encounterDrag.detach();encounterDrag=null;}if(encounterBadge!=null){overlays.removeView(encounterBadge);encounterBadge=null;}
+        EncounterCounter.flush();SessionStats.flush();if(encounterDrag!=null){encounterDrag.detach();encounterDrag=null;}if(encounterBadge!=null){overlays.removeView(encounterBadge);encounterBadge=null;}
         if(shinyPopup!=null){shinyPopup.dismiss();shinyPopup=null;}if(shinyMark!=null){overlays.removeView(shinyMark);shinyMark=null;}
         if(shinyDrag!=null){shinyDrag.detach();shinyDrag=null;}if(shinyBadge!=null){overlays.removeView(shinyBadge);shinyBadge=null;}
         if(shundoDrag!=null){shundoDrag.detach();shundoDrag=null;}if(shundoOverlay!=null){shundoOverlay.close();overlays.removeView(shundoOverlay);shundoOverlay=null;}
