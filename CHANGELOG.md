@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### New features
+
+- **Joystick lock:** Hold the joystick outward to pop out a lock badge. Drag onto it or tap it to keep the character walking in that direction. Tap the joystick to unlock.
+
 ## v0.3.6
 
 [Full release notes](docs/releases/v0.3.6.md)
