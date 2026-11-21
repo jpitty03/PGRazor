@@ -771,11 +771,11 @@ public final class Pad {
             if (dist < 0.08f) x = y = 0;
 
             if (!isLocked) {
-                if (dist >= 0.45f) {
+                if (JoystickLock.popsOut(dist)) {
                     lockAngle = Math.atan2(y, x);
                     if (!holdingOut) {
                         holdingOut = true;
-                        postDelayed(popLockRunnable, 250);
+                        postDelayed(popLockRunnable, JoystickLock.POP_DELAY_MS);
                     }
                     if (lockPopped) {
                         float[] lp = lockPosition(lockAngle, cx, cy, radius);
@@ -784,7 +784,7 @@ public final class Pad {
                             return true;
                         }
                     }
-                } else if (dist < 0.35f) {
+                } else if (JoystickLock.resetsHold(dist)) {
                     holdingOut = false;
                     removeCallbacks(popLockRunnable);
                     if (lockPopped) {
