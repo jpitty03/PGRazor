@@ -155,6 +155,10 @@ public final class GymAutomationSettings {
 public final class CatchChance {
  public static void publish(String detail){}
 }''',
+    'dev/pgrazor/SessionStats.java': '''package dev.pgrazor;
+public final class SessionStats {
+ public static void publish(String detail){}
+}''',
     'dev/pgrazor/ResearchSettings.java': '''package dev.pgrazor;
 public final class ResearchSettings {
  private static final ResearchPreferences prefs=new ResearchPreferences();
