@@ -1,6 +1,7 @@
 #include "game_bindings.h"
 #include "shared_host.h"
 #include "shared_catch.h"
+#include "max_catch_flag.h"
 #include "summary_completion.h"
 #include "details_completion.h"
 #include "details_recovery.h"
@@ -24,6 +25,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <algorithm>
+#include <string>
 #include <cstdio>
 #include <time.h>
 #include <unistd.h>
@@ -101,7 +103,7 @@ void transport_event(uint32_t kind,uint64_t slot,int status,uint32_t flags,int b
  const char *name="native-shared-event",*why="";
  switch(kind){case 1:name="candidate-initialized";break;case 2:name="candidate-cancelled";break;case 3:name="summary-dismiss-invoked";break;case 4:name="details-dismiss-invoked";break;case 5:name="transfer-requested";break;
  case 6:name=status==PGR_TX_EVENT_COMPLETE&&(flags&1)?"transfer-confirmed":"transfer-error";why=status==PGR_TX_EVENT_TIMEOUT?"response-timeout":"server-result";break;
- case 7:name="transfer-kept";why=keep_reason(status);break;case 8:name="fault";break;case 9:name="metadata-ready";break;case 10:name="direct-catch-fallback";break;case 11:name="direct-catch-returned";break;case 12:name="candidate-armed";break;case 13:name="stopped";break;case 14:name="summary-canvas-hide";break;case 15:name="summary-canvas-before-dismiss";break;case 16:name="summary-alpha-hook";break;}
+ case 7:name="transfer-kept";why=keep_reason(status);break;case 8:name="fault";break;case 9:name="metadata-ready";break;case 10:name="direct-catch-fallback";break;case 11:name="direct-catch-returned";break;case 12:name="candidate-armed";break;case 13:name="stopped";break;case 14:name="summary-canvas-hide";break;case 15:name="summary-canvas-before-dismiss";break;case 16:name="summary-alpha-hook";break;case 17:name="summary-ok-pressed";break;case 18:name="summary-ok-waiting";break;}
  char json[768];const int n=std::snprintf(json,sizeof(json),"{\"kind\":\"%s\",\"backend\":\"native\",\"boottimeMs\":%llu,\"tid\":%llu,\"slot\":%llu,\"status\":%d,\"invoked\":%s,\"stateBefore\":%d,\"stateAfter\":%d,\"guiGone\":%s,\"advanced\":%s,\"reason\":\"%s\",\"reasonCode\":%d,\"transferAvailable\":%s}",name,(unsigned long long)now(),(unsigned long long)tid(),(unsigned long long)slot,status,(flags&1)?"true":"false",before,after,(flags&2)?"true":"false",((flags&2)||((flags&4)&&after!=2))?"true":"false",why,reason,(capabilities&PGR_SHH_TRANSFER)?"true":"false");
  if(n<=0||size_t(n)>=sizeof(json)){failed=true;stopping=true;return;}
  PgrRuntimeTransportString strings[]={{"quick-close",11},{json,uint32_t(n)}};
@@ -145,7 +147,15 @@ Record *by_slot(uint64_t slot){for(auto &r:records)if(r.slot==slot&&slot)return 
 Record *by_gui(void *gui){if(!gui)return nullptr;for(auto &r:records)if(r.slot&&target(r.gui)==gui)return &r;return nullptr;}
 void drain(){PgrSharedCatchEvent e{};while(sh->next_event(&e)==1){auto r=by_slot(e.slot);if(r&&!r->invoked){emit(2,r->slot,0,0,0,0,e.reason);release(*r);}}}
 void cancel(Record &r,int reason=8){if(!r.slot||r.cancelled||r.invoked)return;r.cancelled=true;sh->cancel(r.slot,reason,tid());}
-Record *create(void *gui,bool details=false){if(gui)if(auto r=by_gui(gui))return r;auto g=gate();if(!g.remaining)return nullptr;
+// The summary GUI left to the game after a Max, raid or Rocket catch. Every summary hook asks for a record,
+// so the same GUI is skipped by all of them, not only the first.
+void *skipped_summary=nullptr;
+uint64_t skipped_at=0;
+Record *create(void *gui,bool details=false){if(gui)if(auto r=by_gui(gui))return r;
+ if(gui&&skipped_summary&&target(skipped_summary)==gui)return nullptr;
+ auto g=gate();if(!g.remaining)return nullptr;
+ // A Max Battle, raid or Rocket catch summary is left to the game: its own exit restores the map (see max_catch_flag.h).
+ if(!details&&pgr_take_max_catch()){if(gui){free_root(skipped_summary);skipped_summary=hold(gui);skipped_at=now();}emit(2,0,0,0,0,0,9);return nullptr;}
  const uint64_t key=++next_key;uint64_t slot=0;const int rc=sh->upsert(key,details?1:0,tid(),&slot);drain();if(rc<0){fault(rc);return nullptr;}if(!slot)return nullptr;
  for(auto &r:records)if(!r.slot){r.key=key;r.slot=slot;r.epoch=g.epoch;r.details=details;record_count.fetch_add(1);if(gui){r.gui=hold(gui);if(!r.gui){cancel(r);drain();return nullptr;}}return &r;}
  sh->cancel(slot,8,tid());drain();fault(-13);return nullptr;
@@ -435,6 +445,99 @@ void complete_details(Record &r){auto q=details_request(r);if(dc->validate(&q)!=
  try{if(token)rc=dc->complete(&q,token,&out);}catch(...){invoking=false;invoking_gui=nullptr;fault(-11);throw;}invoking=false;invoking_gui=nullptr;
  const bool advanced=(out.flags&2)||((out.flags&4)&&out.after!=2);hide_after(r,out.flags,out.after,rc);emit(4,r.slot,rc,out.flags,out.before,out.after);sh->finish(r.slot,advanced?1:0,tid());release(r);
 }
+// After a Max Battle, raid or Rocket catch, Quick Catch closes the summary with its own OK button, so the
+// game's exit for that battle runs and restores the map. Unity's Button.onClick is invoked once the button
+// is active and interactable; after 15 s it is left to the player.
+struct OkCalls {bool tried=false,ok=false;void *(*field)(void*,const char*)=nullptr;void (*read)(void*,void*,void*)=nullptr;
+ void *(*method)(void*,const char*,int)=nullptr;void *get_component=nullptr,*in_children=nullptr,*all_in_children=nullptr,*button_type=nullptr,*pgo_type=nullptr,*behaviour_type=nullptr;
+ const char *(*class_name)(void*)=nullptr;size_t (*array_length)(void*)=nullptr;} ok_calls;
+bool ok_calls_ready(){
+ if(ok_calls.tried)return ok_calls.ok;ok_calls.tried=true;
+ PgrBootBinding b{};if(table<PgrBootApi>(pgrazor_runtime_bootstrap_api(1))->snapshot(&b)||!b.handle)return false;
+ const auto meta=table<PgrMetaApi>(pgrazor_runtime_metadata_api(1));
+ auto find=[&](const char *ns,const char *name)->void*{PgrMetaClassQuery q{1,sizeof(q)};q.name_space=ns;q.name=name;PgrMetaClassResult r{};return meta->resolve_class(&q,&r)?nullptr:const_cast<void*>(r.klass);};
+ // The summary's OK is the game's own PgoButton (Pixel, 2026-11-20); Unity's Button is kept as a fallback.
+ void *button=find("UnityEngine.UI","Button"),*pgo=find("Niantic.Holoholo.UI","PgoButton"),*component=find("UnityEngine","Component");
+ auto methods=reinterpret_cast<void*(*)(void*,void**)>(dlsym(b.handle,"il2cpp_class_get_methods"));
+ auto name_of=reinterpret_cast<const char*(*)(void*)>(dlsym(b.handle,"il2cpp_method_get_name"));
+ auto type_object=reinterpret_cast<void*(*)(void*)>(dlsym(b.handle,"il2cpp_type_get_object"));
+ auto count=reinterpret_cast<uint32_t(*)(void*)>(b.meta.method_get_param_count);
+ auto param=reinterpret_cast<void*(*)(void*,uint32_t)>(b.meta.method_get_param);
+ auto type_name=reinterpret_cast<char*(*)(void*)>(b.meta.type_get_name);auto release=reinterpret_cast<void(*)(void*)>(b.meta.mem_free);
+ if(!button||!component||!methods||!name_of||!type_object||!count||!param||!type_name||!release||!b.meta.class_get_type)return false;
+ // Component.GetComponent(System.Type); the string overload has the same name and argument count.
+ // GetComponent / GetComponentInChildren / GetComponentsInChildren taking only a System.Type.
+ void *iter=nullptr;
+ for(int n=0;n<512;++n){void *m=methods(component,&iter);if(!m)break;const char *mn=name_of(m);
+  if(!mn||count(m)!=1)continue;
+  void **slot=!std::strcmp(mn,"GetComponent")?&ok_calls.get_component:!std::strcmp(mn,"GetComponentInChildren")?&ok_calls.in_children:
+              !std::strcmp(mn,"GetComponentsInChildren")?&ok_calls.all_in_children:nullptr;
+  if(!slot||*slot)continue;
+  char *t=type_name(param(m,0));const bool by_type=t&&!std::strcmp(t,"System.Type");if(t)release(t);
+  if(by_type)*slot=m;}
+ void *type=type_object(reinterpret_cast<void*(*)(void*)>(b.meta.class_get_type)(button));
+ ok_calls.button_type=type?hold(type):nullptr;
+ if(pgo){void *pt=type_object(reinterpret_cast<void*(*)(void*)>(b.meta.class_get_type)(pgo));ok_calls.pgo_type=pt?hold(pt):nullptr;}
+ if(void *behaviour=find("UnityEngine","MonoBehaviour")){void *bt=type_object(reinterpret_cast<void*(*)(void*)>(b.meta.class_get_type)(behaviour));ok_calls.behaviour_type=bt?hold(bt):nullptr;}
+ ok_calls.class_name=reinterpret_cast<const char*(*)(void*)>(dlsym(b.handle,"il2cpp_class_get_name"));
+ ok_calls.array_length=reinterpret_cast<size_t(*)(void*)>(dlsym(b.handle,"il2cpp_array_length"));
+ ok_calls.field=reinterpret_cast<void*(*)(void*,const char*)>(b.meta.class_get_field_from_name);
+ ok_calls.read=reinterpret_cast<void(*)(void*,void*,void*)>(cfg.field_get_value);
+ ok_calls.method=reinterpret_cast<void*(*)(void*,const char*,int)>(b.meta.class_get_method_from_name);
+ ok_calls.ok=ok_calls.get_component&&(ok_calls.button_type||ok_calls.pgo_type)&&ok_calls.field&&ok_calls.read&&ok_calls.method;
+ return ok_calls.ok;
+}
+void *class_of(void *o){return reinterpret_cast<void*(*)(void*)>(cfg.object_get_class)(o);}
+bool call_bool(void *o,const char *name,bool *value){
+ void *m=ok_calls.method(class_of(o),name,0);if(!m)return false;bool ok=false;void *box=invoke(m,o,nullptr,&ok);
+ if(!ok||!box)return false;void *raw=reinterpret_cast<void*(*)(void*)>(cfg.object_unbox)(box);if(!raw)return false;
+ *value=*static_cast<uint8_t*>(raw)!=0;return true;
+}
+// Why the OK press is still waiting, logged once per change (summary-ok-waiting, reasonCode).
+int ok_wait=0;
+void ok_waiting(int why){if(why!=ok_wait){ok_wait=why;emit(18,0,0,0,0,0,why);}}
+// Lists the components under the OK rectangle once, for when no Unity Button is found there.
+void describe_ok(void *rect){
+ if(!ok_calls.all_in_children||!ok_calls.behaviour_type||!ok_calls.class_name||!ok_calls.array_length||!(cfg.transport_flags&1))return;
+ bool ok=false;void *args[]={target(ok_calls.behaviour_type)};if(!args[0])return;
+ Root all(invoke(ok_calls.all_in_children,rect,args,&ok));if(!ok||!all.get())return;
+ std::string names;const size_t n=std::min<size_t>(ok_calls.array_length(all.get()),24);
+ for(size_t i=0;i<n;++i){void *item=*reinterpret_cast<void**>(static_cast<char*>(all.get())+32+i*8);if(!item)continue;
+  const char *name=ok_calls.class_name(class_of(item));if(!name)continue;
+  if(!names.empty())names+=',';for(const char *c=name;*c&&names.size()<600;++c)if(*c!='"'&&*c!='\\')names+=*c;}
+ char json[768];const int len=std::snprintf(json,sizeof(json),"{\"kind\":\"summary-ok-components\",\"backend\":\"native\",\"components\":\"%s\"}",names.c_str());
+ if(len>0&&size_t(len)<sizeof(json)){PgrRuntimeTransportString strings[]={{"quick-close",11},{json,uint32_t(len)}};transport->emit(19,nullptr,0,strings,2);}
+}
+void press_skipped_ok(){
+ if(!skipped_summary)return;
+ void *gui=target(skipped_summary);const uint64_t t=now();
+ if(!gui||!t||t-skipped_at>15000){ok_waiting(gui?9:8);free_root(skipped_summary);ok_wait=0;return;}
+ if(t-skipped_at<1000)return;  // let the summary open and its score rollup start
+ if(!ok_calls_ready()){ok_waiting(1);free_root(skipped_summary);ok_wait=0;return;}
+ void *field=ok_calls.field(class_of(gui),"okButtonRect");if(!field){ok_waiting(2);free_root(skipped_summary);ok_wait=0;return;}
+ void *rect_raw=nullptr;ok_calls.read(gui,field,&rect_raw);if(!rect_raw){ok_waiting(3);return;}
+ Root rect(rect_raw);if(!rect.get()){ok_waiting(3);return;}
+ // A PgoButton first, then a Unity Button, on the layout rectangle or one of its children.
+ bool ok=false;Root button(nullptr);
+ for(void *handle:{ok_calls.pgo_type,ok_calls.button_type}){
+  void *type=target(handle);if(!type||button.get())continue;void *args[]={type};
+  for(void *lookup:{ok_calls.get_component,ok_calls.in_children}){
+   if(!lookup||button.get())continue;Root found(invoke(lookup,rect.get(),args,&ok));if(ok&&found.get())std::swap(button.value,found.value);}
+ }
+ if(!button.get()){if(ok_wait!=4)describe_ok(rect.get());ok_waiting(4);return;}
+ bool active=false,interactable=false;
+ if(!call_bool(button.get(),"get_isActiveAndEnabled",&active)){ok_waiting(5);return;}
+ if(!active){ok_waiting(6);return;}
+ if(!call_bool(button.get(),"get_Interactable",&interactable)&&!call_bool(button.get(),"IsInteractable",&interactable)){ok_waiting(5);return;}
+ if(!interactable){ok_waiting(7);return;}
+ void *on_click=ok_calls.method(class_of(button.get()),"get_OnClick",0);
+ if(!on_click)on_click=ok_calls.method(class_of(button.get()),"get_onClick",0);
+ if(!on_click){ok_waiting(10);return;}
+ Root event(invoke(on_click,button.get(),nullptr,&ok));if(!ok||!event.get()){ok_waiting(10);return;}
+ void *fire=ok_calls.method(class_of(event.get()),"Invoke",0);if(!fire){ok_waiting(10);return;}
+ free_root(skipped_summary);ok_wait=0;  // pressed once, whatever the outcome
+ invoke(fire,event.get(),nullptr,&ok);emit(17,0,ok?1:0);
+}
 int tick(uint64_t proven,uint64_t sequence){if(!ready)return -1;if(proven!=tid()||!owned())return -2;if(busy)return 0;
  struct Busy {Busy(){busy=true;}~Busy(){busy=false;}} scope;
  ticks.fetch_add(1);poll_transport();const auto g=gate();gates(g);
@@ -443,8 +546,10 @@ int tick(uint64_t proven,uint64_t sequence){if(!ready)return -1;if(proven!=tid()
  if(pending.response&&(!current(pending.epoch)||now()>=pending.expires))release_pending();
  if(!opener_depth)poll_bridge(!stopping);
  PgrSharedCatchDecision decision{};sh->select(0,tid(),&decision);drain();
- if(stopping){if(!opener_depth){for(auto &r:records)release(r);release_pending();}return 0;}
- discover();if(!g.remaining||opener_depth||!sequence)return 0;
+ if(stopping){if(!opener_depth){for(auto &r:records)release(r);release_pending();free_root(skipped_summary);free_root(ok_calls.button_type);free_root(ok_calls.pgo_type);free_root(ok_calls.behaviour_type);ok_calls=OkCalls{};}return 0;}
+ discover();
+ if(skipped_summary&&!opener_depth){if(g.remaining)press_skipped_ok();else ok_waiting(11);}
+ if(!g.remaining||opener_depth||!sequence)return 0;
  mark_opening();
  const int rc=sh->select(sequence,tid(),&decision);drain();if(rc<0){fault(rc);return rc;}if(decision.action==PGR_SH_ACT_NONE)return 0;
  auto r=by_slot(decision.slot);if(!r||r->cancelled)return 0;if(decision.action==PGR_SH_ACT_ARM){emit(12,r->slot);return 0;}

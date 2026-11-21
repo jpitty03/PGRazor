@@ -1,4 +1,5 @@
 #include "quickball_host.h"
+#include "max_catch_flag.h"
 #include "always_hit.h"
 #include "ar_throw.h"
 #include "catch_animation.h"
@@ -160,7 +161,17 @@ int read_max_context(void *ball){
     reinterpret_cast<void*(*)(void*)>(rt.object_get_class)(value_root.get())!=klass(C_BOOL))return -1;
  void *raw=reinterpret_cast<void*(*)(void*)>(rt.object_unbox)(value_root.get());if(!raw)return -1;
  uint8_t result=0;std::memcpy(&result,raw,1);if(result>1)return -1;
- event("catch-ball-context","\"maxEncounter\":"+std::string(result?"true":"false")+",\"holdingMaxBall\":"+(held?"true":"false"));
+ // Raid and Rocket catches also leave through the game's own exit (see max_catch_flag.h). Optional:
+ // a missing getter only means their summary may still be closed early.
+ uint8_t raid=0;
+ if(void *raid_get=max_context_getter(state_root.get(),"get_IsRaidOrIncidentEncounter","System.Boolean")){
+  void *box=invoke(raid_get,state_root.get(),nullptr,&exc);
+  MaxContextRoot box_root(exc?nullptr:box);
+  if(box_root.get()&&reinterpret_cast<void*(*)(void*)>(rt.object_get_class)(box_root.get())==klass(C_BOOL))
+   if(void *p=reinterpret_cast<void*(*)(void*)>(rt.object_unbox)(box_root.get())){std::memcpy(&raid,p,1);if(raid>1)raid=0;}
+ }
+ event("catch-ball-context","\"maxEncounter\":"+std::string(result?"true":"false")+",\"raidOrIncident\":"+(raid?"true":"false")+",\"holdingMaxBall\":"+(held?"true":"false"));
+ if(result==1||raid==1)pgr_note_max_catch();
  return result;
 }
 bool install_max_context(){
