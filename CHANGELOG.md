@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fixed a Root startup crash when Vector replaces an ARM64 runtime hook during launch.
+
 ## v0.3.6
 
 [Full release notes](docs/releases/v0.3.6.md)
