@@ -85,6 +85,26 @@ get_target_property(dobby_static_sources dobby_static SOURCES)
 list(FILTER dobby_static_sources EXCLUDE REGEX "code-patch-tool-posix\\.cc$")
 set_property(TARGET dobby_static PROPERTY SOURCES "${dobby_static_sources}")
 target_sources(dobby_static PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/dobby-code-patch-posix.cc")
+# Another ART engine can replace our 12-byte ADRP/ADD/BR entry with a
+# 16-byte LDR/BR/address entry later in Zygisk startup. Returning to +12
+# would execute the high half of its address literal. Relocate the full
+# 16-byte window even when our own patch needs only 12 bytes. This affects
+# the private ART Dobby only; gameplay's independently built engine is unchanged.
+file(READ "${DOBBY_SOURCE_DIR}/source/InterceptRouting/InterceptRouting.cpp" dobby_routing_text)
+set(dobby_routing_old "uint32_t tramp_size = GetTrampolineBuffer()->GetBufferSize();")
+string(FIND "${dobby_routing_text}" "${dobby_routing_old}" dobby_routing_index)
+if(dobby_routing_index EQUAL -1)
+  message(FATAL_ERROR "Pinned Dobby routing changed; review ART hook chaining correction")
+endif()
+string(REPLACE "${dobby_routing_old}" [=[uint32_t tramp_size = GetTrampolineBuffer()->GetBufferSize();
+#if defined(TARGET_ARCH_ARM64)
+  if (tramp_size < 16) tramp_size = 16;
+#endif]=] dobby_routing_text "${dobby_routing_text}")
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/dobby-art-routing.cc" "${dobby_routing_text}")
+get_target_property(dobby_art_sources dobby_static SOURCES)
+list(FILTER dobby_art_sources EXCLUDE REGEX "InterceptRouting\\.cpp$")
+set_property(TARGET dobby_static PROPERTY SOURCES "${dobby_art_sources}")
+target_sources(dobby_static PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/dobby-art-routing.cc")
 set(XZ_LIB "${XZ_SOURCE_DIR}/linux/lib/xz")
 add_library(pgrazor_xz STATIC
   "${XZ_LIB}/xz_crc32.c" "${XZ_LIB}/xz_crc64.c" "${XZ_LIB}/xz_sha256.c"
@@ -99,3 +119,11 @@ target_link_options(pgrazor_art PRIVATE
   "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/pgrazor-art.map"
   "-Wl,--exclude-libs,ALL" "-Wl,-z,defs" "-Wl,-Map,${CMAKE_BINARY_DIR}/pgrazor-art.link.map")
 set_property(TARGET pgrazor_art APPEND PROPERTY LINK_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/pgrazor-art.map")
+option(PGRAZOR_ART_CHAIN_TEST "Build standalone ARM64 hook chaining regression" OFF)
+if(PGRAZOR_ART_CHAIN_TEST)
+  if(NOT ANDROID_ABI STREQUAL "arm64-v8a")
+    message(FATAL_ERROR "ART chaining regression requires arm64-v8a")
+  endif()
+  add_executable(pgrazor_art_chain_test tests/hook_chain_test.cpp)
+  target_link_libraries(pgrazor_art_chain_test PRIVATE dobby_static log dl)
+endif()

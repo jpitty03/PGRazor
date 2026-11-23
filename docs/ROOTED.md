@@ -52,6 +52,38 @@ py -3.12 -B pgrazor/native_harness.py runtime_bootstrap runtime_bootstrap_namesp
 
 These harnesses do not operate the game. Their receipts record the actual library hash and test output.
 
+### ARM64 hook chaining
+
+The unreleased Root loader payload fixes a startup crash observed with Vector on
+an Android 17 OnePlus 15. PGRazor's private ART engine can install a 12-byte
+ADRP/ADD/BR jump before Vector installs its 16-byte LDR/BR/address jump on the
+same function. A backup returning to the original function at byte 12 then
+executes Vector's address literal. The ART build now relocates at least 16 bytes
+on ARM64, so that backup resumes beyond the later patch. The pinned vendor
+sources and the gameplay hook engine are unchanged. This corrects the observed
+overwrite sequence; it does not establish compatibility with every hook engine,
+patch width, module order or device.
+
+After building ART with `art_build.py`, enable the standalone regression in the
+generated ARM64 CMake directory:
+
+```powershell
+cmake -S pgrazor/art -B pgrazor/build/art/RUN/arm64-v8a/cmake -DPGRAZOR_ART_CHAIN_TEST=ON
+cmake --build pgrazor/build/art/RUN/arm64-v8a/cmake --target pgrazor_art_chain_test
+adb push pgrazor/build/art/RUN/arm64-v8a/cmake/pgrazor_art_chain_test /data/local/tmp/
+adb shell chmod 755 /data/local/tmp/pgrazor_art_chain_test
+adb shell /data/local/tmp/pgrazor_art_chain_test
+```
+
+Replace `RUN` with the completed build's directory. The fixture installs the
+production ART Dobby hook on its own function, then replaces that entry with a
+16-byte absolute jump that chains through the first hook. It checks the original
+backup and both replacements. It runs in a separate process, needs no root, and
+is excluded from the payload. Disabling only the relocation correction in a
+separate control build reproduces SIGILL on the tested phone. Both ART ABIs
+compile; live startup validation covers the OnePlus ARM64 configuration, not
+MuMu or non-root gameplay.
+
 ## Rooted UI
 
 Run log opens inside the game and saves the current log segment to the game's external files folder. **Save log + settings (.zip)** includes that log and a single-line `settings.json` snapshot of feature preferences; plain-text export is also available. The settings snapshot excludes login tokens, account data and saved locations. Logs include hook failure reasons, account and VGP+ readiness, native execution health, phone details and passive root indicators. Hidden root may not be detected; the session also identifies the rooted runtime explicitly.
