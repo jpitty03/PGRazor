@@ -142,6 +142,7 @@ add_library(pgrazor_core SHARED
   gym_automation.cpp
   buddy_emotion.cpp
   profile_scroll.cpp
+  menu_visibility.cpp
   gift_batch.cpp
   auto_raid.cpp
   research.cpp

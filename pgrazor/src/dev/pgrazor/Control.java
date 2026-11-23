@@ -886,6 +886,7 @@ public final class Control {
     }
     private static void updateCameraHeadingLocked(double yawDegrees,int cameraId,boolean mapVisible,long sampledAtMillis,long now) {
         buddyMapSample=mapVisible&&sampledAtMillis>0&&sampledAtMillis<=now&&now-sampledAtMillis<1500?sampledAtMillis:0;
+        joystickMapState.map(mapVisible,sampledAtMillis,now);
         // Expiry is checked before replacement, even if no UI tick observed the gap.
         CameraHeadingState.Sample previous=cameraHeading.sample(now);
         boolean accepted=cameraSteeringRequested() && cameraHeading.updateAt(yawDegrees,cameraId,mapVisible,sampledAtMillis,now);
@@ -895,6 +896,7 @@ public final class Control {
     }
     public static void invalidateCameraHeading(String reason) {
         buddyMapSample=0;
+        joystickMapState.reset();
         synchronized (cameraHeading) {
             cameraHeading.invalidate();
             if (cameraRelative()) stopManualMotion();
@@ -1171,6 +1173,11 @@ public final class Control {
         engine.step(seconds);
     }
     public static boolean joystickVisible(){return joystickVisible;}
+    /** Preserve the preference across menus; transient map frames must not reveal the overlay. */
+    private static final JoystickVisibilityState joystickMapState=new JoystickVisibilityState();
+    static boolean joystickOnMap(){
+        return joystickVisible&&(preview||(hostLive()&&joystickMapState.visible(SystemClock.elapsedRealtime())));
+    }
     public static void setDarkTheme(boolean value){darkTheme=value;saveSettings();}
     public static void setJoystickVisible(boolean value){joystickVisible=value;saveSettings();}
     private static void loadSettings(Application app) {
@@ -1455,6 +1462,18 @@ public final class Control {
     private static final MapCatchStatus mapCatchStatus = new MapCatchStatus();
     public static String mapCatchLabel(){return autoThrow && autoThrowOnMap && hostLive() ? mapCatchStatus.label(android.os.SystemClock.elapsedRealtime()) : "";}
     public static void event(String kind, String detail) {
+        if("joystick-menu".equals(kind)){
+            long sampled=0;boolean clear=false;
+            try{
+                String[] parts=detail.split("\\|",-1);
+                if(parts.length==2&&"1".equals(parts[1])){
+                    sampled=Long.parseLong(parts[0]);clear=true;
+                }
+            }catch(Exception ignored){}
+            // Publish once, after parsing: clearing first races the UI on every heartbeat.
+            joystickMapState.menu(clear,sampled,SystemClock.elapsedRealtime());
+            return;
+        }
         if("auto-raid".equals(kind))AutoRaid.publish(detail);
         if("map-auto-throw".equals(kind)){
             try{org.json.JSONObject result=new org.json.JSONObject(detail);

@@ -63,6 +63,7 @@
 #include "ar_values.h"
 #include "catch_chance.h"
 #include "incense_guard.h"
+#include "menu_visibility.h"
 #include "vgp_incense.h"
 #include "pvp_keep.h"
 #include "buddy_emotion.h"
@@ -2539,6 +2540,7 @@ static int api_tick(uint64_t proven_tid) {
 
   // Observe before automatic gameplay work; revoke before opening the manual encounter.
   pgr_profile_scroll_install();
+  pgr_menu_visibility_tick(now);
   const bool map_block=pgr_map_auto_throw_active();
   const bool raid_block=map_block||pgr_auto_raid_tick(os_tid,&g_md);
   const bool bird_block=!raid_block&&pgr_incense_guard_tick(os_tid,&g_md);

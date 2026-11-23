@@ -130,7 +130,7 @@ def main(argv=None):
                 extra_flags = [controller, '-llog']
                 entry['controller_sha256'] = native_build.sha256(controller)
                 entry['fixture_base_sha256'] = native_build.sha256(root / 'native/vgp_controller_test.cpp')
-            if source.stem in ('event_collector_test', 'profile_scroll_test'):
+            if source.stem in ('event_collector_test', 'profile_scroll_test', 'menu_visibility_test'):
                 vendor = native_build.ensure_dobby(root, download=False)
                 extra_flags = ['-fexceptions', '-I'+str(vendor/'include'), '-llog']
                 entry['included_source_sha256'] = native_build.sha256(source.with_name(source.stem.removesuffix('_test')+'.cpp'))
@@ -168,7 +168,7 @@ def main(argv=None):
                 if source.stem == 'encounter_host_test':
                     dependencies = ('hook_engine.cpp', 'throws.cpp', 'auto_raid.cpp', 'incense_guard.cpp', 'gift_batch.cpp', 'remote_gym.cpp',
                                     'gym_runtime.cpp', 'gym_automation.cpp', 'batch_evolution.cpp', 'evolve_transfer.cpp',
-                                    'buddy_emotion.cpp', 'profile_scroll.cpp', 'vgp_controller.cpp', 'smart_catch.cpp',
+                                    'buddy_emotion.cpp', 'profile_scroll.cpp', 'menu_visibility.cpp', 'vgp_controller.cpp', 'smart_catch.cpp',
                                     'smart_catch_binding.cpp', 'vgp_discovery.cpp', 'research.cpp', 'session_stats.cpp', 'route_gift.cpp', 'storage_iv.cpp',
                                     'ar_values.cpp', 'ar_throw.cpp', 'catch_chance.cpp', 'cutscene_skip.cpp', 'catch_presentation.cpp', 'rocket_swap.cpp', 'smart_battle.cpp', 'rocket_combat.cpp', 'heal.cpp', 'shundo.cpp', 'shiny_scan.cpp', 'battery.cpp')
                     extra_flags[:0] = [root/'native'/name for name in dependencies]

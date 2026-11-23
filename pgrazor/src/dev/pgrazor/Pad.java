@@ -121,7 +121,7 @@ public final class Pad {
             public void refresh(){ Pad.this.refresh(); }
             public void applyTheme(){ Pad.this.applyTheme(); }
             public void releaseJoystick(boolean preserveWalk){ stick.release(preserveWalk); }
-            public void setJoystickVisible(boolean visible){ stick.release(true); Control.setJoystickVisible(visible); joystickOverlay.setVisibility(visible?View.VISIBLE:View.GONE); }
+            public void setJoystickVisible(boolean visible){ stick.release(true); Control.setJoystickVisible(visible); refreshJoystickVisibility(); }
             public void openMap(){ openWorldMap(); }
             public void editLocation(){ edit(); }
         });
@@ -212,14 +212,14 @@ public final class Pad {
             public void onSettings(){openSettings();}
             public void onHideOverlays(){confirmHideOverlays();}
         });
-        launcher.setOnClickListener(v->{if(quickMenu!=null)quickMenu.toggle();});draggable(launcher,launcher,true);
+        launcher.setOnClickListener(v->{if(quickMenu!=null)quickMenu.toggle();refreshJoystickVisibility();});draggable(launcher,launcher,true);
 
         // Overlay status reads as telemetry: one monospace size, no per-tick font work.
         for(TextView pill:new TextView[]{vgpActivity,buddyEmotionStatus,gymAutomationStatus,automationStatus,catchChance,encounterBadge}){
             if(pill==null)continue;
             pill.setTextSize(11);pill.setTypeface(SettingsUi.mono());
         }
-        settings.hide();joystickOverlay.setVisibility(Control.joystickVisible()?View.VISIBLE:View.GONE);applyTheme();
+        settings.hide();refreshJoystickVisibility();applyTheme();
         unhideWatcher=new ThreeFingerWatcher(host);parent.addView(unhideWatcher,new FrameLayout.LayoutParams(-1,-1));
         refresh();parent.post(this::applyMapScale); handler.post(tick);
     }
@@ -312,7 +312,20 @@ public final class Pad {
         if(encounterBerry!=null)encounterBerry.applyUiScale(scale);
         if(quickMenu!=null)quickMenu.applyScale(scale);
     }
+    private boolean joystickAllowed(){
+        return !closed&&!overlaysHidden&&!settings.isVisible()
+            &&!(quickMenu!=null&&quickMenu.isShowing())&&Control.joystickOnMap();
+    }
+    private void refreshJoystickVisibility(){
+        boolean show=joystickAllowed();
+        // Release before hiding so a held drag cannot resume when the map returns.
+        // Do not stop an independent route or rewrite the saved joystick preference.
+        if(!show&&stick.pointer>=0)stick.release(true);
+        int visibility=show?View.VISIBLE:View.GONE;
+        if(joystickOverlay.getVisibility()!=visibility)joystickOverlay.setVisibility(visibility);
+    }
     private void refresh() {
+        refreshJoystickVisibility();
         applyMapScale();
         if(gymFeedOverlay!=null)gymFeedOverlay.refresh(!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing()));
         boolean black=ShundoSniper.dark()&&!settings.isVisible();
@@ -374,6 +387,7 @@ public final class Pad {
             if (closed) return;
             Control.checkLease();
             long now = SystemClock.elapsedRealtime();
+            refreshJoystickVisibility();
             stick.applyMotion(now);
             boolean wasWalking = Control.engine.walking;
             MotionEngine.RouteProgress before=Control.engine.routeProgress();
@@ -596,7 +610,7 @@ public final class Pad {
         void release(boolean preserveWalk) { x=y=0; pointer=-1; cameraGesture=-1; if (!preserveWalk || !Control.engine.walking) Control.engine.stop(); Control.saveState(); invalidate(); }
         void applyMotion(long now) {
             if (pointer<0) return;
-            if (!Control.engine.enabled || !Control.canEnable() || gestureCamera!=Control.cameraRelative()) { release(true); return; }
+            if (!joystickAllowed() || !Control.engine.enabled || !Control.canEnable() || gestureCamera!=Control.cameraRelative()) { release(true); return; }
             boolean wasWalking=Control.engine.walking;
             if (gestureCamera) {
                 if (!Control.applyCameraInput(cameraGesture,x,-y,now)) {
@@ -618,6 +632,11 @@ public final class Pad {
             canvas.drawCircle(cx+x*radius*.65f,cy+y*radius*.65f,dp(20),paint);
         }
         public boolean onTouchEvent(MotionEvent e) {
+            if(!joystickAllowed()){
+                if(pointer>=0)release(true);
+                getParent().requestDisallowInterceptTouchEvent(false);
+                return false;
+            }
             int action=e.getActionMasked();
             if (action==MotionEvent.ACTION_DOWN) {
                 getParent().requestDisallowInterceptTouchEvent(true);

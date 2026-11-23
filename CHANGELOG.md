@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Fixed a Root startup crash when Vector replaces an ARM64 runtime hook during launch.
+- Hide the joystick on game menus, popups, and encounters, and restore it on the map without changing the saved toggle.
 
 ## v0.3.6
 
