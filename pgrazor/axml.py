@@ -375,6 +375,82 @@ def patch_manifest(data):
     return result
 
 
+INSTALL_PERMISSIONS = ('android.permission.REQUEST_INSTALL_PACKAGES',
+                       'android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION')
+
+
+def manifest_permissions(data):
+    """Return the android:name of every manifest-level uses-permission, in order."""
+    _, chunks, pool, _, _ = _parse(data)
+    return [attrs.get((ANDROID_NS, 'name')) for _, event, name, attrs, depth in _walk(chunks, pool)
+            if event == 'start' and name == 'uses-permission' and depth == 1]
+
+
+def add_install_permissions(data):
+    """Declare the permissions the in-app updater needs, just before <application>.
+
+    REQUEST_INSTALL_PACKAGES lets the app hand a downloaded PGRazor APK to the system
+    installer; UPDATE_PACKAGES_WITHOUT_USER_ACTION lets Android 12+ skip the confirmation
+    when the app updates itself. Both are install-time permissions with no runtime prompt.
+    Permissions already declared are left alone, so the result is unchanged when both are
+    present. Rejects split manifests. Insert-only: existing chunks, strings and resource
+    ids are preserved.
+    """
+    info = inspect_manifest(data)
+    if info['split']: raise ValueError('A base APK is required; split manifest supplied')
+    if info['applications'] != 1: raise ValueError('Expected exactly one application')
+    missing = [name for name in INSTALL_PERMISSIONS if name not in manifest_permissions(data)]
+    if not missing: return data
+    header_size, chunks, pool, maps, resources = _parse(data)
+    starts = [i for i, event, name, _, depth in _walk(chunks, pool)
+              if event == 'start' and name == 'application' and depth == 1]
+    if len(starts) != 1: raise ValueError('Application start not found')
+    insert = starts[0]
+    ns = pool.add(ANDROID_NS)
+    prefix = pool.add('android')
+    element = pool.add('uses-permission')
+    values = [pool.add(name) for name in missing]
+    name_id = ATTR_IDS['name']
+    name_index = next((i for i, value in enumerate(pool.strings)
+                       if value == 'name' and i < len(resources) and resources[i] == name_id), None)
+    if name_index is None:
+        name_index = len(pool.strings)
+        pool.strings.append('name')
+        resources.extend([0]*(name_index+1-len(resources)))
+        resources[name_index] = name_id
+    line = _u32(chunks[insert][1], 8)
+    def node(kind, payload):
+        return struct.pack('<HHIII', kind, 16, 16+len(payload), line, NO_INDEX)+payload
+    # Scope our namespace locally so this works with or without an existing android declaration.
+    additions = [node(0x100, struct.pack('<II', prefix, ns))]
+    for value in values:
+        attribute = struct.pack('<IIIHBBI', ns, name_index, value, 8, 0, 3, value)
+        additions.append(node(0x102, struct.pack('<IIHHHHHH', NO_INDEX, element, 20, 20, 1, 0, 0, 0)+attribute))
+        additions.append(node(0x103, struct.pack('<II', NO_INDEX, element)))
+    additions.append(node(0x101, struct.pack('<II', prefix, ns)))
+    map_bytes = struct.pack('<HHI', 0x180, 8, 8+4*len(resources))+struct.pack('<'+'I'*len(resources), *resources)
+    output = []
+    for i, (kind, raw) in enumerate(chunks):
+        if i == insert: output.extend(additions)
+        if i == 0:
+            output.append(pool.build())
+            if not maps: output.append(map_bytes)
+        elif kind == 0x180: output.append(map_bytes)
+        else: output.append(raw)
+    outer = bytearray(data[:header_size])
+    body = b''.join(output)
+    struct.pack_into('<I', outer, 4, len(outer)+len(body))
+    result = bytes(outer)+body
+    verified = inspect_manifest(result)
+    if (verified['package'], verified['versionCode'], verified['applications']) != (
+            info['package'], info['versionCode'], info['applications']):
+        raise ValueError('Install permission verification failed')
+    declared = manifest_permissions(result)
+    if any(declared.count(name) != 1 for name in INSTALL_PERMISSIONS):
+        raise ValueError('Install permission verification failed')
+    return result
+
+
 def add_account_restart_activity(data):
     """Append an unexported AccountRestartActivity on a private :pgrazor_restart process.
 

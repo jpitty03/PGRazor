@@ -129,6 +129,8 @@ def rewrite_apk(source,destination,*,base=False,dex=None,assets=None,preview=Fal
                 # Cold-process account switches need the isolated restart helper in every base build;
                 # an exactly-matching definition (our preview manifest) is accepted and left unchanged.
                 manifest=axml.add_account_restart_activity(manifest)
+                # The in-app updater installs a downloaded PGRazor APK through the system installer.
+                manifest=axml.add_install_permissions(manifest)
                 output.writestr(copy.copy(item),manifest); continue
             with original.open(item) as reader,output.open(copy.copy(item),'w') as writer: shutil.copyfileobj(reader,writer)
         if base:

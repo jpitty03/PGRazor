@@ -45,6 +45,8 @@ final class SettingsPanel {
     private View closeIcon, themeIcon, backIcon;
     private TextView title, versionLabel, discord;
     private SettingsUi.Dot homeDot;
+    private LinearLayout updateRow;
+    private TextView updateTitle, updateDetail;
     private Switch darkSwitch;
     // Settings search: the index is built once on first use, after every page has painted its labels.
     private SettingsSearch searchIndex;
@@ -331,6 +333,7 @@ final class SettingsPanel {
 
         // Home screen: the live telemetry card, then grouped category cards.
         home = new LinearLayout(activity); home.setOrientation(LinearLayout.VERTICAL); body.addView(home);
+        buildUpdateRow();
         buildTelemetryCard();
         homeTarget=homeGroup("Play");
         buildLocationPage();
@@ -858,7 +861,28 @@ final class SettingsPanel {
         return out.length()==0?"All off":out.toString();
     }
     private void summary(int index,String value){TextView view=pageSummaries.get(index);if(!value.contentEquals(view.getText()))view.setText(value);}
+    /** First on the home screen and hidden until a newer release is found: one tap downloads and installs it. */
+    private void buildUpdateRow(){
+        updateRow=new LinearLayout(activity);updateRow.setOrientation(LinearLayout.VERTICAL);updateRow.setMinimumHeight(dp(64));
+        updateRow.setPadding(dp(14),dp(10),dp(14),dp(10));updateRow.setGravity(Gravity.CENTER_VERTICAL);
+        updateRow.setClickable(true);updateRow.setFocusable(true);updateRow.setVisibility(View.GONE);
+        updateRow.setBackground(SettingsUi.ripple(SettingsUi.rounded(activity,SettingsUi.accentSoft(),12)));
+        updateTitle=text("",14,accent());updateTitle.setTypeface(SettingsUi.medium());updateRow.addView(updateTitle);
+        updateDetail=text("",12,muted());updateDetail.setMaxLines(2);updateRow.addView(updateDetail);captions.add(updateDetail);
+        LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,-2);params.bottomMargin=dp(12);home.addView(updateRow,params);
+        updateRow.setOnClickListener(v->Updater.tap(activity));
+        Updater.listen(this::refreshUpdate);
+    }
+    private void refreshUpdate(){
+        if(updateRow==null)return;
+        boolean shown=Updater.visible();
+        updateRow.setVisibility(shown?View.VISIBLE:View.GONE);
+        if(!shown)return;
+        updateTitle.setTextColor(accent());updateTitle.setText(Updater.title());updateDetail.setText(Updater.detail());
+        updateRow.setContentDescription(Updater.title()+". "+Updater.detail());
+    }
     private void refreshHome(){
+        refreshUpdate();
         if(current>=0)return;
         summary(0,active("Spoofing",Control.desiredEnabled(),"Joystick",Control.joystickVisible(),"Idle walk",Control.idleWalking(),"Cooldown",Control.cooldownOverlay(),"Local time",Control.localTimeOverlay()));
         summary(1,active("Quick catch",Control.quickSummaryEnabled(),"Auto throw",Control.autoThrow(),"Auto ball",Control.autoBall(),"Curveball",Control.throwCurve(),"Always hit",Control.throwAlwaysHit(),"Berries",Control.encounterBerryEnabled()));
@@ -1077,6 +1101,7 @@ final class SettingsPanel {
         if(versionLabel!=null)versionLabel.setTextColor(SettingsUi.faint());
         if(discord!=null)discord.setTextColor(accent());
         for(LinearLayout row:homeRows)row.setBackground(SettingsUi.ripple(SettingsUi.cardBackground(activity)));
+        if(updateRow!=null){updateRow.setBackground(SettingsUi.ripple(SettingsUi.rounded(activity,SettingsUi.accentSoft(),12)));refreshUpdate();}
         for(RowList rows:rowLists)rows.setDividerDrawable(SettingsUi.hairline(activity));
         for(TextView name:homeNames){name.setTextColor(ink());name.setTypeface(SettingsUi.medium());}
         for(TextView summary:pageSummaries)summary.setTextColor(muted());
@@ -1121,6 +1146,7 @@ final class SettingsPanel {
     }
 
     void refresh() {
+        Updater.check(activity);
         refreshHome();
         darkSwitch.setChecked(Control.darkTheme());
         refreshLocationStatus();

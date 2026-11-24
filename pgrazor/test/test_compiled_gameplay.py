@@ -108,6 +108,7 @@ class CompiledGameplayPackageTests(unittest.TestCase):
                      patch.object(axml, 'inspect_manifest', return_value=info), \
                      patch.object(axml, 'patch_manifest', side_effect=lambda data: data), \
                      patch.object(axml, 'add_account_restart_activity', side_effect=lambda data: data), \
+                     patch.object(axml, 'add_install_permissions', side_effect=lambda data: data), \
                      patch.object(native_build, 'build_all', side_effect=compile_native_fixture), \
                      patch.object(native_build, 'ensure_dobby', return_value=dobby), \
                      patch.object(art_build, 'build_all', return_value=art_outputs), \

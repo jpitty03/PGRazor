@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### New features
+
+- **In-app updates:** When a newer release is out, an update row appears at the top of the settings menu. Tap it to download the right file for your build; the non-root app then installs it, and PGRazor Root saves its installer to Downloads for you to open.
+
+### Improvements & fixes
+
 - Fixed a Root startup crash when Vector replaces an ARM64 runtime hook during launch.
 - Hide the joystick on game menus, popups, and encounters, and restore it on the map without changing the saved toggle.
 
