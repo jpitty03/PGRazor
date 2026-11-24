@@ -34,6 +34,7 @@ Ball     g_ball{&ball_class, 0, &g_animator};
 Response g_resp_success{&response_class, S_SUCCESS};
 Response g_resp_success_moved{&response_class, S_SUCCESS}; // GC relocation target for g_resp_success
 Response g_resp_escape{&response_class, S_ESCAPE};
+Response g_resp_preview{&response_class, S_SUCCESS}; // observe-only (Catch preview) case
 Response g_resp_flee{&response_class, S_FLEE};
 Response g_resp_missed{&response_class, S_MISSED};
 Response g_resp_error{&response_class, S_ERROR};
@@ -260,6 +261,16 @@ int main(int argc, char **argv) {
     { int ac = stub_applied; reenter_btxu = 1; g_next_response = &g_resp_success;
       call_btxu(&g_ball, &method_obj);
       if (stub_applied != ac + 1) return 23; } // exactly one apply despite the nested call
+
+    // (J2) Observe-only (Catch preview without Quick catch): the outcome is confirmed and the ball
+    //      animation is left alone; any mode other than 0/1/2 is refused.
+    sleep_ms(1050);
+    if (api->update(3, 2500, gettid(), nullptr) != PGR_OBS_ERR_BAD_ARG) return 81;
+    api->update(2, 2500, gettid(), nullptr);
+    { PgrObsSample k{}; api->sample(&k); const auto before = k.confirmed; const int ac = stub_applied;
+      g_next_response = &g_resp_preview; call_btxu(&g_ball, &method_obj);
+      api->sample(&k);
+      if (k.confirmed != before + 1 || stub_applied != ac) return 82; }
 
     // (K) Seen prune: stop() revokes from any thread but frees nothing; an off-thread tick must not
     //     free; a proven-thread tick drains the whole ring and balances the roots.

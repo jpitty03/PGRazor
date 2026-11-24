@@ -11,16 +11,21 @@ inline bool pgr_is_inventory_safari_ball(int item) {
 }
 
 struct PgrCatchChanceOptions {
-    bool valid=false, show=false, autoball=false, safari=false, autothrow=false, onmap=false;
+    bool valid=false, show=false, autoball=false, safari=false, autothrow=false, onmap=false, preview=false;
     long long cooldown_ms=0;
     int target=75, berry=0;
 };
 inline PgrCatchChanceOptions pgr_parse_catch_chance(const char *s) {
     PgrCatchChanceOptions c;
     if (!s) return c;
-    int show=0, automatic=0, target=0, berry=0, safari=0, throwing=0, onmap=0, end=0;
+    int show=0, automatic=0, target=0, berry=0, safari=0, throwing=0, onmap=0, preview=0, end=0;
     long long cooldown=0;
-    if (std::strncmp(s,"C4|",3)==0) {
+    if (std::strncmp(s,"C5|",3)==0) {
+        // C5 adds the Catch preview flag: the caught/broke-free/fled result is observed and
+        // reported on its own, whether or not Quick catch speeds the ball animation up.
+        if (std::sscanf(s+3,"%d|%d|%d|%d|%d|%d|%lld|%d|%d%n",&show,&automatic,&target,&berry,&safari,&throwing,&cooldown,&onmap,&preview,&end)!=9 || s[3+end]) return c;
+        if(throwing<0||throwing>1||cooldown<0||cooldown>7200000||onmap<0||onmap>1||preview<0||preview>1)return c;
+    } else if (std::strncmp(s,"C4|",3)==0) {
         // C4 adds the subordinate Auto Throw "catch on the map tap" flag. It is meaningful
         // only while throwing==1; the controller still requires autothrow before acting.
         if (std::sscanf(s+3,"%d|%d|%d|%d|%d|%d|%lld|%d%n",&show,&automatic,&target,&berry,&safari,&throwing,&cooldown,&onmap,&end)!=8 || s[3+end]) return c;
@@ -39,7 +44,7 @@ inline PgrCatchChanceOptions pgr_parse_catch_chance(const char *s) {
         if(s[3+end]) return c;
     } else return c;
     if(show<0||show>1||automatic<0||automatic>1||safari<0||safari>1||target<1||target>99) return c;
-    c.autothrow=throwing==1;c.cooldown_ms=cooldown;c.onmap=onmap==1;
+    c.autothrow=throwing==1;c.cooldown_ms=cooldown;c.onmap=onmap==1;c.preview=preview==1;
     c.valid=true;c.show=show==1;c.autoball=automatic==1;c.safari=safari==1;c.target=target;
     c.berry=berry>=701&&berry<=799?berry:0;
     return c;

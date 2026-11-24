@@ -8,6 +8,7 @@
 #include "map_tap.h"
 #include "runtime_bootstrap.h"
 #include "runtime_transport.h"
+#include "safari_ball_policy.h"
 #include <atomic>
 #include <cmath>
 #include <cstdio>
@@ -309,18 +310,22 @@ int set_options(const PgrQuickballHostOptions *p){
 }
 int shared_sites(uint32_t mask){if(mask&~3u)return PGR_QBH_BAD_CONFIG;uint32_t old=sites.exchange(mask);policy_revision.fetch_add(1);if((old&mask)!=old)revoke();return 0;}
 
+// Catch preview (transport string 15, C5): arms the outcome observer even without Quick catch.
+std::atomic<bool> preview_wanted{false};
 void poll_options(){
  if(!(flags&PGR_QBH_TRANSPORT))return;
  const auto *tr=transport();PgrRuntimeTransportSample before{},after{};
  PgrQuickballHostOptions p{};p.version=1;p.size=sizeof(p);p.lease_ms=100;
  auto b=[&](uint32_t i){int v=0;return tr->get_bool(i,&v)==0&&v==1;};
  auto n=[&](uint32_t i){int32_t v=0;return tr->get_int(i,&v)==0?v:0;};
- if(tr->sample(&before)||!before.snapshot_fresh){p.lease_ms=0;set_options(&p);return;}
+ if(tr->sample(&before)||!before.snapshot_fresh){p.lease_ms=0;preview_wanted.store(false);set_options(&p);return;}
  // Reader positions are the immutable52 typed settings schema.
  p.quick_allowed=b(23);p.throw_allowed=b(29);p.ar_allowed=p.throw_allowed&&b(33);
  p.map_allowed=b(22);p.iv_allowed=b(19);p.grade=uint32_t(n(7));p.curve=b(34);
  p.always_hit=b(30)&&b(31);p.ar_enabled=b(32);p.map_mode=uint32_t(n(5));p.map_epoch=uint64_t(n(4));
  p.iv_catch=b(18);p.iv_owned=b(20);
+ {char raw[96]{};uint32_t len=0;const bool ok=tr->get_string&&tr->get_string(15,raw,sizeof(raw),&len)==0&&len<sizeof(raw);
+  if(ok)raw[len]=0;preview_wanted.store(ok&&pgr_parse_catch_chance(raw).preview);}
  if(tr->sample(&after)||!after.snapshot_fresh||after.snapshot_seq!=before.snapshot_seq)p.lease_ms=0;
  set_options(&p);
 }
@@ -453,7 +458,8 @@ int tick(uint64_t tid){
  const uint64_t lease=active?(deadline-time>2500?2500:deadline-time):0;const uint32_t shared=sites.load();
  int rc=0;
  if(has(PGR_QBH_SPEED))rc=speed()->update(active&&p.quick_allowed,active&&p.quick_allowed?lease:0,tid);
- if(has(PGR_QBH_OBSERVERS)){int r=obs()->update(active&&p.quick_allowed,active&&p.quick_allowed?lease:0,tid,
+ if(has(PGR_QBH_OBSERVERS)){const bool observe=active&&(p.quick_allowed||preview_wanted.load());
+  int r=obs()->update(observe?(p.quick_allowed?1:2):0,observe?lease:0,tid,
    reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(mc.binding.module_base)+kCallerRva));if(r&&r!=PGR_OBS_ERR_LEASE)rc=r;}
  if(has(PGR_QBH_THROWS)&&!(optional_faults.load()&PGR_QBH_THROWS)){int r=throws()->update(p.grade,p.curve,active&&p.throw_allowed&&(shared&PGR_QBH_SUBMIT),active&&p.throw_allowed&&(shared&PGR_QBH_SUBMIT)?lease:0,tid);if(r)optional_failure(PGR_QBH_THROWS,"throw-unavailable",r);}
  if(has(PGR_QBH_ALWAYS_HIT)&&!(optional_faults.load()&PGR_QBH_ALWAYS_HIT)){int r=hit()->update(p.always_hit,active&&p.throw_allowed&&p.always_hit,active&&p.throw_allowed&&p.always_hit?lease:0,tid);if(r)optional_failure(PGR_QBH_ALWAYS_HIT,"always-hit-unavailable",r);}

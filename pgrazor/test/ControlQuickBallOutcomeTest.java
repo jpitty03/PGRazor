@@ -18,7 +18,7 @@ public final class ControlQuickBallOutcomeTest {
     }
     private static Toast last() { return Toast.made.get(Toast.made.size()-1); }
     private static void enable() {
-        Control.setQuickBallReady(true,"Ready"); Control.setQuickBallEnabled(true); Handler.drain();
+        Control.setQuickBallReady(true,"Ready"); Control.setQuickBallEnabled(true); Control.setCatchPreview(true); Handler.drain();
         check(Control.quickBallAllowed(),"Fixture restored to active");
     }
     /** Queues one outcome, applies a race, then drains the main thread. No toast may appear. */
@@ -34,9 +34,12 @@ public final class ControlQuickBallOutcomeTest {
         check(!Control.quickBallOutcome("caught"),"Unconfigured feature never queues a toast");
         Control.configureQuickBall(true); Control.setQuickBallReady(true,"Ready");
         set("foreground",true); set("pad",new Pad(game)); Control.connect(); Handler.drain();
-        check(!Control.quickBallOutcome("caught"),"Default OFF never queues a toast");
+        check(Control.catchPreview(),"Catch preview defaults on");
+        Control.setCatchPreview(false);
+        check(!Control.quickBallOutcome("caught"),"Catch preview OFF never queues a toast");
         Handler.drain();
         check(Toast.made.isEmpty() && logged("suppressed outcome=caught; feature not active in foreground"),"No toast while OFF");
+        Control.setCatchPreview(true);
 
         Control.engine.position(12.5,45.25); Control.engine.speed(7);
         boolean desired=Control.desiredEnabled();
@@ -67,8 +70,8 @@ public final class ControlQuickBallOutcomeTest {
         check(logged("suppressed outcome=caught; superseded or turned off"),"Superseded outcome logged");
 
         Toast visible=last();
-        raced("caught",()->Control.setQuickBallEnabled(false),"superseded or turned off");
-        check(visible.cancelled,"Turning OFF cancels a visible outcome toast");
+        raced("caught",()->Control.setCatchPreview(false),"superseded or turned off");
+        check(visible.cancelled,"Turning Catch preview OFF cancels a visible outcome toast");
         enable();
         raced("fled",()->{ Control.suspendForBackground(); try { set("foreground",true); } catch(Exception e) { throw new RuntimeException(e); } },
             "superseded or turned off");
@@ -108,6 +111,10 @@ public final class ControlQuickBallOutcomeTest {
             check(Control.quickBallOutcome(c[0]),"Transfer toast independent of fast-ball toggle");Handler.drain();check(last().shown&&last().text.toString().equals(c[1]),"Transfer toast text");
         }
         raced("transferred",()->{Control.setAutoTransferEnabled(false);Control.setAutoTransferEnabled(true);},"superseded or turned off");
+        // Catch preview is independent of Quick catch: with Quick catch OFF the result still shows.
+        check(!Control.quickBallAllowed(),"Quick catch is off here");
+        check(Control.quickBallOutcome("broke-free"),"Catch preview works without Quick catch");Handler.drain();
+        check(last().shown&&last().text.toString().equals("Not caught - broke free"),"Preview toast text without Quick catch");
         Control.setQuickBallEnabled(true);Handler.drain();
 
         check(Control.engine.latitude==12.5 && Control.engine.longitude==45.25 && Control.engine.speedKmh==7,"Outcome handling preserves coordinates/speed");

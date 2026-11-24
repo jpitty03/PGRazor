@@ -408,11 +408,11 @@ public final class Control {
     private static final Handler main = new Handler(Looper.getMainLooper());
     private static final CatchOutcomeController catchOutcome = new CatchOutcomeController(
         main, () -> pad==null ? null : pad.activity,
-        Control::quickBallAllowed, Control::autoTransferAllowed,
+        () -> catchPreview() && quickBallReady() && hostLive(), Control::autoTransferAllowed,
         detail -> event("quick-ball-toast",detail));
     private static final CatchOutcomeController mapThrowOutcome = new CatchOutcomeController(
         main, () -> pad==null ? null : pad.activity,
-        () -> autoThrow() && autoThrowOnMap() && hostLive(), () -> false,
+        () -> catchPreview() && autoThrow() && autoThrowOnMap() && hostLive(), () -> false,
         detail -> event("map-throw-toast",detail));
     private static final Object stateLock = new Object();
     private static final Object logLock = new Object();
@@ -628,6 +628,11 @@ public final class Control {
     // with Always Hit intrinsic. Auto-Raid keeps its own Excellent/curve policy.
     // Persisted; surfaced to the native owner via C4. Never uses a Master Ball.
     private static volatile boolean autoThrow, autoThrowOnMap;
+    // Catch preview (on by default): the Caught / broke free / fled toast as soon as the result is
+    // known, during Quick catch and Auto throw on the map.
+    private static volatile boolean catchPreview=true;
+    public static boolean catchPreview(){return catchPreview;}
+    public static void setCatchPreview(boolean on){catchPreview=on;if(!on){catchOutcome.invalidate();mapThrowOutcome.invalidate();}saveSettings();event("catch-preview",on?"ON":"OFF");}
     public static boolean catchChanceShown(){return catchChanceShown;}
     public static void setCatchChanceShown(boolean shown){catchChanceShown=shown;saveSettings();event("catch-chance-overlay",shown?"ON":"OFF");}
     public static boolean autoBall(){return autoBall;}
@@ -639,20 +644,22 @@ public final class Control {
     public static boolean autoThrowOnMap(){return autoThrowOnMap;}
     public static void setAutoThrowOnMap(boolean on){autoThrowOnMap=on;if(!on){mapThrowOutcome.invalidate();mapCatchStatus.clear();}saveSettings();event("auto-throw-map",on?"ON":"OFF");}
     /**
-     * "C4|show|autoBall|target|berry|safari|autoThrow|cooldownMs|onMap". The first six fields keep their C2
+     * "C5|show|autoBall|target|berry|safari|autoThrow|cooldownMs|onMap|preview". The first six fields keep their C2
      * meaning: berry is the one PGRazor's berry picker will feed on the next throw (0 when the picker is
      * off); the game only sees it at release, so the chance needs it from here. While the overlay is
      * hidden the chance line is off; auto ball keeps running. The safari flag (0/1) is the Go Wild
      * November 2026 "Use Safari Balls in Auto Ball" toggle; it applies only to Mighty Pokemon and the
      * native owner falls back to the normal Auto Ball rules when a permitted Safari Ball is unavailable
      * (null host application => flag off). autoThrow (0/1) is the Auto Throw preference. cooldownMs is
-     * the live throw cooldown remaining in milliseconds (Math.max(0, Cooldown.remaining())). onMap applies only while Auto Throw is enabled. C4 is always emitted.
+     * the live throw cooldown remaining in milliseconds (Math.max(0, Cooldown.remaining())). onMap applies only while Auto Throw is enabled.
+     * preview (0/1) is Catch preview: the native catch observer reports caught/broke-free/fled on its own,
+     * independent of Quick catch (off while the overlay is hidden). C5 is always emitted.
      */
     public static String catchChanceConfig(){
         Application app=hostApplication;
         boolean safari=app!=null&&dev.pgrazor.events.EventSettings.wildAutoBallSafari(app);
         long cooldownMs=Math.max(0,Cooldown.remaining());
-        return "C4|"+(catchChanceShown&&!overlaysHidden?1:0)+"|"+(autoBall?1:0)+"|"+autoBallTarget+"|"+autoBerry()+"|"+(safari?1:0)+"|"+(autoThrow?1:0)+"|"+cooldownMs+"|"+(autoThrowOnMap?1:0);
+        return "C5|"+(catchChanceShown&&!overlaysHidden?1:0)+"|"+(autoBall?1:0)+"|"+autoBallTarget+"|"+autoBerry()+"|"+(safari?1:0)+"|"+(autoThrow?1:0)+"|"+cooldownMs+"|"+(autoThrowOnMap?1:0)+"|"+(catchPreview&&!overlaysHidden?1:0);
     }
     // PvP keep for auto-transfer, per league (0 Great, 1 Ultra, 2 Master): a catch is kept when its
     // stat-product rank is at or below that league's rank for a species in PvPoke's top PVP_META.
@@ -1284,7 +1291,7 @@ public final class Control {
                 int catchFormat=boundedSetting(p,"ivCatchFormat",4),ownedFormat=boundedSetting(p,"ivOwnedFormat",4);
                 ivCatchFormat=catchFormat>0?catchFormat:2;ivOwnedFormat=ownedFormat>0?ownedFormat:2;
                 storageIvMode=boundedSetting(p,"storageIv",4);
-                catchChanceShown=Boolean.parseBoolean(p.getProperty("catchChance","true"));autoBall=Boolean.parseBoolean(p.getProperty("autoBall","false"));
+                catchChanceShown=Boolean.parseBoolean(p.getProperty("catchChance","true"));catchPreview=Boolean.parseBoolean(p.getProperty("catchPreview","true"));autoBall=Boolean.parseBoolean(p.getProperty("autoBall","false"));
                 autoThrow=Boolean.parseBoolean(p.getProperty("autoThrow","false"));
                 autoThrowOnMap=Boolean.parseBoolean(p.getProperty("autoThrowOnMap","false"));
                 int target=boundedSetting(p,"autoBallTarget",99);autoBallTarget=target>0?target:75;
@@ -1398,7 +1405,7 @@ public final class Control {
         p.setProperty("transferKeepAll",String.valueOf(transferKeepAll)); p.setProperty("transferOverlay",String.valueOf(transferOverlayEnabled)); p.setProperty("transferKeepSpecies",transferKeepSpecies);
         p.setProperty("evolveTransferEnabled",String.valueOf(evolveTransferEnabled)); p.setProperty("evolveTransferMode",String.valueOf(evolveTransferMode)); p.setProperty("evolveTransferStages",String.valueOf(evolveTransferStages)); p.setProperty("evolveTransferSpecies",evolveTransferSpecies);
         p.setProperty("ivCatch",String.valueOf(ivCatchEnabled)); p.setProperty("ivOwned",String.valueOf(ivOwnedEnabled)); p.setProperty("ivCatchFormat",String.valueOf(ivCatchFormat)); p.setProperty("ivOwnedFormat",String.valueOf(ivOwnedFormat)); p.setProperty("storageIv",String.valueOf(storageIvMode)); p.setProperty("storageIvFormat",String.valueOf(storageIvFormat));
-        p.setProperty("catchChance",String.valueOf(catchChanceShown)); p.setProperty("autoBall",String.valueOf(autoBall)); p.setProperty("autoBallTarget",String.valueOf(autoBallTarget)); p.setProperty("autoThrow",String.valueOf(autoThrow)); p.setProperty("autoThrowOnMap",String.valueOf(autoThrowOnMap));
+        p.setProperty("catchChance",String.valueOf(catchChanceShown)); p.setProperty("catchPreview",String.valueOf(catchPreview)); p.setProperty("autoBall",String.valueOf(autoBall)); p.setProperty("autoBallTarget",String.valueOf(autoBallTarget)); p.setProperty("autoThrow",String.valueOf(autoThrow)); p.setProperty("autoThrowOnMap",String.valueOf(autoThrowOnMap));
         p.setProperty("pvpKeepLeagues",String.valueOf(pvpKeepLeagues)); p.setProperty("skipCutscenes",String.valueOf(skipCutscenes)); p.setProperty("routeGiftExchange",String.valueOf(routeGiftExchange));
         p.setProperty("batteryLowRes",String.valueOf(batteryLowRes)); p.setProperty("batteryFps20",String.valueOf(batteryFps20)); p.setProperty("batteryLowQuality",String.valueOf(batteryLowQuality));
         p.setProperty("smartBattle",String.valueOf(smartBattle));

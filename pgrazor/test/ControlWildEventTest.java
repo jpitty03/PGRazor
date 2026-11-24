@@ -8,7 +8,7 @@ public final class ControlWildEventTest {
         dev.pgrazor.events.EventSettings.vgpSafari=true;
         dev.pgrazor.events.EventSettings.autoSafari=true;
         check(Control.smartCatchConfig().endsWith(";0"));
-        check(Control.catchChanceConfig().endsWith("|0"));
+        check(Control.catchChanceConfig().endsWith("|0|1")); // onMap off, Catch preview on by default
         host.set(null,new android.app.Application());
         for(int mask=0;mask<4;mask++) {
             dev.pgrazor.events.EventSettings.vgpSafari=(mask&1)!=0;
@@ -17,7 +17,7 @@ public final class ControlWildEventTest {
             String[] manual=Control.catchChanceConfig().split("\\|",-1);
             check(smart.length==17&&smart[0].equals("7")&&smart[1].equals("0")&&smart[15].equals("0")&&smart[16].equals("0"));
             check(smart[14].equals((mask&1)!=0?"1":"0"));
-            check(manual.length==9&&manual[0].equals("C4")&&manual[2].equals("0"));
+            check(manual.length==10&&manual[0].equals("C5")&&manual[2].equals("0"));
             check(manual[5].equals((mask&2)!=0?"1":"0"));
         }
         check(!Control.autoThrow()&&!Control.autoThrowOnMap());

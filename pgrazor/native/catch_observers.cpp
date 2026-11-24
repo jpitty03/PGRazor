@@ -358,6 +358,8 @@ void *btxu_replacement(void *self, void *method) {
         if (!exact(resp, g_config.class_response)) { latch_fault(); break; }
         int32_t status = read_i32(resp, g_config.field_status);
         outcome(resp, status);
+        // Observe-only (Catch preview without Quick catch): report the outcome, leave the animation.
+        if (g_enabled.load(std::memory_order_relaxed) != 1) break;
 
         if (status != g_config.status_success && status != g_config.status_escape &&
             status != g_config.status_flee) break;
@@ -552,6 +554,7 @@ int api_update(int enabled, uint64_t lease_ms, uint64_t unity_tid, void *expecte
     if (!g_installed.load(std::memory_order_acquire)) return PGR_OBS_ERR_NOT_INSTALLED;
     if (lease_ms > kMaxLeaseMs) { gate_close(); return PGR_OBS_ERR_LEASE; }
     if (!enabled) { gate_close(); g_stopping.store(1, std::memory_order_relaxed); return PGR_OBS_OK; }
+    if (enabled != 1 && enabled != 2) { gate_close(); return PGR_OBS_ERR_BAD_ARG; }
     if (unity_tid == 0 || lease_ms == 0) { gate_close(); return PGR_OBS_ERR_BAD_ARG; }
     uint64_t now = boottime_ms();
     if (now == 0) { gate_close(); return PGR_OBS_ERR_LEASE; }
@@ -560,7 +563,7 @@ int api_update(int enabled, uint64_t lease_ms, uint64_t unity_tid, void *expecte
     g_cleanup_tid.store(unity_tid, std::memory_order_relaxed);
     g_lease_deadline.store(now + lease_ms, std::memory_order_relaxed);
     g_stopping.store(0, std::memory_order_relaxed);
-    g_enabled.store(1, std::memory_order_relaxed);
+    g_enabled.store(enabled, std::memory_order_relaxed);
     return PGR_OBS_OK;
 }
 

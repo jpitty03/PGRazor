@@ -89,6 +89,9 @@ int main(){
  assert(pgr_parse_catch_chance("C1|1|1|75").valid);
  assert(pgr_parse_catch_chance("C1|1|1|75|701").berry==701);
  assert(!pgr_parse_catch_chance("C1|1|1|75|0").safari);
+ {const auto c5=pgr_parse_catch_chance("C5|0|0|75|0|0|0|0|0|1");assert(c5.valid&&c5.preview&&!c5.show&&!c5.autothrow);
+  assert(!pgr_parse_catch_chance("C4|0|0|75|0|0|0|0|0").preview);
+  for(const char *bad:{"C5|0|0|75|0|0|0|0|0","C5|0|0|75|0|0|0|0|0|2","C5|0|0|75|0|0|0|0|0|1x"})assert(!pgr_parse_catch_chance(bad).valid);}
  for(const char *bad:{"C2|1|1|75|0","C2|1|1|75|0|2","C2|1|1|75|0|1x","C2|1|1|0|0|1","C2|1|2|75|0|1","C1|1|1|75|","C9|1|1|75|0|1"})assert(!pgr_parse_catch_chance(bad).valid);
  boot.runtime.gchandle_new=reinterpret_cast<void*>(root_new);boot.runtime.gchandle_get_target=reinterpret_cast<void*>(root_get);boot.runtime.gchandle_free=reinterpret_cast<void*>(root_free);
  boot.runtime.object_get_class=reinterpret_cast<void*>(object_class);boot.runtime.object_unbox=reinterpret_cast<void*>(object_unbox);

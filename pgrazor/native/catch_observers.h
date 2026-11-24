@@ -194,7 +194,8 @@ struct PgrObsApi {
     uint32_t size;       // == sizeof(PgrObsApi)
     int (*install)(const PgrObsConfig *config);
     // Arm feature49's own observer/outcome gate. lease clamped/refused above 2500 ms. enabled==0
-    // closes the window (soft stop). expected_caller gates the btxu return address (nullptr ->
+    // closes the window (soft stop); 1 observes the outcome and applies the Quick catch animation
+    // speed; 2 only observes and reports the outcome (Catch preview without Quick catch). expected_caller gates the btxu return address (nullptr ->
     // accept any). Carries the proven Unity tid. Any thread may close; arming needs the owner tid.
     int (*update)(int enabled, uint64_t remaining_lease_ms, uint64_t unity_tid, void *expected_caller);
     // Proven-thread cleanup pass: prune expired outcome handles (drain all on stop/fault/off).

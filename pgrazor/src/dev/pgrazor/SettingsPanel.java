@@ -77,7 +77,7 @@ final class SettingsPanel {
     private Button evolveTransferStages, evolveTransferMode, evolveTransferList;
     // Boolean settings use proper switches.
     private Switch idleWalkSwitch, locationSwitch, vgpSwitch, joystickSwitch, cooldownSwitch, localTimeSwitch, encounterCounterSwitch, encounterOverlaySwitch, spawnSwitch, autoTransferSwitch,
-        quickSpinSwitch, berrySwitch, quickSummarySwitch, curveSwitch, alwaysHitSwitch, arSwitch, transferOverlaySwitch, catchChanceSwitch, autoBallSwitch, autoThrowSwitch, autoThrowMapSwitch, skipCutscenesSwitch, routeGiftSwitch,
+        quickSpinSwitch, berrySwitch, quickSummarySwitch, catchPreviewSwitch, curveSwitch, alwaysHitSwitch, arSwitch, transferOverlaySwitch, catchChanceSwitch, autoBallSwitch, autoThrowSwitch, autoThrowMapSwitch, skipCutscenesSwitch, routeGiftSwitch,
         batteryResSwitch, batteryFpsSwitch, batteryQualitySwitch;
     private Button autoBallTarget, berryPriority;
     // Transfer keep-IV cutoff: a slider and a number field that mirror each other.
@@ -451,6 +451,12 @@ final class SettingsPanel {
         quickSummarySwitch.setChecked(Control.quickSummaryEnabled());
         quickSummarySwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.quickSummaryEnabled())return; Control.setQuickSummaryEnabled(quickSummarySwitch.isChecked()); host.refresh(); });
         quickSummaryStatus = caption(quick, "");
+        // Same row layout as Quick catch: a sibling setting, not a child of it.
+        LinearLayout previewRow = new LinearLayout(activity); previewRow.setOrientation(LinearLayout.HORIZONTAL); previewRow.setGravity(Gravity.CENTER_VERTICAL); previewRow.setMinimumHeight(dp(44));
+        TextView previewLabel = new TextView(activity); previewLabel.setTextSize(14); previewLabel.setText("Catch preview"); previewRow.addView(previewLabel, new LinearLayout.LayoutParams(0,-2,1f));
+        catchPreviewSwitch = new Switch(activity); catchPreviewSwitch.setContentDescription("Catch preview"); previewRow.addView(catchPreviewSwitch, new LinearLayout.LayoutParams(-2,-2)); quick.addView(previewRow);
+        catchPreviewSwitch.setChecked(Control.catchPreview());
+        catchPreviewSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.catchPreview())return; Control.setCatchPreview(checked); host.refresh(); });
 
         // ----- Throws, ball choice and auto throw (gated by ball-animation support) -----
         LinearLayout throwC = group(page, "Throws"); ballGated.add((View)throwC.getParent());
@@ -1286,6 +1292,8 @@ final class SettingsPanel {
         set(quickSummaryLabel,Control.quickSummaryAutoDismiss() ? "Quick catch" : "Faster catch summary");
         quickSummarySwitch.setChecked(Control.quickSummaryEnabled());
         quickSummarySwitch.setEnabled(Control.quickSummaryConfigured());
+        catchPreviewSwitch.setChecked(Control.catchPreview());
+        catchPreviewSwitch.setEnabled(Control.quickBallConfigured());
         status(quickBallStatus,Control.quickBallStatus());
     }
 

@@ -9,6 +9,7 @@
 ### Improvements & fixes
 
 - Updated to latest game version (0.439.0)
+- **Catch preview:** The Caught / broke free / fled message after a throw now has its own switch in Catching settings (on by default) and works without Quick catch.
 - Fixed a Root startup crash when Vector replaces an ARM64 runtime hook during launch.
 - Hide the joystick on game menus, popups, and encounters, and restore it on the map without changing the saved toggle.
 
