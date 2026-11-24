@@ -122,16 +122,16 @@ PgrMetaExports exports(){
  e.class_is_assignable_from=reinterpret_cast<void *>(assignable);e.class_get_methods=reinterpret_cast<void *>(enumerate);
  e.class_get_nested_types=reinterpret_cast<void *>(enumerate);e.class_get_declaring_type=reinterpret_cast<void *>(declaring);return e;
 }
-static constexpr unsigned char PREFIX[]={0xfe,0x5f,0xbd,0xa9,0xf6,0x57,0x1,0xa9,0xf4,0x4f,0x2,0xa9,0xf4,0x5b,0x2,0xd0,0xf3,0x3,0x0,0xaa,0x88,0x2a,0x7c,0x39};
-constexpr uint64_t CONFIRM_RVA=174629280u,DISMISS_RVA=0x93d5a14u;
+static constexpr unsigned char PREFIX[]={0xfe,0x5f,0xbd,0xa9,0xf6,0x57,0x1,0xa9,0xf4,0x4f,0x2,0xa9,0xb4,0x5d,0x2,0xd0,0xf3,0x3,0x0,0xaa,0x88,0x6a,0x74,0x39};
+constexpr uint64_t CONFIRM_RVA=174674884u,DISMISS_RVA=0x9487290u;
 void build_fixture(){
  // Independent facts from routes.js, not generated success expectations alone.
  assert(kClassCount==15&&kFieldCount==24&&kMethodCount==18);
  assert(std::strcmp(kClasses[2].canonical,"Niantic.Holoholo.Routes.RoutesService")==0);
  assert(std::strcmp(kClasses[5].canonical,"Holoholo.Rpc.SharedRouteProto")==0);
  assert(std::strcmp(kClasses[7].canonical,"Holoholo.Rpc.RouteWaypointProto")==0);
- assert(kFields[2].owner==2&&kFields[2].offset==0x210&&std::strcmp(kFields[2].name,"dkhu")==0);
- assert(kFields[3].owner==2&&kFields[3].offset==0x80&&std::strcmp(kFields[3].name,"dkgi")==0);
+ assert(kFields[2].owner==2&&kFields[2].offset==0x218&&std::strcmp(kFields[2].name,"dkpr")==0);
+ assert(kFields[3].owner==2&&kFields[3].offset==0x80&&std::strcmp(kFields[3].name,"dkoe")==0);
  assert(kFields[4].owner==3&&std::strcmp(kFields[4].name,"<Routes>k__BackingField")==0);
  assert(kFields[11].owner==5&&std::strcmp(kFields[11].name,"Waypoints")==0);
  assert(kFields[10].offset==0x10&&kFields[18].offset==0x10);

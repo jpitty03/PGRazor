@@ -137,7 +137,7 @@ class GameUpdateTests(unittest.TestCase):
         tokens = re.sub(r'\s+', '', re.sub(r'//[^\n]*', '', rendered))
         # Golden from the 0.437.0 bindings checked against signed game metadata/code.
         self.assertEqual(hashlib.sha256(tokens.encode()).hexdigest(),
-                         'd25c56071ae21d485e6e05b080e9c5bcb4068a729c36ec8917e782338b75daf8')
+                         '94ca64f5ba47733a1e341efb11219709ecc3fd65de86a15edd74bc4c3aa4020e')
 
 
 if __name__ == '__main__':

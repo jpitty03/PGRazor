@@ -405,7 +405,7 @@ void hook_prep_battle(void *self, void *method) {
     Root receiver;
     try {
         receiver = Root(self);
-        Root rc(field<void *>(receiver.get(), "dzfq", "Niantic.Holoholo.Gym.IGymRootController"));
+        Root rc(field<void *>(receiver.get(), "dynj", "Niantic.Holoholo.Gym.IGymRootController"));
         if (rc) {
             std::string fort; const auto st = root_gym_status(rc, fort);
             Event e{}; e.type = EV_ARM;
@@ -567,7 +567,7 @@ void poll_reentry() {
     const bool approach = policy.phase == PH_RETURN || policy.phase == PH_WAIT_APPROACH;
     Root gui(approach ? g_approach_root.get() : policy.phase == PH_WAIT_PREP ? g_prep_root.get() : nullptr);
     if (!gui || !ui_ready(gui)) return; // keep the root while HandleOpen is still opening
-    Root rc(field<void *>(gui.get(), approach ? "dzzj" : "dzfq", "Niantic.Holoholo.Gym.IGymRootController"));
+    Root rc(field<void *>(gui.get(), approach ? "dzhb" : "dynj", "Niantic.Holoholo.Gym.IGymRootController"));
     require(bool(rc), "gym root missing");
     std::string fort; const GymStatus st = root_gym_status(rc, fort);
     if (fort != g_gym_fort_id) { policy.on_manual_cancel(); return; }
@@ -616,7 +616,7 @@ bool gym_heal_ready() {
         if (!action_allowed()) return false;
         Root gui(prep ? g_prep_root.get() : g_approach_root.get());
         if (!ui_ready(gui)) return false;
-        Root rc(field<void *>(gui.get(), prep ? "dzfq" : "dzzj", "Niantic.Holoholo.Gym.IGymRootController"));
+        Root rc(field<void *>(gui.get(), prep ? "dynj" : "dzhb", "Niantic.Holoholo.Gym.IGymRootController"));
         if (!rc) return false;
         std::string fort; const auto st = root_gym_status(rc, fort);
         if (fort != g_gym_fort_id) { policy.on_manual_cancel(); return false; }
@@ -641,7 +641,7 @@ void perform(Action a, uint64_t) {
         const bool prep = a == ACT_PREP_BATTLE;
         Root gui(prep ? g_prep_root.get() : g_approach_root.get());
         require(ui_ready(gui), "gym UI not ready");
-        Root rc(field<void *>(gui.get(), prep ? "dzfq" : "dzzj", "Niantic.Holoholo.Gym.IGymRootController"));
+        Root rc(field<void *>(gui.get(), prep ? "dynj" : "dzhb", "Niantic.Holoholo.Gym.IGymRootController"));
         require(bool(rc), "gym root missing");
         std::string fort; const auto st = root_gym_status(rc, fort);
         if (fort != g_gym_fort_id) { policy.on_manual_cancel(); return; }

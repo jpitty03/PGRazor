@@ -8,6 +8,9 @@
 #include <mutex>
 #include <string>
 #include <unistd.h>
+#ifdef __ANDROID__
+#include <android/log.h>
+#endif
 
 namespace pgr_shared_meta {
 namespace {
@@ -432,14 +435,6 @@ constexpr unsigned char kRmHide[24]     = PGR_GAME_SHARED_METADATA_CPP_KRMHIDE_F
 constexpr unsigned char kRmDestroy[24]  = PGR_GAME_SHARED_METADATA_CPP_KRMDESTROY_FINGERPRINT;
 constexpr unsigned char kRkEnter[24]    = PGR_GAME_SHARED_METADATA_CPP_KRKENTER_FINGERPRINT;
 constexpr unsigned char kRkExit[24]     = PGR_GAME_SHARED_METADATA_CPP_KRKEXIT_FINGERPRINT;
-constexpr unsigned char kRkUpdate[24]   = PGR_GAME_SHARED_METADATA_CPP_KRKUPDATE_FINGERPRINT;
-constexpr unsigned char kRkUi[24]       = PGR_GAME_SHARED_METADATA_CPP_KRKUI_FINGERPRINT;
-constexpr unsigned char kRkClose[24]    = PGR_GAME_SHARED_METADATA_CPP_KRKCLOSE_FINGERPRINT;
-constexpr unsigned char kRkDirector[24] = PGR_GAME_SHARED_METADATA_CPP_KRKDIRECTOR_FINGERPRINT;
-constexpr unsigned char kRkActive[24]   = PGR_GAME_SHARED_METADATA_CPP_KRKACTIVE_FINGERPRINT;
-constexpr unsigned char kRkFast[24]     = PGR_GAME_SHARED_METADATA_CPP_KRKFAST_FINGERPRINT;
-constexpr unsigned char kRkCharge[24]   = PGR_GAME_SHARED_METADATA_CPP_KRKCHARGE_FINGERPRINT;
-constexpr unsigned char kRkVisible[24]  = PGR_GAME_SHARED_METADATA_CPP_KRKVISIBLE_FINGERPRINT;
 constexpr unsigned char kRkPrompt[24]   = PGR_GAME_SHARED_METADATA_CPP_KRKPROMPT_FINGERPRINT;
 constexpr unsigned char kRkShield[24]   = PGR_GAME_SHARED_METADATA_CPP_KRKSHIELD_FINGERPRINT;
 constexpr unsigned char kRkShClose[24]  = PGR_GAME_SHARED_METADATA_CPP_KRKSHCLOSE_FINGERPRINT;
@@ -874,10 +869,12 @@ int do_items(Ctx &c) {
 }
 
 int do_rocket(Ctx &c) {
-  const void *rocket = c.out->opt_classes[OC_ROCKET], *rui = c.out->opt_classes[OC_RUI],
-             *rdir = c.out->opt_classes[OC_RDIR], *rcharge = c.out->opt_classes[OC_RCHARGE],
+  // Since 0.439.0 the game has no legacy Combat UI (CombatUI, CombatDirectorV2,
+  // CombatChargeAttackDisplay): Rocket battles use the vNext gui only. Their handles
+  // (H_RK_FIRST..H_RK_VISIBLE_CODE) stay null, and the host skips the legacy UI hooks.
+  const void *rocket = c.out->opt_classes[OC_ROCKET],
              *rshield = c.out->opt_classes[OC_RSHIELD], *sel = c.out->opt_classes[OC_SELECTABLE];
-  if (!rocket || !rui || !rdir || !rcharge || !rshield || !sel)
+  if (!rocket || !rshield || !sel)
     return set_err(c, PGR_MD_ERR_NOT_FOUND, "rocket-classes-unavailable");
   const void **H = c.out->opt_handles; int rc;
   const void *rvui = c.out->opt_classes[OC_RVUI], *rvgest = c.out->opt_classes[OC_RVGEST],
@@ -917,23 +914,11 @@ int do_rocket(Ctx &c) {
   if ((rc = check_method(c, go, "get_activeSelf", "System.Boolean", 0, nullptr, nullptr, false, false, 0, nullptr, 0, &H[H_RK_MN_ACTIVE_M], nullptr))) return rc;
   if ((rc = check_method(c, go, "SetActive", "System.Void", 1, "System.Boolean", nullptr, false, false, 0, nullptr, 0, &H[H_RK_MN_SETACTIVE_M], nullptr))) return rc;
 
-  if ((rc = ref_field(c, rui, PGR_GAME_SHARED_METADATA_CPP_H_RK_FIRST_NAME, PGR_GAME_SHARED_METADATA_CPP_H_RK_FIRST_OFFSET, &H[H_RK_FIRST]))) return rc;
-  if ((rc = ref_field(c, rui, PGR_GAME_SHARED_METADATA_CPP_H_RK_SECOND_NAME, PGR_GAME_SHARED_METADATA_CPP_H_RK_SECOND_OFFSET, &H[H_RK_SECOND]))) return rc;
-  if ((rc = typed_field(c, rcharge, PGR_GAME_SHARED_METADATA_CPP_H_RK_CHARGED_NAME, PGR_GAME_SHARED_METADATA_CPP_H_RK_CHARGED_OFFSET, "System.Boolean", "rocket-field", &H[H_RK_CHARGED]))) return rc;
-  if ((rc = typed_field(c, rcharge, PGR_GAME_SHARED_METADATA_CPP_H_RK_INPUT_NAME, PGR_GAME_SHARED_METADATA_CPP_H_RK_INPUT_OFFSET, "System.Boolean", "rocket-field", &H[H_RK_INPUT]))) return rc;
   if ((rc = typed_field(c, rshield, PGR_GAME_SHARED_METADATA_CPP_H_RK_SHIELDS_NAME, PGR_GAME_SHARED_METADATA_CPP_H_RK_SHIELDS_OFFSET, "System.Int32", "rocket-field", &H[H_RK_SHIELDS]))) return rc;
   if ((rc = ref_field(c, rshield, PGR_GAME_SHARED_METADATA_CPP_H_RK_BUTTON_NAME, PGR_GAME_SHARED_METADATA_CPP_H_RK_BUTTON_OFFSET, &H[H_RK_BUTTON]))) return rc;
 
   if ((rc = check_method(c, rocket, "EnterState", "System.Void", 2, "Niantic.Platform.GameStates.StateLogic.IStateApi", "Niantic.Holoholo.Combat.Contexts.InvasionCombatState.Data", false, false, PGR_GAME_SHARED_METADATA_CPP_KRKENTER_RVA, kRkEnter, sizeof(kRkEnter), &H[H_RK_ENTER_M], &H[H_RK_ENTER_CODE]))) return rc;
   if ((rc = check_method(c, rocket, "ExitState", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRKEXIT_RVA, kRkExit, sizeof(kRkExit), &H[H_RK_EXIT_M], &H[H_RK_EXIT_CODE]))) return rc;
-  if ((rc = check_method(c, rui, "UpdateActionsUI", "System.Void", 1, "System.Boolean", nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRKUPDATE_RVA, kRkUpdate, sizeof(kRkUpdate), &H[H_RK_UPDATE_M], &H[H_RK_UPDATE_CODE]))) return rc;
-  if ((rc = check_method(c, rui, "Initialize", "System.Void", 1, "Niantic.Holoholo.Combat.UI.CombatUI.Data", nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRKUI_RVA, kRkUi, sizeof(kRkUi), &H[H_RK_UI_M], &H[H_RK_UI_CODE]))) return rc;
-  if ((rc = check_method(c, rui, "HandleDismiss", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRKCLOSE_RVA, kRkClose, sizeof(kRkClose), &H[H_RK_CLOSE_M], &H[H_RK_CLOSE_CODE]))) return rc;
-  if ((rc = check_method(c, rui, PGR_GAME_SHARED_METADATA_CPP_H_RK_DIRECTOR_CODE_NAME, "Niantic.Holoholo.Combat.ICombatDirectorV2", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRKDIRECTOR_RVA, kRkDirector, sizeof(kRkDirector), &H[H_RK_DIRECTOR_M], &H[H_RK_DIRECTOR_CODE]))) return rc;
-  if ((rc = check_method(c, rdir, "get_IsInActiveState", "System.Boolean", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRKACTIVE_RVA, kRkActive, sizeof(kRkActive), &H[H_RK_ACTIVE_M], &H[H_RK_ACTIVE_CODE]))) return rc;
-  if ((rc = check_method(c, rdir, "TryFastAttack", "Holoholo.Rpc.CombatActionProto", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRKFAST_RVA, kRkFast, sizeof(kRkFast), &H[H_RK_FAST_M], &H[H_RK_FAST_CODE]))) return rc;
-  if ((rc = check_method(c, rcharge, "OnTap", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRKCHARGE_RVA, kRkCharge, sizeof(kRkCharge), &H[H_RK_CHARGE_M], &H[H_RK_CHARGE_CODE]))) return rc;
-  if ((rc = check_method(c, rcharge, "get_IsVisible", "System.Boolean", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRKVISIBLE_RVA, kRkVisible, sizeof(kRkVisible), &H[H_RK_VISIBLE_M], &H[H_RK_VISIBLE_CODE]))) return rc;
   if ((rc = check_method(c, rshield, "ShowShieldPrompt", "System.Void", 1, "System.Boolean", nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRKPROMPT_RVA, kRkPrompt, sizeof(kRkPrompt), &H[H_RK_PROMPT_M], &H[H_RK_PROMPT_CODE]))) return rc;
   if ((rc = check_method(c, rshield, "ShieldUiClicked", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRKSHIELD_RVA, kRkShield, sizeof(kRkShield), &H[H_RK_SHIELD_M], &H[H_RK_SHIELD_CODE]))) return rc;
   if ((rc = check_method(c, rshield, "HandleDismiss", "System.Void", 0, nullptr, nullptr, false, false, PGR_GAME_SHARED_METADATA_CPP_KRKSHCLOSE_RVA, kRkShClose, sizeof(kRkShClose), &H[H_RK_SHIELD_CLOSE_M], &H[H_RK_SHIELD_CLOSE_CODE]))) return rc;
@@ -1477,6 +1462,13 @@ int resolve(const PgrSharedMetadataConfig *input, PgrSharedMetadataOutput *out) 
   run_opt(OPT_VGP,                 do_vgp);         // also populates OPT_VGP_MARKER
   run_opt(OPT_MAP_POI,             do_map_poi);     // also populates OPT_MAP_POI_EXTRA
 
+#ifdef __ANDROID__
+  // One line per unavailable subfeature, so a game update that breaks one is diagnosable from logcat.
+  for (size_t i = 0; i < kOptionalCount; ++i)
+    if (out->optional[i] != PGR_SHARED_OPT_AVAILABLE)
+      __android_log_print(ANDROID_LOG_WARN, "PGRazorMetadata", "optional %s unavailable: %d %s",
+                          kOptional[i].key, out->optional_error[i], out->optional_reason[i]);
+#endif
   return (final_rc = PGR_MD_OK);
 }
 

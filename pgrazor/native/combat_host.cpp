@@ -908,19 +908,30 @@ bool configure_and_install_rocket(uint64_t tid) {
         return false;
     }
 
-    const HookEntry rk_entries[10] = {
+    const HookEntry rk_entries[7] = {
         {HK_RK_ENTER,        md_h(H_RK_ENTER_CODE),        reinterpret_cast<void *>(hook_rk_enter)},
         {HK_RK_EXIT,         md_h(H_RK_EXIT_CODE),         reinterpret_cast<void *>(hook_rk_exit)},
-        {HK_RK_UI_INIT,      md_h(H_RK_UI_CODE),           reinterpret_cast<void *>(hook_rk_ui_init)},
-        {HK_RK_UI_UPDATE,    md_h(H_RK_UPDATE_CODE),       reinterpret_cast<void *>(hook_rk_ui_update)},
-        {HK_RK_UI_CLOSE,     md_h(H_RK_CLOSE_CODE),        reinterpret_cast<void *>(hook_rk_ui_close)},
         {HK_RK_VN_UPDATE,    md_h(H_RK_VN_UPDATE_CODE),    reinterpret_cast<void *>(hook_rk_vn_update)},
         {HK_RK_VN_CLOSE,     md_h(H_RK_VN_CLOSE_CODE),     reinterpret_cast<void *>(hook_rk_vn_close)},
         {HK_RK_PROMPT,       md_h(H_RK_PROMPT_CODE),       reinterpret_cast<void *>(hook_rk_prompt)},
         {HK_RK_SHIELD,       md_h(H_RK_SHIELD_CODE),       reinterpret_cast<void *>(hook_rk_shield)},
         {HK_RK_SHIELD_CLOSE, md_h(H_RK_SHIELD_CLOSE_CODE), reinterpret_cast<void *>(hook_rk_shield_close)},
     };
-    if (!install_hook_group(rk_entries, 10)) {
+    if (!install_hook_group(rk_entries, 7)) {
+        return false;
+    }
+    // The legacy Combat UI is gone since game 0.439.0 (its handles stay null); hook it only
+    // when all three entry points resolved, as on earlier game versions.
+    const HookEntry rk_legacy[3] = {
+        {HK_RK_UI_INIT,      md_h(H_RK_UI_CODE),           reinterpret_cast<void *>(hook_rk_ui_init)},
+        {HK_RK_UI_UPDATE,    md_h(H_RK_UPDATE_CODE),       reinterpret_cast<void *>(hook_rk_ui_update)},
+        {HK_RK_UI_CLOSE,     md_h(H_RK_CLOSE_CODE),        reinterpret_cast<void *>(hook_rk_ui_close)},
+    };
+    const int legacy_present = (rk_legacy[0].target != nullptr) + (rk_legacy[1].target != nullptr) +
+                               (rk_legacy[2].target != nullptr);
+    if (legacy_present == 3) {
+        if (!install_hook_group(rk_legacy, 3)) return false;
+    } else if (legacy_present != 0) {
         return false;
     }
     if (!install_shared_vnext_hook()) {

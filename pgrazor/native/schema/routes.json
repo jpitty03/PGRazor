@@ -111,15 +111,15 @@
     },
     {
       "owner": "routes",
-      "name": "dkhu",
-      "offset": 528,
+      "name": "dkpr",
+      "offset": 536,
       "kind": 1,
       "type": null,
       "size": 0
     },
     {
       "owner": "routes",
-      "name": "dkgi",
+      "name": "dkoe",
       "offset": 128,
       "kind": 1,
       "type": null,
@@ -297,7 +297,7 @@
     {
       "key": "trackingWaypoint",
       "owner": "tracking",
-      "name": "bkve",
+      "name": "blpb",
       "return": "System.Void",
       "params": [
         "Holoholo.Rpc.RouteWaypointProto"
@@ -392,14 +392,14 @@
     {
       "key": "confirmComplete",
       "owner": "consumption",
-      "name": "bkow",
+      "name": "blit",
       "return": "System.Void",
       "params": []
     },
     {
       "key": "completionResponse",
       "owner": "consumption",
-      "name": "bkpo",
+      "name": "bljl",
       "return": "System.Void",
       "params": [
         "Holoholo.Rpc.ProgressRouteOutProto"

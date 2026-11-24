@@ -41,7 +41,7 @@ class NativeSchemaTests(unittest.TestCase):
         self.assertEqual((len(classes), len(fields), len(methods)), (15, 24, 18))
         self.assertEqual(list(indices.values()), list(range(15)))
         output = ROUTES.render(source)
-        self.assertEqual(body_digest(output), 'd33cd621c9776b20e1ab7fb196fe55f6bdcd77dd0eeafb677fccf4fc75b6ddff')
+        self.assertEqual(body_digest(output), '62f8bec89eed5027cfdefd983fe0907a21cf342bd8f74c1d50d65a4716be00cd')
         # read_text normalizes line endings so a CRLF checkout of the LF
         # header still matches; raw bytes would differ under core.autocrlf.
         self.assertEqual(output, ROUTES.OUTPUT.read_text(encoding='utf-8'))
@@ -50,7 +50,7 @@ class NativeSchemaTests(unittest.TestCase):
         values = GIFTS.parse(json.dumps(self.gifts))
         self.assertEqual((len(values['GIFT_TYPES']), len(values['GIFT_CODE'])), (11, 36))
         output = GIFTS.render(values)
-        self.assertEqual(body_digest(output), '384a90873b388a4a0593f5729b5a05686fe23da62792a0cab862fe9187d666c8')
+        self.assertEqual(body_digest(output), '5976a53f4fc5ad462a3c1dd420e085278ed27c8cbd5202577ce1d99fa01b4330')
         self.assertEqual(output, GIFTS.OUTPUT.read_text(encoding='utf-8'))
 
     def test_production_inputs_are_neutral_json(self):

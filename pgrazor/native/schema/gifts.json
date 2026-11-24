@@ -15,152 +15,152 @@
   },
   "codes": {
     "5916.get_ActionButtonsDisabled": [
-      176286624,
+      176308848,
       "00c04639c0035fd601c00639c0035fd6fe57bea9f44f01a9"
     ],
     "5916.get_CurrentlyOpenFriendProfileInfoPanel": [
-      176286640,
-      "fe57bea9f44f01a9544f02f0f30300aa883a603908010037"
+      176308864,
+      "fe57bea9f44f01a954510290f30300aa88e2573908010037"
     ],
     "5916.HandleOpenComplete": [
-      176288064,
-      "fe5fbda9f65701a9f44f02a9544f02d0f30300aa884a6039"
+      176310288,
+      "fe5fbda9f65701a9f44f02a954510290f30300aa88f25739"
     ],
     "5916.HandleDismiss": [
-      176291216,
+      176313440,
       "fd7bbaa9fc6f01a9fa6702a9f85f03a9f65704a9f44f05a9"
     ],
     "5936.SetFriendInfo": [
-      176323824,
-      "fe0f1bf8fa6701a9f85f02a9f65703a9f44f04a9154f02d0"
+      176346048,
+      "fe0f1bf8fa6701a9f85f02a9f65703a9f44f04a9f55002f0"
     ],
     "5936.CheckOnGift": [
-      176306864,
-      "ff0302d1fe2300f9f85f05a9f65706a9f44f07a9344f02d0"
+      176329088,
+      "ff0302d1fe2300f9f85f05a9f65706a9f44f07a9145102f0"
     ],
     "5936.OnGiftClick": [
-      176370436,
-      "fe5fbda9f65701a9f44f02a9b44e02d0f30300aa881e6139"
+      176393408,
+      "fe5fbda9f65701a9f44f02a9b4500290f30300aa88c65839"
     ],
     "6164.AnyStickers": [
-      176929716,
-      "fe57bea9f44f01a9744a02d0f30300aa88de6b39e8020037"
+      176953156,
+      "fe57bea9f44f01a9544c02f0f30300aa887a6339e8020037"
     ],
     "6164.StickerCountExcludingReserved": [
-      176940080,
-      "fe0f1df8f65701a9f44f02a9554a02f0f40301aaf30300aa"
+      176963520,
+      "fe0f1df8f65701a9f44f02a9554c02b0f40301aaf30300aa"
     ],
     "6240.HandleOpenComplete": [
-      177089168,
-      "c0035fd6fe57bea9f44f01a9344902f0f30300aa887e6f39"
+      177112592,
+      "c0035fd6fe57bea9f44f01a9344b0290f30300aa881a6739"
     ],
     "6240.HandleDismiss": [
-      177089172,
-      "fe57bea9f44f01a9344902f0f30300aa887e6f3908010037"
+      177112596,
+      "fe57bea9f44f01a9344b0290f30300aa881a673908010037"
     ],
     "6240.OnOpenClick": [
-      177089836,
+      177113260,
       "08a44a394800003402000014cc000014ff4302d1fe6705a9"
     ],
     "6258.HandleOpenComplete": [
-      177145768,
-      "e80f1dfcfe0700f9f65701a9f44f02a9d44802b0f30300aa"
+      177169192,
+      "e80f1dfcfe0700f9f65701a9f44f02a9b44a02d0f30300aa"
     ],
     "6258.HandleDismiss": [
-      177146096,
-      "1fd40b39c0035fd6fe57bea9f44f01a9d44802b0f30300aa"
+      177169520,
+      "1fd40b39c0035fd6fe57bea9f44f01a9b44a02d0f30300aa"
     ],
     "6258.OnSendClick": [
-      177146868,
-      "fe0f1df8f65701a9f44f02a9d44802b0f30300aa88367039"
+      177170292,
+      "fe0f1df8f65701a9f44f02a9b44a02d0f30300aa88d26739"
     ],
     "6258.OnStickersClick": [
-      177152588,
-      "fe0f1cf8f85f01a9f65702a9f44f03a9b44802f0f30300aa"
+      177176012,
+      "fe0f1cf8f85f01a9f65702a9f44f03a9b44a02b0f30300aa"
     ],
     "6176.Click": [
-      176954176,
-      "fe57bea9f44f01a9534a0290f40300aa687e6c3908010037"
+      176977616,
+      "fe57bea9f44f01a9334c02b0f40300aa681a643908010037"
     ],
     "6176.Reinitialize": [
-      176954404,
-      "e80f1cfcfe0700f9f85f01a9f65702a9f44f03a9544a0290"
+      176977844,
+      "e80f1cfcfe0700f9f85f01a9f65702a9f44f03a9344c02b0"
     ],
     "6195.HandleOpenComplete": [
-      176970268,
-      "fe0f1cf8f85f01a9f65702a9f44f03a9344a0290f30300aa"
+      176993708,
+      "fe0f1cf8f85f01a9f65702a9f44f03a9144c02b0f30300aa"
     ],
     "6195.HandleDismiss": [
-      176970956,
-      "fe0f1df8f65701a9f44f02a9344a0290f30300aa88be6c39"
+      176994396,
+      "fe0f1df8f65701a9f44f02a9144c02b0f30300aa885a6439"
     ],
     "6211.UpdateData": [
-      177045628,
-      "fe5fbda9f65701a9f44f02a9964902b0f30302aaf503012a"
+      177069052,
+      "fe5fbda9f65701a9f44f02a9764b02f0f30302aaf503012a"
     ],
     "6211.GiftBox": [
-      177046356,
+      177069780,
       "3f04007128010054086840f9e80000b43f00007109038052"
     ],
     "6211.OnClick": [
-      177046568,
+      177069992,
       "097040f9090100b4e80300aa202140f9231540f9240d40f9"
     ],
     "6268.Initialize": [
-      177168840,
-      "fe6fbba9fa6701a9f85f02a9f65703a9f44f04a9954802f0"
+      177192264,
+      "fe6fbba9fa6701a9f85f02a9f65703a9f44f04a9954a02b0"
     ],
     "6268.HandleOpenComplete": [
-      177174624,
-      "c0035fd6fe57bea9f44f01a9944802d0f30300aa888a7039"
+      177198044,
+      "c0035fd6fe57bea9f44f01a9744a02f0f30300aa88266839"
     ],
     "6268.HandleDismiss": [
-      177174628,
-      "fe57bea9f44f01a9944802d0f30300aa888a703908010037"
+      177198048,
+      "fe57bea9f44f01a9744a02f0f30300aa8826683908010037"
     ],
     "6268.ExitGui": [
-      177175324,
-      "fe0f1df8f65701a9f44f02a9944802d0f30300aa88927039"
+      177198744,
+      "fe0f1df8f65701a9f44f02a9744a02f0f30300aa882e6839"
     ],
     "6258.bmxm": [
-      177157504,
-      "fe0f1bf8fa6701a9f85f02a9f65703a9f44f04a9b54802d0"
+      177180928,
+      "fe0f1bf8fa6701a9f85f02a9f65703a9f44f04a9954a02f0"
     ],
     "6164.GetStickerInventory": [
-      176932904,
-      "fe5fbda9f65701a9f44f02a9754a02b0f303012af40300aa"
+      176956344,
+      "fe5fbda9f65701a9f44f02a9554c02d0f303012af40300aa"
     ],
     "6258.bmxc": [
-      177143544,
+      177166968,
       "fe0f1af8fc6f01a9fa6702a9f85f03a9f65704a9f44f05a9"
     ],
     "6149.SendGift": [
-      176884120,
+      176907556,
       "fe0f1af8fc6f01a9fa6702a9f85f03a9f65704a9f44f05a9"
     ],
     "6154.get_SendableGiftsInInventory": [
-      176892384,
-      "fe0f1df8f65701a9f44f02a9b44a02f0f30300aa88866d39"
+      176915820,
+      "fe0f1df8f65701a9f44f02a9b44c0290f30300aa88226539"
     ],
     "6164.ReserveStickers": [
-      176937456,
-      "ff4302d1fe6705a9f85f06a9f65707a9f44f08a9754a0290"
+      176960896,
+      "ff4302d1fe6705a9f85f06a9f65707a9f44f08a9554c02b0"
     ],
     "6164.ReturnReservedStickers": [
-      176938572,
-      "ff0302d1fe2300f9f85f05a9f65706a9f44f07a9764a0290"
+      176962012,
+      "ff0302d1fe2300f9f85f05a9f65706a9f44f07a9564c02b0"
     ],
     "6147.bmld": [
-      176890468,
-      "fe0f1cf8f85f01a9f65702a9f44f03a9b44a02f0f60301aa"
+      176913904,
+      "fe0f1cf8f85f01a9f65702a9f44f03a9b44c02b0f60301aa"
     ],
     "6147.bmle": [
-      176891564,
-      "fe57bea9f44f01a9b44a02f0f30300aa88466b3908010037"
+      176915000,
+      "fe57bea9f44f01a9b44c0290f30300aa88e2623908010037"
     ]
   },
   "open_sequence": [
-    177105916,
+    177129340,
     "ff0302d1e81300fdfe1700f9fc6f03a9fa6704a9f85f05a9"
   ]
 }

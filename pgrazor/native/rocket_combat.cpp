@@ -322,13 +322,21 @@ inline void cancel_inflight(uint64_t tid) { if (g_in_tick) pol_begin(tid); }
 bool config_ok(const pgr_rocket_combat_config_v1 *c) {
   const void *const ptrs[] = {
       c->gchandle_new, c->gchandle_get_target, c->gchandle_free, c->object_get_class, c->object_unbox,
-      c->runtime_invoke, c->field_get_value, c->m_director, c->m_active, c->m_fast, c->m_charge,
-      c->m_visible, c->m_interactable, c->m_shield, c->vm_blocked, c->vm_charged, c->vm_visible,
-      c->vm_charge, c->vm_fast, c->m_alive, c->f_first, c->f_second, c->f_charged, c->f_input,
+      c->runtime_invoke, c->field_get_value,
+      c->m_interactable, c->m_shield, c->vm_blocked, c->vm_charged, c->vm_visible,
+      c->vm_charge, c->vm_fast, c->m_alive,
       c->f_shields, c->f_button, c->vf_gesture, c->vf_enabled, c->vf_tap, c->vf_button,
-      c->f_current_state, c->class_rocket, c->class_rui, c->class_rdir, c->class_rcharge,
+      c->f_current_state, c->class_rocket,
       c->class_rshield, c->class_rvui, c->class_rvgest, c->class_rvcharge, c->class_bool};
   for (const void *p : ptrs) if (p == nullptr) return false;
+  // The legacy Combat UI group (game 0.437.0 and earlier) is all present or all absent. Without it
+  // no legacy ui is ever observed (class_rui is null), so only the vNext path runs.
+  const void *const legacy[] = {
+      c->m_director, c->m_active, c->m_fast, c->m_charge, c->m_visible, c->f_first, c->f_second,
+      c->f_charged, c->f_input, c->class_rui, c->class_rdir, c->class_rcharge};
+  int present = 0;
+  for (const void *p : legacy) present += p != nullptr;
+  if (present != 0 && present != static_cast<int>(sizeof(legacy) / sizeof(legacy[0]))) return false;
   if (c->state_open == PGR_RC_CLOSED_STATE || c->state_open < 0) return false;
   if (c->reserved0 != 0 || c->reserved1 != 0 || c->reserved2 != 0) return false;
   return true;

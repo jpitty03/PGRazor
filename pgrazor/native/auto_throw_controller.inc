@@ -41,9 +41,9 @@ ManualThrowPermission throw_permission() {
 bool manual_throw_owner() {
     Root gui=find_live_unity_object(resolve_class("Niantic.Holoholo.Encounter","EncounterGuiController"));
     if(!gui)return false;
-    Root interaction(call_obj(gui.get(),"btul"));
+    Root interaction(call_obj(gui.get(),"buqr"));
     if(!interaction||interaction.get()!=manual_throw.interaction.get())return false;
-    Root state(call_obj(gui.get(),"btuk"));
+    Root state(call_obj(gui.get(),"buqq"));
     if(!state)return false;
     if(manual_throw.state && state.get()!=manual_throw.state.get())return false;
     if(!manual_throw.state)manual_throw.state=std::move(state);

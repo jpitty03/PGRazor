@@ -26,6 +26,16 @@ static_assert(narrow.before_lo > wide.before_lo && narrow.after_hi <= wide.after
     "4K ranges lie inside the ELF-aligned ranges");
 static_assert(narrow.after_lo == end && narrow.after_hi == base + 0xe297000, "4K-aligned tail");
 }
+// Game 0.439.0 (segment 0x46480e0..0xe39b820): 224 bytes lead and 2016 bytes tail. At 16 bytes a
+// slot that is 140 islands, fewer than the runtime hooks; with the 16-byte dispatcher and 8-byte
+// slots it is 26 + 250.
+namespace padding_check_439 {
+constexpr uintptr_t base = 0x7000000000, begin = base + 0x46480e0, end = base + 0xe39b820;
+constexpr PgrPaddingRanges narrow = pgr_padding_ranges(begin, end, 4096);
+static_assert(narrow.before_hi - narrow.before_lo == 224, "0.439.0 lead");
+static_assert(narrow.after_hi - narrow.after_lo == 2016, "0.439.0 tail");
+static_assert((224 - 16) / 8 + (2016 - 16) / 8 == 276, "dispatched capacity");
+}
 
 int main() {
     PgrHookDiag diag{};
@@ -37,9 +47,16 @@ int main() {
     using Method = uintptr_t (*)(uintptr_t);
     const long page = sysconf(_SC_PAGESIZE);
     require(page > 0, "page size");
-    auto *code = static_cast<uint32_t *>(mmap(nullptr, page, PROT_READ | PROT_WRITE,
-        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
+    // Place the fixture 64 MiB past this binary (a hint, never MAP_FIXED) so the hook island lands
+    // in ADRP reach of the engine's slot table, as libil2cpp and the core library are in the game.
+    static int anchor;
+    const uintptr_t near_hint = ((reinterpret_cast<uintptr_t>(&anchor) + (uintptr_t(64) << 20)) &
+                                 ~(static_cast<uintptr_t>(page) - 1));
+    auto *code = static_cast<uint32_t *>(mmap(reinterpret_cast<void *>(near_hint), page,
+        PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
     require(code != MAP_FAILED, "map fixture");
+    const uintptr_t fixture = reinterpret_cast<uintptr_t>(code), self = reinterpret_cast<uintptr_t>(&anchor);
+    const bool near_table = (fixture > self ? fixture - self : self - fixture) < (uintptr_t(1) << 30);
     // RET (4 bytes); MOV X0,#22/RET; LDR X0,[X0,#24]/RET (8 bytes);
     // MOV X0,#33/RET. Every neighboring method begins immediately after RET.
     const uint32_t pristine[] = {0xd65f03c0, 0xd28002c0, 0xd65f03c0,
@@ -60,6 +77,17 @@ int main() {
     require(pgrazor_hook(code, reinterpret_cast<void *>(replacement), &tiny_original) == 0,
         "hook four-byte method");
     require((code[0] & 0xfc000000u) == 0x14000000u, "single B patch");
+    {
+        // The island slot is the 8-byte dispatched form (MOVZ X17, #index; B dispatcher) when the
+        // engine's slot table is in ADRP reach of the island, else the 16-byte absolute jump.
+        const int64_t offset = static_cast<int64_t>(static_cast<int32_t>(code[0] << 6) >> 6) * 4;
+        const auto *slot = reinterpret_cast<const uint32_t *>(reinterpret_cast<uintptr_t>(code) + offset);
+        const bool dispatched = (slot[0] & 0xffe0001fu) == 0xd2800011u && (slot[1] & 0xfc000000u) == 0x14000000u;
+        const bool absolute = slot[0] == 0x58000051u && slot[1] == 0xd61f0220u;
+        require(dispatched || absolute, "island slot form");
+        require(dispatched || !near_table, "dispatched slot when the table is in reach");
+        std::printf("hook-engine-near: %s island slot\n", dispatched ? "dispatched 8-byte" : "absolute 16-byte");
+    }
     require(std::memcmp(code + 1, pristine + 1, 6 * sizeof(uint32_t)) == 0,
         "all following bytes preserved");
     require(tiny(17) == 99 && reinterpret_cast<Method>(tiny_original)(17) == 17 &&

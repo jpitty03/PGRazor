@@ -29,7 +29,28 @@ namespace {
 // What the current near_island() call tried; copied into hook_diag on failure.
 struct IslandAttempt { uint32_t gaps; uint32_t padding; int32_t error; };
 IslandAttempt attempt{};
-struct IslandPage { uintptr_t base; size_t used; size_t size; };
+// An island page starts with a shared dispatcher when the slot table below is in ADRP reach
+// (+-4 GiB); its slots are then 8 bytes (MOVZ X17, #index; B dispatcher). Otherwise slots are the
+// 16-byte absolute jump. Game 0.439.0 left only 224 + 2016 bytes of ELF padding around the code
+// segment, which at 16 bytes a slot no longer fits every hook on hosts without free pages nearby.
+struct IslandPage { uintptr_t base; size_t used; size_t size; uintptr_t dispatcher; };
+// Replacement addresses for dispatched slots, indexed by the slot's MOVZ immediate. Written once,
+// before the slot that loads it is published, and never changed.
+constexpr size_t kDispatchSlots = 1024;
+alignas(8) void *dispatch_targets[kDispatchSlots];
+size_t dispatch_count = 0;
+// Returns false when the table is out of ADRP reach from `at`.
+bool encode_dispatcher(uintptr_t at, uint32_t out[4]) {
+    const uintptr_t table = reinterpret_cast<uintptr_t>(dispatch_targets);
+    const int64_t pages = (static_cast<int64_t>(table >> 12) - static_cast<int64_t>(at >> 12));
+    if (pages < -(int64_t(1) << 20) || pages >= (int64_t(1) << 20)) return false;
+    const uint32_t imm = static_cast<uint32_t>(pages) & 0x1fffff;
+    out[0] = 0x90000010u | ((imm & 3) << 29) | ((imm >> 2) << 5);     // ADRP X16, table
+    out[1] = 0x91000210u | static_cast<uint32_t>((table & 0xfff) << 10); // ADD  X16, X16, :lo12:table
+    out[2] = 0xf8717a10u;                                              // LDR  X16, [X16, X17, LSL #3]
+    out[3] = 0xd61f0200u;                                              // BR   X16
+    return true;
+}
 std::vector<IslandPage> island_pages;
 struct IslandSlot { uintptr_t entry; void *replacement; };
 std::vector<IslandSlot> island_slots;
@@ -130,7 +151,7 @@ int padding_callback(dl_phdr_info *info, size_t, void *opaque) {
                     attempt.padding |= PGR_HOOK_PAD_NOT_READABLE;
                     continue;
                 }
-                island_pages.push_back({lo, 0, hi - lo});
+                island_pages.push_back({lo, 0, hi - lo, 0});
                 hook_diag.island_source = page_aligned ? PGR_HOOK_ISLAND_PAGE_PADDING
                                                        : PGR_HOOK_ISLAND_ELF_PADDING;
                 search.found = true;
@@ -152,7 +173,8 @@ void *near_island(void *address, void *replacement) {
             return reinterpret_cast<void *>(slot.entry);
     IslandPage *chosen = nullptr;
     for (auto &page : island_pages) {
-        if (page.size - page.used >= slot_size && branch_reaches(source, page.base + page.used)) {
+        const size_t need = page.dispatcher && dispatch_count < kDispatchSlots ? 8 : slot_size;
+        if (page.size - page.used >= need && branch_reaches(source, page.base + page.used)) {
             chosen = &page;
             break;
         }
@@ -207,13 +229,42 @@ void *near_island(void *address, void *replacement) {
             dl_iterate_phdr(padding_callback, &search);
             if (!search.found) return nullptr;
         } else {
-            island_pages.push_back({reinterpret_cast<uintptr_t>(allocated), 0, page_size});
+            island_pages.push_back({reinterpret_cast<uintptr_t>(allocated), 0, page_size, 0});
             hook_diag.island_source = PGR_HOOK_ISLAND_MMAP;
         }
         hook_diag.island_pages = static_cast<uint32_t>(island_pages.size());
         chosen = &island_pages.back();
+        // A fresh page gets the shared dispatcher when the table is in reach and the page can
+        // hold it plus at least one slot; a failed write leaves the page on 16-byte slots.
+        uint32_t dispatcher[4];
+        if (chosen->size >= 24 && encode_dispatcher(chosen->base, dispatcher) &&
+            DobbyCodePatch(reinterpret_cast<void *>(chosen->base),
+                           reinterpret_cast<uint8_t *>(dispatcher), sizeof(dispatcher)) == 0) {
+            chosen->dispatcher = chosen->base;
+            chosen->used = sizeof(dispatcher);
+            if (!branch_reaches(source, chosen->base + chosen->used)) return nullptr;
+        }
     }
     const uintptr_t entry = chosen->base + chosen->used;
+    if (chosen->dispatcher && dispatch_count < kDispatchSlots) {
+        // X16 and X17 are the ABI intra-procedure-call scratch registers; hooks sit at method entry.
+        const size_t index = dispatch_count;
+        __atomic_store_n(&dispatch_targets[index], replacement, __ATOMIC_RELEASE);
+        const int64_t delta = static_cast<int64_t>(chosen->dispatcher) - static_cast<int64_t>(entry + 4);
+        uint32_t code[2] = {0xd2800011u | static_cast<uint32_t>(index << 5),            // MOVZ X17, #index
+                            0x14000000u | (static_cast<uint32_t>(delta >> 2) & 0x3ffffffu)}; // B dispatcher
+        if (DobbyCodePatch(reinterpret_cast<void *>(entry),
+            reinterpret_cast<uint8_t *>(code), sizeof(code)) != 0) {
+            attempt.error = errno;
+            attempt.padding |= PGR_HOOK_PAD_WRITE_FAILED;
+            return nullptr;
+        }
+        ++dispatch_count;
+        chosen->used += sizeof(code);
+        island_slots.push_back({entry, replacement});
+        return reinterpret_cast<void *>(entry);
+    }
+    if (chosen->size - chosen->used < slot_size) return nullptr;
     // LDR X17, #8; BR X17; absolute destination. X17 is an ABI scratch register.
     uint32_t code[4] = {0x58000051u, 0xd61f0220u, 0, 0};
     std::memcpy(code + 2, &replacement, sizeof(replacement));

@@ -581,6 +581,27 @@ int main(int argc, char **argv) {
   if (!api || api->size != 72 || loaded_core->query_feature(21, 99)) return 83;
 #endif
 
+  // Game 0.439.0 has no legacy Combat UI: a config without the whole legacy group installs
+  // (in a child, since install latches once per process); a partial legacy group is refused.
+  {
+    pgr_rocket_combat_config_v1 partial;
+    fill_config(&partial);
+    partial.m_director = nullptr;
+    if (api->install(&partial) != PGR_RC_ERR_BAD_CONFIG) { std::puts("FAIL partial-legacy"); return 6; }
+    pid_t pid = fork();
+    if (pid == 0) {
+      pgr_rocket_combat_config_v1 v;
+      fill_config(&v);
+      v.m_director = v.m_active = v.m_fast = v.m_charge = v.m_visible = nullptr;
+      v.f_first = v.f_second = v.f_charged = v.f_input = nullptr;
+      v.class_rui = v.class_rdir = v.class_rcharge = nullptr;
+      reset_runtime();
+      _exit(api->install(&v) == PGR_RC_OK ? 0 : 1);
+    }
+    int status = 0; waitpid(pid, &status, 0);
+    if (!WIFEXITED(status) || WEXITSTATUS(status)) { std::puts("FAIL vnext-only install"); return 7; }
+  }
+
   pgr_rocket_combat_config_v1 cfg;
   fill_config(&cfg);
   reset_runtime();

@@ -43,10 +43,10 @@ The first two commands verify dependency commits/gitlinks, source cleanliness, p
 
 ## Local playable build
 
-Supply your own unmodified, Niantic-signed ARM64 game APK/APKM/APKS. The supported input is Pokémon GO 0.437.0, version code 2026110902. The release workflow additionally pins its SHA-256:
+Supply your own unmodified, Niantic-signed ARM64 game APK/APKM/APKS. The supported input is Pokémon GO 0.439.0, version code 2026111602. The release workflow additionally pins its SHA-256:
 
 ```text
-5be1ff372d8a3aa1c9ce9f4014b3825119086feaf71aae6b0538636acafebdd3
+c6d3c04c38ca2f2446957633b4fee8c93dcc9cebdbbaddc9cb9651722ef8f54f
 ```
 
 Keep the original under the ignored `pgrazor/input/` directory. From the repository root:
