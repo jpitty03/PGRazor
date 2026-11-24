@@ -2,7 +2,10 @@
 #include <stdint.h>
 #include "shared_metadata.h"
 // Shundo Sniper, native half. Java teleports to a 100% IV spawn from the feeds and names its encounter
-// id on transport string slot 19 ("S1|<request>|<encounter id>|<go>"). This module waits for that spawn to
+// id on transport string slot 19 ("S1|<request>|<encounter id>|<go>|<running>"), or, for a spawn a feed
+// lists without an id, its species and point ("S2|<request>|<dex>|<lat>|<lon>|<go>|<running>": the nearest
+// wild Pokemon of that species within 50 m, reported as a "matched" event, and dropped as "not-hundo"
+// unless its IVs are 15/15/15). This module waits for that spawn to
 // load on the map, opens a background encounter (WildMapPokemon.SendEncounterRequest) and reads the
 // shiny flag and IVs from the encounter response. A non-shiny is dropped without a berry or a throw,
 // so it adds no cooldown. A shiny is held in its encounter until Java sets go (the cooldown estimate

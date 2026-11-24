@@ -6,6 +6,7 @@
 #include "runtime_transport.h"
 #include "vgp_results.h"
 #include <cstdio>
+#include <cmath>
 #include <atomic>
 #include <cstring>
 #include <dlfcn.h>
@@ -76,21 +77,33 @@ Root resolve(void *contract){
  Root container(invoke(h(H_IL_CONTAINER_M),map.get()));if(!container)return {};
  Root target=type_object(contract);void *resolve_args[]={target.get()};return Root(invoke(h(H_IL_RESOLVE_M),container.get(),resolve_args));
 }
+double distance_m(double lat1,double lon1,double lat2,double lon2){
+ if(!std::isfinite(lat2)||!std::isfinite(lon2))return 1e12;
+ const double r=M_PI/180,a=lat1*r,b=lat2*r,h=std::sin((b-a)/2)*std::sin((b-a)/2)+std::cos(a)*std::cos(b)*std::sin((lon2-lon1)*r/2)*std::sin((lon2-lon1)*r/2);
+ return 12742000.0*std::asin(std::sqrt(std::fmin(1.0,h)));
+}
 std::string quote(const std::string &s){std::string out="\"";for(unsigned char c:s){if(c=='"'||c=='\\')out+='\\';if(c>=32)out+=char(c);}return out+'"';}
 const PgrRuntimeTransportApi *transport(){return static_cast<const PgrRuntimeTransportApi*>(pgrazor_runtime_transport_api(1));}
 
-struct Config {uint64_t request=0,id=0;bool go=false,running=false,active=false,map=false;};
-// "S1|<request>|<encounter id>|<go>|<running>"; request 0 means no spawn to check (running still says
-// whether the sniper is on, for the tap block); anything malformed or stale means off.
-// go turns 1 once a found shiny can be caught without cooldown; until then the encounter is held.
+struct Config {uint64_t request=0,id=0;int dex=0;double lat=0,lon=0;bool go=false,running=false,active=false,map=false;};
+// "S1|<request>|<encounter id>|<go>|<running>", or for a spawn a feed lists without an encounter id (a
+// "spot") "S2|<request>|<dex>|<lat>|<lon>|<go>|<running>": that species' wild Pokemon nearest the point.
+// request 0 means no spawn to check (running still says whether the sniper is on, for the tap block);
+// anything malformed or stale means off. go turns 1 once a found shiny can be caught without cooldown;
+// until then the encounter is held.
 Config configured(){
- Config c;auto tr=transport();PgrRuntimeTransportSample a{};char s[64]{};uint32_t n=0;
+ Config c;auto tr=transport();PgrRuntimeTransportSample a{};char s[128]{};uint32_t n=0;
  if(!tr||tr->sample(&a)||!a.snapshot_fresh||a.fault||tr->get_string(19,s,sizeof(s)-1,&n)||n>=sizeof(s))return c;
- s[n]=0;unsigned long long request=0,id=0;int go=0,running=0;char tail=0;
- if(std::sscanf(s,"S1|%llu|%llu|%d|%d%c",&request,&id,&go,&running,&tail)!=4||(go!=0&&go!=1)||(running!=0&&running!=1))return c;
- c.running=running==1;if(!request||!id)return c;
+ s[n]=0;unsigned long long request=0,id=0;int go=0,running=0,dex=0;double lat=0,lon=0;char tail=0;
+ if(std::sscanf(s,"S1|%llu|%llu|%d|%d%c",&request,&id,&go,&running,&tail)==4){
+  if(!id)request=0;
+ }else if(std::sscanf(s,"S2|%llu|%d|%lf|%lf|%d|%d%c",&request,&dex,&lat,&lon,&go,&running,&tail)==6){
+  if(dex<=0||dex>2000||!(lat>=-90&&lat<=90)||!(lon>=-180&&lon<=180))request=0;
+ }else return c;
+ if((go!=0&&go!=1)||(running!=0&&running!=1))return c;
+ c.running=running==1;if(!request)return c;
  int active=0,ready=0,map=0;tr->get_bool(3,&active);tr->get_bool(16,&ready);tr->get_bool(38,&map);
- c.request=request;c.id=id;c.go=go==1;c.active=active&&ready;c.map=map!=0;return c;
+ c.request=request;c.id=id;c.dex=dex;c.lat=lat;c.lon=lon;c.go=go==1;c.active=active&&ready;c.map=map!=0;return c;
 }
 
 constexpr uint64_t kFindMs=75000,kResponseMs=15000,kBerryMs=10000;
@@ -106,9 +119,14 @@ constexpr uint64_t kAfterOthersMs=10000;
 // start the countdown above.
 constexpr uint64_t kServerHoldMs=25000;
 constexpr int kMaxThrows=10;
+// A spot is the wild Pokemon of its species nearest its point, within this many metres (the feeds give
+// the spawn point to about a metre; this leaves room for rounding and nothing more).
+constexpr double kSpotRadiusM=50;
 enum Step {IDLE,FIND,ENCOUNTER,HOLD,BERRY,BERRY_WAIT,THROW_WAIT,DONE};
 struct State {
  uint64_t request=0,id=0,started=0,since=0,next=0;Step step=IDLE;
+ // A spot: no encounter id until find_target matches species and place (id stays 0 until then).
+ bool spot=false;int dex=0;double lat=0,lon=0,matched_m=0;
  Root target,promise,items;
  // Kept from the moment a shiny is found, so it can still be caught once its map Pokemon is gone.
  Root rpc,spawn,berry_reflection,catch_reflection;void *berry_method=nullptr,*catch_method=nullptr;
@@ -170,6 +188,9 @@ bool find_target(uint64_t now){
  Root list(invoke(finder,nullptr,args));if(!list)return false;
  const uintptr_t n=at<uintptr_t>(list.get(),0x18);require(n<=5000,"map Pokemon count");
  void *get_id=method(wild,"get_EncounterId",0);
+ static void *get_dex=nullptr,*get_location=nullptr;
+ if(st.spot&&!get_dex){get_dex=method(wild,"get_PokemonId",0);get_location=method(wild,"get_Location",0);}
+ void *best=nullptr;uint64_t best_id=0;double best_m=kSpotRadiusM;
  // The report's ids are the fresh ones when there are any: Java compares them across misses to notice a
  // game that stopped following teleports, and the area left behind can still be listed for a while.
  unsigned seen=0,fresh=0;std::string sample,fresh_sample;
@@ -177,12 +198,22 @@ bool find_target(uint64_t now){
  for(uintptr_t i=0;i<n;++i){
   void *p=at<void*>(list.get(),0x20+i*8);if(!p||klass(p)!=wild)continue;
   const uint64_t id=unbox<uint64_t>(invoke(get_id,p));
-  if(id==st.id){st.target=Root(p);return true;}
+  if(!st.spot&&id==st.id){st.target=Root(p);return true;}
+  if(st.spot&&id&&unbox<int32_t>(invoke(get_dex,p))==st.dex){
+   struct LatLng{double lat,lon;};const LatLng at_=unbox<LatLng>(invoke(get_location,p));
+   const double m=distance_m(st.lat,st.lon,at_.lat,at_.lon);
+   if(m<=best_m){best=p;best_id=id;best_m=m;}
+  }
   ++seen;if(seen<=6)add(sample,id);
   if(!st.have_before||now-st.started<kServerHoldMs){
    if(st.before.insert(id).second&&st.have_before&&!st.early++)st.early_ms=now-st.started;
   }
   else if(!st.before.count(id)&&++fresh<=6)add(fresh_sample,id);
+ }
+ if(best){
+  st.target=Root(best);st.id=best_id;st.matched_m=best_m;
+  event("matched",",\"id\":\""+std::to_string(best_id)+"\",\"meters\":"+std::to_string(int(best_m+0.5)));
+  return true;
  }
  st.have_before=true;
  // The countdown starts again if the fresh ones leave the map.
@@ -224,6 +255,8 @@ void read_encounter(){
  st.species=unbox<int32_t>(call(pokemon.get(),"get_PokemonId"));
  const int a=unbox<int32_t>(call(pokemon.get(),"get_IndividualAttack")),d=unbox<int32_t>(call(pokemon.get(),"get_IndividualDefense")),s=unbox<int32_t>(call(pokemon.get(),"get_IndividualStamina"));
  const std::string facts=",\"ms\":"+std::to_string(clock_ms()-st.started)+",\"refreshes\":"+std::to_string(st.refreshes)+",\"seen\":"+std::to_string(st.seen)+",\"fresh\":"+std::to_string(st.fresh)+",\"fresh_ms\":"+std::to_string(st.first_fresh)+",\"early\":"+std::to_string(st.early)+",\"early_ms\":"+std::to_string(st.early_ms)+",\"shiny\":"+std::string(shiny?"true":"false")+",\"species\":"+std::to_string(st.species)+",\"iv\":["+std::to_string(a)+","+std::to_string(d)+","+std::to_string(s)+"]";
+ // A spot was matched by species and place only: make sure it really is the 100% IV one.
+ if(st.spot&&(a!=15||d!=15||s!=15)){finish("not-hundo","Not 100% IV: a different "+std::to_string(st.species)+" here",facts+",\"meters\":"+std::to_string(int(st.matched_m+0.5)));return;}
  if(!shiny){finish("checked","Not shiny",facts);return;}
  // Optional: a game version without the flag just keeps the ordinary balls.
  try{st.mighty=field<uint8_t>(display.get(),"IsStrongPokemon","System.Boolean")!=0;}catch(const Failure&){st.mighty=false;}
@@ -406,7 +439,10 @@ void pgr_shundo_tick(uint64_t tid,const PgrSharedMetadataOutput *metadata){
   require(fn<void*(*)()>(boot.runtime.thread_current)()!=nullptr,"owner thread not attached");
   if(c.running&&!hooks_tried)install_block();
   if(!c.request){if(st.step!=IDLE){reset();st.request=0;}return;}
-  if(c.request!=st.request){reset();st.request=c.request;st.id=c.id;st.step=FIND;st.started=now;st.next=0;event("looking");}
+  if(c.request!=st.request){
+   reset();st.request=c.request;st.id=c.id;st.spot=c.id==0;st.dex=c.dex;st.lat=c.lat;st.lon=c.lon;st.matched_m=0;
+   st.step=FIND;st.started=now;st.next=0;event("looking");
+  }
   if(st.step==DONE||st.step==IDLE)return;
   // A throw already sent is followed to its answer; nothing new starts off the map or in the background.
   if(!c.active&&st.step!=ENCOUNTER&&st.step!=BERRY_WAIT&&st.step!=THROW_WAIT)return;

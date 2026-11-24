@@ -49,12 +49,19 @@ public final class ShundoSniper {
     // so no sign-in is needed. About 130 KB gzipped; ShundoPacing decides how often it is read.
     static final String FEED_URL = "https://feed.faustusfoundry.com/pgrazor/hundos.json";
 
-    /** One 100% IV spawn from a feed; coordinates are NaN until PoGoCoordinates reveals them. */
+    /**
+     * One 100% IV spawn from a feed; coordinates are NaN until PoGoCoordinates reveals them. A spot is a
+     * spawn listed without an encounter id: its encounter field holds a spot key ("s" + 16 hex digits) and
+     * native finds it by species and place, then checks its IVs.
+     */
     static final class Target {
-        final String key, encounter, name, source, revealCode; final int dex; final long expiresAt; double lat, lon;
+        final String key, encounter, name, source, revealCode; final int dex; final long expiresAt; final boolean spot; double lat, lon;
         Target(String key, String encounter, int dex, String name, String source, double lat, double lon, long expiresAt, String revealCode) {
+            this(key, encounter, dex, name, source, lat, lon, expiresAt, revealCode, false);
+        }
+        Target(String key, String encounter, int dex, String name, String source, double lat, double lon, long expiresAt, String revealCode, boolean spot) {
             this.key = key; this.encounter = encounter; this.dex = dex; this.name = name; this.source = source;
-            this.lat = lat; this.lon = lon; this.expiresAt = expiresAt; this.revealCode = revealCode;
+            this.lat = lat; this.lon = lon; this.expiresAt = expiresAt; this.revealCode = revealCode; this.spot = spot;
         }
         boolean located() { return CooldownState.valid(lat, lon); }
     }
@@ -69,10 +76,14 @@ public final class ShundoSniper {
     // Where the player was when this run found the map, and when its first teleport may happen.
     private static double startLat = Double.NaN, startLon = Double.NaN;
     private static long startAt;
+    // The PGRazor feed is the server's file plus moonani's list, which each phone reads itself (moonani
+    // blocks server addresses); both are counted and shown as one feed.
     private static volatile String feedNote = "";
+    private static volatile int serverSeen, moonaniSeen;
+    private static volatile boolean moonaniDown;
     private static volatile String readinessWait = "";
     // The spawn being checked: the request number and encounter id native reads, and when it was sent.
-    private static long request, targetSince, nextPick, nextLive, nextPogo, lastFeed;
+    private static long request, targetSince, nextPick, nextLive, nextPogo, nextMoonani, lastFeed;
     private static boolean feedFailed;
     private static final ShundoPacing.EmptyStops emptyStops = new ShundoPacing.EmptyStops();
     private static Target target;
@@ -88,6 +99,12 @@ public final class ShundoSniper {
     // kept until shortly after its spawn despawns (it cannot appear again) and is saved per account, so a
     // game restart does not check live spawns twice.
     private static final Map<String, Long> attempted = new LinkedHashMap<>();
+    // Where spawns already picked were (dex, lat, lon, despawn), so a spot that a feed with ids (or another
+    // spot feed) already sent the sniper to is not checked twice. In memory only; ids cover restarts.
+    private static final ArrayDeque<double[]> triedPlaces = new ArrayDeque<>();
+    static final int MAX_TRIED_PLACES = 2000;
+    static final double SAME_SPAWN_KM = 0.05;
+    static final long SAME_SPAWN_MS = 180_000;
     static final long TRIED_GRACE_MS = 5 * 60_000, TRIED_UNKNOWN_MS = 60 * 60_000;
     static final String TRIED_FILE = "shundo-tried.txt";
     private static boolean triedLoaded;
@@ -162,7 +179,7 @@ public final class ShundoSniper {
         synchronized (LOCK) {
             species.clear(); species.addAll(parseSpecies(value)); count = species.size();
             if (count > 0) candidates.values().removeIf(t -> !species.contains(t.dex));
-            lastFeed = nextLive = nextPogo = 0;
+            lastFeed = nextLive = nextPogo = nextMoonani = 0;
             if (enabled && target == null) status = looking();
         }
         Control.saveSettings();
@@ -197,11 +214,17 @@ public final class ShundoSniper {
     }
 
     /**
-     * "S1|<request>|<encounter id>|<go>|<running>" while a spawn is being checked, else "S1|0|0|0|<running>"
-     * (transport slot 19). running blocks the player's own taps on map Pokémon, PokéStops and gyms.
+     * "S1|<request>|<encounter id>|<go>|<running>" while a spawn is being checked, or for a spot
+     * "S2|<request>|<dex>|<lat>|<lon>|<go>|<running>" (native finds that species nearest the point), else
+     * "S1|0|0|0|<running>" (transport slot 19). running blocks the player's own taps on map Pokémon,
+     * PokéStops and gyms.
      */
     public static String config() {
-        synchronized (LOCK) { return enabled && target != null ? "S1|" + request + "|" + target.encounter + "|" + (go ? 1 : 0) + "|1" : "S1|0|0|0|" + (enabled ? 1 : 0); }
+        synchronized (LOCK) {
+            if (!enabled || target == null) return "S1|0|0|0|" + (enabled ? 1 : 0);
+            if (target.spot) return String.format(Locale.US, "S2|%d|%d|%.7f|%.7f|%d|1", request, target.dex, target.lat, target.lon, go ? 1 : 0);
+            return "S1|" + request + "|" + target.encounter + "|" + (go ? 1 : 0) + "|1";
+        }
     }
 
     static void setEnabled(Context context, boolean on) {
@@ -209,7 +232,7 @@ public final class ShundoSniper {
         synchronized (LOCK) {
             if (on == enabled) return;
             enabled = on; dark = false; readinessWait = "";
-            target = null; teleporting = false; candidates.clear(); nextPick = nextLive = nextPogo = lastFeed = 0; feedFailed = false;
+            target = null; teleporting = false; candidates.clear(); nextPick = nextLive = nextPogo = nextMoonani = lastFeed = 0; feedFailed = false;
             startLat = startLon = Double.NaN; startAt = 0;
             status = on ? looking() : "";
             if (on) overlayShown = true;
@@ -245,6 +268,13 @@ public final class ShundoSniper {
                 String phase = o.optString("phase"), name = target.name, message = o.optString("message");
                 switch (phase) {
                     case "throttle": case "refresh-failed": case "blocked": case "block-unavailable": return;  // diagnostics, not a result
+                    case "matched": {
+                        // A spot's real encounter id: never check it again from a feed that has ids.
+                        String id = encounterId("x:" + o.optString("id"));
+                        if (id != null) { attempted.put(id, target.expiresAt > 0 ? target.expiresAt : System.currentTimeMillis() + TRIED_UNKNOWN_MS); candidates.remove(id); saveTried(); }
+                        return;
+                    }
+                    case "not-hundo": missed++; done(name + " " + ivs(o) + " · not the 100% IV one"); return;
                     case "looking": targetSince = System.currentTimeMillis(); status = "Checking " + name + " (" + target.source + ")"; return;
                     case "shiny": shinies++; holding = true; go = false; targetSince = System.currentTimeMillis(); status = "Shiny " + name + "! Waiting for cooldown"; return;
                     case "checked": checked++; lastMissingSeen = new HashSet<>(); lastMissingLat = lastMissingLon = Double.NaN; emptyStops.reset(); done(name + " " + ivs(o) + " · not shiny"); return;
@@ -358,8 +388,9 @@ public final class ShundoSniper {
         synchronized (LOCK) { liveClient = live; pogoClient = pogo; wantLive = useLive; wantPogo = usePogo; wantFeed = useFeed; queued = candidates.size(); }
         if (wantFeed && now - lastFeed >= ShundoPacing.feedDelay(queued, feedFailed)) {
             lastFeed = now;
-            try { feedNote = "PGRazor feed: " + readFeed(now) + " seen"; feedFailed = false; }
-            catch (Exception e) { feedNote = "PGRazor feed: unavailable"; feedFailed = true; }
+            try { serverSeen = readFeed(now); feedFailed = false; }
+            catch (Exception e) { serverSeen = -1; feedFailed = true; }
+            feedNote = feedLine();
         }
         if (wantLive && liveClient != null && now >= nextLive) {
             try {
@@ -377,6 +408,21 @@ public final class ShundoSniper {
                 liveNote = "LivePokeMap: " + (e.getMessage() == null ? "unavailable" : e.getMessage());
                 nextLive = now + Math.max(30_000, e.retryAfterMs);
             } catch (Exception e) { liveNote = "LivePokeMap: unavailable"; nextLive = now + RETRY_MS; }
+        }
+        if (wantFeed && now >= nextMoonani) {
+            nextMoonani = now + MoonaniFeed.POLL_MS;
+            try {
+                int added = 0;
+                for (MoonaniFeed.Spot s : MoonaniFeed.fetch(now)) added += addSpot(s.key, s.dex, "PGRazor feed", s.lat, s.lon, s.expiresAt);
+                moonaniSeen = added; moonaniDown = false;
+            } catch (MoonaniFeed.Blocked e) {
+                moonaniDown = true; nextMoonani = now + e.retryMs;
+                Control.event("shundo-sniper", "moonani " + e.getMessage());
+            } catch (Exception e) {
+                moonaniDown = true; nextMoonani = now + RETRY_MS;
+                Control.event("shundo-sniper", "moonani unavailable: " + e);
+            }
+            feedNote = feedLine();
         }
         if (wantPogo && pogoClient != null && now >= nextPogo) {
             nextPogo = now + POGO_MS;
@@ -407,6 +453,12 @@ public final class ShundoSniper {
         String name = names == null || dex <= 0 ? "" : names.optString(Integer.toString(dex), "");
         return name.isEmpty() ? fallback : name;
     }
+    // One status line for the PGRazor feed, the server file and moonani together.
+    private static String feedLine() {
+        int server = Math.max(0, serverSeen), seen = server + (moonaniDown ? 0 : moonaniSeen);
+        if (serverSeen < 0 && moonaniDown) return "PGRazor feed: unavailable";
+        return "PGRazor feed: " + seen + " seen" + (serverSeen < 0 || moonaniDown ? " (part unavailable)" : "");
+    }
     /** Reads the PGRazor feed and adds its rows; returns how many were taken. Worker thread only. */
     private static int readFeed(long now) throws Exception {
         java.net.HttpURLConnection http = (java.net.HttpURLConnection) new java.net.URL(FEED_URL).openConnection();
@@ -432,6 +484,13 @@ public final class ShundoSniper {
                 int dex = r.optInt(1, 0);
                 added += add("pokemon:" + r.optString(0, ""), dex, speciesName(dex, dex > 0 ? "#" + dex : "Pokémon"), "PGRazor feed",
                     r.optDouble(3, Double.NaN), r.optDouble(4, Double.NaN), despawn, null);
+            }
+            // Spawns without an encounter id (the city maps), found by species and place.
+            JSONArray spots = root.optJSONArray("spots");
+            for (int i = 0; spots != null && i < spots.length(); i++) {
+                JSONArray r = spots.optJSONArray(i);
+                if (r == null || r.length() < 6) continue;
+                added += addSpot(r.optString(0, ""), r.optInt(1, 0), "PGRazor feed", r.optDouble(3, Double.NaN), r.optDouble(4, Double.NaN), r.optLong(5, 0));
             }
             return added;
         } finally { http.disconnect(); }
@@ -481,9 +540,43 @@ public final class ShundoSniper {
             Target known = candidates.get(encounter);
             if (known != null) { if (!known.located() && CooldownState.valid(lat, lon)) { known.lat = lat; known.lon = lon; } return 1; }
             if (candidates.size() >= MAX_CANDIDATES) return 0;
-            candidates.put(encounter, new Target(id, encounter, dex, name == null || name.isEmpty() ? "Pokémon" : name, source, lat, lon, expiresAt, revealCode));
+            Target added = new Target(id, encounter, dex, name == null || name.isEmpty() ? "Pokémon" : name, source, lat, lon, expiresAt, revealCode);
+            if (added.located()) {
+                if (triedHere(added)) return 0;  // checked already as a spot
+                candidates.values().removeIf(t -> t.spot && sameSpawn(t, added));  // the id is the better lead
+            }
+            candidates.put(encounter, added);
             return 1;
         }
+    }
+    /** A spawn a feed lists without an encounter id; skipped when a listed or tried spawn is the same one. */
+    private static int addSpot(String key, int dex, String source, double lat, double lon, long expiresAt) {
+        if (!FeedSpots.isKey(key) || dex <= 0 || !CooldownState.valid(lat, lon) || expiresAt <= System.currentTimeMillis()) return 0;
+        String name = speciesName(dex, "#" + dex);
+        synchronized (LOCK) {
+            if (attempted.containsKey(key) || !wanted(dex)) return 0;
+            if (candidates.containsKey(key)) return 1;
+            if (candidates.size() >= MAX_CANDIDATES) return 0;
+            Target spot = new Target(key, key, dex, name, source, lat, lon, expiresAt, null, true);
+            if (triedHere(spot)) return 0;
+            for (Target t : candidates.values()) if (t.located() && sameSpawn(t, spot)) return 0;
+            candidates.put(key, spot);
+            return 1;
+        }
+    }
+    /** Two leads for one spawn: same species, within 50 m, despawning within three minutes of each other. */
+    static boolean sameSpawn(Target a, Target b) {
+        return a.dex == b.dex && (a.expiresAt <= 0 || b.expiresAt <= 0 || Math.abs(a.expiresAt - b.expiresAt) <= SAME_SPAWN_MS)
+            && CooldownState.distance(a.lat, a.lon, b.lat, b.lon) <= SAME_SPAWN_KM;
+    }
+    // Under LOCK: whether the sniper already went to this spawn (by place, for leads without a shared id).
+    private static boolean triedHere(Target t) {
+        long now = System.currentTimeMillis();
+        triedPlaces.removeIf(p -> p[3] + TRIED_GRACE_MS < now);
+        for (double[] p : triedPlaces)
+            if ((int) p[0] == t.dex && CooldownState.distance(p[1], p[2], t.lat, t.lon) <= SAME_SPAWN_KM
+                && (t.expiresAt <= 0 || Math.abs((long) p[3] - t.expiresAt) <= SAME_SPAWN_MS)) return true;
+        return false;
     }
 
     // The nearest unchecked spawn with time left to reach and check it.
@@ -502,6 +595,8 @@ public final class ShundoSniper {
         Target chosen = best; double km = bestKm;
         synchronized (LOCK) {
             attempted.put(chosen.encounter, chosen.expiresAt > 0 ? chosen.expiresAt : now + TRIED_UNKNOWN_MS);
+            triedPlaces.addLast(new double[]{chosen.dex, chosen.lat, chosen.lon, chosen.expiresAt > 0 ? chosen.expiresAt : now + TRIED_UNKNOWN_MS});
+            while (triedPlaces.size() > MAX_TRIED_PLACES) triedPlaces.removeFirst();
             pruneTried(now); saveTried();
             candidates.remove(chosen.encounter); teleporting = true;
         }
@@ -509,7 +604,7 @@ public final class ShundoSniper {
             if (!enabled) { synchronized (LOCK) { teleporting = false; } return; }
             // The account/activity can change after the feed worker queues this jump.
             if (!checkReadiness()) {
-                synchronized (LOCK) { teleporting = false; attempted.remove(chosen.encounter); candidates.put(chosen.encounter, chosen); saveTried(); }
+                synchronized (LOCK) { teleporting = false; attempted.remove(chosen.encounter); triedPlaces.pollLast(); candidates.put(chosen.encounter, chosen); saveTried(); }
                 return;
             }
             Control.teleport(chosen.lat, chosen.lon);  // outside LOCK: Control may call back for config()
@@ -638,7 +733,7 @@ public final class ShundoSniper {
             setEnabled(activity, checked); state.setText(statusText());
         });
         liveBox.setOnCheckedChangeListener((v, checked) -> { synchronized (LOCK) { useLive = checked; nextLive = 0; } Control.saveSettings(); });
-        feedBox.setOnCheckedChangeListener((v, checked) -> { synchronized (LOCK) { useFeed = checked; lastFeed = 0; } Control.saveSettings(); });
+        feedBox.setOnCheckedChangeListener((v, checked) -> { synchronized (LOCK) { useFeed = checked; lastFeed = nextMoonani = 0; } Control.saveSettings(); });
         pogoBox.setOnCheckedChangeListener((v, checked) -> { synchronized (LOCK) { usePogo = checked; nextPogo = 0; } Control.saveSettings(); });
 
         ScrollView scroll = new ScrollView(ui); scroll.addView(body);

@@ -6,6 +6,12 @@ Publishes the existing PGRazor `v:1` JSON format. Switching providers or map cov
 
 Install `hundo_feed.py` at `/opt/hundo-feed/hundo_feed.py`. Configure `/etc/hundo-feed.env` using the example, preserving `HUNDO_OUT`. Use `HUNDO_PROVIDER=pogocoordinates` and set `POGO_TOKEN` to the bearer value without the prefix. Keep the env mode 600. Restart with `sudo systemctl restart hundo-feed`; inspect `sudo journalctl -u hundo-feed -n 30 --no-pager`. The script itself does not load the env file; systemd does.
 
+## Merged sources
+
+`HUNDO_SOURCES` (for example `pogocoordinates,citymaps`) runs several sources in one process. Each has its own interval and back-off, so a long provider cooldown (PoGoCoordinates once returned 45,360 s) never stalls the others. After every round the collector publishes the merged list: `hundos` holds one row per encounter ID (earlier sources win a duplicate), and `spots` holds spawns from sources without encounter IDs. A spot is dropped when a listed hundo, or an earlier spot, is the same spawn: same species, within 50 m, despawning within three minutes. `sources` reports each source's active and unique counts and status. PoGoCoordinates spends no reveal on an encounter another source already lists with exact coordinates.
+
+`citymaps` reads the five city PokeMaps' `query2.php` 100% IV lists (one request per site per `CITYMAP_INTERVAL`, default 60 s). They give exact coordinates but no encounter ID. Spot rows use the hundo columns with a key in place of the ID: `s` plus 16 hex digits of SHA-1 over `dex:lat:lon:despawn-minute` (coordinates to five decimals). PGRazor builds with spot support find the spawn by species within 50 m of the point and check that it is 15/15/15; older builds ignore `spots`. moonani.com's list is read by the app itself, because its Cloudflare blocks server addresses.
+
 ## Production sniper feed
 
 Use exact mode for the sniper. The approximate-marker rollout caused repeated misses on the Pixel: a sampled target had over 26 minutes left but its marker was 329.5 metres from its revealed location. Production was restored to exact mode, one new reveal per 300-second poll. This conservative baseline yields a small feed. VIP account access has since been confirmed; its numeric reveal quota is not documented by the supplied membership table, so 1,500 exact-coordinate targets remain unverified.

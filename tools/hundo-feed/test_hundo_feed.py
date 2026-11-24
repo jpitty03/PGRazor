@@ -271,6 +271,117 @@ class FeedTests(unittest.TestCase):
             self.assertEqual(reveals,['/reveal/a','/reveal/b'])
             self.assertIn(unittest.mock.call(2),sleep.call_args_list)
 
+    def test_unsigned_ids(self):
+        self.assertEqual(feed.unsigned_id('-1'), '18446744073709551615')
+        self.assertEqual(feed.unsigned_id(12), '12')
+        self.assertEqual(feed.unsigned_id('0x10'), '16')
+        for value in ('0', '', 'abc', True, 1.5, None, '18446744073709551616', '-9223372036854775809'):
+            with self.subTest(value=value):
+                self.assertIsNone(feed.unsigned_id(value))
+
+    def test_merge_dedups_by_priority_and_drops_unusable_rows(self):
+        first = feed.Scheduled('a', None, 60)
+        second = feed.Scheduled('b', None, 60)
+        first.rows = [['1', 215, 0, 41, -71, NOW + 600_000, 1, 1], ['2', 215, 0, None, None, NOW + 600_000, 1, 1]]
+        second.rows = [['1', 215, 0, 42, -72, NOW + 600_000, 1, 1], ['3', 1, 0, 10, 10, NOW + 59_000, 1, 1],
+                       ['4', 1, 0, 10, 10, NOW + 600_000, 1, 1], ['5', 1, 0, 91, 10, NOW + 600_000, 1, 1]]
+        rows, spots, counts = feed.merge([first, second], NOW)
+        self.assertEqual(spots, [])
+        self.assertEqual([r[0] for r in rows], ['1', '4'])
+        self.assertEqual(rows[0][3:5], [41, -71])
+        self.assertEqual(counts['a'], {'active': 1, 'unique': 1, 'status': 'starting'})
+        self.assertEqual(counts['b'], {'active': 2, 'unique': 1, 'status': 'starting'})
+
+    @patch.object(feed.time, 'time', return_value=NOW / 1000)
+    @patch.object(feed.time, 'sleep')
+    def test_known_rows_skip_reveals(self, sleep, clock):
+        with tempfile.TemporaryDirectory() as directory:
+            collector = feed.PogoLookup('test-token', str(Path(directory) / 'out'), 10)
+            reveals = []
+            def request(base, path, body=None, token=None):
+                if path == '/map/lookup':
+                    return {'mode': 'pokemon', 'results': [spawn('1', reveal_code='a'), spawn('2', reveal_code='b')]}
+                reveals.append(path)
+                return {'lat': 41, 'lng': -71}
+            with patch.object(feed, 'request_json', side_effect=request):
+                rows, error = collector.poll({'1': ['1', 215, 0, 40, -70, NOW + 600_000, 0, 0]})
+            self.assertEqual(reveals, ['/reveal/b'])
+            self.assertEqual([r[0] for r in rows], ['2'])
+
+    def test_one_source_cooldown_does_not_stall_others(self):
+        class Limited:
+            def poll(self, known):
+                return [['1', 215, 0, 41, -71, NOW + 3_600_000, 0, 0]], feed.FeedError('limited', 429, 45_360)
+        class Healthy:
+            polls = 0
+            def poll(self, known):
+                self.polls += 1
+                return [['1', 215, 0, 41, -71, NOW + 3_600_000, 0, 0], ['2', 1, 0, 1, 1, NOW + 3_600_000, 0, 0]], None
+        clock = [NOW / 1000]
+        healthy = Healthy()
+        sources = [feed.Scheduled('limited', Limited(), 150), feed.Scheduled('free', healthy, 60)]
+        def sleep(seconds):
+            if clock[0] - NOW / 1000 > 600:
+                raise InterruptedError
+            clock[0] += seconds
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory) / 'out.json'
+            with patch.object(feed.time, 'time', side_effect=lambda: clock[0]), \
+                    patch.object(feed.time, 'sleep', side_effect=sleep), self.assertRaises(InterruptedError):
+                feed.run_sources(str(out), sources, once=False)
+            payload = json.loads(out.read_text())
+        self.assertEqual(sources[0].next_at, NOW / 1000 + 45_360)
+        self.assertGreaterEqual(healthy.polls, 10)
+        self.assertEqual(payload['source'], 'merged')
+        self.assertEqual([r[0] for r in payload['hundos']], ['1', '2'])
+        self.assertEqual(payload['sources']['limited']['status'], 'HTTP 429')
+        self.assertEqual(payload['sources']['free']['unique'], 1)
+
+    def test_city_map_rows(self):
+        raw = {'pokemons': [
+            dict(pokemon_id=517, lat=40.62183846, lng=-74.11284705, despawn=(NOW + 900_000) // 1000, attack=15,
+                 defence=15, stamina=15, cp=500, level=20, form=0),
+            dict(pokemon_id=517, lat=40.6, lng=-74.1, despawn=(NOW + 900_000) // 1000, attack=15, defence=14,
+                 stamina=15, cp=500, level=20, form=0),
+            dict(pokemon_id=1, lat=40.6, lng=-74.1, despawn=(NOW + 30_000) // 1000, attack=15, defence=15, stamina=15),
+            dict(pokemon_id=1, lat='x', lng=-74.1, despawn=(NOW + 900_000) // 1000, attack=15, defence=15, stamina=15)]}
+        rows = feed.city_rows(raw, NOW)
+        self.assertEqual(len(rows), 1)
+        key, dex, form, lat, lon, despawn, cp, level = rows[0]
+        self.assertRegex(key, r'^s[0-9a-f]{16}$')
+        self.assertEqual((dex, form, lat, lon, despawn, cp, level), (517, 0, 40.621838, -74.112847, NOW + 900_000, 500, 20.0))
+        self.assertEqual(key, feed.city_rows(raw, NOW)[0][0])  # stable across polls
+        with self.assertRaises(feed.FeedError):
+            feed.city_rows({'detail': 'nope'}, NOW)
+
+    def test_spots_dedup_against_hundos_and_each_other(self):
+        class Spots:
+            spots = True
+        hundos, city_a, city_b = feed.Scheduled('pogo', None, 60), feed.Scheduled('a', Spots(), 60), feed.Scheduled('b', Spots(), 60)
+        hundos.rows = [['9', 517, 0, 40.0, -74.0, NOW + 900_000, 0, 0]]
+        near = feed.spot_key(517, 40.0002, -74.0, NOW + 900_000)       # ~22 m from the hundo
+        other_species = feed.spot_key(1, 40.0002, -74.0, NOW + 900_000)
+        far = feed.spot_key(517, 40.01, -74.0, NOW + 900_000)          # ~1.1 km away
+        city_a.rows = [[near, 517, 0, 40.0002, -74.0, NOW + 900_000, 0, 0],
+                       [other_species, 1, 0, 40.0002, -74.0, NOW + 900_000, 0, 0],
+                       [far, 517, 0, 40.01, -74.0, NOW + 900_000, 0, 0],
+                       ['bogus', 1, 0, 40, -74, NOW + 900_000, 0, 0]]
+        city_b.rows = [[feed.spot_key(517, 40.0101, -74.0, NOW + 900_000), 517, 0, 40.0101, -74.0, NOW + 900_000, 0, 0]]
+        rows, spots, counts = feed.merge([hundos, city_a, city_b], NOW)
+        self.assertEqual([r[0] for r in rows], ['9'])
+        self.assertEqual([s[0] for s in spots], [other_species, far])
+        self.assertEqual(counts['a'], {'active': 3, 'unique': 2, 'status': 'starting'})
+        self.assertEqual(counts['b'], {'active': 1, 'unique': 0, 'status': 'starting'})
+        self.assertFalse(feed.valid_row(spots[0], NOW))  # a spot never passes as an encounter id
+
+    @patch.object(feed.time, 'time', return_value=NOW / 1000)
+    def test_merged_file_restores_exact_cache(self, clock):
+        with tempfile.TemporaryDirectory() as directory:
+            out = str(Path(directory) / 'out')
+            feed.write_atomic(out, {'source': 'merged', 'bounds': list(feed.WORLD),
+                                   'hundos': [['7', 215, 0, 41, -71, NOW + 600_000, 0, 0]]})
+            self.assertEqual(set(feed.PogoLookup('test-token', out).cache), {'7'})
+
 
 if __name__ == '__main__':
     unittest.main()

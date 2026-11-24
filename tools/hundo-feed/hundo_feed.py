@@ -5,6 +5,8 @@ static JSON file, so the app can read it without each user signing in.
 Runs on a server (systemd: hundo-feed.service). Standard library only. Configuration comes from the
 environment (see hundo-feed.env.example):
 
+  HUNDO_SOURCES               several sources merged, e.g. pogocoordinates,citymaps (overrides HUNDO_PROVIDER)
+  CITYMAP_HOSTS, CITYMAP_INTERVAL  the city PokeMaps citymaps reads (default all five) and seconds between reads
   LPM_USERNAME, LPM_PASSWORD   the LivePokeMap account
   HUNDO_PROVIDER              livepokemap (default) or pogocoordinates
   POGO_TOKEN                  PoGoCoordinates bearer token (no Bearer prefix)
@@ -180,7 +182,7 @@ class PogoLookup:
         try:
             with open(out, encoding="utf-8") as source:
                 previous = json.load(source)
-            if previous.get("source") == "pogocoordinates" and previous.get("bounds") == list(bounds):
+            if previous.get("source") in ("pogocoordinates", "merged") and previous.get("bounds") == list(bounds):
                 now_ms = int(time.time() * 1000)
                 for row in previous.get("hundos", []):
                     if row and row[0] in previous.get("approximate_encounters", []):
@@ -192,7 +194,9 @@ class PogoLookup:
         except (OSError, ValueError, TypeError, AttributeError):
             self.cache = {}
 
-    def poll(self):
+    def poll(self, known=None):
+        """known: encounter id -> row with exact coordinates from other sources; never spend a reveal on those."""
+        known = known or {}
         results = []
         tiles = lookup_tiles(self.bounds)
         for index, tile in enumerate(tiles):
@@ -213,6 +217,8 @@ class PogoLookup:
             if row[0] in self.cache:
                 row[3:5] = self.cache[row[0]][3:5]
                 self.cache[row[0]] = row
+            elif row[0] in known:
+                continue  # Another source already published its exact location.
             elif isinstance(item.get("reveal_code"), str) and item["reveal_code"]:
                 pending.append((row, item["reveal_code"]))
         # Prefer spawns with enough life remaining to be useful after the reveal queue.
@@ -502,6 +508,309 @@ def save_token(path, token):
     os.chmod(path, 0o600)
 
 
+def valid_row(row, now_ms):
+    """A publishable compact row: unsigned encounter id, species, exact coordinates, at least a minute left."""
+    try:
+        return (isinstance(row, list) and len(row) == 8 and isinstance(row[0], str) and row[0].isdigit()
+                and 0 < int(row[0]) < (1 << 64) and int(row[1]) > 0
+                and math.isfinite(row[3]) and math.isfinite(row[4])
+                and -90 <= row[3] <= 90 and -180 <= row[4] <= 180 and row[5] >= now_ms + 60_000)
+    except (TypeError, ValueError):
+        return False
+
+
+def unsigned_id(value):
+    """An encounter id (signed/unsigned decimal or 0x hex) as an unsigned decimal string, else None."""
+    if isinstance(value, bool) or not isinstance(value, (str, int)):
+        return None
+    text = str(value).strip()
+    try:
+        number = int(text, 16) if text.lower().startswith("0x") else int(text) if re.fullmatch(r"-?[0-9]{1,20}", text) else None
+    except ValueError:
+        return None
+    if number is None or number == 0 or not -(1 << 63) <= number < (1 << 64):
+        return None
+    return str(number % (1 << 64))
+
+
+SPOT_KEY = re.compile(r"s[0-9a-f]{16}")
+SAME_SPAWN_M = 50.0  # a spot this close to a listed hundo of the same species is that hundo
+
+
+def valid_spot(row, now_ms):
+    """A spawn without an encounter id: same columns as a hundo, keyed by spot_key()."""
+    return (isinstance(row, list) and len(row) == 8 and isinstance(row[0], str) and SPOT_KEY.fullmatch(row[0])
+            is not None and valid_row([str(1)] + row[1:], now_ms))
+
+
+def spot_key(dex, lat, lon, despawn_ms):
+    """A stable key for an id-less spawn: species, spawn point (about 1 m) and despawn minute."""
+    import hashlib
+    text = "%d:%.5f:%.5f:%d" % (dex, lat, lon, despawn_ms // 60_000)
+    return "s" + hashlib.sha1(text.encode("ascii")).hexdigest()[:16]
+
+
+def meters(lat1, lon1, lat2, lon2):
+    a, b = math.radians(lat1), math.radians(lat2)
+    h = math.sin((b - a) / 2) ** 2 + math.cos(a) * math.cos(b) * math.sin(math.radians(lon2 - lon1) / 2) ** 2
+    return 12_742_000 * math.asin(min(1.0, math.sqrt(h)))
+
+
+def same_spawn(row, other):
+    """Two rows for one spawn: same species, within SAME_SPAWN_M, despawning within three minutes."""
+    return (int(row[1]) == int(other[1]) and abs(row[5] - other[5]) <= 180_000
+            and meters(row[3], row[4], other[3], other[4]) <= SAME_SPAWN_M)
+
+
+def merge(sources, now_ms):
+    """One row per encounter id, and id-less spots that no listed hundo (or earlier spot) already covers.
+    Earlier sources win a duplicate, so list the most trusted first."""
+    rows, spots, counts = {}, [], {}
+    for source in sources:
+        if getattr(source.collector, "spots", False):
+            continue
+        unique = 0
+        for row in source.rows:
+            if valid_row(row, now_ms) and row[0] not in rows:
+                rows[row[0]] = row
+                unique += 1
+        counts[source.name] = {"active": sum(1 for row in source.rows if valid_row(row, now_ms)),
+                               "unique": unique, "status": source.status}
+    # Bucket hundos by rounded position so each spot compares against nearby ones only.
+    near = {}
+    for row in rows.values():
+        near.setdefault((round(row[3], 2), round(row[4], 2)), []).append(row)
+    for source in sources:
+        if not getattr(source.collector, "spots", False):
+            continue
+        active = [row for row in source.rows if valid_spot(row, now_ms)]
+        unique = 0
+        for row in active:
+            cell = (round(row[3], 2), round(row[4], 2))
+            nearby = [r for dy in (-0.01, 0, 0.01) for dx in (-0.01, 0, 0.01)
+                      for r in near.get((round(cell[0] + dy, 2), round(cell[1] + dx, 2)), [])]
+            if any(same_spawn(row, other) for other in nearby):
+                continue
+            spots.append(row)
+            near.setdefault(cell, []).append(row)
+            unique += 1
+        counts[source.name] = {"active": len(active), "unique": unique, "status": source.status}
+    return list(rows.values()), spots, counts
+
+
+CITY_MAPS = ("nycpokemap.com", "sgpokemap.com", "londonpogomap.com", "sydneypogomap.com", "vanpokemap.com")
+
+
+def city_rows(response, now_ms):
+    """The 15/15/15 Pokemon of a city map query2.php answer as spot rows (these maps send no encounter id)."""
+    if not isinstance(response, dict) or not isinstance(response.get("pokemons"), list):
+        raise FeedError("unexpected city map response")
+    rows = {}
+    for o in response["pokemons"]:
+        try:
+            if not isinstance(o, dict) or (o.get("attack"), o.get("defence"), o.get("stamina")) != (15, 15, 15):
+                continue
+            dex, form = int(o["pokemon_id"]), max(0, int(o.get("form") or 0))
+            lat, lon = round(float(o["lat"]), 6), round(float(o["lng"]), 6)
+            despawn = int(o["despawn"]) * 1000
+            cp, level = max(0, int(o.get("cp") or 0)), float(o.get("level") or 0)
+            if dex <= 0 or not math.isfinite(level):
+                continue
+            row = [spot_key(dex, lat, lon, despawn), dex, form, lat, lon, despawn, cp, level]
+            if valid_spot(row, now_ms):
+                rows[row[0]] = row
+        except (KeyError, TypeError, ValueError, OverflowError):
+            continue
+    return list(rows.values())
+
+
+class CityMapSource:
+    """One city PokeMap site's 100% IV list. Exact coordinates, no encounter ids: published as spots."""
+    spots = True
+
+    def __init__(self, host):
+        self.host = host
+        self.mons = ",".join(str(n) for n in range(1, 1026))
+
+    def poll(self, known=None):
+        query = urllib.parse.urlencode({"mons": self.mons, "minIV": 100, "time": int(time.time() * 1000), "since": 0})
+        request = urllib.request.Request("https://%s/query2.php?%s" % (self.host, query))
+        request.add_header("Accept", "application/json")
+        request.add_header("User-Agent", USER_AGENT)
+        request.add_header("Referer", "https://%s/" % self.host)
+        request.add_header("X-Requested-With", "XMLHttpRequest")
+        try:
+            with urllib.request.urlopen(request, timeout=TIMEOUT_S) as response:
+                body = json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as error:
+            retry = error.headers.get("Retry-After") if error.headers else None
+            raise FeedError("HTTP %d from %s" % (error.code, self.host), error.code,
+                            int(retry) if retry and retry.isdigit() else 0)
+        except (urllib.error.URLError, TimeoutError, OSError) as error:
+            raise FeedError("network error on %s (%s)" % (self.host, type(error).__name__))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            raise FeedError("non-JSON reply from %s" % self.host)
+        return city_rows(body, int(time.time() * 1000)), None
+
+
+class Scheduled:
+    """One source with its own pace and back-off, so a provider's cooldown never stalls the others.
+    rows keeps the source's last good result; merge() drops rows as they expire."""
+    def __init__(self, name, collector, interval):
+        self.name, self.collector, self.interval = name, collector, interval
+        self.rows, self.next_at, self.failures, self.status = [], 0.0, 0, "starting"
+
+    def run(self, known):
+        started = time.time()
+        try:
+            rows, error = self.collector.poll(known)
+        except FeedError as exc:
+            rows, error = None, exc
+        if rows is not None:
+            self.rows = rows
+        if error is None:
+            self.failures, self.status = 0, "ok"
+            self.next_at = started + self.interval
+            return None
+        self.failures += 1
+        if error.status == 429:
+            wait = max(self.interval, error.retry_after or 300)
+        else:
+            wait = max(self.interval, min(1800, self.interval * 2 ** min(self.failures, 4)))
+        # Retry-After starts when the error is received, not when this poll began.
+        self.next_at = time.time() + wait
+        self.status = "HTTP %d" % error.status if error.status else "error"
+        log("%s: poll incomplete (%s); next try in %d s" % (self.name, error, wait))
+        if error.status in (401, 403):
+            log("%s: check the account or token in the env file, then restart" % self.name)
+        return error
+
+
+def run_sources(out, sources, once, bounds=WORLD):
+    """Polls each source when it is due and publishes the merged, deduplicated list after every round."""
+    log("hundo feed starting: %s -> %s" % (", ".join("%s every %d s" % (s.name, s.interval) for s in sources), out))
+    last_ok_ms, failed = 0, False
+    while True:
+        due = [s for s in sources if s.next_at <= time.time()]
+        failed = False
+        for source in due:
+            now_ms = int(time.time() * 1000)
+            known = {row[0]: row for other in sources if other is not source
+                     for row in other.rows if valid_row(row, now_ms)}
+            if source.run(known):
+                failed = True
+            else:
+                last_ok_ms = int(time.time() * 1000)
+        if due:
+            now_ms = int(time.time() * 1000)
+            rows, spots, counts = merge(sources, now_ms)
+            if last_ok_ms or rows or spots:
+                # "spots" (spawns without an encounter id) is a separate list: builds that predate it would
+                # otherwise try to open an encounter id that does not exist.
+                write_atomic(out, {"v": 1, "fetched_ms": last_ok_ms or now_ms,
+                                   "interval_s": min(s.interval for s in sources), "source": "merged",
+                                   "bounds": list(bounds), "coordinate_precision": "exact",
+                                   "sources": counts, "hundos": rows, "spots": spots})
+                log("published %d hundos, %d spots (%s)" % (len(rows), len(spots), ", ".join(
+                    "%s %d/%d %s" % (name, c["unique"], c["active"], c["status"]) for name, c in counts.items())))
+        if once:
+            return 1 if failed else 0
+        time.sleep(max(1, min(s.next_at for s in sources) - time.time()))
+
+
+def pogo_exact_from_env():
+    """The exact-coordinate PoGoCoordinates collector configured by POGO_* variables, and its bounds."""
+    token = os.environ.get("POGO_TOKEN", "").strip()
+    if not token or any(c.isspace() for c in token):
+        sys.exit("Set POGO_TOKEN to the bearer token only (without the Bearer prefix).")
+    try:
+        budget = int(os.environ.get("POGO_REVEALS_PER_POLL", "1"))
+        lookup_results = int(os.environ.get("POGO_LOOKUP_RESULTS", "100"))
+        reveal_pause = float(os.environ.get("POGO_REVEAL_PAUSE_SECONDS", "1"))
+        bounds = tuple(float(v) for v in os.environ.get("POGO_BOUNDS", "-85,85,-180,180").split(","))
+        if not 1 <= budget <= 100 or len(bounds) != 4 or not (-90 <= bounds[0] < bounds[1] <= 90 and -180 <= bounds[2] < bounds[3] <= 180):
+            raise ValueError()
+        if not 1 <= lookup_results <= 500 or not math.isfinite(reveal_pause) or not 1 <= reveal_pause <= 30:
+            raise ValueError()
+    except ValueError:
+        sys.exit("POGO_REVEALS_PER_POLL must be 1..100; POGO_LOOKUP_RESULTS 1..500; POGO_REVEAL_PAUSE_SECONDS 1..30; POGO_BOUNDS south,north,west,east in valid ranges.")
+    if os.environ.get("POGO_COORDINATE_MODE", "exact").strip().lower() != "exact":
+        sys.exit("HUNDO_SOURCES needs POGO_COORDINATE_MODE=exact; approximate map mode is single-provider only")
+    return PogoLookup(token, os.environ.get("HUNDO_OUT", "").strip(), budget, bounds, lookup_results, reveal_pause), bounds
+
+
+class LivePokeMapSource:
+    """The whole-map 100% IV list of a LivePokeMap account (needs Premium since November 2026)."""
+    def __init__(self, username, password, state):
+        self.username, self.password, self.state = username, password, state
+        self.token, self.tiles, self.polls = read_token(state), [WORLD], 0
+
+    def _sign_in(self):
+        self.token = login(self.username, self.password)
+        save_token(self.state, self.token)
+        log("signed in to LivePokeMap")
+
+    def poll(self, known=None):
+        if not self.token:
+            self._sign_in()
+        self.polls += 1
+        if self.polls % RESET_POLLS == 0:
+            self.tiles = [WORLD]
+        try:
+            responses, self.tiles = world(self.token, self.tiles)
+        except FeedError as error:
+            if error.status != 401:
+                raise
+            self.token = None
+            self._sign_in()
+            responses, self.tiles = world(self.token, self.tiles)
+        now_ms = int(time.time() * 1000)
+        rows = {}
+        for response in responses:
+            for row in compact(response, now_ms):
+                encounter = unsigned_id(row[0])
+                if encounter and encounter not in rows:  # a Pokemon on a tile edge can come back twice
+                    row[0] = encounter
+                    rows[encounter] = row
+        return list(rows.values()), None
+
+
+def build_sources(names, interval):
+    """Scheduled sources in priority order from HUNDO_SOURCES, e.g. "pogocoordinates,livepokemap"."""
+    sources, bounds = [], WORLD
+    for name in names:
+        if name == "pogocoordinates":
+            collector, bounds = pogo_exact_from_env()
+            sources.append(Scheduled(name, collector, interval))
+        elif name == "livepokemap":
+            username, password = os.environ.get("LPM_USERNAME", "").strip(), os.environ.get("LPM_PASSWORD", "")
+            if not username or not password:
+                sys.exit("livepokemap needs LPM_USERNAME and LPM_PASSWORD")
+            state = os.environ.get("HUNDO_STATE", "/var/lib/hundo-feed/token")
+            sources.append(Scheduled(name, LivePokeMapSource(username, password, state),
+                                     env_seconds("LPM_INTERVAL", 30)))
+        elif name == "citymaps":
+            hosts = [h.strip().lower() for h in os.environ.get("CITYMAP_HOSTS", ",".join(CITY_MAPS)).split(",") if h.strip()]
+            if not hosts or any(not re.fullmatch(r"[a-z0-9.-]+\.[a-z]{2,}", h) for h in hosts):
+                sys.exit("CITYMAP_HOSTS must be a comma-separated list of host names")
+            for host in hosts:
+                sources.append(Scheduled(host.split(".")[0], CityMapSource(host), env_seconds("CITYMAP_INTERVAL", 60, 30)))
+        else:
+            sys.exit("unknown source in HUNDO_SOURCES: %s" % name)
+    if not sources:
+        sys.exit("HUNDO_SOURCES lists no sources")
+    if len({s.name for s in sources}) != len(sources):
+        sys.exit("HUNDO_SOURCES lists a source twice")
+    return sources, bounds
+
+
+def env_seconds(name, default, minimum=15):
+    try:
+        return max(minimum, int(os.environ.get(name, str(default))))
+    except ValueError:
+        sys.exit("%s must be a whole number of seconds" % name)
+
+
 def run_pogo(out, interval, once):
     token = os.environ.get("POGO_TOKEN", "").strip()
     if not token or any(c.isspace() for c in token):
@@ -574,6 +883,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--once", action="store_true", help="publish one poll and exit (for validation)")
     args = parser.parse_args()
+    names = [n.strip().lower() for n in os.environ.get("HUNDO_SOURCES", "").split(",") if n.strip()]
+    if names:
+        out = os.environ.get("HUNDO_OUT", "").strip()
+        if not out:
+            sys.exit("Set HUNDO_OUT to the published JSON file path")
+        sources, bounds = build_sources(names, env_seconds("HUNDO_INTERVAL", 300))
+        return run_sources(out, sources, args.once, bounds)
     provider = os.environ.get("HUNDO_PROVIDER", "livepokemap").strip().lower()
     if provider not in ("livepokemap", "pogocoordinates"):
         sys.exit("HUNDO_PROVIDER must be livepokemap or pogocoordinates")
