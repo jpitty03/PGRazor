@@ -4,6 +4,7 @@
 
 ### New features
 
+- **Auto Lucky Egg and Auto Star Piece:** Two switches under Go Plus, Stops & Items → Boosts. When on, PGRazor uses a Lucky Egg or Star Piece whenever that boost isn't active and you have one, while you're on the map.
 - **In-app updates:** When a newer release is out, an update row appears at the top of the settings menu. Tap it to download the right file for your build; the non-root app then installs it, and PGRazor Root saves its installer to Downloads for you to open.
 
 ### Improvements & fixes

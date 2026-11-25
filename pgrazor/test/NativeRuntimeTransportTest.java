@@ -11,7 +11,7 @@ import java.nio.charset.StandardCharsets;
  */
 public final class NativeRuntimeTransportTest {
     // Wire constants mirror runtime_transport.h / NativeRuntimeTransport.
-    private static final int MAGIC_SNAPSHOT = 0x53524750, MAGIC_EVENTS = 0x45524750, VERSION = 23;
+    private static final int MAGIC_SNAPSHOT = 0x53524750, MAGIC_EVENTS = 0x45524750, VERSION = 24;
     private static final int OFF_BOOLS = 32, OFF_INTS = 80, OFF_DOUBLES = 120, OFF_PULSES = 136, OFF_STRINGS = 160;
     private static final int EVENT_HEADER = 32;
 
@@ -144,6 +144,8 @@ public final class NativeRuntimeTransportTest {
         at += 4 + "M1|1".length(); // Mateo gift exchange slot 24.
         require(readString(snap, at).equals("K1|85"));
         at += 4 + "K1|85".length(); // Transfer keep-IV cutoff slot 25.
+        require(readString(snap, at).equals("B1|1|0"));
+        at += 4 + "B1|1|0".length(); // Auto Lucky Egg / Star Piece slot 26.
         require(at == fake.lastSnapshot.length);
 
         // The new setting must reach native as true, then clear on the following snapshot.

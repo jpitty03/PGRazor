@@ -633,6 +633,14 @@ public final class Control {
     private static volatile boolean catchPreview=true;
     public static boolean catchPreview(){return catchPreview;}
     public static void setCatchPreview(boolean on){catchPreview=on;if(!on){catchOutcome.invalidate();mapThrowOutcome.invalidate();}saveSettings();event("catch-preview",on?"ON":"OFF");}
+    // Auto Lucky Egg / Auto Star Piece (off by default): native uses one whenever that boost is not
+    // running and the bag has one, while the map shows. Slot 26, "B1|egg|star".
+    private static volatile boolean autoLuckyEgg, autoStarPiece;
+    public static boolean autoLuckyEgg(){return autoLuckyEgg;}
+    public static void setAutoLuckyEgg(boolean on){autoLuckyEgg=on;saveSettings();event("auto-lucky-egg",on?"ON":"OFF");}
+    public static boolean autoStarPiece(){return autoStarPiece;}
+    public static void setAutoStarPiece(boolean on){autoStarPiece=on;saveSettings();event("auto-star-piece",on?"ON":"OFF");}
+    public static String autoBoostConfig(){return "B1|"+(autoLuckyEgg?1:0)+"|"+(autoStarPiece?1:0);}
     public static boolean catchChanceShown(){return catchChanceShown;}
     public static void setCatchChanceShown(boolean shown){catchChanceShown=shown;saveSettings();event("catch-chance-overlay",shown?"ON":"OFF");}
     public static boolean autoBall(){return autoBall;}
@@ -1291,7 +1299,8 @@ public final class Control {
                 int catchFormat=boundedSetting(p,"ivCatchFormat",4),ownedFormat=boundedSetting(p,"ivOwnedFormat",4);
                 ivCatchFormat=catchFormat>0?catchFormat:2;ivOwnedFormat=ownedFormat>0?ownedFormat:2;
                 storageIvMode=boundedSetting(p,"storageIv",4);
-                catchChanceShown=Boolean.parseBoolean(p.getProperty("catchChance","true"));catchPreview=Boolean.parseBoolean(p.getProperty("catchPreview","true"));autoBall=Boolean.parseBoolean(p.getProperty("autoBall","false"));
+                catchChanceShown=Boolean.parseBoolean(p.getProperty("catchChance","true"));catchPreview=Boolean.parseBoolean(p.getProperty("catchPreview","true"));
+                autoLuckyEgg=Boolean.parseBoolean(p.getProperty("autoLuckyEgg","false"));autoStarPiece=Boolean.parseBoolean(p.getProperty("autoStarPiece","false"));autoBall=Boolean.parseBoolean(p.getProperty("autoBall","false"));
                 autoThrow=Boolean.parseBoolean(p.getProperty("autoThrow","false"));
                 autoThrowOnMap=Boolean.parseBoolean(p.getProperty("autoThrowOnMap","false"));
                 int target=boundedSetting(p,"autoBallTarget",99);autoBallTarget=target>0?target:75;
@@ -1405,7 +1414,7 @@ public final class Control {
         p.setProperty("transferKeepAll",String.valueOf(transferKeepAll)); p.setProperty("transferOverlay",String.valueOf(transferOverlayEnabled)); p.setProperty("transferKeepSpecies",transferKeepSpecies);
         p.setProperty("evolveTransferEnabled",String.valueOf(evolveTransferEnabled)); p.setProperty("evolveTransferMode",String.valueOf(evolveTransferMode)); p.setProperty("evolveTransferStages",String.valueOf(evolveTransferStages)); p.setProperty("evolveTransferSpecies",evolveTransferSpecies);
         p.setProperty("ivCatch",String.valueOf(ivCatchEnabled)); p.setProperty("ivOwned",String.valueOf(ivOwnedEnabled)); p.setProperty("ivCatchFormat",String.valueOf(ivCatchFormat)); p.setProperty("ivOwnedFormat",String.valueOf(ivOwnedFormat)); p.setProperty("storageIv",String.valueOf(storageIvMode)); p.setProperty("storageIvFormat",String.valueOf(storageIvFormat));
-        p.setProperty("catchChance",String.valueOf(catchChanceShown)); p.setProperty("catchPreview",String.valueOf(catchPreview)); p.setProperty("autoBall",String.valueOf(autoBall)); p.setProperty("autoBallTarget",String.valueOf(autoBallTarget)); p.setProperty("autoThrow",String.valueOf(autoThrow)); p.setProperty("autoThrowOnMap",String.valueOf(autoThrowOnMap));
+        p.setProperty("catchChance",String.valueOf(catchChanceShown)); p.setProperty("catchPreview",String.valueOf(catchPreview)); p.setProperty("autoLuckyEgg",String.valueOf(autoLuckyEgg)); p.setProperty("autoStarPiece",String.valueOf(autoStarPiece)); p.setProperty("autoBall",String.valueOf(autoBall)); p.setProperty("autoBallTarget",String.valueOf(autoBallTarget)); p.setProperty("autoThrow",String.valueOf(autoThrow)); p.setProperty("autoThrowOnMap",String.valueOf(autoThrowOnMap));
         p.setProperty("pvpKeepLeagues",String.valueOf(pvpKeepLeagues)); p.setProperty("skipCutscenes",String.valueOf(skipCutscenes)); p.setProperty("routeGiftExchange",String.valueOf(routeGiftExchange));
         p.setProperty("batteryLowRes",String.valueOf(batteryLowRes)); p.setProperty("batteryFps20",String.valueOf(batteryFps20)); p.setProperty("batteryLowQuality",String.valueOf(batteryLowQuality));
         p.setProperty("smartBattle",String.valueOf(smartBattle));

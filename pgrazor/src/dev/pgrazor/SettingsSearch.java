@@ -155,6 +155,7 @@ final class SettingsSearch {
         put(DESCRIPTIONS, "Always hit", "Make automatic throws always land.");
         put(DESCRIPTIONS, "AR+ throw bonus", "Apply the AR+ throw bonus to automatic throws.");
         put(DESCRIPTIONS, "Show catch chance", "Show the catch chance during an encounter.");
+        put(DESCRIPTIONS, "Catch preview", "Show caught, broke free or fled as soon as the result is known.");
         put(DESCRIPTIONS, "Auto ball", "Pick the cheapest ball that reaches your target catch chance.");
         put(DESCRIPTIONS, "Auto ball target", "Catch chance target used by Auto ball.");
         put(DESCRIPTIONS, "Auto throw", "Throw automatically using your ball, berry and throw settings.");
@@ -195,6 +196,8 @@ final class SettingsSearch {
         put(DESCRIPTIONS, "Push notifications", "Notify when Virtual Go Plus acts.");
         put(DESCRIPTIONS, "Stop on cooldown (estimated)", "Pause Virtual Go Plus during the estimated cooldown.");
         put(DESCRIPTIONS, "Quick spin", "Spin PokéStops automatically.");
+        put(DESCRIPTIONS, "Auto Lucky Egg", "Use a Lucky Egg whenever none is active.");
+        put(DESCRIPTIONS, "Auto Star Piece", "Use a Star Piece whenever none is active.");
         put(DESCRIPTIONS, "Auto-transfer items", "Trim inventory items down to limits you choose.");
         put(DESCRIPTIONS, "Smart battling", "Fill teams with counters and swap to the best counter.");
         put(DESCRIPTIONS, "Smart healing", "Heal and revive automatically between battles.");
@@ -264,6 +267,9 @@ final class SettingsSearch {
         put(SYNONYMS, "Storage list IV display", "iv overlay storage list");
         put(SYNONYMS, "VGP overlay", "go plus virtual vgp button");
         put(SYNONYMS, "Quick spin", "pokestop spin stop");
+        put(SYNONYMS, "Auto Lucky Egg", "xp boost double xp egg");
+        put(SYNONYMS, "Auto Star Piece", "stardust boost dust");
+        put(SYNONYMS, "Catch preview", "caught fled broke free result toast");
         put(SYNONYMS, "Smart healing", "heal potion revive");
         put(SYNONYMS, "Auto incubate", "egg incubator hatch");
         put(SYNONYMS, "Dark theme", "light mode appearance");

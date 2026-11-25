@@ -77,7 +77,7 @@ final class SettingsPanel {
     private Button evolveTransferStages, evolveTransferMode, evolveTransferList;
     // Boolean settings use proper switches.
     private Switch idleWalkSwitch, locationSwitch, vgpSwitch, joystickSwitch, cooldownSwitch, localTimeSwitch, encounterCounterSwitch, encounterOverlaySwitch, spawnSwitch, autoTransferSwitch,
-        quickSpinSwitch, berrySwitch, quickSummarySwitch, catchPreviewSwitch, curveSwitch, alwaysHitSwitch, arSwitch, transferOverlaySwitch, catchChanceSwitch, autoBallSwitch, autoThrowSwitch, autoThrowMapSwitch, skipCutscenesSwitch, routeGiftSwitch,
+        quickSpinSwitch, berrySwitch, quickSummarySwitch, catchPreviewSwitch, luckyEggSwitch, starPieceSwitch, curveSwitch, alwaysHitSwitch, arSwitch, transferOverlaySwitch, catchChanceSwitch, autoBallSwitch, autoThrowSwitch, autoThrowMapSwitch, skipCutscenesSwitch, routeGiftSwitch,
         batteryResSwitch, batteryFpsSwitch, batteryQualitySwitch;
     private Button autoBallTarget, berryPriority;
     // Transfer keep-IV cutoff: a slider and a number field that mirror each other.
@@ -656,6 +656,13 @@ final class SettingsPanel {
         LinearLayout itemsC = group(page, "Items"); summaryGated.add((View)itemsC.getParent());
         itemSettings = button("Auto-transfer items"); itemsC.addView(itemSettings); itemSettings.setOnClickListener(v -> showItemSettings());
         itemStatus = caption(itemsC, "");
+
+        // ----- Boosts: use one whenever it is not running -----
+        LinearLayout boostC = group(page, "Boosts"); summaryGated.add((View)boostC.getParent());
+        luckyEggSwitch = switchRow(boostC, "Auto Lucky Egg"); luckyEggSwitch.setChecked(Control.autoLuckyEgg());
+        luckyEggSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.autoLuckyEgg())return; Control.setAutoLuckyEgg(checked); host.refresh(); });
+        starPieceSwitch = switchRow(boostC, "Auto Star Piece"); starPieceSwitch.setChecked(Control.autoStarPiece());
+        starPieceSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.autoStarPiece())return; Control.setAutoStarPiece(checked); host.refresh(); });
     }
 
     private void buildBattlesPage() {
@@ -893,7 +900,7 @@ final class SettingsPanel {
         summary(0,active("Spoofing",Control.desiredEnabled(),"Joystick",Control.joystickVisible(),"Idle walk",Control.idleWalking(),"Cooldown",Control.cooldownOverlay(),"Local time",Control.localTimeOverlay()));
         summary(1,active("Quick catch",Control.quickSummaryEnabled(),"Auto throw",Control.autoThrow(),"Auto ball",Control.autoBall(),"Curveball",Control.throwCurve(),"Always hit",Control.throwAlwaysHit(),"Berries",Control.encounterBerryEnabled()));
         summary(2,active("Auto-transfer",Control.autoTransferEnabled(),"Evolve first",Control.autoTransferEnabled()&&Control.evolveTransferEnabled(),"IVs shown",Control.ivCatchMode()!=0||Control.ivOwnedMode()!=0||Control.storageIvMode()!=0));
-        summary(3,active("Go Plus overlay",Control.vgpOverlay(),"Quick spin",Control.quickSpinEnabled(),"Item cleanup",Control.itemTransferEnabled()));
+        summary(3,active("Go Plus overlay",Control.vgpOverlay(),"Quick spin",Control.quickSpinEnabled(),"Item cleanup",Control.itemTransferEnabled(),"Lucky Egg",Control.autoLuckyEgg(),"Star Piece",Control.autoStarPiece()));
         summary(4,active("Smart battling",Control.smartBattle(),"Smart healing",Control.healEnabled(),"Auto attacks",Control.battleOptions()!=0||Control.rocketOptions()!=0,"Gym repeat",Control.gymRepeatEnabled()));
         summary(5,active("Buddy engine",BuddyEmotionSettings.enabled(),"Auto incubate",Control.autoIncubate(),"Open gifts",(Control.giftOptions()&1)!=0,"Send gifts",(Control.giftOptions()&2)!=0));
         summary(6,AutoRaid.running()?"Auto-Raid running":ShundoSniper.active()?"Shundo Sniper running":ShinyScanner.enabled()?"Shiny Scanner on":"Shundo, shiny scan, raids, incense, gym feeding, gifts, evolve, research");
@@ -1289,6 +1296,7 @@ final class SettingsPanel {
         set(berryPriority,"Berry priority: "+BerryPriorityPicker.summary());
         berryPicker.refresh();
         quickSpinSwitch.setChecked(Control.quickSpinEnabled());status(quickSpinStatus,Control.quickSpinStatus());
+        luckyEggSwitch.setChecked(Control.autoLuckyEgg());starPieceSwitch.setChecked(Control.autoStarPiece());
         set(quickSummaryLabel,Control.quickSummaryAutoDismiss() ? "Quick catch" : "Faster catch summary");
         quickSummarySwitch.setChecked(Control.quickSummaryEnabled());
         quickSummarySwitch.setEnabled(Control.quickSummaryConfigured());
