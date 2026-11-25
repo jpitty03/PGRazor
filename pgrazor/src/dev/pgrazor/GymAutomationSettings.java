@@ -68,6 +68,7 @@ public final class GymAutomationSettings {
     public static boolean toggleRunning(){return setRunning(!running());}
     private static boolean setRunning(boolean on){
         if(on&&AutoRaid.running()){guardReason="Stop Auto-Raid before starting Gym automation.";return false;}
+        if(on&&AutoRocket.running()){guardReason="Stop Auto Rocket before starting Gym automation.";return false;}
         stopForCooldown();
         boolean cooldownActive=Cooldown.remaining()>0;
         synchronized(lock){

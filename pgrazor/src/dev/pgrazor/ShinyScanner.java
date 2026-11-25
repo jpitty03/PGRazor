@@ -53,6 +53,7 @@ public final class ShinyScanner {
         if (Control.vgpEnabled()) return "Paused while VGP+ is on";
         if (ShundoSniper.active()) return "Paused while Shundo Sniper runs";
         if (AutoRaid.running()) return "Paused while Auto-Raid runs";
+        if (AutoRocket.running()) return "Paused while Auto Rocket runs";
         return null;
     }
     /** Read by the native transport (string slot 23). */

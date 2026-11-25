@@ -16,7 +16,10 @@ public class SettingsBackupRulesTest {
         SettingsBackupRules.validate(valid());
         JSONObject protect=valid();protect.getJSONObject("settings").put("transferProtect","255").put("transferProtectSplit","1");
         SettingsBackupRules.validate(protect);
-        protect.getJSONObject("settings").put("transferProtect","256");rejects(protect);
+        protect.getJSONObject("settings").put("transferProtect","511").put("transferProtectShadow","1");
+        SettingsBackupRules.validate(protect);
+        protect.getJSONObject("settings").put("transferProtect","512");rejects(protect);
+        protect.getJSONObject("settings").put("transferProtect","511").put("transferProtectShadow","2");rejects(protect);
         JSONObject autoThrow=valid();autoThrow.getJSONObject("settings").put("autoThrow","true").put("autoThrowOnMap","true");
         SettingsBackupRules.validate(autoThrow);
         autoThrow.getJSONObject("settings").put("autoThrowOnMap","false");SettingsBackupRules.validate(autoThrow);

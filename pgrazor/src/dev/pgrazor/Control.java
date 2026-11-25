@@ -40,6 +40,7 @@ public final class Control {
     static void quiesceAccounts() throws IOException {
         OneShotAutomation.reset();
         AutoRaid.reset();
+        AutoRocket.reset();
         GiftBatchSettings.reset();
         gameRoutes.stop("Account switch"); gameRoutesPlanning=false; gameRoutes.setPlanning(false); autoWalkPlanning=false;
         vgp.suspend();
@@ -120,7 +121,7 @@ public final class Control {
     private static volatile boolean quickSummaryConfigured, quickSummaryReady, quickSummaryEnabled;
     private static volatile boolean quickSummaryAutoDismiss;
     private static volatile boolean autoTransferEnabled, autoTransferReady;
-    private static volatile int transferProtect=255;
+    private static volatile int transferProtect=511;
     /** Auto transfer keeps every catch at or above this IV percent (0..100). */
     public static final int TRANSFER_KEEP_IV_DEFAULT=90;
     private static volatile int transferKeepIv=TRANSFER_KEEP_IV_DEFAULT;
@@ -240,7 +241,7 @@ public final class Control {
     public static float vgpTargetY(){return vgp.targetY();}
     public static boolean vgpTargetSpin(){return vgp.targetSpin();}
 
-    public static boolean vgpAllowed(){if(!locationKnown())return false;guardVgpCooldown();return vgpEnabled&&vgpReady&&itemAccessAllowed()&&!ShundoSniper.active()&&!AutoRaid.running();}  // Shundo Sniper pauses VGP+
+    public static boolean vgpAllowed(){if(!locationKnown())return false;guardVgpCooldown();return vgpEnabled&&vgpReady&&itemAccessAllowed()&&!ShundoSniper.active()&&!AutoRaid.running()&&!AutoRocket.running();}  // Shundo Sniper pauses VGP+
     public static void vgpResult(String action,boolean success){vgp.result(action,success);}
     private static volatile boolean autoIncubate, incubateLongest, incubatorReady;
     private static volatile String incubatorStatus="Waiting for incubation support";
@@ -286,7 +287,7 @@ public final class Control {
     public static String buddyEmotionConfig(){return BuddyEmotionSettings.config();}
     public static boolean automationReady(){return hostLive()&&active()&&itemAccessAllowed();}
     public static boolean automationPlanning(){return autoWalkPlanning||gameRoutesPlanning;}
-    public static String oneShotAutomationConfig(){String raid=AutoRaid.config();if(raid!=null)return raid;String gift=GiftBatchSettings.config();return gift!=null?gift:OneShotAutomation.config();}
+    public static String oneShotAutomationConfig(){String raid=AutoRaid.config();if(raid!=null)return raid;String rocket=AutoRocket.config();if(rocket!=null)return rocket;String gift=GiftBatchSettings.config();return gift!=null?gift:OneShotAutomation.config();}
     public static String batchEvolutionConfig(){return BatchEvolutionSettings.config();}
     public static String researchConfig(){return ResearchSettings.config();}
     public static String shundoConfig(){return ShundoSniper.config();}
@@ -351,7 +352,10 @@ public final class Control {
     private static volatile int rocketOptions;
     private static volatile boolean rocketReady;
     private static volatile String rocketStatus="Waiting for battle support";
-    public static int rocketOptions(){return rocketOptions;}
+    /** What the game uses: every Rocket attack while Auto Rocket runs, else the user's choice. */
+    public static int rocketOptions(){return AutoRocket.running()?7:rocketOptions;}
+    /** The user's own Team Rocket choices, for the settings screen. */
+    public static int rocketOptionsSetting(){return rocketOptions;}
     public static String rocketStatus(){return rocketStatus;}
     public static void setRocketOptions(int value){if(value<0||value>7)return;rocketOptions=value;saveSettings();event("rocket-options",String.valueOf(value));}
     public static void setRocketReady(boolean ready,String status){rocketReady=ready;rocketStatus=status;}
@@ -484,8 +488,9 @@ public final class Control {
         setQuickBallEnabled(actual);
         if(changed)event("quick-summary-setting",actual ? (quickSummaryAutoDismiss ? "ON; summary and details auto-dismiss; new-species screens remain" : "ON; shorter post-catch wait; summary stays open") : "OFF");
     }
+    /** Auto Rocket keeps the summary step on: its OK press is the game's own exit back to the map. */
     public static boolean quickSummaryAllowed() {
-        return quickSummaryEnabled && quickSummaryReady && hostLive();
+        return (quickSummaryEnabled || AutoRocket.running()) && quickSummaryReady && hostLive();
     }
     public static boolean autoTransferEnabled(){return autoTransferEnabled;}
     public static boolean autoTransferReady(){return quickSummaryReady()&&autoTransferReady;}
@@ -497,7 +502,7 @@ public final class Control {
     public static void setTransferKeepIv(int percent){if(!validTransferKeepIv(percent)||percent==transferKeepIv)return;invalidateQuickBallOutcome();transferKeepIv=percent;saveSettings();event("auto-transfer-keep-iv",String.valueOf(percent));}
     /** Transport string slot 25: "K1|<percent>", read by every native transfer path. */
     public static String transferKeepIvConfig(){return "K1|"+transferKeepIv;}
-    public static void setTransferProtect(int mask){transferProtect=mask>=0&&mask<=255?mask:255;saveSettings();event("auto-transfer-protection",String.valueOf(transferProtect));}
+    public static void setTransferProtect(int mask){transferProtect=mask>=0&&mask<=511?mask:511;saveSettings();event("auto-transfer-protection",String.valueOf(transferProtect));}
     public static void setAutoTransferReady(boolean ready,String status){autoTransferReady=ready&&quickSummaryReady();transferStatus=status==null?"":status;}
     public static void transferResult(String status){transferStatus=status==null?"":status;}
     /** Main transfer permission; manual Keep All is applied only by the encounter consumer. */
@@ -667,7 +672,7 @@ public final class Control {
         Application app=hostApplication;
         boolean safari=app!=null&&dev.pgrazor.events.EventSettings.wildAutoBallSafari(app);
         long cooldownMs=Math.max(0,Cooldown.remaining());
-        return "C5|"+(catchChanceShown&&!overlaysHidden?1:0)+"|"+(autoBall?1:0)+"|"+autoBallTarget+"|"+autoBerry()+"|"+(safari?1:0)+"|"+(autoThrow?1:0)+"|"+cooldownMs+"|"+(autoThrowOnMap?1:0)+"|"+(catchPreview&&!overlaysHidden?1:0);
+        return "C5|"+(catchChanceShown&&!overlaysHidden?1:0)+"|"+(autoBall?1:0)+"|"+autoBallTarget+"|"+autoBerry()+"|"+(safari?1:0)+"|"+(autoThrow||AutoRocket.running()?1:0)+"|"+cooldownMs+"|"+(autoThrowOnMap?1:0)+"|"+(catchPreview&&!overlaysHidden?1:0);
     }
     // PvP keep for auto-transfer, per league (0 Great, 1 Ultra, 2 Master): a catch is kept when its
     // stat-product rank is at or below that league's rank for a species in PvPoke's top PVP_META.
@@ -692,7 +697,7 @@ public final class Control {
     public static void setSkipCutscenes(boolean on){skipCutscenes=on;saveSettings();event("skip-cutscenes",on?"ON":"OFF");}
     public static String cutsceneSkipStatus(){return skipCutscenes?cutsceneSkipStatus:"";}
     /** Raw settings for slot 17; native egg presentation uses skipCutscenes OR autoIncubate. */
-    public static String cutsceneSkipConfig(){return "K2|"+(skipCutscenes?1:0)+"|"+(autoIncubate?1:0);}
+    public static String cutsceneSkipConfig(){return "K2|"+(skipCutscenes||AutoRocket.running()?1:0)+"|"+(autoIncubate?1:0);}
     private static volatile boolean routeGiftExchange;
     public static boolean routeGiftExchange(){return routeGiftExchange;}
     public static void setRouteGiftExchange(boolean on){routeGiftExchange=on;saveSettings();event("route-gift-setting",on?"ON":"OFF");}
@@ -1053,6 +1058,9 @@ public final class Control {
     static void autoRaidTravel(long session,long travel,double latitude,double longitude) {
         synchronized(stateLock) { AutoRaid.travel(session,travel,latitude,longitude); }
     }
+    static void autoRocketTravel(long session,long travel,double latitude,double longitude) {
+        synchronized(stateLock) { AutoRocket.travel(session,travel,latitude,longitude); }
+    }
     public static void teleport(double latitude, double longitude) {
         gameRoutes.stop("Destination changed");
         engine.position(latitude, longitude); engine.stop();
@@ -1090,6 +1098,7 @@ public final class Control {
         requestInteractionStop();
         OneShotAutomation.reset();
         AutoRaid.reset();
+        AutoRocket.reset();
         GiftBatchSettings.reset();
         foreground = false; autoWalkPlanning=false;mapPoiOpen=false;mapPoiSnapshot="";mapPoiAt=0; mapTapEpoch++; invalidateQuickBallOutcome(); cameraSampleRequest.set(false); invalidateCameraHeading("App backgrounded");
         // Losing the foreground switches VGP off, clears any target, and never auto-resumes.
@@ -1182,7 +1191,8 @@ public final class Control {
     public static void stepMotion(double seconds,boolean joystickHeld){
         OneShotAutomation.tick(joystickHeld);
         AutoRaid.tick(joystickHeld);
-        engine.setIdleWalkingAllowed(hostLive()&&desiredEnabled&&!joystickHeld&&!OneShotAutomation.idleBlocked()&&!AutoRaid.running()
+        AutoRocket.tick(joystickHeld);
+        engine.setIdleWalkingAllowed(hostLive()&&desiredEnabled&&!joystickHeld&&!OneShotAutomation.idleBlocked()&&!AutoRaid.running()&&!AutoRocket.running()
             &&!autoWalkPlanning&&!gameRoutesPlanning&&!gameRoutes.running()
             &&!cameraSamplePending()&&!interactionDiagnosticRunning());
         engine.step(seconds);
@@ -1198,6 +1208,7 @@ public final class Control {
     private static void loadSettings(Application app) {
         OneShotAutomation.reset();
         AutoRaid.reset();
+        AutoRocket.reset();
         GiftBatchSettings.reset();
         BatchEvolutionSettings.reset();
         synchronized(stateLock) {
@@ -1218,6 +1229,7 @@ public final class Control {
             SmartCatchSettings.read(new Properties());
             GymAutomationSettings.read(new Properties());
             AutoRaid.read(new Properties());
+            AutoRocket.read(new Properties());
             BuddyEmotionSettings.read(new Properties());
             ResearchSettings.read(new Properties());
             ShundoSniper.read(new Properties());
@@ -1227,6 +1239,7 @@ public final class Control {
                 SmartCatchSettings.read(p);
                 GymAutomationSettings.read(p);
                 AutoRaid.read(p);
+                AutoRocket.read(p);
                 BuddyEmotionSettings.read(p);
                 ResearchSettings.read(p);
                 ShundoSniper.read(p);
@@ -1270,7 +1283,9 @@ public final class Control {
                 if(!validItemRules(itemRules)||!validItemRules(itemLimits)){itemTransferEnabled=false;itemRules="";itemLimits="";}
                 quickSpinEnabled=Boolean.parseBoolean(p.getProperty("quickSpin","false"));
                 autoTransferEnabled=Boolean.parseBoolean(p.getProperty("autoTransfer","false"));
-                try { transferProtect=Integer.parseInt(p.getProperty("transferProtect","255")); if(transferProtect<0||transferProtect>255)transferProtect=255; } catch(NumberFormatException e){transferProtect=255;}
+                try { transferProtect=Integer.parseInt(p.getProperty("transferProtect","511")); if(transferProtect<0||transferProtect>511)transferProtect=511; } catch(NumberFormatException e){transferProtect=511;}
+                // Keep shadow Pokemon (bit 256) arrived later: settings saved before it keep shadows too.
+                if(p.getProperty("transferProtectShadow")==null)transferProtect|=256;
                 // "Keep event / costume" (bit 2) was one option before costume got its own bit (7):
                 // settings saved before the split keep costumes whenever they kept events.
                 if(p.getProperty("transferProtectSplit")==null&&(transferProtect&4)!=0)transferProtect|=128;
@@ -1366,6 +1381,7 @@ public final class Control {
             if(incoming.containsKey("autoBerry")&&!incoming.containsKey("berryPriority"))merged.remove("berryPriority");
             // A backup from before costume had its own option carries it inside "event / costume".
             if(incoming.containsKey("transferProtect")&&!incoming.containsKey("transferProtectSplit"))merged.remove("transferProtectSplit");
+            if(incoming.containsKey("transferProtect")&&!incoming.containsKey("transferProtectShadow"))merged.remove("transferProtectShadow");
             FileOutputStream out=null;
             try{out=settingsFile.startWrite();merged.store(out,"PGRazor settings");settingsFile.finishWrite(out);out=null;}
             finally{if(out!=null)settingsFile.failWrite(out);}
@@ -1386,6 +1402,7 @@ public final class Control {
         SmartCatchSettings.write(p);
         GymAutomationSettings.write(p);
         AutoRaid.write(p);
+        AutoRocket.write(p);
         BuddyEmotionSettings.write(p);
         ResearchSettings.write(p);
         ShundoSniper.write(p);
@@ -1410,7 +1427,7 @@ public final class Control {
         p.setProperty("rocketOptions",String.valueOf(rocketOptions));
         p.setProperty("itemTransfer",String.valueOf(itemTransferEnabled));p.setProperty("itemRules",itemRules);p.setProperty("itemLimits",itemLimits);p.setProperty("itemCatalog",itemCatalog);
         p.setProperty("quickSpin",String.valueOf(quickSpinEnabled));
-        p.setProperty("autoTransfer",String.valueOf(autoTransferEnabled)); p.setProperty("transferProtect",String.valueOf(transferProtect));p.setProperty("transferProtectSplit","1");p.setProperty("transferKeepIv",String.valueOf(transferKeepIv));
+        p.setProperty("autoTransfer",String.valueOf(autoTransferEnabled)); p.setProperty("transferProtect",String.valueOf(transferProtect));p.setProperty("transferProtectSplit","1");p.setProperty("transferProtectShadow","1");p.setProperty("transferKeepIv",String.valueOf(transferKeepIv));
         p.setProperty("transferKeepAll",String.valueOf(transferKeepAll)); p.setProperty("transferOverlay",String.valueOf(transferOverlayEnabled)); p.setProperty("transferKeepSpecies",transferKeepSpecies);
         p.setProperty("evolveTransferEnabled",String.valueOf(evolveTransferEnabled)); p.setProperty("evolveTransferMode",String.valueOf(evolveTransferMode)); p.setProperty("evolveTransferStages",String.valueOf(evolveTransferStages)); p.setProperty("evolveTransferSpecies",evolveTransferSpecies);
         p.setProperty("ivCatch",String.valueOf(ivCatchEnabled)); p.setProperty("ivOwned",String.valueOf(ivOwnedEnabled)); p.setProperty("ivCatchFormat",String.valueOf(ivCatchFormat)); p.setProperty("ivOwnedFormat",String.valueOf(ivOwnedFormat)); p.setProperty("storageIv",String.valueOf(storageIvMode)); p.setProperty("storageIvFormat",String.valueOf(storageIvFormat));
@@ -1507,6 +1524,7 @@ public final class Control {
             return;
         }
         if("auto-raid".equals(kind))AutoRaid.publish(detail);
+        if("auto-rocket".equals(kind))AutoRocket.publish(detail);
         if("map-auto-throw".equals(kind)){
             try{org.json.JSONObject result=new org.json.JSONObject(detail);
                 mapCatchStatus.event(result.optString("phase"),result.optInt("value"),android.os.SystemClock.elapsedRealtime());

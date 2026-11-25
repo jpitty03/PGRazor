@@ -209,6 +209,7 @@ final class SettingsSearch {
         put(DESCRIPTIONS, "Battle until defeated", "Repeat a gym battle until the gym is defeated.");
         put(DESCRIPTIONS, "Remote Gym Feeding", "Feed the gyms you defend once with surplus berries.");
         put(DESCRIPTIONS, "Auto-Raid", "Find and complete nearby raids.");
+        put(DESCRIPTIONS, "Auto Rocket", "Walk to Team GO Rocket stops, battle and catch the shadow Pokémon.");
         put(DESCRIPTIONS, "Auto quick attack", "Use fast attacks automatically in battles.");
         put(DESCRIPTIONS, "Auto charged attack", "Use charged attacks automatically in battles.");
         put(DESCRIPTIONS, "Auto Max attack", "Use Max attacks automatically in Dynamax battles.");
@@ -250,10 +251,12 @@ final class SettingsSearch {
         put(DESCRIPTIONS, "Keep XXL", "Never auto-transfer XXL Pokémon.");
         put(DESCRIPTIONS, "Keep 0% IV (0/0/0)", "Never auto-transfer a 0% IV Pokémon.");
         put(DESCRIPTIONS, "Keep costume Pokemon", "Never auto-transfer costume Pokémon.");
+        put(DESCRIPTIONS, "Keep shadow Pokemon", "Never auto-transfer shadow Pokémon.");
 
         put(SYNONYMS, "Location spoofing", "fake gps mock location teleport");
         put(SYNONYMS, "Coordinates & speed", "lat lon latitude longitude kmh walking speed");
         put(SYNONYMS, "World map", "map place search pin route");
+        put(SYNONYMS, "Auto Rocket", "team go rocket grunt leader shadow invasion battle");
         put(SYNONYMS, "Auto ball", "ball pokeball great ultra catch rate");
         put(SYNONYMS, "Auto throw", "throw catch automatic");
         put(SYNONYMS, "Transfer new catches", "transfer iv appraise candy auto");

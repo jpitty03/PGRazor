@@ -33,6 +33,8 @@ extern int pgrazor_hook(void*,void*,void**);
 
 // encounter_host.cpp: the shared caught-Pokemon transfer hand-off (adopts all four handles on 1).
 extern "C" int pgr_research_transfer_caught(uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,int);
+// auto_rocket.cpp (weak: fixture builds without Auto Rocket keep every catch).
+extern "C" int pgr_auto_rocket_transfer_wanted() __attribute__((weak));
 
 // Auto-Raid runs on the proven Unity main thread. Java owns explicit session tokens,
 // settings and movement; this controller owns discovery, authorized local pass selection,

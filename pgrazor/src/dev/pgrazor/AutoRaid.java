@@ -29,7 +29,7 @@ public final class AutoRaid {
     public static void start(AutoRaidPreferences value){
         if(!Control.automationReady())throw new IllegalStateException("Wait for the game and location to be ready.");
         if((Control.battleOptions()&1)==0)throw new IllegalStateException("Enable Raid auto quick attack in battle settings first.");
-        if(OneShotAutomation.enabled()||GiftBatchSettings.running()||BatchEvolutionSettings.enabled()||ShundoSniper.active()||GymAutomationSettings.running())
+        if(AutoRocket.running()||OneShotAutomation.enabled()||GiftBatchSettings.running()||BatchEvolutionSettings.enabled()||ShundoSniper.active()||GymAutomationSettings.running())
             throw new IllegalStateException("Stop the current automation before starting Auto-Raid.");
         if(Control.engine.walking||Control.gameRoutesRunning()||Control.automationPlanning())throw new IllegalStateException("Stop the current walk or Route first.");
         configure(value);

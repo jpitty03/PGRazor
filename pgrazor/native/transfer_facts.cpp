@@ -25,6 +25,12 @@
 // (and re-prove the id) before writing any facts. No mutex is held across a managed call.
 
 static_assert(sizeof(PgrTransferFactsConfig) == 320, "config must be 320 bytes");
+static std::atomic<int32_t> g_shadow_value{0};
+static std::atomic<void *> g_shadow_field{nullptr};  // published after the value
+extern "C" void pgr_transfer_facts_set_shadow(void *alignment_field, int32_t shadow_value) {
+  g_shadow_value.store(shadow_value, std::memory_order_relaxed);
+  g_shadow_field.store(alignment_field, std::memory_order_release);
+}
 static_assert(sizeof(PgrTransferFactsRequest) == 56, "request must be 56 bytes");
 static_assert(sizeof(PgrTransferFactsOut) == 40, "out must be 40 bytes");
 static_assert(sizeof(PgrTransferFactsApi) == 24, "table must be 24 bytes");
@@ -280,6 +286,8 @@ int do_inspect(const PgrTransferFactsRequest *req, uint64_t deadline, PgrTransfe
     int32_t art = field_i32(display, g_cfg.f_art);
     int32_t art_asset = field_i32(display, g_cfg.f_art_asset);
     void *background = field_ptr(display, g_cfg.f_background);
+    void *shadow_field = g_shadow_field.load(std::memory_order_acquire);
+    const bool shadow = shadow_field && field_i32(display, shadow_field) == g_shadow_value.load(std::memory_order_relaxed);
 
     // IV 0..15 and species 1..2000: reject out-of-range metadata (keep -- never authorize a deletion).
     if (attack < 0 || attack > PGR_TF_IV_MAX || defense < 0 || defense > PGR_TF_IV_MAX ||
@@ -316,6 +324,8 @@ int do_inspect(const PgrTransferFactsRequest *req, uint64_t deadline, PgrTransfe
     if (xxl) flags |= PGR_TF_FLAG_XXL;
     if (favorite_raw == 1) flags |= PGR_TF_FLAG_FAVORITE;
     if (egg_raw == 1) flags |= PGR_TF_FLAG_EGG;
+    if (shadow) flags |= PGR_TF_FLAG_SHADOW;
+    if (shadow_field) flags |= PGR_TF_FLAG_SHADOW_KNOWN;
 
     out->version = PGR_TF_OUT_VERSION;
     out->size = sizeof(PgrTransferFactsOut);

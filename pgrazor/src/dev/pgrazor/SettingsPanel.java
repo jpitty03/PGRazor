@@ -95,7 +95,7 @@ final class SettingsPanel {
     private TextView state, steeringStatus, spawnStatus, quickSummaryStatus, transferStatus, quickSpinStatus,
         buddyStatus, giftStatus, itemStatus, rocketStatus, battleStatus, quickBallStatus, ivStatus, cameraStatus, interactionStatus;
     // Multi-option groups keep checkboxes / radios.
-    private final CheckBox[] transferProtection=new CheckBox[8];
+    private final CheckBox[] transferProtection=new CheckBox[9];
     private final Switch[] pvpKeep=new Switch[3];
     private final Button[] pvpRank=new Button[3];
     private final CheckBox[] giftChoices=new CheckBox[3];
@@ -571,9 +571,9 @@ final class SettingsPanel {
         transferStatus = caption(txC, "");
 
         LinearLayout keepC = group(transfer, "Always keep");
-        // Indexed by protection bit; costume (bit 7) is listed next to event.
-        String[] protections={"Keep legendary / mythical / Ultra Beasts","Keep shiny Pokemon","Keep event Pokemon","Keep background Pokemon","Keep XXS","Keep XXL","Keep 0% IV (0/0/0)","Keep costume Pokemon"};
-        for(int i:new int[]{0,1,2,7,3,4,5,6}){final int bit=1<<i;CheckBox box=new CheckBox(activity);box.setText(protections[i]);box.setChecked((Control.transferProtect()&bit)!=0);transferProtection[i]=box;keepC.addView(box);
+        // Indexed by protection bit; costume (bit 7) and shadow (bit 8) are listed next to event.
+        String[] protections={"Keep legendary / mythical / Ultra Beasts","Keep shiny Pokemon","Keep event Pokemon","Keep background Pokemon","Keep XXS","Keep XXL","Keep 0% IV (0/0/0)","Keep costume Pokemon","Keep shadow Pokemon"};
+        for(int i:new int[]{0,1,2,7,8,3,4,5,6}){final int bit=1<<i;CheckBox box=new CheckBox(activity);box.setText(protections[i]);box.setChecked((Control.transferProtect()&bit)!=0);transferProtection[i]=box;keepC.addView(box);
             box.setOnClickListener(v->Control.setTransferProtect(box.isChecked()?Control.transferProtect()|bit:Control.transferProtect()&~bit));}
         transferKeepList = button("Custom keep list"); keepC.addView(transferKeepList);
         transferKeepList.setOnClickListener(v -> TransferKeepDialog.show(activity, host::refresh));
@@ -676,10 +676,11 @@ final class SettingsPanel {
         // ----- Team Rocket -----
         LinearLayout rocketC = group(battleC, "Team Rocket");
         String[] rocketLabels={"Auto quick attack","Auto charged attack","Auto shield"};
-        for(int i=0;i<3;i++){final int bit=1<<i;CheckBox box=new CheckBox(activity);box.setText(rocketLabels[i]);box.setChecked((Control.rocketOptions()&bit)!=0);rocketChoices[i]=box;rocketC.addView(box);
-            box.setOnClickListener(v->Control.setRocketOptions(box.isChecked()?Control.rocketOptions()|bit:Control.rocketOptions()&~bit));}
+        for(int i=0;i<3;i++){final int bit=1<<i;CheckBox box=new CheckBox(activity);box.setText(rocketLabels[i]);box.setChecked((Control.rocketOptionsSetting()&bit)!=0);rocketChoices[i]=box;rocketC.addView(box);
+            box.setOnClickListener(v->Control.setRocketOptions(box.isChecked()?Control.rocketOptionsSetting()|bit:Control.rocketOptionsSetting()&~bit));}
         caption(rocketC, "While any of these is on, the next Pokémon is picked automatically when one faints.");
         rocketStatus = caption(rocketC, "");
+        launch(rocketC, "Auto Rocket", () -> AutoRocketDialog.show(activity));
 
         LinearLayout gymC = group(battleC, "Gyms");
         launch(gymC, "Gym Slotter & Berry Feeder", () -> GymAutomationSettings.show(activity));
@@ -788,6 +789,7 @@ final class SettingsPanel {
         launch(tasks, "Shundo Sniper (Experimental)", () -> ShundoSniper.show(activity));
         launch(tasks, "Shiny Scanner (Experimental)", () -> ShinyScanner.show(activity));
         launch(tasks, "Auto-Raid", () -> AutoRaidDialog.show(activity));
+        launch(tasks, "Auto Rocket", () -> AutoRocketDialog.show(activity));
         launch(tasks, "Daily Incense Session", () -> AutomationPanel.showIncense(activity));
         launch(tasks, "Remote Gym Feeding", () -> AutomationPanel.showRemoteFeed(activity));
         launch(tasks, "Send & Open Gifts", () -> GiftBatchDialog.show(activity));
@@ -903,7 +905,7 @@ final class SettingsPanel {
         summary(3,active("Go Plus overlay",Control.vgpOverlay(),"Quick spin",Control.quickSpinEnabled(),"Item cleanup",Control.itemTransferEnabled(),"Lucky Egg",Control.autoLuckyEgg(),"Star Piece",Control.autoStarPiece()));
         summary(4,active("Smart battling",Control.smartBattle(),"Smart healing",Control.healEnabled(),"Auto attacks",Control.battleOptions()!=0||Control.rocketOptions()!=0,"Gym repeat",Control.gymRepeatEnabled()));
         summary(5,active("Buddy engine",BuddyEmotionSettings.enabled(),"Auto incubate",Control.autoIncubate(),"Open gifts",(Control.giftOptions()&1)!=0,"Send gifts",(Control.giftOptions()&2)!=0));
-        summary(6,AutoRaid.running()?"Auto-Raid running":ShundoSniper.active()?"Shundo Sniper running":ShinyScanner.enabled()?"Shiny Scanner on":"Shundo, shiny scan, raids, incense, gym feeding, gifts, evolve, research");
+        summary(6,AutoRaid.running()?"Auto-Raid running":AutoRocket.running()?"Auto Rocket running":ShundoSniper.active()?"Shundo Sniper running":ShinyScanner.enabled()?"Shiny Scanner on":"Shundo, shiny scan, raids, Rocket, incense, gym feeding, gifts, evolve, research");
         summary(7,"Halloween · Go Wild");
         summary(8,"UI "+Control.uiScalePercent()+"% · "+(Control.darkTheme()?"Dark":"Light")+" theme"+(Control.skipCutscenes()?" · Skip cutscenes":""));
         summary(9,"Accounts, export / import, run log, diagnostics");
@@ -1284,7 +1286,7 @@ final class SettingsPanel {
     }
 
     private void refreshRocket() {
-        for(int i=0;i<3;i++)rocketChoices[i].setChecked((Control.rocketOptions()&(1<<i))!=0);status(rocketStatus,Control.rocketStatus());
+        for(int i=0;i<3;i++)rocketChoices[i].setChecked((Control.rocketOptionsSetting()&(1<<i))!=0);status(rocketStatus,Control.rocketStatus());
     }
 
     private void refreshItems() {

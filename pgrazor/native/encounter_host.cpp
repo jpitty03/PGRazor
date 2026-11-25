@@ -52,6 +52,7 @@
 #include "remote_gym.h"
 #include "gift_batch.h"
 #include "auto_raid.h"
+#include "auto_rocket.h"
 #include "auto_throw.h"
 #include "map_auto_throw.h"
 #include "research.h"
@@ -393,7 +394,7 @@ static void notify_transfer_result(const char *summary) {
 
 static void notify_transfer_outcome(const char *outcome){const char *strings[]={outcome};transport_emit_op(22,nullptr,0,strings,1);}
 static void notify_transfer_error(const char *reason){char text[256];snprintf(text,sizeof(text),"Transfer Error: %s",reason);notify_transfer_result(text);notify_transfer_outcome("transfer-error");}
-static const char *transfer_reason(int code){static const char *reasons[]={"","keep-all","invalid-keep-list","unknown-species","custom-keep-list","unknown-iv","unknown-category","unknown-size","favorite-or-egg","iv-at-least-cutoff","protected-rare","protected-shiny","protected-event","protected-background","protected-xxs","protected-xxl","invalid-input","invalid-input","pvp-rank","protected-zero-iv","protected-costume"};return code>0&&code<21?reasons[code]:"invalid-input";}
+static const char *transfer_reason(int code){static const char *reasons[]={"","keep-all","invalid-keep-list","unknown-species","custom-keep-list","unknown-iv","unknown-category","unknown-size","favorite-or-egg","iv-at-least-cutoff","protected-rare","protected-shiny","protected-event","protected-background","protected-xxs","protected-xxl","invalid-input","invalid-input","pvp-rank","protected-zero-iv","protected-costume","protected-shadow"};return code>0&&code<22?reasons[code]:"invalid-input";}
 // Why VGP/VGP+ kept the last catch, as shown in the VGP status line.
 static char g_vgp_kept_text[96] = "Kept: protected";
 static void set_vgp_kept(const char *why){snprintf(g_vgp_kept_text,sizeof(g_vgp_kept_text),"Kept: %s",why);}
@@ -404,7 +405,7 @@ static const char *kept_label(int code){
     case 1:return "Keep All is on";case 4:return "on your keep list";case 8:return "favorite";
     case 9:snprintf(iv_label,sizeof(iv_label),"IV %d%%+",pgr_transfer_keep_iv_percent(g_keep_iv));return iv_label;case 10:return "legendary / mythical";case 11:return "shiny";
     case 12:return "event";case 13:return "background";case 14:return "XXS";case 15:return "XXL";
-    case 19:return "0% IV";case 20:return "costume";
+    case 19:return "0% IV";case 20:return "costume";case 21:return "shadow";
     default:return "could not be checked";
   }
 }
@@ -758,7 +759,7 @@ static void handle_vgp_transfer_ready(const PgrVgpControllerOut &out, uint64_t t
 
   void *pk_obj = g_exp.gchandle_get_target ? g_exp.gchandle_get_target(g_vgp_transfer.pokemon_handle) : nullptr;
   void *gm_obj = g_exp.gchandle_get_target ? g_exp.gchandle_get_target(g_vgp_transfer.gm_handle) : nullptr;
-  uint32_t protect_mask = g_opts.transfer_protect >= 0 ? static_cast<uint32_t>(g_opts.transfer_protect&255) : 255u;
+  uint32_t protect_mask = g_opts.transfer_protect >= 0 ? static_cast<uint32_t>(g_opts.transfer_protect&511) : 511u;
 
   PgrTransferFactsRequest req = {};
   req.version = PGR_TF_REQUEST_VERSION;
@@ -1483,7 +1484,7 @@ static void sync_from_transport(uint64_t tid) {
     next_opts = {};
     next_opts.version = PGR_EH_API_VERSION;
     next_opts.size = sizeof(PgrEncounterHostOptions);
-    next_opts.transfer_protect = 255;
+    next_opts.transfer_protect = 511;
     next_opts.lease_remaining_ms = 0ULL;
     g_opts = next_opts;
     g_lease_deadline_ms = 0ULL;
@@ -2544,12 +2545,15 @@ static int api_tick(uint64_t proven_tid) {
   pgr_menu_visibility_tick(now);
   const bool map_block=pgr_map_auto_throw_active();
   const bool raid_block=map_block||pgr_auto_raid_tick(os_tid,&g_md);
-  const bool bird_block=!raid_block&&pgr_incense_guard_tick(os_tid,&g_md);
-  if(bird_block||(raid_block&&!map_block)){g_opts.vgp_enabled=0;if(g_vgc&&g_last_vgp_enabled){g_vgc->revoke();clear_active_vgp_transfer();g_last_vgp_enabled=false;++g_vgp_epoch;}}
+  // Auto Rocket owns the map between its battles; healing and boosts still run, and Auto throw
+  // catches its shadow Pokemon.
+  const bool rocket_block=!raid_block&&pgr_auto_rocket_tick(os_tid,&g_md);
+  const bool bird_block=!raid_block&&!rocket_block&&pgr_incense_guard_tick(os_tid,&g_md);
+  if(bird_block||rocket_block||(raid_block&&!map_block)){g_opts.vgp_enabled=0;if(g_vgc&&g_last_vgp_enabled){g_vgc->revoke();clear_active_vgp_transfer();g_last_vgp_enabled=false;++g_vgp_epoch;}}
   // Publish exclusive ownership before the bird guard can invoke OnTap.
-  pgr_map_auto_throw_tick(os_tid,&g_md,(!map_block&&raid_block)||bird_block);
+  pgr_map_auto_throw_tick(os_tid,&g_md,(!map_block&&raid_block)||bird_block||rocket_block);
   tick_map_catch_marker(os_tid, now, rem_lease);
-  if(!raid_block)pgr_incense_guard_open(os_tid);
+  if(!raid_block&&!rocket_block)pgr_incense_guard_open(os_tid);
   // 1. Berries tick, resume & event drain
   pump_berry_events_and_resume(os_tid, 0);
 
@@ -2558,7 +2562,7 @@ static int api_tick(uint64_t proven_tid) {
 
   // 3. MapPOI snapshot scan
   tick_map_poi(os_tid, now, rem_lease);
-  if(!raid_block){
+  if(!raid_block&&!rocket_block){
     pgr_gift_batch_tick(os_tid, &g_md);
     pgr_research_tick(os_tid, &g_md);
     pgr_session_stats_tick(os_tid, &g_md);
@@ -2571,13 +2575,18 @@ static int api_tick(uint64_t proven_tid) {
   pgr_ar_values_tick(os_tid, &g_md);
   pgr_catch_chance_tick(os_tid, &g_md);
   pgr_auto_throw_tick(os_tid, &g_md, raid_block);
-  if(!raid_block){
+  if(!raid_block&&!rocket_block){
     pgr_remote_gym_tick(os_tid, &g_md);
     pgr_gym_tick(os_tid, &g_md);
     pgr_evolution_tick(os_tid, &g_md);
-    pgr_evolve_transfer_tick(os_tid, &g_md);
+  }
+  // Evolve-first catches queued by Auto Rocket are worked through between its battles.
+  if(!raid_block&&(!rocket_block||pgr_auto_rocket_between_battles()))pgr_evolve_transfer_tick(os_tid, &g_md);
+  if(!raid_block){
     pgr_heal_tick(os_tid, &g_md);
     pgr_auto_boost_tick(os_tid, &g_md);
+  }
+  if(!raid_block&&!rocket_block){
     pgr_shundo_tick(os_tid, &g_md);
     pgr_shiny_scan_tick(os_tid, &g_md);
   }
@@ -2602,6 +2611,7 @@ static int api_stop(uint64_t proven_tid) {
   g_stopped = true;
   if (tid != 0) {
     pgr_auto_raid_stop(tid);
+    pgr_auto_rocket_stop(tid);
     pgr_map_auto_throw_stop();
     if (g_berries && (g_active_caps & PGR_EH_CAP_BERRIES)) {
       g_berries->update(nullptr, 0, 0, tid);

@@ -25,6 +25,9 @@ int decide(const PgrTransferInput *v) {
     for(uint32_t bit=0;bit<6;++bit)if(v->protect&v->flags&(1u<<bit))return 10+bit;
     // Protect bit 7 (128): keep a costumed Pokemon (facts flag bit 8).
     if((v->protect&128)&&(v->flags&256))return 20;
+    // Protect bit 8 (256): keep a shadow Pokemon (facts flag bit 9); unknown when bit 10 is missing.
+    if((v->protect&256)&&!(v->flags&1024))return 6;
+    if((v->protect&256)&&(v->flags&512))return 21;
     // Protect bit 6 (64): keep a 0/0/0 Pokemon.
     if((v->protect&64)&&v->attack==0&&v->defense==0&&v->stamina==0)return 19;
     return 0;

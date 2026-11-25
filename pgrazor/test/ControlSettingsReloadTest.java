@@ -47,12 +47,16 @@ public final class ControlSettingsReloadTest {
         // Backups from before costume had its own option: "event / costume" on keeps both, off keeps neither.
         java.util.Properties oldProtect=new java.util.Properties(); oldProtect.setProperty("transferProtect","127");
         Control.importSettings(app,oldProtect,9.3); Control.flushSettings(5000);
-        if(Control.transferProtect()!=255)throw new AssertionError("Old event/costume choice did not keep costumes");
+        // ...and backups from before Keep shadow Pokemon (bit 256) keep shadows.
+        if(Control.transferProtect()!=511)throw new AssertionError("Old event/costume choice did not keep costumes and shadows");
         oldProtect.setProperty("transferProtect","123");
         Control.importSettings(app,oldProtect,9.3); Control.flushSettings(5000);
-        if(Control.transferProtect()!=123)throw new AssertionError("Old event/costume off turned costume keeping on");
+        if(Control.transferProtect()!=(123|256))throw new AssertionError("Old event/costume off turned costume keeping on");
         // A current backup keeps the two choices apart, and the choice survives a reload.
         oldProtect.setProperty("transferProtect","4"); oldProtect.setProperty("transferProtectSplit","1");
+        Control.importSettings(app,oldProtect,9.3); Control.flushSettings(5000);
+        if(Control.transferProtect()!=(4|256))throw new AssertionError("Backup from before Keep shadow did not keep shadows");
+        oldProtect.setProperty("transferProtectShadow","1");
         Control.importSettings(app,oldProtect,9.3); Control.flushSettings(5000);
         load.invoke(null,app);
         if(Control.transferProtect()!=4)throw new AssertionError("Event-only protection was not preserved");

@@ -61,7 +61,9 @@ enum PgrTransferFactsFlag {
   PGR_TF_FLAG_XXL        = 1u << 5,
   PGR_TF_FLAG_FAVORITE   = 1u << 6,
   PGR_TF_FLAG_EGG        = 1u << 7,
-  PGR_TF_FLAG_COSTUME    = 1u << 8
+  PGR_TF_FLAG_COSTUME    = 1u << 8,
+  PGR_TF_FLAG_SHADOW     = 1u << 9,  // only once pgr_transfer_facts_set_shadow has run
+  PGR_TF_FLAG_SHADOW_KNOWN = 1u << 10 // set whenever the shadow fact was read
 };
 
 // inspect() returns 1 VALID (facts written), 0 REFUSED (window/owner/reentry -- NOT an authorization), or
@@ -182,6 +184,10 @@ static_assert(sizeof(PgrTransferFactsOut) == 40,
               "PgrTransferFactsOut must remain 40 bytes on LP64");
 
 // Fixed LP64 table: 8-byte header + 2 function pointers = 24 bytes.
+// Optional shadow fact, outside the fixed config: the display's Alignment field and its Shadow
+// value. Until this is set no Pokemon is reported as shadow. Set once, before or after install.
+extern "C" void pgr_transfer_facts_set_shadow(void *alignment_field, int32_t shadow_value);
+
 struct PgrTransferFactsApi {
   uint32_t version;  // == PGR_TF_API_VERSION
   uint32_t size;     // == sizeof(PgrTransferFactsApi)

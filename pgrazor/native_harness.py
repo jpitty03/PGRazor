@@ -170,7 +170,7 @@ def main(argv=None):
                                     'gym_runtime.cpp', 'gym_automation.cpp', 'batch_evolution.cpp', 'evolve_transfer.cpp',
                                     'buddy_emotion.cpp', 'profile_scroll.cpp', 'menu_visibility.cpp', 'vgp_controller.cpp', 'smart_catch.cpp',
                                     'smart_catch_binding.cpp', 'vgp_discovery.cpp', 'research.cpp', 'session_stats.cpp', 'route_gift.cpp', 'storage_iv.cpp',
-                                    'ar_values.cpp', 'ar_throw.cpp', 'catch_chance.cpp', 'cutscene_skip.cpp', 'catch_presentation.cpp', 'rocket_swap.cpp', 'smart_battle.cpp', 'rocket_combat.cpp', 'heal.cpp', 'auto_boost.cpp', 'shundo.cpp', 'shiny_scan.cpp', 'battery.cpp')
+                                    'ar_values.cpp', 'ar_throw.cpp', 'catch_chance.cpp', 'cutscene_skip.cpp', 'catch_presentation.cpp', 'rocket_swap.cpp', 'smart_battle.cpp', 'rocket_combat.cpp', 'heal.cpp', 'auto_boost.cpp', 'auto_rocket.cpp', 'shundo.cpp', 'shiny_scan.cpp', 'battery.cpp')
                     extra_flags[:0] = [root/'native'/name for name in dependencies]
                     entry['linked_sources_sha256'] = {name: native_build.sha256(root/'native'/name)
                                                      for name in dependencies}
