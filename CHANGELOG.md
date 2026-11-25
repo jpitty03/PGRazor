@@ -1,22 +1,27 @@
 # Changelog
 
-## Unreleased
+## v0.3.7
+
+[Full release notes](docs/releases/v0.3.7.md)
 
 ### New features
 
 - **Auto Rocket:** A new Automation task that walks to each Team GO Rocket stop nearby, battles the grunt (and leaders, if you choose), catches the shadow Pokémon and moves on to the next. Choose to keep every catch or run them through your transfer rules.
-- **Keep shadow Pokémon:** A new Always keep option in the transfer settings, on by default, so shadow Pokémon are never auto-transferred.
+- **Keep shadow, Dynamax and Gigantamax Pokémon:** New keep options in the transfer settings, each on by default.
 - **Global settings:** In Switch account, turn on Global settings and mark one account as Main; every account then uses the Main account's settings. Each account's own settings are kept and come back when Global settings is turned off. Location, favorites and routes stay per account. Deleting the main account makes the current account main with the settings in use.
 - **Auto Lucky Egg and Auto Star Piece:** Two switches under Go Plus, Stops & Items → Boosts.
 - **In-app updates:** When a newer release is out, an update row appears at the top of the settings menu. Tap it to download the right file for your build; the non-root app then installs it, and PGRazor Root saves its installer to Downloads for you to open. You won't need to goto a certain YouTube video and scroll down to the comments to download (lmao) 🤡.
 
 ### Improvements & fixes
 
-- **Skip cutscenes** now also closes the weather warning and skips the daily "Stay Aware of Your Surroundings" screen.
+- **Favorites:** Tap a favorite in the quick menu or on the World map to Teleport, Walk there, Rename or Delete it; the World map also offers Show on map. The World map's Saved places are now called Favorites too.
+- **Skip teleport confirmation:** Tick "Don't show this again" on the teleport cooldown dialog, or use the new switch in Location & Map (off by default). Skipped teleports show the cooldown in a short message.
+- Added more skip cutscenes, including the weather warning and the daily "Stay Aware of Your Surroundings" screen.
 - Updated to latest game version (0.439.0)
-- **Catch preview:** The Caught / broke free / fled message after a throw now has its own switch in Catching settings (on by default) and works without Quick catch.
+- **Catch preview:** The Caught / broke free / fled message after a throw now has its own switch in Catching settings (on by default).
 - Fixed a Root startup crash when Vector replaces an ARM64 runtime hook during launch.
 - Hide the joystick on game menus, popups, and encounters, and restore it on the map without changing the saved toggle.
+- Max Battle catches now go through your transfer rules, whether thrown by hand or by Auto throw.
 
 ## v0.3.6
 
