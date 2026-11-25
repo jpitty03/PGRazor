@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Improvements & fixes
+
+- Fixed VGP+ not reading wild Pokémon IVs for "Shiny or IV ≥90%: Ultra Ball + Golden Razz" ([#9](https://github.com/jpitty03/PGRazor/issues/9)).
+
 ## v0.3.7
 
 [Full release notes](docs/releases/v0.3.7.md)

@@ -196,9 +196,11 @@ struct PgrSmartBinding {
   void *method_get_from_reflection; // MethodInfo* (void* reflectionMethod)
   void *method_is_inflated;         // bool   (MethodInfo*)
 
-  // --- exact Il2CppClass* identities (12) -------------------------------------------
+  // --- exact Il2CppClass* identities (14) -------------------------------------------
   void *class_wildmap;        // Niantic.Holoholo.Map.WildMapPokemon (target exact class)
-  void *class_pokemon_proto;  // Holoholo.Rpc.PokemonProto (WildMapPokemon.eluq)
+  void *class_encounter_out;  // Holoholo.Rpc.EncounterOutProto (WildMapPokemon.elym)
+  void *class_wild_proto;     // Holoholo.Rpc.WildPokemonProto (EncounterOutProto.Pokemon)
+  void *class_pokemon_proto;  // Holoholo.Rpc.PokemonProto (WildPokemonProto.Pokemon)
   void *class_display_proto;  // Holoholo.Rpc.PokemonDisplayProto (PokemonProto.pokemonDisplay_)
   void *class_item_bag;       // IItemBag concrete (SendRpc owner source + GetItemCount receiver)
   void *class_rpc;            // VGP rpc service (SendRpc owner; item-bag rpc field class)
@@ -210,8 +212,10 @@ struct PgrSmartBinding {
   void *class_ulong;          // System.UInt64 (boxed WildMapPokemon.get_EncounterId)
   void *class_string;         // System.String (WildMapPokemon.get_SpawnPointId)
 
-  // --- validated FieldInfo* (15) ----------------------------------------------------
-  void *f_map_pokemon;    // WildMapPokemon.eluq -> PokemonProto (read ONLY after encounter success)
+  // --- validated FieldInfo* (17) ----------------------------------------------------
+  void *f_map_response;   // WildMapPokemon -> EncounterOutProto (read ONLY after encounter success)
+  void *f_response_wild;  // EncounterOutProto.Pokemon -> WildPokemonProto
+  void *f_wild_pokemon;   // WildPokemonProto.Pokemon -> PokemonProto (carries encounter IVs)
   void *f_proto_id;       // PokemonProto.pokemonId_ (int, species / National Dex id)
   void *f_proto_cp;       // PokemonProto.cp_ (int)
   void *f_proto_atk;      // PokemonProto.individualAttack_ (int)
@@ -272,8 +276,8 @@ int pgr_smart_bind(const PgrSmartBinding *binding);
 
 // Plan the ball/berry for a CONFIRMED encounter. Returns PGR_SMART_SKIP_SPECIES, before any stock read,
 // when a catch-only list is set and the encountered species is not on it. `target` is the rooted WildMapPokemon, `itemBag` the
-// rooted IItemBag; `owner` is the proven Unity owner tid. Reads WildMapPokemon.eluq (PokemonProto) ONLY
-// (exact class checked), derives shiny/IV/CP/(optional level)/species, decides, then resolves actual
+// rooted IItemBag; `owner` is the proven Unity owner tid. Reads WildMapPokemon's stored EncounterOutProto ->
+// WildPokemonProto -> PokemonProto (exact classes checked), derives shiny/IV/CP/(optional level)/species, decides, then resolves actual
 // stock: an eligible Safari Ball when opted in, otherwise the selected regular ball or an in-stock
 // regular fallback (never Master); the berry is dropped when
 // Off or out of stock. Read-only: issues no managed mutation. Returns PGR_SMART_OK (decision written; may
