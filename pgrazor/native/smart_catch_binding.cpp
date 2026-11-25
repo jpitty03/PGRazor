@@ -288,8 +288,7 @@ int pgr_smart_ensure_bound(uint64_t owner) {
 
   // --- fields (offsets confirmed from catch-evolution-metadata.txt unless noted) ---
   void *status_enum_class = nullptr;
-  if (validate_field(md, b.class_wildmap, PGR_GAME_SMART_CATCH_BINDING_CPP_EMBT_NAME, PGR_GAME_SMART_CATCH_BINDING_CPP_EMBT_OFFSET, PGR_MD_FIELD_REF, 0, "Holoholo.Rpc.PokemonProto", &b.f_map_pokemon, nullptr) ||
-      validate_field(md, b.class_pokemon_proto, PGR_GAME_SMART_CATCH_BINDING_CPP_POKEMONID__NAME, PGR_GAME_SMART_CATCH_BINDING_CPP_POKEMONID__OFFSET, PGR_MD_FIELD_VALUE, 4, "System.Int32", &b.f_proto_id, nullptr) ||
+  if (validate_field(md, b.class_pokemon_proto, PGR_GAME_SMART_CATCH_BINDING_CPP_POKEMONID__NAME, PGR_GAME_SMART_CATCH_BINDING_CPP_POKEMONID__OFFSET, PGR_MD_FIELD_VALUE, 4, "System.Int32", &b.f_proto_id, nullptr) ||
       validate_field(md, b.class_pokemon_proto, PGR_GAME_SMART_CATCH_BINDING_CPP_CP__NAME, PGR_GAME_SMART_CATCH_BINDING_CPP_CP__OFFSET, PGR_MD_FIELD_VALUE, 4, "System.Int32", &b.f_proto_cp, nullptr) ||
       validate_field(md, b.class_pokemon_proto, PGR_GAME_SMART_CATCH_BINDING_CPP_INDIVIDUALATTACK__NAME, PGR_GAME_SMART_CATCH_BINDING_CPP_INDIVIDUALATTACK__OFFSET, PGR_MD_FIELD_VALUE, 4, "System.Int32", &b.f_proto_atk, nullptr) ||
       validate_field(md, b.class_pokemon_proto, PGR_GAME_SMART_CATCH_BINDING_CPP_INDIVIDUALDEFENSE__NAME, PGR_GAME_SMART_CATCH_BINDING_CPP_INDIVIDUALDEFENSE__OFFSET, PGR_MD_FIELD_VALUE, 4, "System.Int32", &b.f_proto_def, nullptr) ||
@@ -350,11 +349,22 @@ int pgr_smart_ensure_bound(uint64_t owner) {
       validate_field(md, class_wild_proto, PGR_GAME_SMART_CATCH_BINDING_CPP_LASTMODIFIEDMS_NAME, PGR_GAME_SMART_CATCH_BINDING_CPP_LASTMODIFIEDMS_OFFSET, PGR_MD_FIELD_VALUE, 8, "System.Int64", &f_last, nullptr) ||
       validate_field(md, class_wild_proto, PGR_GAME_SMART_CATCH_BINDING_CPP_TIMETILLHIDDENMS_NAME, PGR_GAME_SMART_CATCH_BINDING_CPP_TIMETILLHIDDENMS_OFFSET, PGR_MD_FIELD_VALUE, 4, "System.Int32", &f_hidden, nullptr))
     return PGR_SMARTBIND_ERR_FIELD;
-  // Map species for the catch-only list. Optional: without it every spawn is encountered and the list is
-  // applied to the encounter's Pokemon instead.
-  void *f_wild_pokemon = nullptr;
-  if (validate_field(md, class_wild_proto, PGR_GAME_SMART_CATCH_BINDING_CPP_POKEMON_NAME, PGR_GAME_SMART_CATCH_BINDING_CPP_WILD_POKEMON_OFFSET, PGR_MD_FIELD_REF, 0, "Holoholo.Rpc.PokemonProto", &f_wild_pokemon, nullptr))
-    f_wild_pokemon = nullptr;
+  // Post-encounter PokemonProto path (WildMapPokemon -> EncounterOutProto -> WildPokemonProto -> PokemonProto).
+  void *f_wild_pokemon = nullptr, *encounter_enum = nullptr;
+  if (resolve_class(md, "Holoholo.Rpc", "EncounterOutProto", &encounter_class) ||
+      resolve_class(md, "Niantic.Holoholo.Map", "PokemonEncounterResponse", &encounter_wrapper) ||
+      validate_field(md, b.class_wildmap, PGR_GAME_SMART_CATCH_BINDING_CPP_EMBS_NAME, PGR_GAME_SMART_CATCH_BINDING_CPP_EMBS_OFFSET, PGR_MD_FIELD_REF, 0, "Holoholo.Rpc.EncounterOutProto", &map_encounter, nullptr) ||
+      validate_field(md, encounter_class, PGR_GAME_SMART_CATCH_BINDING_CPP_STATUS_NAME, PGR_GAME_SMART_CATCH_BINDING_CPP_STATUS_OFFSET_2, PGR_MD_FIELD_ENUM_I32, 4, nullptr, &encounter_status, &encounter_enum) ||
+      validate_field(md, encounter_class, PGR_GAME_SMART_CATCH_BINDING_CPP_POKEMON_NAME, PGR_GAME_SMART_CATCH_BINDING_CPP_POKEMON_OFFSET, PGR_MD_FIELD_REF, 0, "Holoholo.Rpc.WildPokemonProto", &encounter_pokemon, nullptr) ||
+      validate_field(md, class_wild_proto, PGR_GAME_SMART_CATCH_BINDING_CPP_POKEMON_NAME, PGR_GAME_SMART_CATCH_BINDING_CPP_WILD_POKEMON_OFFSET, PGR_MD_FIELD_REF, 0, "Holoholo.Rpc.PokemonProto", &f_wild_pokemon, nullptr) ||
+      !read_enum_literal(ex, rt, encounter_enum, "EncounterSuccess", &encounter_success))
+    return PGR_SMARTBIND_ERR_FIELD;
+
+  b.class_encounter_out = encounter_class;
+  b.class_wild_proto = class_wild_proto;
+  b.f_map_response = map_encounter;
+  b.f_response_wild = encounter_pokemon;
+  b.f_wild_pokemon = f_wild_pokemon;
 
   int rc=pgr_smart_bind(&b);
   if(rc!=PGR_SMART_OK)return PGR_SMARTBIND_ERR_BIND;
@@ -364,13 +374,6 @@ int pgr_smart_ensure_bound(uint64_t owner) {
      validate_method(md,unity_object,"FindObjectsOfType","UnityEngine.Object[]",2,"System.Type",1,&find_loaded,"System.Boolean"))
     return PGR_SMARTBIND_ERR_METHOD;
   pgr_vgp_discovery_loaded_method(find_loaded);
-  void *encounter_enum=nullptr;
-  if(resolve_class(md,"Holoholo.Rpc","EncounterOutProto",&encounter_class)||
-     resolve_class(md,"Niantic.Holoholo.Map","PokemonEncounterResponse",&encounter_wrapper)||
-     validate_field(md,b.class_wildmap,PGR_GAME_SMART_CATCH_BINDING_CPP_EMBS_NAME,PGR_GAME_SMART_CATCH_BINDING_CPP_EMBS_OFFSET,PGR_MD_FIELD_REF,0,"Holoholo.Rpc.EncounterOutProto",&map_encounter,nullptr)||
-     validate_field(md,encounter_class,PGR_GAME_SMART_CATCH_BINDING_CPP_STATUS_NAME,PGR_GAME_SMART_CATCH_BINDING_CPP_STATUS_OFFSET_2,PGR_MD_FIELD_ENUM_I32,4,nullptr,&encounter_status,&encounter_enum)||
-     validate_field(md,encounter_class,PGR_GAME_SMART_CATCH_BINDING_CPP_POKEMON_NAME,PGR_GAME_SMART_CATCH_BINDING_CPP_POKEMON_OFFSET,PGR_MD_FIELD_REF,0,"Holoholo.Rpc.WildPokemonProto",&encounter_pokemon,nullptr)||
-     !read_enum_literal(ex,rt,encounter_enum,"EncounterSuccess",&encounter_success))return PGR_SMARTBIND_ERR_FIELD;
 
   g_fresh.owner = owner;
   g_fresh.class_wildmap = b.class_wildmap;

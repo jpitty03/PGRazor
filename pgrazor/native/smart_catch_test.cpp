@@ -12,7 +12,8 @@
 namespace {
 void *tag(uintptr_t n){return reinterpret_cast<void*>(n);}
 struct Obj {void *cls;uint64_t value=0;};
-Obj wild{tag(1)},pokemon{tag(2)},display{tag(3)},bag{tag(4)},rpc{tag(5)},request{tag(6)},response{tag(7)},boxed_int{tag(9)},boxed_id{tag(11)},spawn{tag(12)},reflection{tag(20)},closed{tag(20)},promise{tag(21)},type{tag(8)};
+Obj wild{tag(1)},pokemon{tag(2)},display{tag(3)},bag{tag(4)},rpc{tag(5)},request{tag(6)},response{tag(7)},boxed_int{tag(9)},boxed_id{tag(11)},spawn{tag(12)},reflection{tag(20)},closed{tag(20)},promise{tag(21)},type{tag(8)},encounter_out{tag(13)},wild_proto{tag(14)};
+void *map_response_ptr=&encounter_out,*response_wild_ptr=&wild_proto,*wild_pokemon_ptr=&pokemon;
 struct Array {uint64_t header[4];void *items[2];} array_obj{};
 std::unordered_map<uintptr_t,void*> roots;
 uintptr_t next_root=1;int sends=0,stock[800]={},atk=0,def=0,sta=0,cp=100,species=25;
@@ -35,11 +36,13 @@ void gc_free(uintptr_t h){assert(roots.erase(h)==1);}
 void *object_class(void *o){return static_cast<Obj*>(o)->cls;}
 void *object_new(void *cls){assert(cls==request.cls);req_item=0;req_encounter=0;req_spawn=nullptr;return &request;}
 void *unbox(void *o){return &static_cast<Obj*>(o)->value;}
-enum Fields {MAP=101,SPECIES,CP,ATK,DEF,STA,MULT,ADD,DISPLAY,SHINY,ITEM,ENCID,SPAWN,STATUS,RPC,STRONG};
+enum Fields {MAP_RESPONSE=101,RESPONSE_WILD,WILD_POKEMON,SPECIES,CP,ATK,DEF,STA,MULT,ADD,DISPLAY,SHINY,ITEM,ENCID,SPAWN,STATUS,RPC,STRONG};
 enum Methods {ENCOUNTER=201,SPAWN_ID,COUNT,CTOR,OPEN,MAKE,CLOSED};
 void field_get(void *o,void *field,void *out){
  switch(uintptr_t(field)){
- case MAP:assert(o==&wild);*static_cast<void**>(out)=&pokemon;break;
+ case MAP_RESPONSE:assert(o==&wild);*static_cast<void**>(out)=map_response_ptr;break;
+ case RESPONSE_WILD:assert(o==&encounter_out);*static_cast<void**>(out)=response_wild_ptr;break;
+ case WILD_POKEMON:assert(o==&wild_proto);*static_cast<void**>(out)=wild_pokemon_ptr;break;
  case SPECIES:*static_cast<int*>(out)=species;break;case CP:*static_cast<int*>(out)=cp;break;
  case ATK:*static_cast<int*>(out)=atk;break;case DEF:*static_cast<int*>(out)=def;break;case STA:*static_cast<int*>(out)=sta;break;
  case MULT:case ADD:*static_cast<float*>(out)=0;break;
@@ -83,9 +86,9 @@ PgrSmartBinding binding(){
  b.gc_new=(void*)gc_new;b.gc_get=(void*)gc_get;b.gc_free=(void*)gc_free;b.object_get_class=(void*)object_class;b.object_new=(void*)object_new;b.object_unbox=(void*)unbox;b.runtime_invoke=(void*)invoke;
  b.field_get_value=(void*)field_get;b.field_set_value=(void*)field_set;b.field_set_value_object=(void*)set_ref;b.array_new=(void*)array_new;
  b.class_get_method_from_name=(void*)method_name;b.method_is_generic=(void*)is_generic;b.method_get_param_count=(void*)param_count;b.method_get_object=(void*)method_object;b.class_get_type=(void*)class_type;b.type_get_object=(void*)type_object;b.gc_wbarrier_set_field=(void*)barrier;b.method_get_from_reflection=(void*)from_reflection;b.method_is_inflated=(void*)inflated;
- b.class_wildmap=wild.cls;b.class_pokemon_proto=pokemon.cls;b.class_display_proto=display.cls;b.class_item_bag=bag.cls;b.class_rpc=rpc.cls;b.class_use_item_req=request.cls;b.class_use_item_out=response.cls;b.class_type=type.cls;b.class_int=boxed_int.cls;b.class_bool=tag(10);b.class_ulong=boxed_id.cls;b.class_string=spawn.cls;
- void **fields[]={&b.f_map_pokemon,&b.f_proto_id,&b.f_proto_cp,&b.f_proto_atk,&b.f_proto_def,&b.f_proto_sta,&b.f_proto_cpmul,&b.f_proto_addcpmul,&b.f_proto_display,&b.f_display_shiny,&b.f_req_item,&b.f_req_encid,&b.f_req_spawn,&b.f_out_status,&b.f_bag_rpc};
- for(unsigned i=0;i<15;i++)*fields[i]=tag(MAP+i);
+ b.class_wildmap=wild.cls;b.class_encounter_out=encounter_out.cls;b.class_wild_proto=wild_proto.cls;b.class_pokemon_proto=pokemon.cls;b.class_display_proto=display.cls;b.class_item_bag=bag.cls;b.class_rpc=rpc.cls;b.class_use_item_req=request.cls;b.class_use_item_out=response.cls;b.class_type=type.cls;b.class_int=boxed_int.cls;b.class_bool=tag(10);b.class_ulong=boxed_id.cls;b.class_string=spawn.cls;
+ void **fields[]={&b.f_map_response,&b.f_response_wild,&b.f_wild_pokemon,&b.f_proto_id,&b.f_proto_cp,&b.f_proto_atk,&b.f_proto_def,&b.f_proto_sta,&b.f_proto_cpmul,&b.f_proto_addcpmul,&b.f_proto_display,&b.f_display_shiny,&b.f_req_item,&b.f_req_encid,&b.f_req_spawn,&b.f_out_status,&b.f_bag_rpc};
+ for(unsigned i=0;i<17;i++)*fields[i]=tag(MAP_RESPONSE+i);
  b.m_get_encounter_id=tag(ENCOUNTER);b.m_get_spawn_id=tag(SPAWN_ID);b.m_item_count=tag(COUNT);b.m_req_ctor=tag(CTOR);b.rpc_id=42;b.status_success=1;return b;
 }
 PgrSmartSettings parse(const std::string &s){PgrSmartSettings out{};assert(pgr_smart_parse_settings(s.data(),s.size(),&out)==0);return out;}
@@ -166,6 +169,20 @@ int main(){
  auto tid=uint64_t(gettid());PgrSmartDecision d{};stock[1]=10;stock[4]=999;stock[705]=5;
  config="1;1;3;705;1;1500;30;3;1;25";
  assert(pgr_smart_plan(&wild,&bag,tid,&d)==0&&d.ball==1&&d.berry==705);assert(roots.empty());
+ stock[705]=5;stock[706]=5;stock[3]=10;shiny=false;
+ // Wild spawn IVs come from EncounterOutProto.Pokemon.Pokemon: 41/45 (91%) upgrades to Ultra + Golden Razz, 40/45 does not.
+ atk=15;def=14;sta=12;
+ assert(pgr_smart_plan(&wild,&bag,tid,&d)==0&&d.ball==3&&d.berry==706);assert(roots.empty());
+ atk=14;def=13;sta=13;
+ assert(pgr_smart_plan(&wild,&bag,tid,&d)==0&&d.ball==3&&d.berry==705);assert(roots.empty());
+ atk=0;def=0;sta=0;
+ // Missing or wrong-class encounter response / WildPokemonProto fails closed with zero leaked roots.
+ map_response_ptr=nullptr;assert(pgr_smart_plan(&wild,&bag,tid,&d)==PGR_SMART_ERR_IDENTITY);assert(roots.empty());
+ map_response_ptr=&spawn;assert(pgr_smart_plan(&wild,&bag,tid,&d)==PGR_SMART_ERR_IDENTITY);assert(roots.empty());
+ map_response_ptr=&encounter_out;response_wild_ptr=nullptr;assert(pgr_smart_plan(&wild,&bag,tid,&d)==PGR_SMART_ERR_IDENTITY);assert(roots.empty());
+ response_wild_ptr=&spawn;assert(pgr_smart_plan(&wild,&bag,tid,&d)==PGR_SMART_ERR_IDENTITY);assert(roots.empty());
+ response_wild_ptr=&wild_proto;wild_pokemon_ptr=&spawn;assert(pgr_smart_plan(&wild,&bag,tid,&d)==PGR_SMART_ERR_IDENTITY);assert(roots.empty());
+ wild_pokemon_ptr=&pokemon;stock[3]=0;stock[706]=0;
  stock[705]=0;assert(pgr_smart_plan(&wild,&bag,tid,&d)==0&&d.berry==0);assert(roots.empty());
  stock[1]=0;assert(pgr_smart_plan(&wild,&bag,tid,&d)==PGR_SMART_NO_BALLS);assert(roots.empty()); // Master stock cannot rescue
  stock[1]=10;assert(pgr_smart_plan(&wild,&bag,tid+1,&d)==0&&!d.enabled);assert(roots.empty());

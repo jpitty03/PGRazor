@@ -185,10 +185,13 @@ extern "C" int pgr_smart_plan(void *target,void *itemBag,uint64_t owner,PgrSmart
  Root map(target),bag(itemBag);if(!map.h||!bag.h)return PGR_SMART_ERR_GCHANDLE;
  const PgrVgpIncense *incense=pgr_vgp_kind(klass(map.get()));
  if((!incense&&!exact(map.get(),b.class_wildmap))||!exact(bag.get(),b.class_item_bag))return PGR_SMART_ERR_IDENTITY;
- // Incense spawns keep the encountered Pokemon on their stored IncenseEncounterOutProto.
- Root response(incense?field<void*>(map.get(),incense->f_response):nullptr);
- if(incense&&(!response.h||!exact(response.get(),incense->class_response)))return PGR_SMART_ERR_IDENTITY;
- Root pokemon(incense?field<void*>(response.get(),incense->f_pokemon):field<void*>(map.get(),b.f_map_pokemon));
+ // Wild spawns keep real encounter IVs/stats on EncounterOutProto.Pokemon.Pokemon; incense and other
+ // registered spawn kinds keep them on their stored *EncounterOutProto.Pokemon.
+ Root response(field<void*>(map.get(),incense?incense->f_response:b.f_map_response));
+ if(!response.h||!exact(response.get(),incense?incense->class_response:b.class_encounter_out))return PGR_SMART_ERR_IDENTITY;
+ Root wild_proto(incense?nullptr:field<void*>(response.get(),b.f_response_wild));
+ if(!incense&&(!wild_proto.h||!exact(wild_proto.get(),b.class_wild_proto)))return PGR_SMART_ERR_IDENTITY;
+ Root pokemon(incense?field<void*>(response.get(),incense->f_pokemon):field<void*>(wild_proto.get(),b.f_wild_pokemon));
  if(!pokemon.h)return PGR_SMART_ERR_GCHANDLE;
  if(!exact(pokemon.get(),b.class_pokemon_proto))return PGR_SMART_ERR_IDENTITY;
  const int atk=field<int>(pokemon.get(),b.f_proto_atk),def=field<int>(pokemon.get(),b.f_proto_def),sta=field<int>(pokemon.get(),b.f_proto_sta);
