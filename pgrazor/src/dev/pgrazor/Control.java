@@ -1203,7 +1203,7 @@ public final class Control {
         synchronized(stateLock) {
             if(settingsFile==null) {
                 // Create the destination and its writer once so the sink can close over a stable
-                // target; the file path never changes within a process.
+                // target; only retargetSettings (deleting the main account) changes it within a process.
                 settingsFile=new AtomicFile(AccountProfiles.file(app,"pgrazor-settings-v1.properties"));
                 final AtomicFile target=settingsFile;
                 settingsWriter=new SettingsWriter(settingsIo,snapshot->writeSettings(target,snapshot),
@@ -1432,6 +1432,22 @@ public final class Control {
         FileOutputStream out=null;
         try { out=file.startWrite(); snapshot.store(out,"PGRazor settings"); file.finishWrite(out); out=null; }
         finally { if(out!=null)file.failWrite(out); }
+    }
+    /**
+     * Points this session's settings at another file, first writing the current settings there. Used when
+     * the main account is deleted while global settings are on: the account that becomes main keeps the
+     * settings in use, and later saves stop going to the deleted account's folder.
+     */
+    static void retargetSettings(File file) throws IOException {
+        synchronized(stateLock) {
+            if(settingsFile==null)throw new IOException("Settings are not ready");
+            settingsWriter.flush(SETTINGS_FLUSH_MS);
+            final AtomicFile next=new AtomicFile(file);
+            writeSettings(next,settingsSnapshot());
+            settingsFile=next;
+            settingsWriter=new SettingsWriter(settingsIo,snapshot->writeSettings(next,snapshot),
+                                              error->event("settings-save-error",error.toString()));
+        }
     }
     /** Blocks until queued settings writes are durable; IO failures reach the caller synchronously. */
     static void flushSettings(long timeoutMillis) throws IOException {

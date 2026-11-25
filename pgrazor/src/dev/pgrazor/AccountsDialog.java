@@ -49,7 +49,8 @@ final class AccountsDialog {
             Button delete=new Button(ui);delete.setText("Delete");delete.setEnabled(AccountProfiles.canDelete(profile.id));actions.addView(delete);deletions.put(delete,profile.id);
             delete.setContentDescription(profile.id.equals(AccountProfiles.currentId())?"Switch accounts before deleting the current account":"Delete saved account");
             delete.setOnClickListener(v->new AlertDialog.Builder(ui).setTitle("Delete "+profile.label+"?")
-                .setMessage("Remove this saved sign-in, settings, location, favorites and routes from this device? Your Pokémon GO account will not be deleted.")
+                .setMessage("Remove this saved sign-in, settings, location, favorites and routes from this device? Your Pokémon GO account will not be deleted."
+                    +(AccountProfiles.deleteTakesSettings(profile.id)?"\n\n"+names.get(AccountProfiles.currentId())+" becomes the main account and keeps the global settings in use now, replacing its own saved settings.":""))
                 .setNegativeButton("Cancel",null).setPositiveButton("Delete",(d,w)->AccountProfiles.delete(activity,profile.id,()->{switches.remove(change);deletions.remove(delete);rows.removeView(row);labels.remove(profile.id);mains.remove(profile.id);marks.run();})).show());
         }
         global.setOnCheckedChangeListener((v,checked)->{if(checked==AccountProfiles.globalSettings())return;

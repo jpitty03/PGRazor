@@ -32,6 +32,7 @@ public static void setThreadPolicy(ThreadPolicy p){}}''',
 static android.app.Activity activity; static java.util.List<String> events=new java.util.ArrayList<>();
 static android.app.Activity accountActivity(){return activity;}
 static void event(String k,String d){events.add(k+":"+d);}
+static void retargetSettings(java.io.File f){}
 static void flushAccountWrites() throws java.io.IOException{}
 static void quiesceAccounts() throws java.io.IOException{}}''',
     'dev/pgrazor/AccountProfileStore.java': '''package dev.pgrazor; class AccountProfileStore {
