@@ -68,6 +68,9 @@ public final class AccountProfileStore {
     private static final String KEY_SELECTED = "selected";
     private static final String KEY_PENDING = "pending";
     private static final String KEY_IDS = "ids";
+    // Optional (older indexes have neither): whether every account uses the main account's settings.
+    private static final String KEY_GLOBAL = "globalSettings";
+    private static final String KEY_MAIN = "main";
     private static final String PREFIX = "profile.";
 
     private static final Pattern UUID_RE = Pattern.compile(
@@ -83,6 +86,8 @@ public final class AccountProfileStore {
     private LinkedHashMap<String, Profile> profiles = new LinkedHashMap<>();
     private String selected = DEFAULT_ID;
     private String pending = "";
+    private boolean globalSettings = false;
+    private String mainId = DEFAULT_ID;
 
     /**
      * Opens (or, on first use, bootstraps) the index under {@code filesDir}.
@@ -147,6 +152,34 @@ public final class AccountProfileStore {
         return profiles.get(selected).copy();
     }
 
+    /** Whether every account uses the main account's settings (off by default). */
+    public synchronized boolean globalSettings() {
+        return globalSettings;
+    }
+
+    /** The main account: the one whose settings every account uses while global settings are on. */
+    public synchronized String mainId() {
+        return mainId;
+    }
+
+    /**
+     * The profile whose settings file {@code profileId} reads and writes: the main account while
+     * global settings are on, otherwise the profile itself. Each account's own file is left as it
+     * was, so turning global settings off brings its own settings back.
+     */
+    public synchronized String settingsOwner(String profileId) {
+        requireKnownId(profileId);
+        return globalSettings ? mainId : profileId;
+    }
+
+    /** Turns global settings on or off and chooses the main account, durably and together. */
+    public synchronized void setGlobalSettings(boolean on, String main) throws IOException {
+        requireKnownId(main);
+        persist(profiles, selected, pending, on, main);
+        globalSettings = on;
+        mainId = main;
+    }
+
     /** The id of the pending switch target, or {@code ""} when none is queued. */
     public synchronized String pendingId() {
         return pending;
@@ -195,7 +228,9 @@ public final class AccountProfileStore {
     public synchronized void remove(String id) throws IOException {
         requireRemovable(id);
         LinkedHashMap<String,Profile> next=copyProfiles();next.remove(id);
-        persist(next,selected,pending);commit(next,selected,pending);
+        // The main account cannot vanish under global settings: the current account takes over.
+        final String nextMain=mainId.equals(id)?selected:mainId;
+        persist(next,selected,pending,globalSettings,nextMain);commit(next,selected,pending);mainId=nextMain;
     }
 
     /**
@@ -395,10 +430,17 @@ public final class AccountProfileStore {
      */
     private void persist(LinkedHashMap<String, Profile> next, String nextSelected, String nextPending)
             throws IOException {
+        persist(next, nextSelected, nextPending, globalSettings, mainId);
+    }
+
+    private void persist(LinkedHashMap<String, Profile> next, String nextSelected, String nextPending,
+                         boolean nextGlobal, String nextMain) throws IOException {
         Properties props = new Properties();
         props.setProperty(KEY_VERSION, INDEX_VERSION);
         props.setProperty(KEY_SELECTED, nextSelected);
         props.setProperty(KEY_PENDING, nextPending);
+        props.setProperty(KEY_GLOBAL, Boolean.toString(nextGlobal));
+        props.setProperty(KEY_MAIN, nextMain);
         StringBuilder ids = new StringBuilder();
         for (Profile p : next.values()) {
             if (ids.length() > 0) ids.append(',');
@@ -494,5 +536,9 @@ public final class AccountProfileStore {
         this.profiles = loaded;
         this.selected = sel;
         this.pending = pend;
+        // Optional fields: absent (an older index) means off; an unknown main falls back safely.
+        String main = props.getProperty(KEY_MAIN);
+        this.mainId = main != null && loaded.containsKey(main) ? main : loaded.containsKey(DEFAULT_ID) ? DEFAULT_ID : sel;
+        this.globalSettings = "true".equals(props.getProperty(KEY_GLOBAL));
     }
 }

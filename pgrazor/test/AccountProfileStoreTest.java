@@ -30,8 +30,35 @@ public final class AccountProfileStoreTest {
         corruptionFailsClosed(new File(root, "corrupt"));
         oversizeRejected(new File(root, "oversize"));
         invalidInputsRejected(new File(root, "invalid"));
+        globalSettings(new File(root, "global"));
 
         System.out.println("PASS: AccountProfileStore legacy/identity/separation/restart/corruption/validation");
+    }
+
+    private static void globalSettings(File filesDir) throws Exception {
+        filesDir.mkdirs();
+        AccountProfileStore store = new AccountProfileStore(filesDir);
+        Profile alt = store.add("Alt");
+        check(!store.globalSettings() && store.mainId().equals(AccountProfileStore.DEFAULT_ID), "global settings default off, main is the default profile");
+        check(store.settingsOwner(alt.id).equals(alt.id), "off: each account owns its settings");
+        store.setGlobalSettings(true, alt.id);
+        check(store.settingsOwner(AccountProfileStore.DEFAULT_ID).equals(alt.id) && store.settingsOwner(alt.id).equals(alt.id), "on: every account uses the main's settings");
+        AccountProfileStore reopened = new AccountProfileStore(filesDir);
+        check(reopened.globalSettings() && reopened.mainId().equals(alt.id), "global settings survive a restart");
+        boolean rejected = false;
+        try { reopened.setGlobalSettings(true, "00000000-0000-0000-0000-000000000000"); } catch (IllegalArgumentException expected) { rejected = true; }
+        check(rejected && reopened.mainId().equals(alt.id), "an unknown main is refused and nothing changes");
+        // Deleting the main hands its role to the current account; global settings stay on.
+        reopened.remove(alt.id);
+        check(reopened.globalSettings() && reopened.mainId().equals(AccountProfileStore.DEFAULT_ID), "the current account becomes main when the main is deleted");
+        reopened.setGlobalSettings(false, AccountProfileStore.DEFAULT_ID);
+        check(!new AccountProfileStore(filesDir).globalSettings(), "turning it off persists");
+        // An index written before these keys existed loads with global settings off.
+        File index = new File(new File(filesDir, "pgrazor-accounts-v1"), "index.properties");
+        String text = new String(Files.readAllBytes(index.toPath()), StandardCharsets.ISO_8859_1).replaceAll("(?m)^(globalSettings|main)=.*\\R", "");
+        Files.write(index.toPath(), text.getBytes(StandardCharsets.ISO_8859_1));
+        AccountProfileStore legacy = new AccountProfileStore(filesDir);
+        check(!legacy.globalSettings() && legacy.mainId().equals(AccountProfileStore.DEFAULT_ID), "older index: off, default main");
     }
 
     private static void legacyDefaultPreserved(File filesDir) throws Exception {
