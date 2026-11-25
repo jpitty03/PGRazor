@@ -8,10 +8,11 @@
 - **Keep shadow Pokémon:** A new Always keep option in the transfer settings, on by default, so shadow Pokémon are never auto-transferred.
 - **Global settings:** In Switch account, turn on Global settings and mark one account as Main; every account then uses the Main account's settings. Each account's own settings are kept and come back when Global settings is turned off. Location, favorites and routes stay per account. Deleting the main account makes the current account main with the settings in use.
 - **Auto Lucky Egg and Auto Star Piece:** Two switches under Go Plus, Stops & Items → Boosts.
-- **In-app updates:** When a newer release is out, an update row appears at the top of the settings menu. Tap it to download the right file for your build; the non-root app then installs it, and PGRazor Root saves its installer to Downloads for you to open.
+- **In-app updates:** When a newer release is out, an update row appears at the top of the settings menu. Tap it to download the right file for your build; the non-root app then installs it, and PGRazor Root saves its installer to Downloads for you to open. You won't need to goto a certain YouTube video and scroll down to the comments to download (lmao) 🤡.
 
 ### Improvements & fixes
 
+- **Skip cutscenes** now also closes the weather warning and skips the daily "Stay Aware of Your Surroundings" screen.
 - Updated to latest game version (0.439.0)
 - **Catch preview:** The Caught / broke free / fled message after a throw now has its own switch in Catching settings (on by default) and works without Quick catch.
 - Fixed a Root startup crash when Vector replaces an ARM64 runtime hook during launch.

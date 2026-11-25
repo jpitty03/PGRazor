@@ -116,7 +116,7 @@ int raid_wait_state=-1;
 constexpr uint64_t kRaidStepMs=250,kRaidWatchMs=30000,kRaidRecoveryMs=60000;
 // Pop-ups closed with their own GuiController.Dismiss(), as tapping through them does: the "You're going
 // too fast" warning (Niantic.Holoholo.Map.SpeedModal), the medal pop-ups (BadgeAwardGuiController for a new medal, BadgeIncrementGuiController for a medal
-// tier), the "Gym Badge Earned" share/save modal (Niantic.Holoholo.GymBadges.GymBadgeAwardGuiController) and the weekly Adventure Sync summary (BgMode.UI.WeeklyFitnessDialog). With the setting on each is hidden as it opens (GuiController.Open) and dismissed once open
+// tier), the "Gym Badge Earned" share/save modal (Niantic.Holoholo.GymBadges.GymBadgeAwardGuiController), the weekly Adventure Sync summary (BgMode.UI.WeeklyFitnessDialog) and the weather warning (Niantic.Holoholo.UI.WeatherWarningModalDialog). With the setting on each is hidden as it opens (GuiController.Open) and dismissed once open
 // (state 2); one not open within 15 s is shown again for taps.
 // The gym badge modal only offers Share / Save over the already-awarded badge (the badge is granted
 // server-side), so dismissing it loses nothing. Its HandleOpen/HandleOpenComplete/HandleDismiss are
@@ -137,6 +137,8 @@ DismissKind dismiss_kinds[]={{"Niantic.Holoholo.Map","SpeedModal","speed-warning
  {"Niantic.Holoholo.UI","BadgeIncrementGuiController","medal-tier",false,nullptr},
  {"Niantic.Holoholo.GymBadges","GymBadgeAwardGuiController","gym-badge",false,nullptr},
  {"Niantic.Holoholo.BgMode.UI","WeeklyFitnessDialog","weekly-fitness",false,nullptr},
+ // The "Weather Warning" modal shown while the area has a weather alert: read-only advice.
+ {"Niantic.Holoholo.UI","WeatherWarningModalDialog","weather-warning",false,nullptr},
  // Experiment: the one screen behind every "feature unlocked" card ("New level unlocks" after a
  // level-up, "Trading Unlocked", ...). Closed through the same GuiController.Dismiss as the others.
  // Not yet known: whether every caller treats that as the card having been read.
@@ -1209,6 +1211,35 @@ void install(){
  status("ready",std::to_string(count)+" of "+std::to_string(int(K_COUNT))+" cutscene types"+(missing.empty()?std::string():"; not skipped: "+missing));
 }
 
+// The daily "Stay Aware of Your Surroundings" screen opens on the map while
+// Preferences.DayLastSeenAwarenessSafetyPopUp is not TimeUtil.GetUniqueIndexForToday()
+// (MapRootState.AlreadySeenSafetyWarningToday). With the setting on, today's index is recorded before the
+// map opens, as seeing the screen would, so it is not shown. Checked once a minute for the day changing.
+void *safety_set=nullptr,*safety_today=nullptr;bool safety_resolved=false;int32_t safety_written=-1;uint64_t safety_checked=0;
+void mark_safety_seen(){
+ const uint64_t now=clock_ms();
+ if(safety_checked&&now-safety_checked<60000)return;
+ safety_checked=now;
+ if(!safety_resolved){
+  safety_resolved=true;
+  try{
+   const auto *api=static_cast<const PgrMetaApi*>(pgrazor_runtime_metadata_api(1));require(api&&api->resolve_class,"metadata API");
+   auto method=[&](void *k,const char *name,int n){void *m=fn<void*(*)(void*,const char*,int)>(boot.meta.class_get_method_from_name)(k,name,n);require(m,name);return m;};
+   safety_set=method(class_of(api,"Niantic.Holoholo.PersistentData","Preferences"),"set_DayLastSeenAwarenessSafetyPopUp",1);
+   safety_today=method(class_of(api,"Niantic.Holoholo","TimeUtil"),"GetUniqueIndexForToday",0);
+  }catch(...){safety_set=safety_today=nullptr;status("warning","The daily safety screen cannot be skipped");return;}
+ }
+ if(!safety_set||!safety_today)return;
+ try{
+  void *boxed=invoke(safety_today,nullptr);require(boxed,"today index");
+  const uint64_t today=*static_cast<uint64_t*>(fn<void*(*)(void*)>(boot.runtime.object_unbox)(boxed));
+  int32_t day=int32_t(today);  // the game compares the stored Int32 with the index's low 32 bits
+  if(day==safety_written)return;
+  void *args[]={&day};invoke(safety_set,nullptr,args);safety_written=day;
+  event("{\"phase\":\"skipped\",\"kind\":\"safety-warning\",\"day\":"+std::to_string(day)+"}");
+ }catch(...){safety_set=nullptr;status("warning","The daily safety screen could not be skipped");}
+}
+
 }  // namespace
 
 void pgr_cutscene_skip_tick(uint64_t tid,const PgrSharedMetadataOutput *){
@@ -1227,6 +1258,7 @@ void pgr_cutscene_skip_tick(uint64_t tid,const PgrSharedMetadataOutput *){
  if(pending_raid)advance_raid(on&&!faulted.load(std::memory_order_acquire));
  if(pending_popup_count)advance_popups();
  if(pending_inventory)advance_inventory();
+ if(on&&ready&&!faulted.load(std::memory_order_acquire))mark_safety_seen();
  if((!on&&!policy.inventory)||tried||faulted.load(std::memory_order_acquire))return;
  tried=true;
  try{

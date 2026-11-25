@@ -261,7 +261,8 @@ int main(){
  p={0,1,clock_ms()-kLevelUpWatchMs-1,0,0};gui.state=1;base.alpha=0;
  assert(advance_levelup(p,&gui)&&base.alpha==1);
  p={new_root(&gui,0),1,clock_ms(),0,0};gui.state=2;base.alpha=0;
- fail_method=&ids[ACTIVE];failures=1;assert(advance_popup(p)&&base.alpha==1);free_root(p.handle);cleared();
+ // A failed step shows the screen again and keeps watching it until it closes (closing state).
+ fail_method=&ids[ACTIVE];failures=1;assert(!advance_popup(p)&&base.alpha==1&&p.closing);free_root(p.handle);cleared();
  std::puts("PASS level-up readiness: opening, hidden/inactive/fading/noninteractable children, one action per step, reward transition, completion and visible recovery");
  // Gym badge "Share / Save" modal (Niantic.Holoholo.GymBadges.GymBadgeAwardGuiController): classified
  // by its class as it opens and dismissed once through the inherited GuiController.Dismiss, like the
@@ -270,6 +271,9 @@ int main(){
  // original cleanup is preserved. Exercises the production dismiss_kinds[] entry via hook_gui_open.
  int gym_idx=-1;for(int i=0;i<kDismissKinds;++i)if(std::string(dismiss_kinds[i].event)=="gym-badge")gym_idx=i;
  assert(gym_idx>=0&&!dismiss_kinds[gym_idx].step);
+ // The weather warning is closed the same way (one Dismiss, no steps).
+ {int weather_idx=-1;for(int i=0;i<kDismissKinds;++i)if(std::string(dismiss_kinds[i].event)=="weather-warning")weather_idx=i;
+  assert(weather_idx>=0&&!dismiss_kinds[weather_idx].step&&std::string(dismiss_kinds[weather_idx].name)=="WeatherWarningModalDialog");}
  int gym_class=0,other_class=0;
  auto wire_gym=[&]{
   setup();advance_raid(false);  // release setup()'s raid root; keep the setting enabled
@@ -285,8 +289,10 @@ int main(){
  hook_gui_open(&badge,nullptr);
  assert(gym_open_calls==1&&pending_popup_count==1&&badge_canvas.alpha==0&&badge.taps==0);
  advance_popups();
- assert(pending_popup_count==0&&badge.taps==1&&contains("\"kind\":\"gym-badge\""));
- advance_popups();assert(badge.taps==1);  // the freed pop-up is not stepped again
+ // Dismissed once, then only watched until it reports closed.
+ assert(pending_popup_count==1&&badge.taps==1&&contains("\"kind\":\"gym-badge\""));
+ advance_popups();assert(badge.taps==1&&pending_popup_count==1);
+ badge.state=0;advance_popups();assert(pending_popup_count==0&&badge.taps==1);
  cleared();
  // Delayed open: left hidden while still opening (state 1), dismissed only once fully open.
  wire_gym();
@@ -294,7 +300,8 @@ int main(){
  hook_gui_open(&slow,nullptr);assert(pending_popup_count==1&&slow_canvas.alpha==0);
  advance_popups();assert(pending_popup_count==1&&slow.taps==0&&!contains("\"kind\":\"gym-badge\""));
  slow.state=2;advance_popups();
- assert(pending_popup_count==0&&slow.taps==1&&contains("\"kind\":\"gym-badge\""));
+ assert(pending_popup_count==1&&slow.taps==1&&contains("\"kind\":\"gym-badge\""));
+ slow.state=0;advance_popups();assert(pending_popup_count==0);
  cleared();
  // Disabled setting: the original Open runs untouched and nothing is queued or hidden.
  wire_gym();enabled.store(false,std::memory_order_release);

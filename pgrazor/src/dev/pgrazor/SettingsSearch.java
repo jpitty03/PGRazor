@@ -234,7 +234,7 @@ final class SettingsSearch {
         put(DESCRIPTIONS, "Go Wild November 2026", "Event preferences for GO Wild Area 2026.");
         put(DESCRIPTIONS, "Dark theme", "Switch the whole interface between the dark and light palette.");
         put(DESCRIPTIONS, "UI scale", "Resize the joystick and map overlays.");
-        put(DESCRIPTIONS, "Skip cutscenes", "Skip repeatable cutscenes and hatch animations.");
+        put(DESCRIPTIONS, "Skip cutscenes", "Skip repeatable cutscenes and hatch animations, the daily Stay Aware screen, and the speed and weather warnings.");
         put(DESCRIPTIONS, "Lower resolution", "Draw the map and Pokémon at half resolution.");
         put(DESCRIPTIONS, "Limit to 20 FPS", "Cap the game at 20 frames per second.");
         put(DESCRIPTIONS, "Low graphics quality", "Turn off shadows, fog, reflections and other heavy effects.");
