@@ -107,11 +107,13 @@ public class SettingsBackupRulesTest {
         v=valid();v.getJSONObject("settings").put("shundoSpecies","");SettingsBackupRules.validate(v);
         v=valid();v.getJSONObject("settings").put("shundoSpecies","129,129");rejects(v);           // duplicate dex id
         v=valid();v.getJSONObject("settings").put("shundoGap","60");SettingsBackupRules.validate(v);
+        for(String ok:new String[]{"30","60","180","300","600"}){v=valid();v.getJSONObject("settings").put("shundoLiveInterval",ok);SettingsBackupRules.validate(v);}
         v=valid();v.getJSONObject("settings").put("shinyScan","true").put("shinyScanSpeed","2").put("shinyScanSpecies","25,129")
             .put("shinyScanDailyLimit","5000").put("encounterCounter","false").put("encounterOverlay","true");SettingsBackupRules.validate(v);
         for(String[] bad:new String[][]{{"shinyScan","yes"},{"shinyScanSpeed","3"},{"shinyScanSpecies","0"},{"shinyScanDailyLimit","123"},{"shinyScanDay","20261115"},{"encounterOverlay","yes"}}){
             v=valid();v.getJSONObject("settings").put(bad[0],bad[1]);rejects(v);}
         v=valid();v.getJSONObject("settings").put("shundoGap","45");rejects(v);                    // not an offered gap
+        for(String bad:new String[]{"0","15","45","900","","5m"}){v=valid();v.getJSONObject("settings").put("shundoLiveInterval",bad);rejects(v);}
         {StringBuilder many=new StringBuilder();for(int i=1;i<=501;i++){if(i>1)many.append(',');many.append(i);}
          v=valid();v.getJSONObject("settings").put("shundoSpecies",many.toString());rejects(v);}   // over 500 species
         v=valid();v.getJSONObject("settings").put("transferKeepSpecies","1,4,2001");rejects(v);   // out of range (>2000)
@@ -134,7 +136,8 @@ public class SettingsBackupRulesTest {
         v=valid();v.getJSONObject("settings").put("evolveTransferSpecies","2001");rejects(v);        // out of range (>2000)
         v=valid();v.getJSONObject("preferences").put("pgrazor-overlays",new JSONObject().put("transfer.fx",0.5).put("transfer.fy",0.25));SettingsBackupRules.validate(v);
         v=valid();v.getJSONObject("preferences").put("pgrazor-overlays",new JSONObject().put("transfer.fx",1.5));rejects(v);
-        v=valid();v.getJSONObject("preferences").put("pgrazor-livefeed",new JSONObject().put("radius","2"));rejects(v);
+        for(int r:new int[]{0,1,2,3}){v=valid();v.getJSONObject("preferences").put("pgrazor-livefeed",new JSONObject().put("radius",r));SettingsBackupRules.validate(v);}
+        for(Object bad:new Object[]{-1,4,1.5,"2",true}){v=valid();v.getJSONObject("preferences").put("pgrazor-livefeed",new JSONObject().put("radius",bad));rejects(v);}
         String places="[{\"id\":\"a\",\"name\":\"Home\",\"latitude\":40,\"longitude\":-70}]";
         v=valid();v.getJSONObject("preferences").put("pgrazor-saved-places-v1",new JSONObject().put("places",places));SettingsBackupRules.validate(v);
         v.getJSONObject("preferences").getJSONObject("pgrazor-saved-places-v1").put("places",places.replace("40","400"));rejects(v);

@@ -18,6 +18,28 @@ public final class ShundoPacingTest {
         check(ShundoPacing.feedDelay(0, false) == ShundoPacing.FEED_SOON_MS, "an empty queue reads again soon");
         check(ShundoPacing.feedDelay(4000, true) == ShundoPacing.FEED_SOON_MS, "a failed read retries soon");
 
+        check(ShundoPacing.LIVE_INTERVALS.length == ShundoPacing.LIVE_INTERVAL_LABELS.length, "live interval labels match options");
+        for (int s : new int[]{30, 60, 180, 300, 600})
+            check(ShundoPacing.liveInterval(String.valueOf(s)) == s, "known live interval kept: " + s);
+        check(ShundoPacing.liveInterval("45") == ShundoPacing.LIVE_DEFAULT_S, "unknown live interval defaults to 5 minutes");
+        check(ShundoPacing.liveInterval("") == ShundoPacing.LIVE_DEFAULT_S, "empty live interval defaults to 5 minutes");
+        check(ShundoPacing.liveInterval(null) == ShundoPacing.LIVE_DEFAULT_S, "null live interval defaults to 5 minutes");
+        check(ShundoPacing.liveDelay(300, 15_000, 0.5) == 300_000, "neutral jitter preserves configured 5 minute delay");
+        check(ShundoPacing.liveDelay(30, 15_000, 0.5) == 30_000, "explicit 30 second choice is honored");
+        check(ShundoPacing.liveDelay(60, 15_000, 0.5) == 60_000, "explicit 1 minute choice is honored");
+        check(ShundoPacing.liveDelay(180, 15_000, 0.5) == 180_000, "explicit 3 minute choice is honored");
+        check(ShundoPacing.liveDelay(600, 15_000, 0.5) == 600_000, "explicit 10 minute choice is honored");
+        check(ShundoPacing.liveDelay(30, 15_000, 0.0) == 24_000, "low jitter reduces delay by 20% above floor");
+        check(ShundoPacing.liveDelay(30, 15_000, 1.0) == 36_000, "high jitter increases delay by 20%");
+        check(ShundoPacing.liveDelay(30, 15_000, -5.0) == 24_000, "out-of-range low jitter is clamped");
+        check(ShundoPacing.liveDelay(30, 15_000, 5.0) == 36_000, "out-of-range high jitter is clamped");
+        check(ShundoPacing.liveDelay(30, 45_000, 0.5) == 45_000, "server refresh floor is respected");
+        check(ShundoPacing.liveDelay(30, -10_000, 0.5) == 30_000, "negative server refresh is ignored");
+        check(ShundoPacing.liveDelay(30, 15_000, Double.NaN) == 30_000, "non-finite jitter falls back to neutral");
+        check(ShundoPacing.rescheduleLive(0, 600, 0.5) == 0, "unpolled session stays ready immediately");
+        check(ShundoPacing.rescheduleLive(100_000, 600, 0.5) == 700_000, "lengthening interval waits from last poll without immediate fetch");
+        check(ShundoPacing.rescheduleLive(100_000, 60, 0.5) == 160_000, "shortening interval becomes due once elapsed from last poll");
+
         ShundoPacing.EmptyStops stops = new ShundoPacing.EmptyStops();
         check(!stops.missed(0, 78) && !stops.missed(0, 78) && !stops.missed(0, 78), "three empty stops are not enough");
         check(stops.missed(0, 78), "the fourth empty stop in a row stops the sniper");
