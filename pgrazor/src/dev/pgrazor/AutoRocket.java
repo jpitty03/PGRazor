@@ -80,6 +80,11 @@ public final class AutoRocket {
                 message=event.optString("message",message);
                 completed=Math.min(session.maxBattles,Math.max(completed,event.optInt("completed",completed)));
                 if("done".equals(phase)||"stopped".equals(phase)||"error".equals(phase)){stopMovement();running=stopping=false;return;}
+                // Never keep walking once a battle is under way, whatever the travel state.
+                if("opening".equals(phase)||"challenge".equals(phase)||"party".equals(phase)||"battle".equals(phase)||"catching".equals(phase)){
+                    // Our own stop changes the route generation; record it so tick() doesn't read it as manual movement.
+                    if(route!=0){stopMovement();motionGeneration=Control.engine.routeGeneration();}
+                }
                 if("travel".equals(phase)&&running){
                     if(serial<=travelSerial)return;travelSerial=serial;
                     final long sequence=serial;final double latitude=lat,longitude=lon;

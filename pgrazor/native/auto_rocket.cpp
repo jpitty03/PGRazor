@@ -142,14 +142,14 @@ const char *stage_name(Stage s){
 constexpr int64_t kHeartbeatMs=4500,kScanMs=1500,kStepMs=250,kArriveM=30,kTapRetryMs=6000,kOpenTimeoutMs=30000;
 constexpr int64_t kPartyTimeoutMs=30000,kBattleTimeoutMs=420000,kResolveTimeoutMs=60000,kEncounterTimeoutMs=300000;
 constexpr int64_t kSettleMs=2500,kHealWaitMs=30000,kLossSkipMs=1800000,kSkipMs=600000,kLongTravelSlackMs=180000;
-constexpr int64_t kWinCloseMs=6000,kLossDoneMs=2500,kSummaryTimeoutMs=60000,kSummaryGraceMs=2000;
+constexpr int64_t kWinCloseMs=6000,kLossDoneMs=2500,kSummaryTimeoutMs=60000,kSummaryGraceMs=2000,kSpinnerGraceMs=6000;
 constexpr int64_t kBeatenSkipMs=24LL*60*60*1000;  // a beaten invasion is never battled again
 
 struct Session {
  bool active=false,stop_requested=false;
  Command command;
  Stage stage=Stage::Idle;
- int64_t stage_ms=0,last_step=0,last_scan=0,last_heartbeat=0,last_tap=0,travel_deadline=0;
+ int64_t stage_ms=0,last_step=0,last_scan=0,last_heartbeat=0,last_tap=0,travel_deadline=0,spinner_ms=0;
  uint64_t travel_seq=0;
  bool has_anchor=false,returned_to_anchor=false;double anchor_lat=0,anchor_lon=0;
  Candidate target;int taps=0,submits=0;
@@ -183,7 +183,7 @@ void finish(const char *phase,const std::string &message){
  if(session.command.token){finished_token=std::max(finished_token,session.command.token);status(phase,message);}
  session=Session{};
 }
-void enter(Stage s,int64_t now){session.stage=s;session.stage_ms=now;session.taps=0;session.submits=0;session.last_tap=0;}
+void enter(Stage s,int64_t now){session.stage=s;session.stage_ms=now;session.taps=0;session.submits=0;session.last_tap=0;session.spinner_ms=0;}
 // Back to looking for the next stop; the stop session is stopped there if Stop was pressed.
 void next(int64_t now,const std::string &why){
  if(session.command.max_battles>0&&session.battles>=session.command.max_battles){finish("done","Finished "+battles_text(session.battles));return;}
@@ -330,11 +330,17 @@ void step_open(const Permission &p,int64_t now){
  if(Root s=screen(cls("Niantic.Holoholo.Combat.NpcTrainers","NpcTrainerInterstitialGui"))){
   call(s.get(),"PressChallenge");status("challenge","Starting the Rocket battle");enter(Stage::Party,now);return;
  }
- // The tap opened the plain PokéStop screen (the grunt is gone or not shown): close it and move on.
+ // The game opens the plain PokéStop screen first even for an invaded stop (Quick spin spins it), then
+ // the grunt's screens follow. Only when that screen stays up with no grunt for a while has the tap
+ // opened a stop without a battle: close it and move on.
  if(Root spinner=screen(cls("Niantic.Holoholo.Pokestop","PokestopSpinnerInteractionGuiController"))){
+  if(screen(cls("Niantic.Holoholo.Pokestop","PokestopIncidentBackgroundGUIController"),true)){session.spinner_ms=0;return;}
+  if(!session.spinner_ms)session.spinner_ms=now;
+  if(now-session.spinner_ms<kSpinnerGraceMs)return;
   call(spinner.get(),"ClickExit");quarantine[session.target.key]=now+kSkipMs;
   next(now,"That stop has no Rocket battle now; trying another");return;
  }
+ session.spinner_ms=0;
  if(now-session.stage_ms>kOpenTimeoutMs){quarantine[session.target.key]=now+kSkipMs;next(now,"The Rocket stop did not open; trying another");return;}
  if(session.taps>=3||now-session.last_tap<kTapRetryMs||!p.map_ready)return;
  Root stop=scan(nullptr,&session.target.key);
