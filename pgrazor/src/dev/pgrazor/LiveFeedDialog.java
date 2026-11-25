@@ -362,7 +362,7 @@ public final class LiveFeedDialog {
             if (index == radiusIndex) return;
             radiusIndex = index; prefs.edit().putInt("radius", index).apply();
             generation++; highlightAll();
-            rebuildVisible(); adapter.notifyDataSetChanged();
+            rebuildVisible(); adapter.notifyDataSetChanged(); updateStatus();
             requestFetch();
         }
 
@@ -495,9 +495,13 @@ public final class LiveFeedDialog {
             updateStatus();
         }
 
+        private boolean isGlobalRadius() {
+            return Double.isInfinite(RADII[radiusIndex]);
+        }
+
         /** Repeats every second: drops expired rows against the wall clock, refreshes the relative
-         *  "updated" time, and polls once a refresh interval has elapsed (never while in flight or
-         *  backing off). Keeps the list current between network fetches with no extra requests. */
+         *  "updated" time, and polls once a refresh interval has elapsed (never while in flight,
+         *  backing off, or on Global where continuous polling trips LivePokeMap scraper checks). */
         private void tick() {
             if (closed || loginPaused) return;
             if (activity.isFinishing() || activity.isDestroyed()) {
@@ -507,7 +511,7 @@ public final class LiveFeedDialog {
             if (!showingLogin) {
                 rebuildVisible(); adapter.notifyDataSetChanged(); updateStatus();
                 long nowE = SystemClock.elapsedRealtime();
-                if (!fetchInFlight && nowE >= backoffUntilElapsed
+                if (!isGlobalRadius() && !fetchInFlight && nowE >= backoffUntilElapsed
                     && nowE - lastFetchStartedElapsed >= refreshSeconds * 1000L) requestFetch();
             }
             main.postDelayed(tick, 1000);
@@ -518,7 +522,7 @@ public final class LiveFeedDialog {
             long nowE = SystemClock.elapsedRealtime();
             if (nowE < backoffUntilElapsed) {
                 long s = (backoffUntilElapsed - nowE + 999) / 1000;
-                feedStatus.setText("Rate limited by LivePokeMap. Retrying in " + s + "s.");
+                feedStatus.setText("Rate limited by LivePokeMap. " + (isGlobalRadius() ? "Try again in " : "Retrying in ") + s + "s.");
                 return;
             }
             StringBuilder sb = new StringBuilder();
@@ -530,6 +534,7 @@ public final class LiveFeedDialog {
                 sb.append(visible.size()).append(visible.size() == 1 ? " result" : " results")
                   .append(" · updated ").append(age).append("s ago");
                 if (fetchInFlight) sb.append(" · refreshing…");
+                else if (isGlobalRadius()) sb.append(" · auto-refresh paused on Global");
             }
             if (note != null && !note.isEmpty()) sb.append('\n').append(note);
             feedStatus.setText(sb.toString());

@@ -35,7 +35,7 @@ import org.json.JSONObject;
  */
 public final class ShundoSniper {
     private ShundoSniper() {}
-    static final long MIN_LEFT_MS = 150_000, RESULT_TIMEOUT_MS = 180_000, LIVE_MIN_MS = 15_000, POGO_MS = 30_000,
+    static final long MIN_LEFT_MS = 150_000, RESULT_TIMEOUT_MS = 180_000, POGO_MS = 30_000,
         SETTLE_MS = 2_000, RETRY_MS = 60_000;
     // Every start waits this long before the first teleport, whatever the gap, so the card can show where
     // the first spawn is (and the player can stop) before anything moves.
@@ -72,6 +72,7 @@ public final class ShundoSniper {
     // The species to search for (dex numbers); empty means every species.
     private static final java.util.TreeSet<Integer> species = new java.util.TreeSet<>();
     private static int gapSeconds;
+    private static int liveIntervalSeconds = ShundoPacing.LIVE_DEFAULT_S;
     private static long lastTeleport;  // when the last teleport was made, ms
     // Where the player was when this run found the map, and when its first teleport may happen.
     private static double startLat = Double.NaN, startLon = Double.NaN;
@@ -83,7 +84,7 @@ public final class ShundoSniper {
     private static volatile boolean moonaniDown;
     private static volatile String readinessWait = "";
     // The spawn being checked: the request number and encounter id native reads, and when it was sent.
-    private static long request, targetSince, nextPick, nextLive, nextPogo, nextMoonani, lastFeed;
+    private static long request, targetSince, nextPick, nextLive, nextPogo, nextMoonani, lastFeed, lastLive, liveGen;
     private static boolean feedFailed;
     private static final ShundoPacing.EmptyStops emptyStops = new ShundoPacing.EmptyStops();
     private static Target target;
@@ -130,6 +131,7 @@ public final class ShundoSniper {
             usePogo = !"false".equals(p.getProperty("shundoPogo"));
             species.clear(); species.addAll(parseSpecies(p.getProperty("shundoSpecies", "")));
             gapSeconds = gap(p.getProperty("shundoGap", "0"));
+            liveIntervalSeconds = ShundoPacing.liveInterval(p.getProperty("shundoLiveInterval", String.valueOf(ShundoPacing.LIVE_DEFAULT_S)));
         }
     }
     public static void write(Properties p) {
@@ -139,6 +141,7 @@ public final class ShundoSniper {
             p.setProperty("shundoPogo", String.valueOf(usePogo));
             p.setProperty("shundoSpecies", speciesList());
             p.setProperty("shundoGap", String.valueOf(gapSeconds));
+            p.setProperty("shundoLiveInterval", String.valueOf(liveIntervalSeconds));
         }
     }
     /** A saved gap if it is one of GAPS, else 0 (right away). */
@@ -150,6 +153,14 @@ public final class ShundoSniper {
         synchronized (LOCK) {
             for (int i = 0; i < GAPS.length; i++) if (GAPS[i] == gapSeconds) return "Time between teleports: " + GAP_LABELS[i];
             return "Time between teleports: " + GAP_LABELS[0];
+        }
+    }
+    private static String liveIntervalLabel() {
+        synchronized (LOCK) {
+            for (int i = 0; i < ShundoPacing.LIVE_INTERVALS.length; i++)
+                if (ShundoPacing.LIVE_INTERVALS[i] == liveIntervalSeconds)
+                    return "LivePokeMap refresh: " + ShundoPacing.LIVE_INTERVAL_LABELS[i];
+            return "LivePokeMap refresh: " + ShundoPacing.LIVE_INTERVAL_LABELS[3];
         }
     }
     /** The dex numbers of a comma list, ignoring anything that isn't one (1..2000), at most MAX_SPECIES. */
@@ -179,7 +190,7 @@ public final class ShundoSniper {
         synchronized (LOCK) {
             species.clear(); species.addAll(parseSpecies(value)); count = species.size();
             if (count > 0) candidates.values().removeIf(t -> !species.contains(t.dex));
-            lastFeed = nextLive = nextPogo = nextMoonani = 0;
+            lastFeed = lastLive = nextLive = nextPogo = nextMoonani = 0; liveGen++;
             if (enabled && target == null) status = looking();
         }
         Control.saveSettings();
@@ -233,7 +244,7 @@ public final class ShundoSniper {
         synchronized (LOCK) {
             if (on == enabled) return;
             enabled = on; dark = false; readinessWait = "";
-            target = null; teleporting = false; candidates.clear(); nextPick = nextLive = nextPogo = nextMoonani = lastFeed = 0; feedFailed = false;
+            target = null; teleporting = false; candidates.clear(); nextPick = nextLive = nextPogo = nextMoonani = lastFeed = lastLive = 0; liveGen++; feedFailed = false;
             startLat = startLon = Double.NaN; startAt = 0;
             status = on ? looking() : "";
             if (on) overlayShown = true;
@@ -385,30 +396,41 @@ public final class ShundoSniper {
 
     // Network on the worker thread, outside LOCK. Each feed keeps its own pace and backoff.
     private static void fetch(long now, double lat, double lon) {
-        LiveFeedClient liveClient; PogoFeedClient pogoClient; boolean wantLive, wantPogo, wantFeed; int queued;
-        synchronized (LOCK) { liveClient = live; pogoClient = pogo; wantLive = useLive; wantPogo = usePogo; wantFeed = useFeed; queued = candidates.size(); }
+        LiveFeedClient liveClient; PogoFeedClient pogoClient; boolean wantLive, wantPogo, wantFeed; int queued; long liveDue, gen;
+        synchronized (LOCK) { liveClient = live; pogoClient = pogo; wantLive = useLive; wantPogo = usePogo; wantFeed = useFeed; queued = candidates.size(); liveDue = nextLive; gen = liveGen; }
         if (wantFeed && now - lastFeed >= ShundoPacing.feedDelay(queued, feedFailed)) {
             lastFeed = now;
             try { serverSeen = readFeed(now); feedFailed = false; }
             catch (Exception e) { serverSeen = -1; feedFailed = true; }
             feedNote = feedLine();
         }
-        if (wantLive && liveClient != null && now >= nextLive) {
+        if (wantLive && liveClient != null && now >= liveDue) {
             try {
-                if (!liveClient.signedIn()) { liveNote = "LivePokeMap: sign in under Feeds"; nextLive = now + RETRY_MS; }
-                else {
+                if (!liveClient.signedIn()) {
+                    liveNote = "LivePokeMap: sign in under Feeds";
+                    synchronized (LOCK) { if (liveGen == gen) nextLive = now + RETRY_MS; }
+                } else {
                     // The whole map: LivePokeMap then sends only 100% IV Pokémon.
                     LiveFeedData.Snapshot s = liveClient.fetch(lat, lon, LiveFeedClient.GLOBAL, 100);
                     int added = 0;
                     for (LiveFeedData.Entry e : s.entries)
                         if (e.kind == LiveFeedData.Kind.POKEMON && e.iv >= 100) added += add(e.id, e.dexId, speciesName(e.dexId, e.name), "LivePokeMap", e.lat, e.lon, e.expiresAt, null);
                     liveNote = "LivePokeMap: " + added + " seen";
-                    nextLive = now + Math.max(LIVE_MIN_MS, s.refreshSeconds * 1000L);
+                    synchronized (LOCK) {
+                        if (liveGen == gen) {
+                            lastLive = now;
+                            nextLive = now + ShundoPacing.liveDelay(liveIntervalSeconds, s.refreshSeconds * 1000L, Math.random());
+                        }
+                    }
                 }
             } catch (LiveFeedClient.FeedException e) {
                 liveNote = "LivePokeMap: " + (e.getMessage() == null ? "unavailable" : e.getMessage());
-                nextLive = now + Math.max(30_000, e.retryAfterMs);
-            } catch (Exception e) { liveNote = "LivePokeMap: unavailable"; nextLive = now + RETRY_MS; }
+                long retry = now + Math.max(30_000, e.retryAfterMs);
+                synchronized (LOCK) { if (liveGen == gen) { lastLive = now; nextLive = retry; } }
+            } catch (Exception e) {
+                liveNote = "LivePokeMap: unavailable";
+                synchronized (LOCK) { if (liveGen == gen) { lastLive = now; nextLive = now + RETRY_MS; } }
+            }
         }
         if (wantFeed && now >= nextMoonani) {
             nextMoonani = now + MoonaniFeed.POLL_MS;
@@ -728,12 +750,29 @@ public final class ShundoSniper {
             choose.setOnShowListener(d -> MapTheme.styleButtons(choose));
             choose.show();
         });
+        android.widget.Button liveIntervalButton = new android.widget.Button(ui); liveIntervalButton.setAllCaps(false);
+        liveIntervalButton.setText(liveIntervalLabel()); body.addView(liveIntervalButton);
+        liveIntervalButton.setOnClickListener(v -> {
+            AlertDialog choose = ChoiceList.attach(new AlertDialog.Builder(ui).setTitle("LivePokeMap refresh")
+                .setNegativeButton("Cancel", null).create(), ShundoPacing.LIVE_INTERVAL_LABELS, i -> {
+                    int chosen = ShundoPacing.LIVE_INTERVALS[i];
+                    synchronized (LOCK) {
+                        liveIntervalSeconds = chosen;
+                        nextLive = ShundoPacing.rescheduleLive(lastLive, chosen, Math.random());
+                    }
+                    Control.saveSettings(); liveIntervalButton.setText(liveIntervalLabel());
+                    Control.event("shundo-sniper", "livepokemap refresh " + chosen + " s");
+                });
+            DialogLifecycle.bind(activity, choose, null);
+            choose.setOnShowListener(d -> MapTheme.styleButtons(choose));
+            choose.show();
+        });
         TextView state = new TextView(ui); state.setText(statusText()); state.setPadding(0, pad / 2, 0, 0); body.addView(state);
         on.setOnCheckedChangeListener((v, checked) -> {
             if (checked && !useFeed && !useLive && !usePogo) { on.setChecked(false); return; }
             setEnabled(activity, checked); state.setText(statusText());
         });
-        liveBox.setOnCheckedChangeListener((v, checked) -> { synchronized (LOCK) { useLive = checked; nextLive = 0; } Control.saveSettings(); });
+        liveBox.setOnCheckedChangeListener((v, checked) -> { synchronized (LOCK) { useLive = checked; lastLive = nextLive = 0; liveGen++; } Control.saveSettings(); });
         feedBox.setOnCheckedChangeListener((v, checked) -> { synchronized (LOCK) { useFeed = checked; lastFeed = nextMoonani = 0; } Control.saveSettings(); });
         pogoBox.setOnCheckedChangeListener((v, checked) -> { synchronized (LOCK) { usePogo = checked; nextPogo = 0; } Control.saveSettings(); });
 

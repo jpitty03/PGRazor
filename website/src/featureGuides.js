@@ -407,7 +407,7 @@ export const featureGuides = [
       'Read the warning first: constant teleporting and remote catching raise the risk of an account warning or ban. Use an alt account, not your main.',
       'Open Automation and choose Shundo Sniper (Experimental).',
       'Pick where sightings come from: the PGRazor feed, LivePokeMap with your own sign-in, or PoGoCoordinates, which is slower.',
-      'Optionally limit it with Shundo Sniper species, and set Time between teleports.',
+      'Optionally limit it with Shundo Sniper species, and set Time between teleports and, in unreleased builds, LivePokeMap refresh (5 minutes by default).',
       'Turn on Shundo Sniper. Its card shows progress; tap Dark to black out the screen and save battery, and tap the screen to bring the game back.',
     ],
     notes: [
@@ -685,7 +685,7 @@ export const featureGuides = [
     notes: [
       'LivePokeMap needs a separate, active, paid subscription; it is not included. Its My Shinies tab was removed because LivePokeMap no longer offers it.',
       'The session token is stored encrypted with Android Keystore and the password is never saved; Logout removes the token.',
-      'Refresh stops when the feed closes or the app leaves the foreground. Remote sightings can expire and are separate from locations the game loads.',
+      'Refresh stops when the feed closes or the app leaves the foreground; in unreleased builds, automatic refresh also pauses on Global so Global refreshes only when you tap Refresh. Remote sightings can expire and are separate from locations the game loads.',
       'Both feeds use each service’s observed web interface, which may change; access depends on your account and their service.',
     ],
   },

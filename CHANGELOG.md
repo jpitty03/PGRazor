@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Improvements & fixes
+
+- **LivePokeMap refresh pacing:** Shundo Sniper has a **LivePokeMap refresh** setting (30 seconds to 10 minutes, 5 minutes by default, with slight timing variation), and the LivePokeMap feed pauses automatic refresh while **Global** radius is selected so you refresh by hand.
+- **Settings backup:** Fixed an "Invalid radius" export error when LivePokeMap's **Global** radius is selected.
+
 ## v0.3.7
 
 [Full release notes](docs/releases/v0.3.7.md)
