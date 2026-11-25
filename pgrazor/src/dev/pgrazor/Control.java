@@ -121,7 +121,7 @@ public final class Control {
     private static volatile boolean quickSummaryConfigured, quickSummaryReady, quickSummaryEnabled;
     private static volatile boolean quickSummaryAutoDismiss;
     private static volatile boolean autoTransferEnabled, autoTransferReady;
-    private static volatile int transferProtect=511;
+    private static volatile int transferProtect=2047;
     /** Auto transfer keeps every catch at or above this IV percent (0..100). */
     public static final int TRANSFER_KEEP_IV_DEFAULT=90;
     private static volatile int transferKeepIv=TRANSFER_KEEP_IV_DEFAULT;
@@ -301,6 +301,10 @@ public final class Control {
     private static volatile String cooldownEncounter="";
     public static boolean cooldownOverlay(){return cooldownOverlay;}
     public static void setCooldownOverlay(boolean value){cooldownOverlay=value;saveSettings();}
+    // Skip the teleport cooldown confirmation: teleports start right away (a toast shows the cooldown).
+    private static volatile boolean skipTeleportConfirm;
+    public static boolean skipTeleportConfirm(){return skipTeleportConfirm;}
+    public static void setSkipTeleportConfirm(boolean value){skipTeleportConfirm=value;saveSettings();event("skip-teleport-confirm",value?"ON":"OFF");}
     // Small draggable overlay showing the local wall-clock time at the spoofed coordinates (never the
     // device time). Off by default; the overlay view reads engine coordinates and formats time offline.
     private static volatile boolean localTimeOverlay;
@@ -502,7 +506,7 @@ public final class Control {
     public static void setTransferKeepIv(int percent){if(!validTransferKeepIv(percent)||percent==transferKeepIv)return;invalidateQuickBallOutcome();transferKeepIv=percent;saveSettings();event("auto-transfer-keep-iv",String.valueOf(percent));}
     /** Transport string slot 25: "K1|<percent>", read by every native transfer path. */
     public static String transferKeepIvConfig(){return "K1|"+transferKeepIv;}
-    public static void setTransferProtect(int mask){transferProtect=mask>=0&&mask<=511?mask:511;saveSettings();event("auto-transfer-protection",String.valueOf(transferProtect));}
+    public static void setTransferProtect(int mask){transferProtect=mask>=0&&mask<=2047?mask:2047;saveSettings();event("auto-transfer-protection",String.valueOf(transferProtect));}
     public static void setAutoTransferReady(boolean ready,String status){autoTransferReady=ready&&quickSummaryReady();transferStatus=status==null?"":status;}
     public static void transferResult(String status){transferStatus=status==null?"":status;}
     /** Main transfer permission; manual Keep All is applied only by the encounter consumer. */
@@ -1252,6 +1256,7 @@ public final class Control {
                 joystickVisible=Boolean.parseBoolean(p.getProperty("joystickVisible","true"));
                 idleWalking=Boolean.parseBoolean(p.getProperty("idleWalking","false"));engine.setIdleWalking(idleWalking);
                 cooldownOverlay=Boolean.parseBoolean(p.getProperty("cooldownOverlay","false"));
+                skipTeleportConfirm=Boolean.parseBoolean(p.getProperty("skipTeleportConfirm","false"));
                 localTimeOverlay=Boolean.parseBoolean(p.getProperty("localTimeOverlay","false"));
                 encounterCounter=Boolean.parseBoolean(p.getProperty("encounterCounter","true"));encounterOverlay=Boolean.parseBoolean(p.getProperty("encounterOverlay","false"));
                 quickSummaryEnabled=Boolean.parseBoolean(p.getProperty("autoDismiss","false"));
@@ -1283,9 +1288,11 @@ public final class Control {
                 if(!validItemRules(itemRules)||!validItemRules(itemLimits)){itemTransferEnabled=false;itemRules="";itemLimits="";}
                 quickSpinEnabled=Boolean.parseBoolean(p.getProperty("quickSpin","false"));
                 autoTransferEnabled=Boolean.parseBoolean(p.getProperty("autoTransfer","false"));
-                try { transferProtect=Integer.parseInt(p.getProperty("transferProtect","511")); if(transferProtect<0||transferProtect>511)transferProtect=511; } catch(NumberFormatException e){transferProtect=511;}
+                try { transferProtect=Integer.parseInt(p.getProperty("transferProtect","2047")); if(transferProtect<0||transferProtect>2047)transferProtect=2047; } catch(NumberFormatException e){transferProtect=2047;}
                 // Keep shadow Pokemon (bit 256) arrived later: settings saved before it keep shadows too.
                 if(p.getProperty("transferProtectShadow")==null)transferProtect|=256;
+                // Keep Dynamax (512) and Keep Gigantamax (1024) arrived later still: older settings keep both.
+                if(p.getProperty("transferProtectMax")==null)transferProtect|=1536;
                 // "Keep event / costume" (bit 2) was one option before costume got its own bit (7):
                 // settings saved before the split keep costumes whenever they kept events.
                 if(p.getProperty("transferProtectSplit")==null&&(transferProtect&4)!=0)transferProtect|=128;
@@ -1382,6 +1389,7 @@ public final class Control {
             // A backup from before costume had its own option carries it inside "event / costume".
             if(incoming.containsKey("transferProtect")&&!incoming.containsKey("transferProtectSplit"))merged.remove("transferProtectSplit");
             if(incoming.containsKey("transferProtect")&&!incoming.containsKey("transferProtectShadow"))merged.remove("transferProtectShadow");
+            if(incoming.containsKey("transferProtect")&&!incoming.containsKey("transferProtectMax"))merged.remove("transferProtectMax");
             FileOutputStream out=null;
             try{out=settingsFile.startWrite();merged.store(out,"PGRazor settings");settingsFile.finishWrite(out);out=null;}
             finally{if(out!=null)settingsFile.failWrite(out);}
@@ -1420,14 +1428,14 @@ public final class Control {
         p.setProperty("buddyBerry",String.valueOf(buddyBerry));
         p.setProperty("autoIncubate",String.valueOf(autoIncubate));
         p.setProperty("incubateLongest",String.valueOf(incubateLongest));
-        p.setProperty("cooldownOverlay",String.valueOf(cooldownOverlay));p.setProperty("localTimeOverlay",String.valueOf(localTimeOverlay));p.setProperty("encounterCounter",String.valueOf(encounterCounter));p.setProperty("encounterOverlay",String.valueOf(encounterOverlay));p.setProperty("berryPriority",berryPriority);
+        p.setProperty("cooldownOverlay",String.valueOf(cooldownOverlay));p.setProperty("skipTeleportConfirm",String.valueOf(skipTeleportConfirm));p.setProperty("localTimeOverlay",String.valueOf(localTimeOverlay));p.setProperty("encounterCounter",String.valueOf(encounterCounter));p.setProperty("encounterOverlay",String.valueOf(encounterOverlay));p.setProperty("berryPriority",berryPriority);
         p.setProperty("encounterBerry",String.valueOf(encounterBerryEnabled));
         p.setProperty("battleOptions",String.valueOf(battleOptions));
         p.setProperty("gymRepeatEnabled",String.valueOf(gymRepeatEnabled));
         p.setProperty("rocketOptions",String.valueOf(rocketOptions));
         p.setProperty("itemTransfer",String.valueOf(itemTransferEnabled));p.setProperty("itemRules",itemRules);p.setProperty("itemLimits",itemLimits);p.setProperty("itemCatalog",itemCatalog);
         p.setProperty("quickSpin",String.valueOf(quickSpinEnabled));
-        p.setProperty("autoTransfer",String.valueOf(autoTransferEnabled)); p.setProperty("transferProtect",String.valueOf(transferProtect));p.setProperty("transferProtectSplit","1");p.setProperty("transferProtectShadow","1");p.setProperty("transferKeepIv",String.valueOf(transferKeepIv));
+        p.setProperty("autoTransfer",String.valueOf(autoTransferEnabled)); p.setProperty("transferProtect",String.valueOf(transferProtect));p.setProperty("transferProtectSplit","1");p.setProperty("transferProtectShadow","1");p.setProperty("transferProtectMax","1");p.setProperty("transferKeepIv",String.valueOf(transferKeepIv));
         p.setProperty("transferKeepAll",String.valueOf(transferKeepAll)); p.setProperty("transferOverlay",String.valueOf(transferOverlayEnabled)); p.setProperty("transferKeepSpecies",transferKeepSpecies);
         p.setProperty("evolveTransferEnabled",String.valueOf(evolveTransferEnabled)); p.setProperty("evolveTransferMode",String.valueOf(evolveTransferMode)); p.setProperty("evolveTransferStages",String.valueOf(evolveTransferStages)); p.setProperty("evolveTransferSpecies",evolveTransferSpecies);
         p.setProperty("ivCatch",String.valueOf(ivCatchEnabled)); p.setProperty("ivOwned",String.valueOf(ivOwnedEnabled)); p.setProperty("ivCatchFormat",String.valueOf(ivCatchFormat)); p.setProperty("ivOwnedFormat",String.valueOf(ivOwnedFormat)); p.setProperty("storageIv",String.valueOf(storageIvMode)); p.setProperty("storageIvFormat",String.valueOf(storageIvFormat));

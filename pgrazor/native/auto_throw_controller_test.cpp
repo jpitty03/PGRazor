@@ -24,7 +24,7 @@ struct Root {
 };
 int gui,interaction,state,pokemon,ball,bag,promise,response,probability;
 union Box {bool b;int i;} boxed;
-bool fresh=true,foreground=true,coherent=true,ownership=true,ready=true,in_play=false,photo=false;
+bool fresh=true,foreground=true,coherent=true,ownership=true,ready=true,in_play=false,photo=false,full_bread=false;
 int selected=1,stock=10,active_berry=0,attempts=0,polls=0,completions=0,last_completion=0,rearm=0,result=2,poll_rc=PGR_VR_PENDING;
 int64_t now=10000;
 constexpr int64_t kPromiseTimeoutMs=15000,kThrowCadenceMs=1200;
@@ -64,6 +64,7 @@ void* call_obj(void* o,const char* method,int=0,void** args=nullptr){
  if(n=="get_IsInPhotoMode"){boxed.b=photo;return &boxed.b;}
  if(n=="get_PokeballInPlay"){boxed.b=in_play;return &boxed.b;}
  if(n=="get_IsRaidOrIncidentEncounter"){boxed.b=selected==5;return &boxed.b;}
+ if(n=="get_IsFullBreadEncounter"){if(!full_bread)throw Failure{"no Max getter"};boxed.b=true;return &boxed.b;}
  if(n=="GetItemCount"||n=="get_RaidBallCount"){boxed.i=stock;return &boxed.i;}
  if(n=="get_ActiveBerry"){boxed.i=active_berry;return &boxed.i;}
  if(n=="set_ActiveBerry"){active_berry=*static_cast<int*>(args[0]);return nullptr;}
@@ -86,8 +87,8 @@ int pgr_auto_rocket_transfer_wanted(){return rocket_wanted;}
 int map_real_transfer(void* r,uint64_t){assert(r==&response);++transfers;return transfer_rc;}
 std::string obj_class_name(void* o){return o==&pokemon?pokemon_class:"CatchPokemonOutProto";}
 void reset(){
- manual_throw=ManualThrowSession{};rocket_transfer_response.reset();assert(roots.empty());manual_throw.interaction=Root(&interaction);
- rocket_wanted=transfers=0;transfer_rc=1;pokemon_class="WildMapPokemon";
+ manual_throw=ManualThrowSession{};rocket_transfer_response.reset();recent_transfer_response.reset();assert(roots.empty());manual_throw.interaction=Root(&interaction);
+ rocket_wanted=transfers=0;transfer_rc=1;pokemon_class="WildMapPokemon";full_bread=false;
  fresh=foreground=coherent=ownership=ready=true;in_play=photo=false;selected=1;stock=10;active_berry=0;
  attempts=polls=completions=rearm=0;poll_rc=PGR_VR_PENDING;result=2;now=10000;account="account";
  settings="C3|1|1|75|0|0|1|0";
@@ -127,6 +128,13 @@ int main(){
  reset();rocket_wanted=1;tick();poll_rc=PGR_VR_DONE;result=1;tick();tick();assert(transfers==0);  // a wild catch is never handed off
  reset();rocket_wanted=1;selected=5;pokemon_class="RaidMapPokemon";tick();poll_rc=PGR_VR_DONE;result=1;tick();tick();assert(transfers==0);  // nor a raid catch
  reset();selected=5;tick();poll_rc=PGR_VR_DONE;result=1;tick();tick();assert(transfers==0);  // Auto Rocket keeping everything
- manual_throw=ManualThrowSession{};rocket_transfer_response.reset();assert(roots.empty());
- puts("PASS Auto Throw production controller: reward encounters left manual, toggle, raid exclusion, pending, breakout, success/flee, exhausted supply, timeout/rejection/unknown, lifecycle/account, cooldown, Master Ball, stock, Auto Rocket transfer hand-off and roots");
+ // A Max Battle catch goes to the transfer rules (Keep Dynamax / Gigantamax decide there), with no Auto Rocket.
+ reset();full_bread=true;selected=5;pokemon_class="RaidMapPokemon";tick();poll_rc=PGR_VR_DONE;result=1;tick();tick();assert(transfers==1&&!rocket_transfer_response);
+ reset();full_bread=true;selected=5;pokemon_class="RaidMapPokemon";tick();poll_rc=PGR_VR_DONE;result=3;tick();tick();assert(transfers==0);  // fled: nothing to hand off
+ // The catch observer (hand throws) feeds the same queue; the same response is queued once.
+ reset();assert(queue_caught_transfer(&response,now)&&!queue_caught_transfer(&response,now));tick();assert(transfers==1&&!rocket_transfer_response);
+ assert(!queue_caught_transfer(&response,now));  // already handed off once
+ recent_transfer_response.reset();assert(queue_caught_transfer(&response,now));rocket_transfer_response.reset();
+ manual_throw=ManualThrowSession{};rocket_transfer_response.reset();recent_transfer_response.reset();assert(roots.empty());
+ puts("PASS Auto Throw production controller: reward encounters left manual, toggle, raid exclusion, pending, breakout, success/flee, exhausted supply, timeout/rejection/unknown, lifecycle/account, cooldown, Master Ball, stock, Auto Rocket and Max Battle transfer hand-off and roots");
 }

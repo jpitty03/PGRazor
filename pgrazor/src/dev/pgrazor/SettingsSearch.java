@@ -143,6 +143,7 @@ final class SettingsSearch {
         put(DESCRIPTIONS, "Game map tap", "Choose what a single or double tap on the game map does.");
         put(DESCRIPTIONS, "Spawn booster (80 m)", "Load nearby Pokémon sooner. Can cause lag in busy areas.");
         put(DESCRIPTIONS, "Cooldown overlay", "Show the estimated catch cooldown timer on the map.");
+        put(DESCRIPTIONS, "Skip teleport confirmation", "Teleport right away without the cooldown dialog.");
         put(DESCRIPTIONS, "Cooldown history", "Review recent cooldown actions and locations.");
         put(DESCRIPTIONS, "Show local time", "Show the wall-clock time at the spoofed coordinates.");
         put(DESCRIPTIONS, "Count encounters", "Count wild encounters for this account in a rolling 24 hours.");
@@ -252,6 +253,8 @@ final class SettingsSearch {
         put(DESCRIPTIONS, "Keep 0% IV (0/0/0)", "Never auto-transfer a 0% IV Pokémon.");
         put(DESCRIPTIONS, "Keep costume Pokemon", "Never auto-transfer costume Pokémon.");
         put(DESCRIPTIONS, "Keep shadow Pokemon", "Never auto-transfer shadow Pokémon.");
+        put(DESCRIPTIONS, "Keep Dynamax Pokemon", "Never auto-transfer Dynamax Pokémon.");
+        put(DESCRIPTIONS, "Keep Gigantamax Pokemon", "Never auto-transfer Gigantamax Pokémon.");
 
         put(SYNONYMS, "Location spoofing", "fake gps mock location teleport");
         put(SYNONYMS, "Coordinates & speed", "lat lon latitude longitude kmh walking speed");

@@ -27,6 +27,15 @@
 static_assert(sizeof(PgrTransferFactsConfig) == 320, "config must be 320 bytes");
 static std::atomic<int32_t> g_shadow_value{0};
 static std::atomic<void *> g_shadow_field{nullptr};  // published after the value
+static std::atomic<int32_t> g_max_values[4] = {{-1}, {-1}, {-1}, {-1}};  // Dynamax, then Gigantamax values
+static std::atomic<void *> g_max_field{nullptr};  // published after the values
+extern "C" void pgr_transfer_facts_set_max(void *bread_field, int32_t dynamax, int32_t gmax_a, int32_t gmax_b, int32_t gmax_c) {
+  g_max_values[0].store(dynamax, std::memory_order_relaxed);
+  g_max_values[1].store(gmax_a, std::memory_order_relaxed);
+  g_max_values[2].store(gmax_b, std::memory_order_relaxed);
+  g_max_values[3].store(gmax_c, std::memory_order_relaxed);
+  g_max_field.store(bread_field, std::memory_order_release);
+}
 extern "C" void pgr_transfer_facts_set_shadow(void *alignment_field, int32_t shadow_value) {
   g_shadow_value.store(shadow_value, std::memory_order_relaxed);
   g_shadow_field.store(alignment_field, std::memory_order_release);
@@ -288,6 +297,16 @@ int do_inspect(const PgrTransferFactsRequest *req, uint64_t deadline, PgrTransfe
     void *background = field_ptr(display, g_cfg.f_background);
     void *shadow_field = g_shadow_field.load(std::memory_order_acquire);
     const bool shadow = shadow_field && field_i32(display, shadow_field) == g_shadow_value.load(std::memory_order_relaxed);
+    void *max_field = g_max_field.load(std::memory_order_acquire);
+    bool dynamax = false, gigantamax = false;
+    if (max_field) {
+      const int32_t mode = field_i32(display, max_field);
+      if (mode > 0) {
+        dynamax = mode == g_max_values[0].load(std::memory_order_relaxed);
+        for (int i = 1; i < 4; ++i)
+          if (mode == g_max_values[i].load(std::memory_order_relaxed)) gigantamax = true;
+      }
+    }
 
     // IV 0..15 and species 1..2000: reject out-of-range metadata (keep -- never authorize a deletion).
     if (attack < 0 || attack > PGR_TF_IV_MAX || defense < 0 || defense > PGR_TF_IV_MAX ||
@@ -326,6 +345,9 @@ int do_inspect(const PgrTransferFactsRequest *req, uint64_t deadline, PgrTransfe
     if (egg_raw == 1) flags |= PGR_TF_FLAG_EGG;
     if (shadow) flags |= PGR_TF_FLAG_SHADOW;
     if (shadow_field) flags |= PGR_TF_FLAG_SHADOW_KNOWN;
+    if (dynamax) flags |= PGR_TF_FLAG_DYNAMAX;
+    if (gigantamax) flags |= PGR_TF_FLAG_GIGANTAMAX;
+    if (max_field) flags |= PGR_TF_FLAG_MAX_KNOWN;
 
     out->version = PGR_TF_OUT_VERSION;
     out->size = sizeof(PgrTransferFactsOut);

@@ -53,6 +53,8 @@ constexpr uint64_t kHitsPerSec      = 1000u;               // LIMITS.hitsPerSeco
 // --- game ABI typedefs -------------------------------------------------------------
 typedef void *(*BtxuFn)(void *self, void *method);
 typedef void  (*CompletionFn)(void *self, void *response, void *method);
+// auto_raid.cpp (weak: fixture builds without it keep every catch).
+extern "C" void pgr_queue_caught_transfer(void *response) __attribute__((weak));
 
 // --- lifetime / publication --------------------------------------------------------
 std::mutex        g_install_mutex;
@@ -358,6 +360,13 @@ void *btxu_replacement(void *self, void *method) {
         if (!exact(resp, g_config.class_response)) { latch_fault(); break; }
         int32_t status = read_i32(resp, g_config.field_status);
         outcome(resp, status);
+        // A Max Battle catch's summary is left to the game, so Quick catch never transfers it: hand it to
+        // the transfer rules (Keep Dynamax / Keep Gigantamax decide there), thrown by hand or not.
+        if (status == g_config.status_success && pgr_queue_caught_transfer) {
+            bool max_ball = read_u8(gc_target(self_h), g_config.field_bread) == 1;
+            if (!max_ball) if (auto context = g_max_context.load(std::memory_order_acquire)) max_ball = context(gc_target(self_h)) == 1;
+            if (max_ball) pgr_queue_caught_transfer(gc_target(resp_h));
+        }
         // Observe-only (Catch preview without Quick catch): report the outcome, leave the animation.
         if (g_enabled.load(std::memory_order_relaxed) != 1) break;
 

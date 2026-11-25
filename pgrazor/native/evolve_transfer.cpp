@@ -92,13 +92,13 @@ int enum_box(void *o){require(o&&fn<bool(*)(void*)>(boot.meta.class_is_enum)(kla
 using Config=pgr_evolve_transfer::Config;
 struct Permission {
  Config config;bool valid=false,allowed=false,keep_all=false;
- uint32_t protect=511,keep_iv=0;std::set<int> keep;std::string pvp;
+ uint32_t protect=2047,keep_iv=0;std::set<int> keep;std::string pvp;
 };
 Permission permission(){
  Permission p;auto tr=static_cast<const PgrRuntimeTransportApi*>(pgrazor_runtime_transport_api(1));if(!tr)return p;
- PgrRuntimeTransportSample a{},z{};char text[10001]{};uint32_t n=0;int allowed=0,keep_all=0;int32_t protect=511;
+ PgrRuntimeTransportSample a{},z{};char text[10001]{};uint32_t n=0;int allowed=0,keep_all=0;int32_t protect=2047;
  if(tr->sample(&a)||!a.snapshot_fresh||a.fault||tr->get_string(22,text,sizeof(text),&n)||!pgr_evolve_transfer::parse(text,n,p.config))return p;
- if(tr->get_bool(5,&allowed)||tr->get_bool(35,&keep_all)||tr->get_int(8,&protect)||protect<0||protect>511)return p;
+ if(tr->get_bool(5,&allowed)||tr->get_bool(35,&keep_all)||tr->get_int(8,&protect)||protect<0||protect>2047)return p;
  if(tr->get_string(4,text,sizeof(text),&n)||!pgr_evolve_transfer::species_list(text,n,p.keep))return p;
  if(tr->get_string(16,text,sizeof(text),&n))return p;p.pvp.assign(text,n);
  // Keep-IV cutoff, string slot 25; missing or malformed keeps the original 90%.

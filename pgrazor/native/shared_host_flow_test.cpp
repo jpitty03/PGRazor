@@ -59,6 +59,9 @@ SHIM(fixture_boot_api,PgrBootApi,fixture_boot)
 SHIM(fixture_meta_api,PgrMetaApi,fixture_meta)
 #undef SHIM
 int fixture_hook(void *address,void *replacement,void **original){return DobbyHook(address,replacement,original);}
+// The optional shadow / Max transfer facts live in transfer_facts.cpp, which this fixture replaces.
+extern "C" void pgr_transfer_facts_set_shadow(void*,int32_t){}
+extern "C" void pgr_transfer_facts_set_max(void*,int32_t,int32_t,int32_t,int32_t){}
 #define pgrazor_shared_catch_api fixture_shared_api
 #define pgrazor_summary_completion_api fixture_summary_api
 #define pgrazor_details_completion_api fixture_details_api

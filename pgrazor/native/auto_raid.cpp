@@ -1692,6 +1692,13 @@ void pgr_auto_throw_stop() {
     if(owner&&owner==static_cast<uint64_t>(gettid())){++manual_throw_generation;manual_throw=ManualThrowSession{};}
 }
 bool pgr_auto_throw_pending() {return manual_throw.uncertain&&!manual_throw.blocked;}
+// catch_observers.cpp: a Max Battle catch thrown by hand, confirmed caught; handed to the transfer rules
+// on the next Auto throw tick, like Auto throw's own Max catches.
+extern "C" void pgr_queue_caught_transfer(void* response) {
+    if(!boot_ready||!response||owner!=static_cast<uint64_t>(gettid()))return;
+    try{if(queue_caught_transfer(response,clock_ms()))throw_event("transfer","Max Battle catch queued for the transfer rules");}
+    catch(...){}
+}
 
 void pgr_map_auto_throw_tick(uint64_t tid,const PgrSharedMetadataOutput* metadata,bool blocked) {
     if(!tid||tid!=uint64_t(gettid())||(owner&&owner!=tid)||busy)return;

@@ -79,7 +79,7 @@ public final class WorldMapDialog {
         LinearLayout selectionRow = new LinearLayout(ui);
         selectionRow.setGravity(Gravity.CENTER_VERTICAL);
         layout.addView(selected);
-        Button saved = button(ui, "Saved places");
+        Button saved = button(ui, "Favorites");
         selectionRow.addView(saved, new LinearLayout.LayoutParams(0, dp(activity, 48), 1));
         Button hotspots = button(ui, "Hotspots");
         selectionRow.addView(hotspots, new LinearLayout.LayoutParams(0, dp(activity, 48), 1));
@@ -165,6 +165,8 @@ public final class WorldMapDialog {
             .setNegativeButton("Cancel", null).setPositiveButton("Teleport", null);
         if (walk != null) builder.setNeutralButton("Walk here", null);
         AlertDialog dialog = builder.create();
+        places.teleport = (lat, lon) -> { if (!listener.onDestination(lat, lon)) return false; dialog.dismiss(); return true; };
+        if (walk != null) places.walk = (lat, lon) -> { if (!walk.onDestination(lat, lon)) return false; dialog.dismiss(); return true; };
         map.poiLayer.setDestinationActions(walk == null ? null : (lat, lon) -> {
             if (!walk.onDestination(lat, lon)) return false;
             dialog.dismiss(); return true;
@@ -325,7 +327,7 @@ public final class WorldMapDialog {
         void close() {closed=true;for(AlertDialog dialog:new ArrayList<>(dialogs))dialog.dismiss();draft.clear();}
     }
 
-    /** Child dialogs share the map's activity; selecting a saved place never invokes Teleport. */
+    /** Favorites on the World map: the same options as the quick menu's, plus Show on map. */
     private static final class PlaceUi {
         final Activity activity;
         final Context ui;
@@ -336,6 +338,8 @@ public final class WorldMapDialog {
         final List<AlertDialog> dialogs = new ArrayList<>();
         SavedPlaces places;
         boolean closed;
+        // Set once the map dialog exists: they apply a favorite and close the map, like its own buttons.
+        QuickLocationDialogs.TeleportTarget teleport, walk;
         PlaceUi(Activity activity, Context ui, MapView map, Button opener) { this.activity = activity; this.ui = ui; this.map = map; this.opener = opener; }
         private SavedPlaces store() { if (places == null) places = new SavedPlaces(activity); return places; }
         private void show(AlertDialog dialog) {
@@ -352,27 +356,24 @@ public final class WorldMapDialog {
                     SavedPlaces.Snapshot snapshot = store().read();
                     main.post(() -> { if (!closed) { opener.setEnabled(true); showLibrary(snapshot); } });
                 } catch (RuntimeException e) {
-                    main.post(() -> { if (!closed) { opener.setEnabled(true); Toast.makeText(activity, "Saved places could not be opened.", Toast.LENGTH_LONG).show(); } });
+                    main.post(() -> { if (!closed) { opener.setEnabled(true); Toast.makeText(activity, "Favorites could not be opened.", Toast.LENGTH_LONG).show(); } });
                 }
             });
         }
         private void showLibrary(SavedPlaces.Snapshot snapshot) {
-            AlertDialog.Builder builder = new AlertDialog.Builder(ui).setTitle("Saved places (" + snapshot.entries.size() + "/50)")
-                .setNegativeButton("Close", null).setPositiveButton("Save selected", null);
+            AlertDialog.Builder builder = new AlertDialog.Builder(ui).setTitle("Favorites (" + snapshot.entries.size() + "/50)")
+                .setNegativeButton("Close", null).setPositiveButton("Add selected", null);
             final AlertDialog[] holder = new AlertDialog[1];
-            if (snapshot.entries.isEmpty()) builder.setMessage(snapshot.damaged ? "Saved places could not be read. You can save new destinations here." : "No saved places yet. Save the selected map destination to find it again later.");
+            if (snapshot.entries.isEmpty()) builder.setMessage(snapshot.damaged ? "Favorites could not be read. You can add new places here." : "No favorites yet. Add the selected map destination to find it again later.");
             else {
-                String[] names = new String[snapshot.entries.size()];
-                for (int i = 0; i < names.length; i++) {
-                    SavedPlaces.Entry entry = snapshot.entries.get(i);
-                    names[i] = String.format(Locale.US, "%s\n%.6f, %.6f", entry.name, entry.latitude, entry.longitude);
-                }
-                ChoiceList.attach(holder[0] = builder.create(), names, which -> showPlace(snapshot.entries.get(which)));
+                ChoiceList.attach(holder[0] = builder.create(), QuickLocationDialogs.favoriteLabels(snapshot), which ->
+                    QuickLocationDialogs.favoriteActions(activity, snapshot.entries.get(which), teleport, walk,
+                        entry -> map.select(entry.latitude, entry.longitude), () -> { if (!closed) openLibrary(); }));
             }
             if (holder[0] == null) holder[0] = builder.create();
             holder[0].setOnShowListener(d -> holder[0].getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> showSave(holder[0])));
             show(holder[0]);
-            if (snapshot.damaged && !snapshot.entries.isEmpty()) Toast.makeText(activity, "Some saved places could not be read. Valid entries are shown.", Toast.LENGTH_LONG).show();
+            if (snapshot.damaged && !snapshot.entries.isEmpty()) Toast.makeText(activity, "Some favorites could not be read. Valid entries are shown.", Toast.LENGTH_LONG).show();
         }
         private void showSave(AlertDialog library) {
             final double latitude = map.latitude, longitude = map.longitude;
@@ -383,7 +384,7 @@ public final class WorldMapDialog {
             name.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
             name.setFilters(new InputFilter[] {new InputFilter.LengthFilter(SavedPlaces.NAME_LIMIT)});
             form.addView(name);
-            AlertDialog dialog = new AlertDialog.Builder(ui).setTitle("Save selected place").setView(form)
+            AlertDialog dialog = new AlertDialog.Builder(ui).setTitle("Add to Favorites").setView(form)
                 .setNegativeButton("Cancel", null).setPositiveButton("Save", null).create();
             dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
                 final SavedPlaces.Entry entry;
@@ -395,7 +396,7 @@ public final class WorldMapDialog {
                         store().add(entry);
                         main.post(() -> {
                             if (!closed && dialog.isShowing()) {
-                                dialog.dismiss(); library.dismiss(); Toast.makeText(activity, "Saved " + entry.name, Toast.LENGTH_SHORT).show(); openLibrary();
+                                dialog.dismiss(); library.dismiss(); Toast.makeText(activity, "Added " + entry.name + " to Favorites", Toast.LENGTH_SHORT).show(); openLibrary();
                             }
                         });
                     } catch (IOException | RuntimeException e) {
@@ -404,37 +405,6 @@ public final class WorldMapDialog {
                 });
             }));
             show(dialog);
-        }
-        private void showPlace(SavedPlaces.Entry entry) {
-            AlertDialog dialog = new AlertDialog.Builder(ui).setTitle(entry.name)
-                .setMessage(String.format(Locale.US, "%.6f, %.6f\n\nSelect shows this destination on the map. Choose Teleport or Walk here there to apply it.", entry.latitude, entry.longitude))
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Select on map", (d, which) -> map.select(entry.latitude, entry.longitude))
-                .setNeutralButton("Delete", null).create();
-            dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> confirmDelete(entry, dialog)));
-            show(dialog);
-        }
-        private void confirmDelete(SavedPlaces.Entry entry, AlertDialog details) {
-            AlertDialog confirm = new AlertDialog.Builder(ui).setTitle("Delete saved place?")
-                .setMessage(entry.name + " will be removed from your saved places. The current location stays unchanged.")
-                .setNegativeButton("Cancel", null).setPositiveButton("Delete", null).create();
-            confirm.setOnShowListener(d -> confirm.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
-                confirm.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
-                storage.execute(() -> {
-                    try {
-                        store().remove(entry.id);
-                        main.post(() -> { if (!closed && confirm.isShowing()) { confirm.dismiss(); details.dismiss(); openLibrary(); } });
-                    } catch (IOException | RuntimeException e) {
-                        main.post(() -> {
-                            if (!closed && confirm.isShowing()) {
-                                confirm.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(true);
-                                Toast.makeText(activity, "Could not delete place. Please retry.", Toast.LENGTH_LONG).show();
-                            }
-                        });
-                    }
-                });
-            }));
-            show(confirm);
         }
         void close() {
             closed = true;

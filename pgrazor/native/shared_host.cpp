@@ -97,7 +97,7 @@ bool scheduler_current(){return !pulse_generation||table<PgrUnitySchedulerApi>(p
 bool transport_current(){if(!(cfg.transport_flags&1))return true;PgrRuntimeTransportSample s{};return transport->sample(&s)==0&&s.snapshot_fresh&&!s.fault&&s.snapshot_seq==transport_sequence&&s.generation==transport_generation;}
 bool refresh_transport_current();
 bool current(uint64_t epoch){if(!owned()||!scheduler_current()||!refresh_transport_current())return false;const auto g=gate();return g.remaining&&g.epoch==epoch;}
-const char *keep_reason(int code){static const char *reasons[]={"none","keep-all","invalid-keep-list","unknown-species","custom-keep-list","unknown-iv","unknown-category","unknown-size","favorite-or-egg","iv-at-least-cutoff","protected-rare","protected-shiny","protected-event","protected-background","protected-xxs","protected-xxl","invalid-native-input","native-transfer-blocked","pvp-rank","protected-zero-iv","protected-costume","protected-shadow"};return code>=0&&code<22?reasons[code]:"native-transfer-blocked";}
+const char *keep_reason(int code){static const char *reasons[]={"none","keep-all","invalid-keep-list","unknown-species","custom-keep-list","unknown-iv","unknown-category","unknown-size","favorite-or-egg","iv-at-least-cutoff","protected-rare","protected-shiny","protected-event","protected-background","protected-xxs","protected-xxl","invalid-native-input","native-transfer-blocked","pvp-rank","protected-zero-iv","protected-costume","protected-shadow","protected-dynamax","protected-gigantamax"};return code>=0&&code<24?reasons[code]:"native-transfer-blocked";}
 bool publish(uint32_t opcode,const char *text=nullptr,int boolean=-1){PgrRuntimeTransportString s{text,text?uint32_t(std::strlen(text)):0};const int64_t value=boolean;const int rc=transport->emit(opcode,boolean<0?nullptr:&value,boolean<0?0:1,text?&s:nullptr,text?1:0);if(rc!=0&&rc!=PGR_TRANSPORT_STOPPED){failed=true;stopping=true;return false;}return true;}
 void transport_event(uint32_t kind,uint64_t slot,int status,uint32_t flags,int before,int after,int reason){
  const char *name="native-shared-event",*why="";
@@ -116,15 +116,15 @@ void transport_event(uint32_t kind,uint64_t slot,int status,uint32_t flags,int b
 }
 bool parse_keep(const char *text,uint32_t bytes,std::array<int32_t,2000>&ids,uint32_t &count){count=0;if(bytes>10000)return false;std::array<bool,2001> seen{};uint32_t at=0;while(at<bytes){if(text[at]<'1'||text[at]>'9')return false;int value=0;unsigned digits=0;while(at<bytes&&text[at]>='0'&&text[at]<='9'){if(++digits>4)return false;value=value*10+text[at++]-'0';}if(value>2000||seen[value]||count==2000)return false;seen[value]=true;ids[count++]=value;if(at==bytes)break;if(text[at++]!=','||at==bytes)return false;}std::sort(ids.begin(),ids.begin()+count);return true;}
 int update(const PgrSharedHostOptions*);
-void poll_transport(){if(!(cfg.transport_flags&1))return;PgrRuntimeTransportSample start{},end{};int dismiss=0,allow_transfer=0,keep_all=0;int32_t protect=511;char text[10000];uint32_t len=0,count=0,keep_iv=0;std::array<int32_t,2000> ids{};
+void poll_transport(){if(!(cfg.transport_flags&1))return;PgrRuntimeTransportSample start{},end{};int dismiss=0,allow_transfer=0,keep_all=0;int32_t protect=2047;char text[10000];uint32_t len=0,count=0,keep_iv=0;std::array<int32_t,2000> ids{};
  bool fresh=transport->sample(&start)==0&&start.snapshot_fresh&&!start.fault;
  if(fresh)fresh=transport->get_bool(25,&dismiss)==0&&transport->get_bool(5,&allow_transfer)==0&&transport->get_bool(35,&keep_all)==0&&transport->get_int(8,&protect)==0;
  bool valid_keep=true;if(fresh){const int rc=transport->get_string(4,text,sizeof(text),&len);if(rc==PGR_TRANSPORT_ERR_RANGE){valid_keep=false;len=0;}else if(rc)fresh=false;else valid_keep=parse_keep(text,len,ids,count);}
  // Keep-IV cutoff, string slot 25; missing or malformed keeps the original 90%.
  if(fresh&&transport->get_string(25,text,sizeof(text),&len)==0&&len<sizeof(text))keep_iv=pgr_transfer_keep_iv_parse(text,len);
  if(fresh)fresh=transport->sample(&end)==0&&end.snapshot_fresh&&!end.fault&&end.snapshot_seq==start.snapshot_seq&&end.generation==start.generation;
- if(!fresh){dismiss=allow_transfer=keep_all=0;count=0;keep_iv=0;protect=511;valid_keep=true;transport_sequence=transport_generation=0;}else {transport_sequence=start.snapshot_seq;transport_generation=start.generation;}
- if(protect<0||protect>511)protect=511;
+ if(!fresh){dismiss=allow_transfer=keep_all=0;count=0;keep_iv=0;protect=2047;valid_keep=true;transport_sequence=transport_generation=0;}else {transport_sequence=start.snapshot_seq;transport_generation=start.generation;}
+ if(protect<0||protect>2047)protect=2047;
  // The overlay's Keep All flag gates manual catches below, not the VGP broker.
  const bool enabled=allow_transfer&&valid_keep&&(capabilities&PGR_SHH_TRANSFER);
  const uint32_t flags=(dismiss||allow_transfer?PGR_SHH_ALLOWED:0)|(dismiss?PGR_SHH_DISMISS:0)|(enabled?PGR_SHH_TRANSFER_ENABLED:0)|(keep_all?PGR_SHH_KEEP_ALL:0);
@@ -233,17 +233,35 @@ void hook_exit(void *self,const void *info){auto fn=reinterpret_cast<One>(origin
 template<class T,size_t N>void pointers(T &out,const std::array<void*,N>&p){out={};out.version=1;out.size=sizeof(out);static_assert(sizeof(T)>=8+N*8,"pointer config bounds");std::memcpy(reinterpret_cast<char*>(&out)+8,p.data(),N*8);}
 // Keep shadow Pokemon: the display's Alignment field and its Shadow literal, by name. Any miss leaves the
 // shadow fact unset, so a transfer with that protection on is kept (unknown) rather than deleted.
-void install_shadow_fact(void *display){
+bool install_shadow_fact(void *display){
  if(!display||!exports.class_get_field_from_name||!exports.field_get_type||!exports.class_from_type||!exports.class_is_enum||
-    !exports.field_get_flags||!extra.field_static_get_value)return;
+    !exports.field_get_flags||!extra.field_static_get_value)return false;
  auto field=reinterpret_cast<void*(*)(void*,const char*)>(exports.class_get_field_from_name);
  auto flags=reinterpret_cast<int(*)(void*)>(exports.field_get_flags);
- void *alignment=field(display,"Alignment");if(!alignment||(flags(alignment)&0x10))return;
+ void *alignment=field(display,"Alignment");if(!alignment||(flags(alignment)&0x10))return false;
  void *k=reinterpret_cast<void*(*)(void*)>(exports.class_from_type)(reinterpret_cast<void*(*)(void*)>(exports.field_get_type)(alignment));
- if(!k||!reinterpret_cast<bool(*)(void*)>(exports.class_is_enum)(k))return;
- void *literal=field(k,"Shadow");if(!literal||(flags(literal)&0x8050)!=0x8050)return;
+ if(!k||!reinterpret_cast<bool(*)(void*)>(exports.class_is_enum)(k))return false;
+ void *literal=field(k,"Shadow");if(!literal||(flags(literal)&0x8050)!=0x8050)return false;
  int32_t value=0;reinterpret_cast<void(*)(void*,void*)>(extra.field_static_get_value)(literal,&value);
- if(value>0)pgr_transfer_facts_set_shadow(alignment,value);
+ if(value<=0)return false;
+ pgr_transfer_facts_set_shadow(alignment,value);return true;
+}
+// Keep Dynamax / Gigantamax: the display's BreadModeEnum field and its Modifier literals, by name. Any
+// miss leaves the Max fact unset, so a transfer with either protection on is kept (unknown).
+bool install_max_fact(void *display){
+ if(!display||!exports.class_get_field_from_name||!exports.field_get_type||!exports.class_from_type||!exports.class_is_enum||
+    !exports.field_get_flags||!extra.field_static_get_value)return false;
+ auto field=reinterpret_cast<void*(*)(void*,const char*)>(exports.class_get_field_from_name);
+ auto flags=reinterpret_cast<int(*)(void*)>(exports.field_get_flags);
+ void *bread=field(display,"BreadModeEnum");if(!bread||(flags(bread)&0x10))return false;
+ void *k=reinterpret_cast<void*(*)(void*)>(exports.class_from_type)(reinterpret_cast<void*(*)(void*)>(exports.field_get_type)(bread));
+ if(!k||!reinterpret_cast<bool(*)(void*)>(exports.class_is_enum)(k))return false;
+ auto literal=[&](const char *name)->int32_t{
+  void *f=field(k,name);if(!f||(flags(f)&0x8050)!=0x8050)return -1;
+  int32_t value=-1;reinterpret_cast<void(*)(void*,void*)>(extra.field_static_get_value)(f,&value);return value>0?value:-1;
+ };
+ const int32_t dynamax=literal("BreadMode");if(dynamax<0)return false;
+ pgr_transfer_facts_set_max(bread,dynamax,literal("BreadDoughMode"),literal("BreadDoughMode2"),literal("BreadSpecialMode"));return true;
 }
 int install_leaves(){
  PgrSharedCatchConfig policy{1,sizeof(policy),4,8000,2500,64,0,0};int rc=sh->install(&policy);if(rc)return rc;
@@ -267,7 +285,13 @@ int install_leaves(){
    PgrTransferFactsConfig facts{};pointers(facts,std::array<void*,34>{extra.gchandle_new,extra.gchandle_get_target,extra.gchandle_free,cfg.object_get_class,cfg.runtime_invoke,cfg.object_unbox,cfg.field_get_value,cfg.string_length,k(OC_PK),k(OC_DISPLAY),c(6),k(OC_INT),h(H_TR_EVENT_CLASS),k(OC_CHAR_SIZE),k(OC_STRING),h(H_TR_SIZE_M),h(H_TR_RARE_M),h(H_TR_SHINY_M),h(H_TR_EVENT_COUNT_M),h(H_DET_ID),h(H_TR_SPECIES),h(H_TR_DISPLAY),h(H_TR_EVENTS),h(H_TR_LIMITED),h(H_TR_ATTACK),h(H_TR_DEFENSE),h(H_TR_STAMINA),h(H_TR_FAVORITE),h(H_TR_EGG),h(H_TR_COSTUME),h(H_TR_ORIG_COSTUME),h(H_TR_BACKGROUND),h(H_TR_ART),h(H_TR_ART_ASSET)});
    facts.xxs=md.opt_ints[I_TR_SIZE_XXS];facts.xxl=md.opt_ints[I_TR_SIZE_XXL];facts.costume_none=md.opt_ints[I_TR_COSTUME_NONE];facts.art_none=md.opt_ints[I_TR_ART_NONE];facts.asset_none=md.opt_ints[I_TR_ASSET_NONE];std::copy_n(md.opt_ints+I_TR_SIZE_XXS,5,facts.sizes);
    if((rc=tf->install(&facts)))return rc;
-   install_shadow_fact(k(OC_DISPLAY));
+   {
+    // Which optional transfer facts are known; a protection whose fact is missing keeps every catch.
+    const bool shadow=install_shadow_fact(k(OC_DISPLAY)),max=install_max_fact(k(OC_DISPLAY));
+    char json[96];const int n=std::snprintf(json,sizeof(json),"{\"kind\":\"transfer-facts\",\"shadow\":%s,\"max\":%s}",shadow?"true":"false",max?"true":"false");
+    PgrRuntimeTransportString strings[]={{"quick-close",11},{json,uint32_t(n>0?n:0)}};
+    if(n>0&&size_t(n)<sizeof(json))transport->emit(19,nullptr,0,strings,2);
+   }
    PgrTransferExecConfig transfer{};pointers(transfer,std::array<void*,16>{extra.gchandle_new,extra.gchandle_get_target,extra.gchandle_free,cfg.object_get_class,cfg.runtime_invoke,cfg.field_get_value,h(H_TR_GET_M),h(H_TR_RELEASE_M),k(OC_BAG),k(OC_PK),h(H_TR_CB_CLASS),k(OC_RELEASE),h(H_DET_ID),h(H_TR_CB_POKEMON),h(H_TR_CB_BAG),h(H_TR_RESULT_STATUS)});transfer.success_literal=md.opt_ints[I_TR_RESULT_SUCCESS];
    if((rc=tx->install(&transfer)))return rc;
    PgrTransferObserversConfig observers{1,sizeof(observers),h(H_TR_RESULT_CODE),h(H_TR_ERROR_CODE),cfg.metadata.thread_current,extra.gchandle_new,extra.gchandle_get_target,extra.gchandle_free};
@@ -637,7 +661,7 @@ int configure(const PgrSharedHostConfig *input){
  int rc=table<PgrSharedMetadataApi>(pgrazor_shared_metadata_api(2))->resolve(&cfg.metadata,&md);if(rc)return rc;
  owner=tid();rc=install_leaves();if(rc){failed=true;return rc;}rc=install_hooks();if(rc){failed=true;return rc;}installed=true;accepted_config=*input;ready=true;emit(9);return 0;
 }
-int update(const PgrSharedHostOptions *input){if(!input||input->version!=1||input->size!=sizeof(*input)||input->flags&~15u||input->protect&~511u||pgr_transfer_keep_iv_percent(input->keep_iv)<0||input->keep_count>keep.size()||(input->keep_count&&!input->keep_ids)||!input->epoch)return -1;
+int update(const PgrSharedHostOptions *input){if(!input||input->version!=1||input->size!=sizeof(*input)||input->flags&~15u||input->protect&~2047u||pgr_transfer_keep_iv_percent(input->keep_iv)<0||input->keep_count>keep.size()||(input->keep_count&&!input->keep_ids)||!input->epoch)return -1;
  for(uint32_t i=0;i<input->keep_count;++i)if(input->keep_ids[i]<1||input->keep_ids[i]>2000)return -1;
  {std::lock_guard<std::mutex> lock(options_mutex);if(input->epoch<options.epoch)return -2;options=*input;options.keep_ids=nullptr;if(input->keep_count)std::copy_n(input->keep_ids,input->keep_count,keep.begin());const auto n=now();deadline=n&&(input->flags&1)?n+std::min<uint64_t>(2500,input->remaining_ms):0;}
  if(!(input->flags&1)){sh->update(0,0,input->epoch,0);sc->update(0,0,input->epoch,0);dc->update(0,0,input->epoch,0);cv->update(0,0,input->epoch,0);tx->update(0,0,input->epoch,0);cc->update(0,0,input->epoch,0);}return 0;

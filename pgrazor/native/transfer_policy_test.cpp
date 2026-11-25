@@ -32,13 +32,16 @@ int main(int argc,char **argv) {
   {"K1|101",0},{"K1|",0},{"K1|09",0},{"K1|9a",0},{"K2|90",0},{"K1|1000",0},{"",0}};
  for(auto &c:cases)if(pgr_transfer_keep_iv_parse(c.s,uint32_t(std::strlen(c.s)))!=c.want)return 16;
  v.attack=v.defense=v.stamina=0;
- for(unsigned flags=0;flags<2048;++flags)for(unsigned protect=0;protect<512;++protect){
+ for(unsigned flags=0;flags<16384;++flags)for(unsigned protect=0;protect<2048;protect+=(protect<512?1:3)){
   v.flags=flags;v.protect=protect;int reason=0;
   if(flags&192)reason=8;
   else for(int bit=0;bit<6;++bit)if((flags&(1u<<bit))&&(protect&(1u<<bit))){reason=10+bit;break;}
   if(!reason&&(flags&256)&&(protect&128))reason=20; // costume kept only with its own bit
   if(!reason&&(protect&256)&&!(flags&1024))reason=6; // shadow protection with no shadow fact: keep
   if(!reason&&(protect&256)&&(flags&512))reason=21; // shadow kept only with its own bit
+  if(!reason&&(protect&1536)&&!(flags&8192))reason=6; // Max protection with no Max fact: keep
+  if(!reason&&(protect&512)&&(flags&2048))reason=22; // Dynamax kept only with its own bit
+  if(!reason&&(protect&1024)&&(flags&4096))reason=23; // Gigantamax kept only with its own bit
   if(!reason&&(protect&64))reason=19; // 0/0/0 kept only with its own bit
   if(api->decide(&v)!=reason)return 6;
  }
@@ -53,6 +56,6 @@ int main(int argc,char **argv) {
  v.keep_count=0xffffffff;if(api->decide(&v)!=2)return 10;
  v.keep_all=1;if(api->decide(&v)!=1)return 11;
  v.keep_all=0;v.keep_count=0;v.attack=-1;if(api->decide(&v)!=5)return 12;
- std::puts("PASS native transfer policy: exhaustive IV thresholds (default 90% and every keep-IV cutoff), 0/0/0 keep, costume and shadow keep, category masks, unknown data and custom keep priority");
+ std::puts("PASS native transfer policy: exhaustive IV thresholds (default 90% and every keep-IV cutoff), 0/0/0 keep, costume, shadow, Dynamax and Gigantamax keep, category masks, unknown data and custom keep priority");
  return 0;
 }

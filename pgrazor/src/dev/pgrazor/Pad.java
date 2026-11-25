@@ -205,7 +205,7 @@ public final class Pad {
             public void onAutoWalk(){stick.release(true);AutoWalkDialog.show(activity);}
             public void onGameRoutes(){stick.release(true);GameRoutesDialog.show(activity);}
             public void onFeeds(){stick.release(true);FeedChooser.show(activity);}
-            public void onFavorites(){QuickLocationDialogs.showFavorites(activity,Pad.this::quickTeleport);}
+            public void onFavorites(){stick.release(true);QuickLocationDialogs.showFavorites(activity,Pad.this::quickTeleport,Pad.this::quickWalk);}
             public void onTeleport(){stick.release(true);QuickLocationDialogs.showTeleport(activity,Pad.this::quickTeleport,Pad.this::quickWalk);}
             public void onHotspots(){stick.release(true);HotspotsDialog.showQuick(activity,Pad.this::quickTeleport,Pad.this::quickWalk);}
             public void onAccounts(){stick.release(true);AccountsDialog.show(activity);}

@@ -76,6 +76,7 @@ final class SettingsPanel {
     private Switch evolveTransferSwitch;
     private Button evolveTransferStages, evolveTransferMode, evolveTransferList;
     // Boolean settings use proper switches.
+    private Switch skipTeleportSwitch;
     private Switch idleWalkSwitch, locationSwitch, vgpSwitch, joystickSwitch, cooldownSwitch, localTimeSwitch, encounterCounterSwitch, encounterOverlaySwitch, spawnSwitch, autoTransferSwitch,
         quickSpinSwitch, berrySwitch, quickSummarySwitch, catchPreviewSwitch, luckyEggSwitch, starPieceSwitch, curveSwitch, alwaysHitSwitch, arSwitch, transferOverlaySwitch, catchChanceSwitch, autoBallSwitch, autoThrowSwitch, autoThrowMapSwitch, skipCutscenesSwitch, routeGiftSwitch,
         batteryResSwitch, batteryFpsSwitch, batteryQualitySwitch;
@@ -95,7 +96,7 @@ final class SettingsPanel {
     private TextView state, steeringStatus, spawnStatus, quickSummaryStatus, transferStatus, quickSpinStatus,
         buddyStatus, giftStatus, itemStatus, rocketStatus, battleStatus, quickBallStatus, ivStatus, cameraStatus, interactionStatus;
     // Multi-option groups keep checkboxes / radios.
-    private final CheckBox[] transferProtection=new CheckBox[9];
+    private final CheckBox[] transferProtection=new CheckBox[11];
     private final Switch[] pvpKeep=new Switch[3];
     private final Button[] pvpRank=new Button[3];
     private final CheckBox[] giftChoices=new CheckBox[3];
@@ -428,6 +429,8 @@ final class SettingsPanel {
         cooldownSwitch = switchRow(overlays, "Cooldown overlay"); cooldownSwitch.setChecked(Control.cooldownOverlay());
         cooldownSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.cooldownOverlay())return; Control.setCooldownOverlay(cooldownSwitch.isChecked()); host.refresh(); });
         launch(overlays, "Cooldown history", () -> Cooldown.show(activity));
+        skipTeleportSwitch = switchRow(overlays, "Skip teleport confirmation"); skipTeleportSwitch.setChecked(Control.skipTeleportConfirm());
+        skipTeleportSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.skipTeleportConfirm())return; Control.setSkipTeleportConfirm(checked); });
         localTimeSwitch = switchRow(overlays, "Show local time"); localTimeSwitch.setChecked(Control.localTimeOverlay());
         localTimeSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.localTimeOverlay())return; Control.setLocalTimeOverlay(localTimeSwitch.isChecked()); host.refresh(); });
         caption(overlays, "Time at your spoofed location.");
@@ -571,9 +574,9 @@ final class SettingsPanel {
         transferStatus = caption(txC, "");
 
         LinearLayout keepC = group(transfer, "Always keep");
-        // Indexed by protection bit; costume (bit 7) and shadow (bit 8) are listed next to event.
-        String[] protections={"Keep legendary / mythical / Ultra Beasts","Keep shiny Pokemon","Keep event Pokemon","Keep background Pokemon","Keep XXS","Keep XXL","Keep 0% IV (0/0/0)","Keep costume Pokemon","Keep shadow Pokemon"};
-        for(int i:new int[]{0,1,2,7,8,3,4,5,6}){final int bit=1<<i;CheckBox box=new CheckBox(activity);box.setText(protections[i]);box.setChecked((Control.transferProtect()&bit)!=0);transferProtection[i]=box;keepC.addView(box);
+        // Indexed by protection bit; costume (7), shadow (8), Dynamax (9) and Gigantamax (10) are listed next to event.
+        String[] protections={"Keep legendary / mythical / Ultra Beasts","Keep shiny Pokemon","Keep event Pokemon","Keep background Pokemon","Keep XXS","Keep XXL","Keep 0% IV (0/0/0)","Keep costume Pokemon","Keep shadow Pokemon","Keep Dynamax Pokemon","Keep Gigantamax Pokemon"};
+        for(int i:new int[]{0,1,2,7,8,9,10,3,4,5,6}){final int bit=1<<i;CheckBox box=new CheckBox(activity);box.setText(protections[i]);box.setChecked((Control.transferProtect()&bit)!=0);transferProtection[i]=box;keepC.addView(box);
             box.setOnClickListener(v->Control.setTransferProtect(box.isChecked()?Control.transferProtect()|bit:Control.transferProtect()&~bit));}
         transferKeepList = button("Custom keep list"); keepC.addView(transferKeepList);
         transferKeepList.setOnClickListener(v -> TransferKeepDialog.show(activity, host::refresh));
@@ -1314,6 +1317,7 @@ final class SettingsPanel {
         mapTap.setEnabled(Control.quickBallConfigured());
         spawnSwitch.setChecked(Control.spawnBooster());spawnSwitch.setEnabled(Control.spawnAllowed());status(spawnStatus,Control.spawnStatus());
         localTimeSwitch.setChecked(Control.localTimeOverlay());
+        skipTeleportSwitch.setChecked(Control.skipTeleportConfirm());
         encounterCounterSwitch.setChecked(Control.encounterCounter());encounterOverlaySwitch.setChecked(Control.encounterOverlay());
         SettingsUi.enabled(encounterOverlaySwitch,Control.encounterCounter());
         if(current<0)set(title,EncounterCounter.title());

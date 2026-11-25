@@ -9,12 +9,25 @@ struct ManualThrowSession {
 };
 ManualThrowSession manual_throw;
 uint64_t manual_throw_generation=0;
-// Auto Rocket can ask for its shadow catches to go through the transfer rules. The encounter closes
+// Catches whose summary is left to the game never reach Quick catch's transfer, so they are handed to the
+// transfer rules from here: Auto Rocket's shadow catches when it asks for that, and every Max Battle
+// (Dynamax / Gigantamax) catch, whose Keep Dynamax / Keep Gigantamax options decide. The encounter closes
 // right after the catch, so the response is held here (outside the encounter's session) until storage
-// lists the Pokemon, then handed to the same transfer path map catches use (map_auto_throw_game.inc).
+// lists the Pokemon, then handed to the same transfer path map catches use (map_auto_throw_game.inc),
+// which applies Auto transfer being off and Keep All as usual.
 int map_real_transfer(void* raw_response,uint64_t tid);
 Root rocket_transfer_response;
 int64_t rocket_transfer_since=0;
+Root recent_transfer_response;  // the last response queued, so the same catch is never queued twice
+// Queues a confirmed catch's response for the transfer rules. Auto throw and the catch observer (hand
+// throws) can both report the same catch; only the first is queued.
+bool queue_caught_transfer(void* response,int64_t now) {
+    if(!response||rocket_transfer_response)return false;
+    if(recent_transfer_response&&recent_transfer_response.get()==response)return false;
+    rocket_transfer_response=Root(response);rocket_transfer_since=now;
+    recent_transfer_response=Root(response);
+    return true;
+}
 
 void throw_event(const char* phase,const std::string& message,int value=0) {
     auto tr=transport();if(!tr||!tr->emit)return;
@@ -70,6 +83,13 @@ void finish_manual_throw(bool caught) {
     call_obj(state.get(),"EncounterStateComplete",1,args);
 }
 
+// A Max Battle's bonus encounter (EncounterState.IsFullBreadEncounter, as Quick catch reads it). A game
+// without the getter reports none, which keeps those catches as before.
+bool max_battle_encounter() {
+    try{return unbox_val<bool>(call_obj(manual_throw.state.get(),"get_IsFullBreadEncounter"));}
+    catch(const Failure&){return false;}
+}
+
 void poll_manual_throw(uint64_t tid,int64_t now) {
     const uint64_t generation=manual_throw_generation;
     Root response;int result=0;int rc=PGR_VR_PENDING;
@@ -101,9 +121,9 @@ void poll_manual_throw(uint64_t tid,int64_t now) {
         manual_throw.berry_prepared=true;manual_throw.next_ms=now+500;return;
     }
     throw_event("catch-result","Confirmed capture response",result);
-    if(result==1&&pgr_auto_rocket_transfer_wanted&&pgr_auto_rocket_transfer_wanted()&&!rocket_transfer_response&&
-       obj_class_name(manual_throw.pokemon.get())=="IncidentMapPokemon"){
-        rocket_transfer_response=Root(response.get());rocket_transfer_since=now;
+    if(result==1&&!rocket_transfer_response&&(max_battle_encounter()||
+       (pgr_auto_rocket_transfer_wanted&&pgr_auto_rocket_transfer_wanted()&&obj_class_name(manual_throw.pokemon.get())=="IncidentMapPokemon"))){
+        queue_caught_transfer(response.get(),now);
     }
     if(result==1||result==3){finish_manual_throw(result==1);return;}
     require(result==2||result==4,"Unknown catch result; no automatic retry");

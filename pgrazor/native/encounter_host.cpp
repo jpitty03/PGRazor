@@ -394,7 +394,7 @@ static void notify_transfer_result(const char *summary) {
 
 static void notify_transfer_outcome(const char *outcome){const char *strings[]={outcome};transport_emit_op(22,nullptr,0,strings,1);}
 static void notify_transfer_error(const char *reason){char text[256];snprintf(text,sizeof(text),"Transfer Error: %s",reason);notify_transfer_result(text);notify_transfer_outcome("transfer-error");}
-static const char *transfer_reason(int code){static const char *reasons[]={"","keep-all","invalid-keep-list","unknown-species","custom-keep-list","unknown-iv","unknown-category","unknown-size","favorite-or-egg","iv-at-least-cutoff","protected-rare","protected-shiny","protected-event","protected-background","protected-xxs","protected-xxl","invalid-input","invalid-input","pvp-rank","protected-zero-iv","protected-costume","protected-shadow"};return code>0&&code<22?reasons[code]:"invalid-input";}
+static const char *transfer_reason(int code){static const char *reasons[]={"","keep-all","invalid-keep-list","unknown-species","custom-keep-list","unknown-iv","unknown-category","unknown-size","favorite-or-egg","iv-at-least-cutoff","protected-rare","protected-shiny","protected-event","protected-background","protected-xxs","protected-xxl","invalid-input","invalid-input","pvp-rank","protected-zero-iv","protected-costume","protected-shadow","protected-dynamax","protected-gigantamax"};return code>0&&code<24?reasons[code]:"invalid-input";}
 // Why VGP/VGP+ kept the last catch, as shown in the VGP status line.
 static char g_vgp_kept_text[96] = "Kept: protected";
 static void set_vgp_kept(const char *why){snprintf(g_vgp_kept_text,sizeof(g_vgp_kept_text),"Kept: %s",why);}
@@ -405,7 +405,7 @@ static const char *kept_label(int code){
     case 1:return "Keep All is on";case 4:return "on your keep list";case 8:return "favorite";
     case 9:snprintf(iv_label,sizeof(iv_label),"IV %d%%+",pgr_transfer_keep_iv_percent(g_keep_iv));return iv_label;case 10:return "legendary / mythical";case 11:return "shiny";
     case 12:return "event";case 13:return "background";case 14:return "XXS";case 15:return "XXL";
-    case 19:return "0% IV";case 20:return "costume";case 21:return "shadow";
+    case 19:return "0% IV";case 20:return "costume";case 21:return "shadow";case 22:return "Dynamax";case 23:return "Gigantamax";
     default:return "could not be checked";
   }
 }
@@ -759,7 +759,7 @@ static void handle_vgp_transfer_ready(const PgrVgpControllerOut &out, uint64_t t
 
   void *pk_obj = g_exp.gchandle_get_target ? g_exp.gchandle_get_target(g_vgp_transfer.pokemon_handle) : nullptr;
   void *gm_obj = g_exp.gchandle_get_target ? g_exp.gchandle_get_target(g_vgp_transfer.gm_handle) : nullptr;
-  uint32_t protect_mask = g_opts.transfer_protect >= 0 ? static_cast<uint32_t>(g_opts.transfer_protect&511) : 511u;
+  uint32_t protect_mask = g_opts.transfer_protect >= 0 ? static_cast<uint32_t>(g_opts.transfer_protect&2047) : 2047u;
 
   PgrTransferFactsRequest req = {};
   req.version = PGR_TF_REQUEST_VERSION;
@@ -1484,7 +1484,7 @@ static void sync_from_transport(uint64_t tid) {
     next_opts = {};
     next_opts.version = PGR_EH_API_VERSION;
     next_opts.size = sizeof(PgrEncounterHostOptions);
-    next_opts.transfer_protect = 511;
+    next_opts.transfer_protect = 2047;
     next_opts.lease_remaining_ms = 0ULL;
     g_opts = next_opts;
     g_lease_deadline_ms = 0ULL;
