@@ -4,6 +4,7 @@
 #include "runtime_bootstrap.h"
 #include "runtime_metadata.h"
 #include "runtime_transport.h"
+#include "vgp_controller.h"
 #include <cstdio>
 #include <cstring>
 #include <dlfcn.h>
@@ -142,8 +143,13 @@ const char *stage_name(Stage s){
 constexpr int64_t kHeartbeatMs=4500,kScanMs=1500,kStepMs=250,kArriveM=30,kTapRetryMs=6000,kOpenTimeoutMs=30000;
 constexpr int64_t kPartyTimeoutMs=30000,kBattleTimeoutMs=420000,kResolveTimeoutMs=60000,kEncounterTimeoutMs=300000;
 constexpr int64_t kSettleMs=2500,kHealWaitMs=30000,kLossSkipMs=1800000,kSkipMs=600000,kLongTravelSlackMs=180000;
-constexpr int64_t kWinCloseMs=6000,kLossDoneMs=2500,kSummaryTimeoutMs=60000,kSummaryGraceMs=2000,kSpinnerGraceMs=6000;
+constexpr int64_t kWinCloseMs=6000,kLossDoneMs=2500,kSummaryTimeoutMs=60000,kSummaryGraceMs=2000,kSpinnerGraceMs=12000;
 constexpr int64_t kBeatenSkipMs=24LL*60*60*1000;  // a beaten invasion is never battled again
+constexpr int64_t kVgpFinishMs=15000;  // longest wait at a stop for VGP+ to finish its catch or spin
+// The server refuses to start an invasion ("try again") until it has our position at the stop, and the
+// grunt then arrives seconds late. Walk right up to it and stand still briefly before tapping.
+constexpr int64_t kArriveCloseM=10,kArriveMaxWaitMs=12000,kArriveSettleMs=3000;
+constexpr int64_t kLateGruntMs=45000;  // a grunt that appears after we gave up on its stop is still battled
 
 struct Session {
  bool active=false,stop_requested=false;
@@ -152,6 +158,9 @@ struct Session {
  int64_t stage_ms=0,last_step=0,last_scan=0,last_heartbeat=0,last_tap=0,travel_deadline=0,spinner_ms=0;
  uint64_t travel_seq=0;
  bool has_anchor=false,returned_to_anchor=false;double anchor_lat=0,anchor_lon=0;
+ // VGP+ catches and spins while walking between stops; closed on arrival once it is idle.
+ bool vgp_closed=false;int64_t arrive_ms=0,close_ms=0;
+ Candidate abandoned;int64_t abandoned_ms=0;  // the stop given up on last, in case its grunt shows up late
  Candidate target;int taps=0,submits=0;
  bool won=false,acted=false,encounter_seen=false;int64_t resolve_open_ms=0,summary_ms=0,encounter_closed_ms=0;
  int battles=0,losses_in_row=0;
@@ -190,6 +199,7 @@ void next(int64_t now,const std::string &why){
  if(session.stop_requested){finish("stopped","Stopped after "+battles_text(session.battles));return;}
  session.target=Candidate{};session.won=session.acted=session.encounter_seen=false;
  session.resolve_open_ms=session.summary_ms=session.encounter_closed_ms=0;
+ session.vgp_closed=false;session.arrive_ms=session.close_ms=0;
  enter(Stage::Settle,now);if(!why.empty())status("next",why);
 }
 
@@ -263,10 +273,51 @@ bool encounter_open(){
  return gui&&unbox<bool>(call(gui.get(),"get_IsOpen"));
 }
 bool battle_open(){return bool(live(cls("Niantic.Holoholo.Combat.UI","CombatVNextGuiController")));}
+bool vgp_busy(){
+ auto api=static_cast<const PgrVgpControllerApi*>(pgrazor_vgp_controller_api(1));
+ if(!api||!api->sample)return false;
+ PgrVgpControllerSample sample{};sample.version=1;sample.size=sizeof(sample);
+ return api->sample(&sample)==0&&sample.phase!=PGR_VGC_PH_NONE;
+}
+// A leader battle uses a Rocket Radar, and the game asks first in its generic modal ("Use" / "Cancel",
+// ModalButton.UseCancelButtons = OK, Cancel). Only on a leader stop, once per dialog: its own
+// ButtonPressed(OK) is what tapping "Use" does.
+bool press_radar_prompt(){
+ if(session.target.kind!=KIND_LEADER)return false;
+ static void *modal=nullptr,*base=nullptr,*clicked=nullptr,*title=nullptr,*pressed=nullptr;static bool is_screen=false;static int32_t ok=0;
+ if(!modal){
+  void *k=cls("Niantic.Holoholo.UI","ModalDialog");base=cls("Niantic.Holoholo.UI","BaseModalDialog");
+  clicked=field_info(base,"buttonClicked");title=field_info(base,"titleText");pressed=method(base,"ButtonPressed",1);
+  ok=enum_literal(cls("Niantic.Holoholo.UI","ModalEvent"),"OK");
+  is_screen=fn<bool(*)(void*,void*)>(boot.meta.class_is_assignable_from)(cls("Niantic.Holoholo.NUI","GuiController"),k);
+  modal=k;
+ }
+ Root s=is_screen?screen(modal):live(modal);
+ if(!s||read<bool>(s.get(),clicked))return false;
+ std::string heading;
+ try{if(void *t=read<void*>(s.get(),title))heading=text(call(t,"get_text"));}catch(const Failure&){}
+ int32_t event=ok;void *args[]={&event};invoke(pressed,s.get(),args);
+ diag("radar-prompt",heading.empty()?"pressed Use":"pressed Use: "+heading);
+ status("radar","Using a Rocket Radar for the leader");
+ return true;
+}
 Root resolve_screen(){return screen(cls("Niantic.Holoholo.Incident","IncidentCombatResolveGuiController"),true);}
 
 // --- Stages ---------------------------------------------------------------------------------
+// The grunt of a stop we just gave up on can still arrive (a slow start after "try again"). Its screens
+// then cover the map; battle it rather than walking off with them open.
+bool adopt_late_grunt(int64_t now){
+ if(!session.abandoned_ms||session.stop_requested)return false;
+ if(now-session.abandoned_ms>kLateGruntMs){session.abandoned_ms=0;return false;}
+ if(!screen(cls("Niantic.Holoholo.Combat.NpcTrainers","NpcTrainerInterstitialGui"))&&
+    !screen(cls("Niantic.Holoholo.Pokestop","PokestopIncidentBackgroundGUIController"),true))return false;
+ session.target=session.abandoned;session.abandoned_ms=0;quarantine.erase(session.target.key);
+ session.vgp_closed=true;
+ status("opening","The Rocket grunt appeared after all; battling it");enter(Stage::Open,now);
+ return true;
+}
 void step_scan(const Permission &p,int64_t now){
+ if(adopt_late_grunt(now))return;
  if(now-session.last_scan<kScanMs)return;session.last_scan=now;
  if(!p.map_ready){if(session.message!="Waiting for the map")status("waiting","Waiting for the map");return;}
  if(session.stop_requested){finish("stopped","Stopped after "+battles_text(session.battles));return;}
@@ -289,7 +340,7 @@ void step_scan(const Permission &p,int64_t now){
   return;
  }
  session.returned_to_anchor=false;
- session.target=found[size_t(pick)];
+ session.target=found[size_t(pick)];session.vgp_closed=false;session.arrive_ms=session.close_ms=0;
  const double d=distance_m(p.lat,p.lon,session.target.lat,session.target.lon);
  const std::string who=session.target.kind==KIND_LEADER?"a Rocket leader":"a Rocket grunt";
  if(d<=kArriveM){status("arrived","At "+who);session.travel_deadline=now+kLongTravelSlackMs;enter(Stage::Travel,now);return;}
@@ -300,6 +351,7 @@ void step_scan(const Permission &p,int64_t now){
  enter(Stage::Travel,now);
 }
 void step_travel(const Permission &p,int64_t now){
+ if(adopt_late_grunt(now))return;
  if(session.stop_requested){finish("stopped","Stopped after "+battles_text(session.battles));return;}
  const bool to_anchor=session.target.key.empty();
  const double d=distance_m(p.lat,p.lon,session.target.lat,session.target.lon);
@@ -317,6 +369,19 @@ void step_travel(const Permission &p,int64_t now){
   if(p.map_ready&&!scan(nullptr,&session.target.key)&&d<=400){quarantine[session.target.key]=now+kSkipMs;next(now,"That Rocket stop is gone; looking for another");return;}
  }
  if(d>kArriveM)return;
+ // Let a VGP+ catch or spin in progress finish before the stop is opened; closing the window on an
+ // idle tick revokes VGP+ before it can start anything else (encounter_host ticks it after us).
+ if(!session.vgp_closed){
+  if(!session.arrive_ms)session.arrive_ms=now;
+  if(!session.close_ms&&(d<=kArriveCloseM||now-session.arrive_ms>=kArriveMaxWaitMs))session.close_ms=now;
+  if(!session.close_ms||now-session.close_ms<kArriveSettleMs){
+   if(session.message!="Arriving at the stop")status("arrived","Arriving at the stop");return;
+  }
+  if(session.command.walk&&vgp_busy()&&now-session.close_ms<kVgpFinishMs){
+   if(session.message!="Waiting for VGP+ to finish")status("arrived","Waiting for VGP+ to finish");return;
+  }
+  session.vgp_closed=true;
+ }
  if(session.command.cooldown_ms>0){if(session.message!="Waiting for cooldown")status("cooldown","Waiting for cooldown");return;}
  if(!p.map_ready)return;
  enter(Stage::Heal,now);
@@ -327,6 +392,7 @@ void step_heal(int64_t now){
 }
 void step_open(const Permission &p,int64_t now){
  if(press_conversations()){session.stage_ms=now;return;}
+ if(press_radar_prompt()){session.stage_ms=now;session.spinner_ms=0;return;}
  if(Root s=screen(cls("Niantic.Holoholo.Combat.NpcTrainers","NpcTrainerInterstitialGui"))){
   call(s.get(),"PressChallenge");status("challenge","Starting the Rocket battle");enter(Stage::Party,now);return;
  }
@@ -338,10 +404,14 @@ void step_open(const Permission &p,int64_t now){
   if(!session.spinner_ms)session.spinner_ms=now;
   if(now-session.spinner_ms<kSpinnerGraceMs)return;
   call(spinner.get(),"ClickExit");quarantine[session.target.key]=now+kSkipMs;
+  session.abandoned=session.target;session.abandoned_ms=now;
   next(now,"That stop has no Rocket battle now; trying another");return;
  }
  session.spinner_ms=0;
- if(now-session.stage_ms>kOpenTimeoutMs){quarantine[session.target.key]=now+kSkipMs;next(now,"The Rocket stop did not open; trying another");return;}
+ if(now-session.stage_ms>kOpenTimeoutMs){
+  quarantine[session.target.key]=now+kSkipMs;session.abandoned=session.target;session.abandoned_ms=now;
+  next(now,"The Rocket stop did not open; trying another");return;
+ }
  if(session.taps>=3||now-session.last_tap<kTapRetryMs||!p.map_ready)return;
  Root stop=scan(nullptr,&session.target.key);
  if(!stop){quarantine[session.target.key]=now+kSkipMs;next(now,"That Rocket stop is gone; looking for another");return;}
@@ -355,6 +425,7 @@ void step_open(const Permission &p,int64_t now){
 void step_party(int64_t now){
  if(battle_open()){status("battle","Battling");enter(Stage::Battle,now);return;}
  if(press_conversations())return;
+ if(press_radar_prompt()){session.stage_ms=now;return;}
  if(now-session.stage_ms>kPartyTimeoutMs){
   // A party that cannot start (fainted Pokemon, nothing healed) would fail every stop the same way.
   // The party screen is left open: its own Cancel asks "Exit the Trainer Battle?", which has no
@@ -434,7 +505,7 @@ void step(const Permission &p,int64_t now){
   case Stage::Battle:step_battle(now);break;
   case Stage::Resolve:step_resolve(now);break;
   case Stage::Encounter:step_encounter(p,now);break;
-  case Stage::Settle:if(now-session.stage_ms>=kSettleMs&&p.map_ready)enter(Stage::Scan,now);break;
+  case Stage::Settle:if(adopt_late_grunt(now))break;if(now-session.stage_ms>=kSettleMs&&p.map_ready)enter(Stage::Scan,now);break;
   default:break;
  }
 }
@@ -484,4 +555,7 @@ extern "C" int pgr_auto_rocket_keeps_catches(){
 }
 bool pgr_auto_rocket_between_battles(){
  return session.active&&(session.stage==Stage::Scan||session.stage==Stage::Travel||session.stage==Stage::Settle);
+}
+bool pgr_auto_rocket_vgp_window(){
+ return pgr_auto_rocket_between_battles()&&session.command.walk&&!session.vgp_closed;
 }

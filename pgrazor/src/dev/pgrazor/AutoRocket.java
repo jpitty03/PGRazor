@@ -31,6 +31,8 @@ public final class AutoRocket {
     public static void read(Properties p){synchronized(LOCK){preferences=new AutoRocketPreferences();preferences.read(p);running=stopping=false;session=null;token++;route=travelSerial=0;message="Not running";}}
     public static void write(Properties p){synchronized(LOCK){preferences.write(p);}}
     public static boolean running(){synchronized(LOCK){return running||stopping;}}
+    /** VGP+ stays off for a teleporting session; a walking one lets the native controller run it between stops. */
+    public static boolean pausesVgp(){synchronized(LOCK){return (running||stopping)&&(session==null||!session.walk);}}
     public static String status(){synchronized(LOCK){return message+(session==null?"":" · "+completed+"/"+session.maxBattles+" battles");}}
     public static void start(AutoRocketPreferences value){
         if(!Control.automationReady())throw new IllegalStateException("Wait for the game and location to be ready.");

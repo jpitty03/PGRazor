@@ -12,3 +12,6 @@ void pgr_auto_rocket_stop(uint64_t tid);
 extern "C" int pgr_auto_rocket_keeps_catches();
 // True while a session is only looking for or walking to its next stop.
 bool pgr_auto_rocket_between_battles();
+// True while a walking session is between stops and VGP+ may catch and spin; it closes when the next
+// stop is reached and VGP+ is idle, so VGP+ never acts while a stop is opened or a battle runs.
+bool pgr_auto_rocket_vgp_window();

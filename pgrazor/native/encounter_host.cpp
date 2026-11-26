@@ -2549,7 +2549,9 @@ static int api_tick(uint64_t proven_tid) {
   // catches its shadow Pokemon.
   const bool rocket_block=!raid_block&&pgr_auto_rocket_tick(os_tid,&g_md);
   const bool bird_block=!raid_block&&!rocket_block&&pgr_incense_guard_tick(os_tid,&g_md);
-  if(bird_block||rocket_block||(raid_block&&!map_block)){g_opts.vgp_enabled=0;if(g_vgc&&g_last_vgp_enabled){g_vgc->revoke();clear_active_vgp_transfer();g_last_vgp_enabled=false;++g_vgp_epoch;}}
+  // A walking Auto Rocket session lets VGP+ catch and spin between stops (Java allows it only then).
+  const bool rocket_vgp_block=rocket_block&&!pgr_auto_rocket_vgp_window();
+  if(bird_block||rocket_vgp_block||(raid_block&&!map_block)){g_opts.vgp_enabled=0;if(g_vgc&&g_last_vgp_enabled){g_vgc->revoke();clear_active_vgp_transfer();g_last_vgp_enabled=false;++g_vgp_epoch;}}
   // Publish exclusive ownership before the bird guard can invoke OnTap.
   pgr_map_auto_throw_tick(os_tid,&g_md,(!map_block&&raid_block)||bird_block||rocket_block);
   tick_map_catch_marker(os_tid, now, rem_lease);

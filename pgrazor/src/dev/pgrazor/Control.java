@@ -241,7 +241,7 @@ public final class Control {
     public static float vgpTargetY(){return vgp.targetY();}
     public static boolean vgpTargetSpin(){return vgp.targetSpin();}
 
-    public static boolean vgpAllowed(){if(!locationKnown())return false;guardVgpCooldown();return vgpEnabled&&vgpReady&&itemAccessAllowed()&&!ShundoSniper.active()&&!AutoRaid.running()&&!AutoRocket.running();}  // Shundo Sniper pauses VGP+
+    public static boolean vgpAllowed(){if(!locationKnown())return false;guardVgpCooldown();return vgpEnabled&&vgpReady&&itemAccessAllowed()&&!ShundoSniper.active()&&!AutoRaid.running()&&!AutoRocket.pausesVgp();}  // Shundo Sniper pauses VGP+; walking Auto Rocket runs it between stops
     public static void vgpResult(String action,boolean success){vgp.result(action,success);}
     private static volatile boolean autoIncubate, incubateLongest, incubatorReady;
     private static volatile String incubatorStatus="Waiting for incubation support";
