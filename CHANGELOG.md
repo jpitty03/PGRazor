@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## v0.3.8
+
+[Full release notes](docs/releases/v0.3.8.md)
 
 ### Improvements & fixes
 
@@ -10,8 +12,9 @@
 - **Auto Rocket:**
   - VGP+ now catches and spins while walking between Rocket stops, and pauses for each battle. It stays off in teleport mode.
   - Leader battles: Auto Rocket answers "Use" on the Rocket Radar prompt.
-  - Waits at the stop until the game is ready, so the battle no longer fails with "try again".
+  - At a stop that was already spun (for example by VGP+ on the way), Auto Rocket closes the PokéStop screen so the grunt can appear.
   - A grunt that shows up late is battled instead of being left open on screen.
+  - Maximum battles can now be set up to 999 (was 100).
 
 ## v0.3.7
 

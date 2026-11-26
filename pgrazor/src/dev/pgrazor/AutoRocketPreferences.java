@@ -10,7 +10,7 @@ import java.util.Properties;
 public final class AutoRocketPreferences {
     public static final int TARGETS_GRUNTS = 0, TARGETS_GRUNTS_AND_LEADERS = 1;
     public static final String[] TARGET_LABELS = {"Grunts only", "Grunts and leaders"};
-    public static final int MAX_BATTLES_DEFAULT = 20, MAX_BATTLES_MIN = 1, MAX_BATTLES_MAX = 100;
+    public static final int MAX_BATTLES_DEFAULT = 20, MAX_BATTLES_MIN = 1, MAX_BATTLES_MAX = 999;
     /** Allowed distance limits in kilometres; 0 is no limit. */
     public static final int[] DISTANCE_CHOICES_KM = {0, 1, 2, 5, 10};
 

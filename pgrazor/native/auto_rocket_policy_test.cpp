@@ -13,9 +13,10 @@ int main() {
            c.cooldown_ms == 0 && c.radius_m == 2000);
     assert(parse("T1|7|0|0|1|0|1|120000|0", c) && !c.running && c.targets == 0 && !c.walk && c.transfer &&
            c.cooldown_ms == 120000);
+    assert(parse("T1|9|1|0|999|1|0|0|0", c) && c.max_battles == 999);  // the settings maximum
     // Other slot-12 commands and malformed frames are never taken for Auto Rocket.
     const char* bad[] = {"R3|1|1|1|1|1|1|1|1|1|1|1|1|1|1", "G1|5|1|0", "T2|42|1|0|20|1|0|0|0", "T1|0|1|0|20|1|0|0|0",
-                         "T1|42|1|2|20|1|0|0|0", "T1|42|1|0|0|1|0|0|0", "T1|42|1|0|101|1|0|0|0", "T1|42|1|0|20|1|0|0",
+                         "T1|42|1|2|20|1|0|0|0", "T1|42|1|0|0|1|0|0|0", "T1|42|1|0|1000|1|0|0|0", "T1|42|1|0|20|1|0|0",
                          "T1|42|1|0|20|1|0|0|0|9", "T1|42|1|0|20|1|0|-1|0", "T1|42|1|0|20|1|0|7200001|0",
                          "T1|42|1|0|20|1|0|0|50001", "T1|42|1|0|20|1|0||0", "1|42|1|0|20|1|0|0"};
     for (const char* s : bad) assert(!parse(s, c));

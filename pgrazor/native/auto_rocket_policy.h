@@ -43,7 +43,7 @@ inline bool parse_command(const char* data, size_t size, Command& out) {
         if (i < size && data[i] != '|') continue;
         if (field >= 8) return false;
         static const uint64_t limits[8] = {
-            static_cast<uint64_t>(INT64_MAX), 1, 1, 100, 1, 1, 7200000, 50000};
+            static_cast<uint64_t>(INT64_MAX), 1, 1, 999, 1, 1, 7200000, 50000};
         if (!parse_u64(data + start, i - start, limits[field], v[field])) return false;
         ++field;
         start = i + 1;
