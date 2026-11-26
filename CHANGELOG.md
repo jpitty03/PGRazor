@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### New features
+
+- **Joystick lock:** Long-press the joystick centre for 1.5s and drag in a direction to lock steering with haptic feedback. Long-press the padlock icon to unlock.
+
 ## v0.3.7
 
 [Full release notes](docs/releases/v0.3.7.md)

@@ -17,6 +17,7 @@ export const featureGuides = [
     notes: [
       'Zero speed pauses travel; selecting another speed resumes it.',
       'Show joystick, under Location & movement, toggles the handle; the panel behind it is intentionally transparent.',
+      'Unreleased: long-press the joystick centre for 1.5s and drag in a direction to lock steering with haptic feedback. Long-press the padlock icon to unlock.',
       'Disabling spoofing returns the device to its normal location and stops simulated movement.',
       'Adventure Sync prompts are dismissed automatically only while spoofing is on and the app has no Android location permission.',
       'Spawn booster (80 m), under Game map, is an optional, experimental toggle that widens the nearby spawn range; it appears only when the game supports it and does not prove a server-side bonus. It can cause lag in busy areas with many nearby Pokémon, so turn it off if the game stutters.',
