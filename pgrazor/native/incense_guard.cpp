@@ -119,7 +119,9 @@ void pgr_incense_guard_open(uint64_t tid){
   require(target->get(),"Bird no longer loaded; open encounter manually");
   void *alive_args[]={target->get()};require(value<bool>(invoke(const_cast<void*>(md->methods[5]),nullptr,alive_args),"System.Boolean"),"Bird no longer active; open encounter manually");
   require(!value<bool>(call(target->get(),"get_Destroyed","System.Boolean"),"System.Boolean"),"Bird destroyed before opening");
-  require(field<bool>(target->get(),base,"_selectionEnabled","System.Boolean"),"Bird selection disabled; open encounter manually");
+  // 0.439.0 renamed _selectionEnabled to _isSelectionEnabled.
+  const char *selection=fn<void*(*)(void*,const char*)>(boot.meta.class_get_field_from_name)(base,"_isSelectionEnabled")?"_isSelectionEnabled":"_selectionEnabled";
+  require(field<bool>(target->get(),base,selection,"System.Boolean"),"Bird selection disabled; open encounter manually");
   Root map(field<void*>(target->get(),base,"mapExploreState","Niantic.Holoholo.Map.IMapExploreState"));require(map.get(),"Map explore state unavailable");
   require(value<bool>(call(map.get(),"get_IsActiveAndVisible","System.Boolean"),"System.Boolean"),"Map is not active and visible; open encounter manually");
   require(value<uint64_t>(call(target->get(),"get_EncounterId","System.UInt64"),"System.UInt64")==pending_id,"Bird encounter changed before opening");

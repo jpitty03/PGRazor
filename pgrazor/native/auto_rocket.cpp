@@ -479,8 +479,8 @@ bool pgr_auto_rocket_tick(uint64_t tid,const PgrSharedMetadataOutput*){
  return session.active;
 }
 void pgr_auto_rocket_stop(uint64_t){if(session.active)finish("stopped","Stopped");}
-extern "C" int pgr_auto_rocket_transfer_wanted(){
- return session.active&&session.command.transfer&&(session.stage==Stage::Battle||session.stage==Stage::Resolve||session.stage==Stage::Encounter)?1:0;
+extern "C" int pgr_auto_rocket_keeps_catches(){
+ return session.active&&!session.command.transfer?1:0;
 }
 bool pgr_auto_rocket_between_battles(){
  return session.active&&(session.stage==Stage::Scan||session.stage==Stage::Travel||session.stage==Stage::Settle);

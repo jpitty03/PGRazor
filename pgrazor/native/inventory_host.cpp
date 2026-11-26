@@ -159,7 +159,7 @@ void drain_inventory(int32_t berry){
   const char *msg[]={"","Off","Waiting for the map","Egg incubating","Incubator already in use","Assignment unconfirmed; waiting for inventory","Confirming egg assignment","Incubation stopped; toggle off/on to retry","Unlimited incubator in use or unavailable","No eggs waiting","","Incubation unavailable; toggle off/on to retry"};
   if(v.status_serial!=old_inc.status_serial){std::string m=v.status<12?msg[v.status]:"";if(v.status==10)m="Starting "+number(v.distance)+" km egg";if(!m.empty())status("incubator-status",35,m);}
   if(v.request_serial!=old_inc.request_serial)event("incubator-request","\"distance\":"+(std::isfinite(v.distance)?std::to_string(v.distance):"null")+",\"priority\":"+quote(v.longest?"longest":"shortest"));
-  if(v.fault_serial!=old_inc.fault_serial)event("incubator-error","\"reason\":\"native\"");old_inc=v;
+  if(v.fault_serial!=old_inc.fault_serial){const char *step[]={"native","map","player","incubators","too many incubators","eggs","too many Pokemon and eggs","incubator service","request"};event("incubator-error","\"reason\":"+quote(v.fault_step<9?step[v.fault_step]:"native"));}old_inc=v;
  }}
 }
 const PgrIncomingGiftsApi *incoming(){return static_cast<const PgrIncomingGiftsApi*>(pgrazor_incoming_gifts_api(1));}

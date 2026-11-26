@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Improvements & fixes
+
+- **Catch on map:** Tapping a Pokémon catches it on the map again instead of opening the encounter screen (broken by the 0.439.0 game update). The Incense bird guard had the same problem and is fixed too.
+- **Auto transfer:** Pokémon caught by Auto throw in the encounter screen now go through your transfer rules. An Auto Rocket session set to keep every catch still keeps them.
+- **Auto incubate:** Works again for players with more than 128 incubators. When incubation stops, the log now says which step failed.
+
 ## v0.3.7
 
 [Full release notes](docs/releases/v0.3.7.md)

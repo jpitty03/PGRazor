@@ -34,8 +34,10 @@ extern "C" {
 // Table + config ABI version. The getter answers an exact match only.
 #define PGRAZOR_INCUBATION_API_VERSION 1u
 
-// Bounds (fail closed on overflow). Mirror the JS limits exactly.
-#define PGRAZOR_INCUBATION_MAX_INCUBATORS 128u
+// Bounds (fail closed on overflow). Players can hold well over 128 incubators (every
+// limited and Super Incubator is its own entry), and a 128 cap stopped auto-incubation
+// for them, so the incubator bound now sits above any realistic item bag.
+#define PGRAZOR_INCUBATION_MAX_INCUBATORS 10000u
 #define PGRAZOR_INCUBATION_MAX_EGGS       25000u
 #define PGRAZOR_INCUBATION_MAX_STRLEN     256u
 
@@ -65,6 +67,19 @@ enum {
     PGRAZOR_INC_STATUS_NO_EGGS       = 9,  /* "No eggs waiting" */
     PGRAZOR_INC_STATUS_STARTING      = 10, /* "Starting <distance> km egg" */
     PGRAZOR_INC_STATUS_ERROR_RETRY   = 11  /* "Incubation unavailable; toggle off/on to retry" */
+};
+
+// Step of the most recent fail-closed error (sample.fault_step), so a log shows where it stopped.
+enum {
+    PGRAZOR_INC_FAULT_NONE           = 0,
+    PGRAZOR_INC_FAULT_MAP            = 1,  /* map scene / DI container lookup */
+    PGRAZOR_INC_FAULT_PLAYER         = 2,  /* player profile resolve */
+    PGRAZOR_INC_FAULT_INCUBATORS     = 3,  /* incubator list read */
+    PGRAZOR_INC_FAULT_INCUBATOR_LIMIT= 4,  /* more incubators than MAX_INCUBATORS */
+    PGRAZOR_INC_FAULT_EGGS           = 5,  /* item bag / egg list read */
+    PGRAZOR_INC_FAULT_EGG_LIMIT      = 6,  /* more Pokemon and eggs than MAX_EGGS */
+    PGRAZOR_INC_FAULT_SERVICE        = 7,  /* incubator service resolve */
+    PGRAZOR_INC_FAULT_REQUEST        = 8   /* PutEggInIncubator call or its result */
 };
 
 // Status codes returned by every table function. 0 == success.
@@ -166,7 +181,7 @@ typedef struct pgrazor_incubation_sample_v1 {
     uint32_t longest;              /* 1 == longest priority, 0 == shortest */
     uint32_t fault_serial;         /* bumped on each fail-closed error */
     uint32_t owned_roots;          /* durable pending GC roots currently held (0..4) */
-    uint32_t reserved;             /* 0; keeps the snapshot 8-byte aligned at 48 bytes */
+    uint32_t fault_step;           /* PGRAZOR_INC_FAULT_* of the latest fault (was reserved 0) */
 } pgrazor_incubation_sample_v1;
 
 /*

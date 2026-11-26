@@ -79,7 +79,9 @@ bool map_real_alive(void* raw){
     if(void* visible=find_method_in_hierarchy(obj_klass(target.get()),"get_VisibleOnMap",0))
         if(!unbox_val<bool>(invoke_method(visible,target.get())))return false;
     void* base=resolve_class("Niantic.Holoholo.Map","MapPokemon");
-    if(!read_field_val<bool>(target.get(),find_field_by_name_checked(base,"_selectionEnabled","System.Boolean")))return false;
+    // 0.439.0 renamed _selectionEnabled to _isSelectionEnabled; a missing field sent every tap to the encounter.
+    const char* selection=fn<void*(*)(void*,const char*)>(boot.meta.class_get_field_from_name)(base,"_isSelectionEnabled")?"_isSelectionEnabled":"_selectionEnabled";
+    if(!read_field_val<bool>(target.get(),find_field_by_name_checked(base,selection,"System.Boolean")))return false;
     Root map(read_field_val<void*>(target.get(),find_field_by_name_checked(base,"mapExploreState","Niantic.Holoholo.Map.IMapExploreState")));
     return map&&unbox_val<bool>(call_obj(map.get(),"get_IsActiveAndVisible"));
 }

@@ -83,13 +83,6 @@ void finish_manual_throw(bool caught) {
     call_obj(state.get(),"EncounterStateComplete",1,args);
 }
 
-// A Max Battle's bonus encounter (EncounterState.IsFullBreadEncounter, as Quick catch reads it). A game
-// without the getter reports none, which keeps those catches as before.
-bool max_battle_encounter() {
-    try{return unbox_val<bool>(call_obj(manual_throw.state.get(),"get_IsFullBreadEncounter"));}
-    catch(const Failure&){return false;}
-}
-
 void poll_manual_throw(uint64_t tid,int64_t now) {
     const uint64_t generation=manual_throw_generation;
     Root response;int result=0;int rc=PGR_VR_PENDING;
@@ -121,10 +114,11 @@ void poll_manual_throw(uint64_t tid,int64_t now) {
         manual_throw.berry_prepared=true;manual_throw.next_ms=now+500;return;
     }
     throw_event("catch-result","Confirmed capture response",result);
-    if(result==1&&!rocket_transfer_response&&(max_battle_encounter()||
-       (pgr_auto_rocket_transfer_wanted&&pgr_auto_rocket_transfer_wanted()&&obj_class_name(manual_throw.pokemon.get())=="IncidentMapPokemon"))){
-        queue_caught_transfer(response.get(),now);
-    }
+    // Completing the encounter directly skips the catch summary, which is where Quick catch hands a
+    // catch to the transfer rules, so every Auto Throw catch is handed off here (Auto transfer, Keep All
+    // and the protections still decide). An Auto Rocket session set to keep every catch keeps them.
+    const bool rocket_keeps=pgr_auto_rocket_keeps_catches&&pgr_auto_rocket_keeps_catches();
+    if(result==1&&!rocket_transfer_response&&!rocket_keeps)queue_caught_transfer(response.get(),now);
     if(result==1||result==3){finish_manual_throw(result==1);return;}
     require(result==2||result==4,"Unknown catch result; no automatic retry");
     if(unbox_val<bool>(call_obj(manual_throw.state.get(),"get_IsRaidOrIncidentEncounter")) &&

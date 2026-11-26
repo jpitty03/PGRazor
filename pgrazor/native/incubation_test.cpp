@@ -15,7 +15,8 @@
 // across off/on and stop/restart, managed-throw -> uncertain (request counted once, roots
 // kept), an expired lease during enumeration (no Put), wrong-thread no-op, a reentrant clear
 // that revokes submission and defers the root free, a partial root failure that still Disposes
-// the enumerator, and GC-root balance throughout.
+// the enumerator, GC-root balance throughout, more incubators than the old 128 cap, and the
+// fault step reported for the incubator cap and an incubator read failure.
 #include "incubation.h"
 #include "pgrazor_native_api.h"
 #include <dlfcn.h>
@@ -359,6 +360,47 @@ static int scenario(int which) {
         g_api->tick(1, 0, 5, tid);
         return g_put_calls == 0 && g_roots == 0 ? 0 : 1;
     }
+    case 15: { // 300 incubators (over the old 128 cap), the free unlimited one last
+        static Inc used[300]; static void *rows[300];
+        static const uint16_t L[] = {'L'};
+        for (int i = 0; i < 299; ++i) { used[i] = Inc{&c_inc, 902, mkstr(L, 1), 0, 0}; rows[i] = &used[i]; }
+        rows[299] = &inc_unl;
+        g_inc_coll.rows = rows; g_inc_coll.count = 300;
+        Egg a{&c_pk, 1, 0, &g_empty, 11, 2, 0};
+        g_egg_rows[0] = &a; g_egg_coll.count = 1;
+        g_api->tick(1, 0, 2500, tid);
+        if (g_put_calls != 1 || g_put_egg != 11 || g_put_inc != &inc_unl) return 1;
+        pgrazor_incubation_sample_v1 s{}; g_api->sample(&s);
+        if (s.fault_serial != 0 || s.status != PGRAZOR_INC_STATUS_STARTING) return 2;
+        return 0;
+    }
+    case 16: { // one more incubator than the cap: fail closed, no Put, reason names the limit
+        const int n = PGRAZOR_INCUBATION_MAX_INCUBATORS + 1;
+        static Inc used[PGRAZOR_INCUBATION_MAX_INCUBATORS + 1];
+        static void *rows[PGRAZOR_INCUBATION_MAX_INCUBATORS + 1];
+        static const uint16_t L[] = {'L'};
+        Str *id = mkstr(L, 1);
+        for (int i = 0; i < n; ++i) { used[i] = Inc{&c_inc, 902, id, 0, 0}; rows[i] = &used[i]; }
+        rows[0] = &inc_unl;
+        g_inc_coll.rows = rows; g_inc_coll.count = n;
+        Egg a{&c_pk, 1, 0, &g_empty, 11, 2, 0};
+        g_egg_rows[0] = &a; g_egg_coll.count = 1;
+        g_api->tick(1, 0, 2500, tid);
+        if (g_put_calls != 0 || g_roots != 0) return 1;
+        pgrazor_incubation_sample_v1 s{}; g_api->sample(&s);
+        if (s.status != PGRAZOR_INC_STATUS_ERROR_RETRY || s.fault_serial != 1) return 2;
+        if (s.fault_step != PGRAZOR_INC_FAULT_INCUBATOR_LIMIT) return 3;
+        return 0;
+    }
+    case 17: { // a managed throw reading the incubators names that step
+        Egg a{&c_pk, 1, 0, &g_empty, 11, 2, 0};
+        g_egg_rows[0] = &a; g_egg_coll.count = 1;
+        g_throw_method = &m_incubators;
+        g_api->tick(1, 0, 2500, tid);
+        pgrazor_incubation_sample_v1 s{}; g_api->sample(&s);
+        if (g_put_calls != 0 || s.fault_step != PGRAZOR_INC_FAULT_INCUBATORS) return 1;
+        return 0;
+    }
     default: return 0;
     }
 }
@@ -372,7 +414,7 @@ int main(int argc, char **argv) {
     g_api = core ? static_cast<const pgrazor_incubation_api_v1 *>(core->query_feature(9, 1)) : nullptr;
     if (!g_api || g_api->size != 40) return 3;   // feature 9 must be wired into query_feature
 
-    const int cases = 15;
+    const int cases = 18;
     for (int i = 0; i < cases; ++i) {
         pid_t pid = fork();
         if (pid == 0) _exit(scenario(i));         // fresh process -> clean module state
@@ -386,6 +428,7 @@ int main(int argc, char **argv) {
     std::puts("PASS native incubation: shortest/longest stable tie, exclusions, inventory "
               "confirmation, no resubmit on off/on or stop/restart, managed-throw uncertain, "
               "expired lease mid-enumeration (no Put), wrong-thread no-op, reentrant-clear "
-              "revoke+deferred free, partial root failure + Dispose, root balance");
+              "revoke+deferred free, partial root failure + Dispose, root balance, 300 incubators, "
+              "incubator cap fault step, incubator read fault step");
     return 0;
 }

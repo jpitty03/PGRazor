@@ -58,7 +58,8 @@ std::atomic<uint64_t> g_request_serial{0};
 std::atomic<uint64_t> g_distance_bits{0};   // bit-cast double
 std::atomic<uint32_t> g_longest{0};
 std::atomic<uint32_t> g_fault_serial{0};
-std::atomic<uint32_t> g_root_count{0};      // durable pending roots currently held
+std::atomic<uint32_t> g_fault_step{0};      // PGRAZOR_INC_FAULT_* of the latest fault
+std::atomic<uint32_t> g_root_count{0};     // durable pending roots currently held
 
 // --- ownership / reentrancy -------------------------------------------------------
 // A non-blocking owner guard: whichever proven Unity thread wins the compare-exchange
@@ -216,7 +217,10 @@ void set_status_distance(uint32_t code, double km) {
     g_distance_bits.store(bits, std::memory_order_release);
     set_status(code);
 }
-void note_fault() { g_fault_serial.fetch_add(1, std::memory_order_release); }
+void note_fault(uint32_t step) {
+    g_fault_step.store(step, std::memory_order_release);   // step first: sample() keys on the serial
+    g_fault_serial.fetch_add(1, std::memory_order_release);
+}
 
 // --- pending teardown (Unity thread) ----------------------------------------------
 // Free only the durable GC roots; leave the uncertain pending IDs intact.
@@ -250,22 +254,24 @@ bool pending_hold(void *obj) {
 // Dispose runs on completion AND on error, including when the enumerator could not be
 // rooted (best-effort immediate invoke on the still-valid returned object first). visit
 // returns false to stop early. *err is set on any managed exception, null/collection
-// box, bad-boolean box, size bound (limit) or root failure.
+// box, bad-boolean box, size bound (limit) or root failure. Returns true only when the
+// size bound was the reason (so the fault can name it).
 template <typename Visit>
-void enumerate(void *collection, unsigned limit, bool *err, Visit &&visit) {
-    if (collection == nullptr) { *err = true; return; }   // collection non-null before enumerator
+bool enumerate(void *collection, unsigned limit, bool *err, Visit &&visit) {
+    if (collection == nullptr) { *err = true; return false; } // collection non-null before enumerator
     void *ch = gc_new(collection);
-    if (ch == nullptr) { *err = true; return; }
+    if (ch == nullptr) { *err = true; return false; }
 
     void *enumer = invoke_virtual(g_config.m_enumerate, collection, err);
-    if (*err || enumer == nullptr) { if (!*err) *err = true; gc_free(ch); return; }
+    if (*err || enumer == nullptr) { if (!*err) *err = true; gc_free(ch); return false; }
     void *eh = gc_new(enumer);
     if (eh == nullptr) {
         bool disp = false;                                // Dispose the still-valid enumerator
         invoke_virtual(g_config.m_dispose, enumer, &disp);// (best effort, before any other call)
-        *err = true; gc_free(ch); return;
+        *err = true; gc_free(ch); return false;
     }
 
+    bool over = false;
     for (unsigned i = 0;; ++i) {
         void *box = invoke_virtual(g_config.m_move, gc_target(eh), err);
         if (*err) break;
@@ -279,7 +285,7 @@ void enumerate(void *collection, unsigned limit, bool *err, Visit &&visit) {
         gc_free(bh);
         if (raw == nullptr || bv > 1) { *err = true; break; } // null box / non-0/1 bool fail closed
         if (bv == 0) break;                                // MoveNext false -> done
-        if (i == limit) { *err = true; break; }            // bound exceeded (fail closed)
+        if (i == limit) { *err = true; over = true; break; } // bound exceeded (fail closed)
         void *value = invoke_virtual(g_config.m_current, gc_target(eh), err);
         if (*err) break;
         void *vh = (value != nullptr) ? gc_new(value) : nullptr;
@@ -294,6 +300,7 @@ void enumerate(void *collection, unsigned limit, bool *err, Visit &&visit) {
     if (disp_err) *err = true;
     gc_free(eh);
     gc_free(ch);
+    return over;
 }
 
 // Resolve a contract through the DI container and verify the concrete identity. The
@@ -324,10 +331,11 @@ void orchestrate(uint64_t now, uint64_t deadline, int longest) {
     uint64_t choice_id = 0;
     double choice_km = 0;
     bool have_free = false, have_choice = false, matched = false;
+    uint32_t step = PGRAZOR_INC_FAULT_MAP;                 // reported if this pass fails closed
 
     // FindObjectOfType(typeof(MapSceneContext)) -> soft return when the map is absent.
     void *map_type = type_obj(cls_type(g_config.class_map));
-    if (map_type == nullptr) { note_fault(); g_st.blocked = true;
+    if (map_type == nullptr) { note_fault(step); g_st.blocked = true;
         set_status(PGRAZOR_INC_STATUS_ERROR_RETRY); return; }
     map_type_h.set(map_type, &err); if (err) goto fail;    // root the System.Type over the invoke
     {
@@ -342,15 +350,17 @@ void orchestrate(uint64_t now, uint64_t deadline, int longest) {
         if (err) goto fail;
         container_h.set(container, &err); if (err) goto fail;
 
+        step = PGRAZOR_INC_FAULT_PLAYER;
         void *player = resolve(container_h.target(), g_config.class_player_contract,
                                g_config.class_player, &player_h, &err);
         if (err) goto fail;
 
         // --- incubators: confirm any pending assignment and find the free unlimited one.
+        step = PGRAZOR_INC_FAULT_INCUBATORS;
         void *incubators = invoke(g_config.m_incubators, player, nullptr, &err);
         if (err) goto fail;
         if (incubators == nullptr) { err = true; goto fail; }
-        enumerate(incubators, kMaxInc, &err, [&](void *o) -> bool {
+        if (enumerate(incubators, kMaxInc, &err, [&](void *o) -> bool {
             if (!exact(o, g_config.class_inc)) { err = true; return false; } // proto
             int32_t item = read_s32(o, g_config.f_inc_item);
             IncId id; if (!read_incid(o, g_config.f_inc_id, &id, &err)) return false;
@@ -371,7 +381,7 @@ void orchestrate(uint64_t now, uint64_t deadline, int longest) {
                 free_id = id; have_free = true;
             }
             return true;
-        });
+        })) step = PGRAZOR_INC_FAULT_INCUBATOR_LIMIT;
         if (err) goto fail;
         if (matched) return;                               // inventory confirmed -> done
 
@@ -387,13 +397,14 @@ void orchestrate(uint64_t now, uint64_t deadline, int longest) {
         if (!have_free) { set_status(PGRAZOR_INC_STATUS_NO_FREE); return; }
 
         // --- eggs: choose shortest/longest eligible (first stable tie).
+        step = PGRAZOR_INC_FAULT_EGGS;
         void *bag = resolve(container_h.target(), g_config.class_bag_contract,
                             g_config.class_bag, &bag_h, &err);
         if (err) goto fail;
         void *eggs = invoke(g_config.m_eggs, bag, nullptr, &err);
         if (err) goto fail;
         if (eggs == nullptr) { err = true; goto fail; }
-        enumerate(eggs, kMaxEggs, &err, [&](void *o) -> bool {
+        if (enumerate(eggs, kMaxEggs, &err, [&](void *o) -> bool {
             if (!exact(o, g_config.class_pk)) { err = true; return false; } // egg-proto
             if (!read_bool(o, g_config.f_egg_is, &err)) return !err;         // not an egg (or bad bool)
             if (read_s32(o, g_config.f_egg_type) == g_config.special) return true; // excluded
@@ -408,7 +419,7 @@ void orchestrate(uint64_t now, uint64_t deadline, int longest) {
                 choice_id = id; choice_km = km; have_choice = true;
             }
             return true;
-        });
+        })) step = PGRAZOR_INC_FAULT_EGG_LIMIT;
         if (err) goto fail;
         if (!have_choice) { set_status(PGRAZOR_INC_STATUS_NO_EGGS);
             g_st.next_ms = now + kNoEggsMs; return; }
@@ -425,6 +436,7 @@ void orchestrate(uint64_t now, uint64_t deadline, int longest) {
             if (present) return;
         }
 
+        step = PGRAZOR_INC_FAULT_SERVICE;
         void *service = resolve(container_h.target(), g_config.class_service_contract,
                                g_config.class_service, &service_h, &err);
         if (err) goto fail;
@@ -445,6 +457,7 @@ void orchestrate(uint64_t now, uint64_t deadline, int longest) {
         // residual lease aborts safely with no managed call, even if it elapsed mid-pass).
         { uint64_t t = boottime_ms(); if (t == 0 || t >= deadline) return; }
 
+        step = PGRAZOR_INC_FAULT_REQUEST;
         // Record the pending assignment (durable roots) BEFORE the request, so a managed
         // exception from the call keeps us in the uncertain/confirming state.
         pending_reset();
@@ -479,7 +492,7 @@ void orchestrate(uint64_t now, uint64_t deadline, int longest) {
         if (promise != nullptr && !pending_hold(promise)) {
             // Could not root the returned task: report uncertain (not silent) and keep the
             // pending assignment; a later inventory poll still decides the outcome.
-            note_fault();
+            note_fault(step);
             set_status(PGRAZOR_INC_STATUS_UNCONFIRMED);
         }
         return;
@@ -490,7 +503,7 @@ fail:
     // request may already be in flight; keep the pending roots in that case.
     g_st.blocked = true;
     set_status(g_st.pending ? PGRAZOR_INC_STATUS_UNCONFIRMED : PGRAZOR_INC_STATUS_ERROR_RETRY);
-    note_fault();
+    note_fault(step);
 }
 
 // --- C API table functions --------------------------------------------------------
@@ -612,7 +625,7 @@ int api_sample(pgrazor_incubation_sample_v1 *out) {
     out->longest = g_longest.load(std::memory_order_acquire);
     out->fault_serial = g_fault_serial.load(std::memory_order_acquire);
     out->owned_roots = g_root_count.load(std::memory_order_acquire);
-    out->reserved = 0;
+    out->fault_step = g_fault_step.load(std::memory_order_acquire);
     return PGRAZOR_INC_OK;
 }
 

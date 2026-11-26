@@ -81,14 +81,14 @@ const void* pgrazor_throws_api(uint32_t){return &throws_api;}
 Root submit_auto_throw(Root& s,Root& p,const PgrThrowValue& v){assert(s.get()==&state&&p.get()==&pokemon&&v.item==selected&&v.radius==0.5f&&v.bullseye==1&&v.spinning==0&&v.missed==0);++attempts;return Root(&promise);}
 int poll_auto_throw(Root& p,uint64_t,Root& value,int& status){assert(p.get()==&promise);++polls;if(poll_rc==PGR_VR_DONE){value=Root(&response);status=result;}return poll_rc;}
 const void* pgrazor_vgp_results_api(uint32_t){return nullptr;}
-int rocket_wanted=0,transfers=0,transfer_rc=1;
-int pgr_auto_rocket_transfer_wanted(){return rocket_wanted;}
+int rocket_keeps=0,transfers=0,transfer_rc=1;
+int pgr_auto_rocket_keeps_catches(){return rocket_keeps;}
 #include "auto_throw_controller.inc"
 int map_real_transfer(void* r,uint64_t){assert(r==&response);++transfers;return transfer_rc;}
 std::string obj_class_name(void* o){return o==&pokemon?pokemon_class:"CatchPokemonOutProto";}
 void reset(){
  manual_throw=ManualThrowSession{};rocket_transfer_response.reset();recent_transfer_response.reset();assert(roots.empty());manual_throw.interaction=Root(&interaction);
- rocket_wanted=transfers=0;transfer_rc=1;pokemon_class="WildMapPokemon";full_bread=false;
+ rocket_keeps=transfers=0;transfer_rc=1;pokemon_class="WildMapPokemon";full_bread=false;
  fresh=foreground=coherent=ownership=ready=true;in_play=photo=false;selected=1;stock=10;active_berry=0;
  attempts=polls=completions=rearm=0;poll_rc=PGR_VR_PENDING;result=2;now=10000;account="account";
  settings="C3|1|1|75|0|0|1|0";
@@ -121,16 +121,16 @@ int main(){
  }
  // A reward Pokemon collected from a menu is never thrown at or completed by Auto Throw.
  reset();pokemon_class="QuestMapPokemon";tick();tick();assert(!attempts&&!completions&&manual_throw.blocked);pokemon_class="WildMapPokemon";
- // Auto Rocket: a caught shadow Pokemon is handed to the transfer rules once storage lists it.
- reset();rocket_wanted=1;selected=5;pokemon_class="IncidentMapPokemon";tick();poll_rc=PGR_VR_DONE;result=1;transfer_rc=0;tick();assert(completions==1&&transfers==0&&rocket_transfer_response);
+ // A caught Pokemon is handed to the transfer rules once storage lists it (Auto Throw skips the summary).
+ reset();selected=5;pokemon_class="IncidentMapPokemon";tick();poll_rc=PGR_VR_DONE;result=1;transfer_rc=0;tick();assert(completions==1&&transfers==0&&rocket_transfer_response);
  tick();assert(transfers==1);transfer_rc=1;tick();assert(transfers==2&&!rocket_transfer_response);tick();assert(transfers==2);
- reset();rocket_wanted=1;selected=5;pokemon_class="IncidentMapPokemon";tick();poll_rc=PGR_VR_DONE;result=1;transfer_rc=0;tick();now+=15001;tick();assert(!rocket_transfer_response);
- reset();rocket_wanted=1;tick();poll_rc=PGR_VR_DONE;result=1;tick();tick();assert(transfers==0);  // a wild catch is never handed off
- reset();rocket_wanted=1;selected=5;pokemon_class="RaidMapPokemon";tick();poll_rc=PGR_VR_DONE;result=1;tick();tick();assert(transfers==0);  // nor a raid catch
- reset();selected=5;tick();poll_rc=PGR_VR_DONE;result=1;tick();tick();assert(transfers==0);  // Auto Rocket keeping everything
- // A Max Battle catch goes to the transfer rules (Keep Dynamax / Gigantamax decide there), with no Auto Rocket.
- reset();full_bread=true;selected=5;pokemon_class="RaidMapPokemon";tick();poll_rc=PGR_VR_DONE;result=1;tick();tick();assert(transfers==1&&!rocket_transfer_response);
- reset();full_bread=true;selected=5;pokemon_class="RaidMapPokemon";tick();poll_rc=PGR_VR_DONE;result=3;tick();tick();assert(transfers==0);  // fled: nothing to hand off
+ reset();selected=5;pokemon_class="IncidentMapPokemon";tick();poll_rc=PGR_VR_DONE;result=1;transfer_rc=0;tick();now+=15001;tick();assert(!rocket_transfer_response);
+ reset();tick();poll_rc=PGR_VR_DONE;result=1;tick();tick();assert(transfers==1&&!rocket_transfer_response);  // a wild catch
+ reset();selected=5;pokemon_class="RaidMapPokemon";tick();poll_rc=PGR_VR_DONE;result=1;tick();tick();assert(transfers==1);  // a raid catch
+ reset();full_bread=true;selected=5;pokemon_class="RaidMapPokemon";tick();poll_rc=PGR_VR_DONE;result=1;tick();tick();assert(transfers==1&&!rocket_transfer_response);  // a Max Battle catch
+ reset();rocket_keeps=1;selected=5;pokemon_class="IncidentMapPokemon";tick();poll_rc=PGR_VR_DONE;result=1;tick();tick();assert(completions==1&&transfers==0);  // Auto Rocket keeping everything
+ reset();selected=5;pokemon_class="RaidMapPokemon";tick();poll_rc=PGR_VR_DONE;result=3;tick();tick();assert(transfers==0);  // fled: nothing to hand off
+ reset();tick();poll_rc=PGR_VR_DONE;result=2;tick();tick();assert(transfers==0);  // broke free: nothing to hand off
  // The catch observer (hand throws) feeds the same queue; the same response is queued once.
  reset();assert(queue_caught_transfer(&response,now)&&!queue_caught_transfer(&response,now));tick();assert(transfers==1&&!rocket_transfer_response);
  assert(!queue_caught_transfer(&response,now));  // already handed off once
