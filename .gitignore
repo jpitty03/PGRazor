@@ -44,3 +44,15 @@ Thumbs.db
 *.gpx
 !/pgrazor/research/README.txt
 /user-reports
+# Local-only AI/dev notes and one-off investigation tests. GitHub is release-only.
+/AGENT_LOG.md
+/CODE_CHANGES_COMPARISON.md
+/FIXES_ANALYSIS.md
+/FIXES_INDEX.md
+/IMPLEMENTATION_GUIDE.md
+/MERGE_READINESS_SUMMARY.md
+/TEST_CASES.md
+/docs/AI_CODEBASE_MAP.md
+/pgrazor/test/TagBerryLiveBugSimulationTest.java
+/pgrazor/test/test_tag_berry_live_simulation_java.py
+
