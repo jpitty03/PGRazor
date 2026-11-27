@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.3.8.1
+
+[Full release notes](docs/releases/v0.3.8.1.md)
+
+Based on PGRazor v0.3.8 (Pokémon GO 0.439.0) with the fork's features carried over: TM shortcuts, VGP+ tag rules and fallback berries, manual-catch berry rules, and the compact overlay/settings layout changes.
+
+- Shared counter engine for gym, raid and Rocket counter picking; new raid settings (use counter party, team size 1–6, show counter list).
+- Settings backup: per-key validators and a shared preference schema so exported backups import correctly; full round-trip tests.
+- Storage-tag membership changes invalidate old VGP skips; tags still loading are deferred instead of rejected.
+- Full Pokémon storage JSON and CP-only copy (`CP1234, CP2345, CP5678`) for selecting duplicates in the game's search.
+- Device-verified on 0.439.0: raid and saved-party grunt battles pick counters through the fork's engine.
+
 ## v0.3.8
 
 [Full release notes](docs/releases/v0.3.8.md)

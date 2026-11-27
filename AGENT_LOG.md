@@ -194,4 +194,5 @@ No code changes for this task yet.
 - build.py PASS, check.py PASS: 196 tests. Committed `018ea7d Merge fork features onto upstream v0.3.8`; backup branch `backup-v0.3.6.2-engine` preserved.
 - Downloaded pinned game bundle `input/com.nianticlabs.pokemongo_0.439.0.apkm` (SHA c6d3c04c38ca2f2446957633b4fee8c93dcc9cebdbbaddc9cb9651722ef8f54f) from APKMirror; `game_update.py verify-input` reports identity_verified=true.
 - Built v0.3.8.1 with `--google-browser-login`: `pgrazor/build/release-v0.3.8.1/PGRazor.apk`, SHA 0b3a2552f71bb2c174af91421c0d06624eb2fa3bae4c03510cf855c41f516026, same signer fdc134f7.... Install blocked: device offline. Reconnect/authorise S21, then install + device test.
+- 2026-11-27: v0.3.8.1 installed on S21 (game 0.439.0, versionCode 2026111602), game launched, full logcat recording restarted. Awaiting device test of raid counter party and saved-party grunt.
 
