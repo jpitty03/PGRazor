@@ -12,6 +12,8 @@
 #include "runtime_transport.h"
 #include "smart_catch.h"
 #include "smart_catch_binding.h"
+#include "tag_catch.h"
+#include "tag_catch_revision.h"
 
 #include <atomic>
 #include <cstring>
@@ -796,11 +798,14 @@ void tickScan(const PgrVgpControllerTick *in, PgrVgpControllerOut *o, uint64_t n
         int fresh=pgr_smart_spawn_fresh(rootGet(cand),owner);
         if(fresh<0){rootFree(cand);cleanup();pauseError(o,fresh);return;}
         if(!fresh){++discoveryTrace.stale;rootFree(cand);continue;}
-        // Catch-only list: skip other species shown on the map without encountering them.
-        if(catchList.catch_count){
+        // Catch only (species and/or tag families): skip other species shown on the map without
+        // encountering them, unless "also rare" may still want them. Nothing until the tag settings load.
+        const int tagState=pgr_tag_catch_prefilter(0);
+        if(!tagState){++discoveryTrace.species;rootFree(cand);continue;}
+        if(catchList.catch_count||tagState==2){
           int species=pgr_smart_map_species(rootGet(cand),owner);
           if(species<0){rootFree(cand);cleanup();pauseError(o,species);return;}
-          if(species>0&&!pgr_smart_catch_wanted(&catchList,species)){++discoveryTrace.species;rootFree(cand);continue;}
+          if(species>0&&!(catchList.catch_count&&pgr_smart_catch_wanted(&catchList,species))&&!pgr_tag_catch_prefilter(species)){++discoveryTrace.species;rootFree(cand);continue;}
         }
       }
 
@@ -997,6 +1002,15 @@ int tick(const PgrVgpControllerTick *in, PgrVgpControllerOut *out) {
   if (!now) return PGR_VGC_ERR_CLOCK_FAILURE;
   tickStarted = now;
 
+  // New tag rules: forget the Pokemon skipped under the old ones, as turning VGP off and on does.
+  static uint32_t tagRevision = 0;
+  // Defer the reset while the refreshed membership is still loading; keep the old
+  // revision so it is applied once the tags are ready. Unchanged refreshes do nothing.
+  const PgrTagRevisionDecision rules = pgr_tag_revision_decide(pgr_tag_catch_revision(), tagRevision, pgr_tag_catch_ready());
+  if (rules.reset) {
+    if (tagRevision) POL->reset(in->owner);
+    tagRevision = rules.cached;
+  }
   if (stopped.load()) {
     freeAllRoots(out);
     POL->reset(in->owner);

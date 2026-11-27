@@ -73,7 +73,7 @@ public final class ResearchSettings {
     public static void show(Activity activity) {
         if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
         Context ui = MapTheme.wrap(activity);
-        LinearLayout body = new LinearLayout(ui); body.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout body = new SettingsUi.OptionList(ui);
         int pad = MapTheme.dp(ui, 16); body.setPadding(pad, pad, pad, pad);
 
         CheckBox claim = new CheckBox(ui); claim.setText("Auto-claim completed field research");

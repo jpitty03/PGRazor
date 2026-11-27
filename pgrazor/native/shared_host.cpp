@@ -5,6 +5,7 @@
 #include "summary_completion.h"
 #include "details_completion.h"
 #include "details_recovery.h"
+#include "pokemon_storage.h"
 #include "catch_discovery.h"
 #include "catch_canvas.h"
 #include "catch_completion.h"
@@ -198,7 +199,7 @@ using Init=void(*)(void*,void*,bool,const void*);
 void hook_initialize(void *self,void *value,bool follows_disguise_reveal,const void *info){auto fn=reinterpret_cast<Init>(original(0));HookFrame frame(self,value);if(frame.active()){sh->cancel_all(7,tid());}
  try{fn(frame.a?target(frame.a):self,frame.b?target(frame.b):value,follows_disguise_reveal,info);}catch(...){if(frame.observe)fault(-11);throw;}
  if(!frame.active()||!exact(target(frame.a),c(2))||!exact(target(frame.b),c(3)))return;
- if(field<int32_t>(target(frame.b),f(5))!=md.success)return;auto gui=field<void*>(target(frame.a),f(3));if(!exact(gui,c(1)))return;
+ if(field<int32_t>(target(frame.b),f(5))!=md.success){pgr_storage_invalidate();return;}auto gui=field<void*>(target(frame.a),f(3));if(!exact(gui,c(1)))return;
  Record *r=create(gui);if(!r)return;if(!assign(r->state,target(frame.a))||!assign(r->proto,target(frame.b))){fault(-12);return;}
  if(field<void*>(target(r->state),f(4))!=target(r->proto)||(r->response&&target(r->response)!=target(r->proto))){cancel(*r);return;}
  if(!assign(r->dismissed,field<void*>(target(r->gui),f(2)))){fault(-12);return;}

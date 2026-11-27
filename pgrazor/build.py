@@ -18,7 +18,7 @@ def source_fingerprints(root):
 
 def release_version(root):
     version = os.environ.get('PGRAZOR_VERSION', (root/'VERSION').read_text(encoding='utf-8').strip())
-    if not re.fullmatch(r'v?[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?', version):
+    if not re.fullmatch(r'v?[0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?(?:[A-Za-z][A-Za-z0-9.-]*)?(?:-[A-Za-z0-9.-]+)?', version):
         raise ValueError('Invalid PGRazor version')
     return 'v' + version.removeprefix('v')
 
@@ -120,15 +120,22 @@ def main():
     with zipfile.ZipFile(jar,'w',zipfile.ZIP_DEFLATED) as out:
         for path in classes.rglob('*.class'): out.write(path,path.relative_to(classes).as_posix())
     run(TOOLS/'d8.bat','--min-api','28','--lib',ANDROID,'--output',BUILD/'dex',jar)
-    unsigned=BUILD/'preview-unsigned.apk'
+    # Unique intermediates: Windows may keep a previous preview APK handle alive (antivirus),
+    # which makes aapt's -f overwrite fail with "Permission denied".
+    stamp=uuid.uuid4().hex[:8]
+    unsigned=BUILD/f'preview-unsigned-{stamp}.apk'
+    aligned=BUILD/f'preview-aligned-{stamp}.apk'
     run(TOOLS/'aapt.exe','package','-f','-M',ROOT/'AndroidManifest.xml','-I',ANDROID,'-F',unsigned)
     with zipfile.ZipFile(unsigned,'a',zipfile.ZIP_DEFLATED) as out:
         out.write(BUILD/'dex/classes.dex','classes.dex')
         for name,path in map_icon_assets().items(): out.write(path,'assets/pgrazor/map-icons/'+name)
         for name,path in feed_icon_assets().items(): out.write(path,'assets/pgrazor/feed-icons/pokemon/'+name)
-    run(TOOLS/'zipalign.exe','-f','4',unsigned,BUILD/'preview-aligned.apk')
+    run(TOOLS/'zipalign.exe','-f','4',unsigned,aligned)
     apk=BUILD/'pgrazor-preview.apk'
-    run(TOOLS/'apksigner.bat','sign',*signing_args(),'--out',apk,BUILD/'preview-aligned.apk')
+    try:
+        run(TOOLS/'apksigner.bat','sign',*signing_args(),'--out',apk,aligned)
+    finally:
+        unsigned.unlink(missing_ok=True); aligned.unlink(missing_ok=True)
     run(TOOLS/'apksigner.bat','verify',apk)
     shutil.copyfile(BUILD/'dex/classes.dex',BUILD/'pgrazor.dex')
     fingerprints=source_fingerprints(ROOT)

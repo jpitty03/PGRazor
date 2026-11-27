@@ -183,6 +183,22 @@
       "sha256": "b2da600df5a2a8ddb3a0b235cfc7bd56da739f07ae30282cc558a1bf16836d52",
       "upstream_blob_sha": "4e25715524b170d5d02f7c9d9b93cd3ff2ca4ab6",
       "bytes": 3442
+    },
+    {
+      "source": "Images/Items/Item_1201.png",
+      "name": "item-1201.png",
+      "purpose": "Fast TM item icon for the Pokemon screen TM shortcut.",
+      "sha256": "e9862871a2714f52d4eb9a03c54728c8cf4cc4931540080fdb6eb6d7b07e33a0",
+      "upstream_blob_sha": "af03930b8b754121649f1b59004a562427571540",
+      "bytes": 24021
+    },
+    {
+      "source": "Images/Items/Item_1202.png",
+      "name": "item-1202.png",
+      "purpose": "Charged TM item icon for the Pokemon screen TM shortcut.",
+      "sha256": "21cb93c0adaf82a8d71c65b441332379a53372839e5ea6e2d882235ae092b312",
+      "upstream_blob_sha": "e8347bb1c63d8af3a62aad7f669a986a4bd796c8",
+      "bytes": 25882
     }
   ],
   "species_names": {

@@ -13,6 +13,8 @@ final class LocalTimeOverlay extends TextView {
     private final LocalTimeClock clock = new LocalTimeClock();
     private long lastRefresh;
     private boolean closed;
+    private String embedded;
+    private long lastEmbedded;
 
     LocalTimeOverlay(Activity activity) {
         super(activity);
@@ -28,6 +30,17 @@ final class LocalTimeOverlay extends TextView {
     void applyTheme() {
         setBackground(SettingsUi.rounded(getContext(), Control.darkTheme() ? 0xcc141b25 : 0xccf1f5f8, 10));
         setTextColor(SettingsUi.ink());
+    }
+
+    /** Throttled label for embedding in the cooldown timer while this view stays hidden. */
+    String embeddedLabel() {
+        long elapsed = SystemClock.elapsedRealtime();
+        if (embedded == null || elapsed - lastEmbedded >= 1000) {
+            lastEmbedded = elapsed;
+            embedded = clock.label(Control.engine.latitude, Control.engine.longitude,
+                System.currentTimeMillis(), DateFormat.is24HourFormat(getContext()), Locale.getDefault());
+        }
+        return embedded;
     }
 
     void refresh(boolean allowed) {

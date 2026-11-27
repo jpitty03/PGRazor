@@ -189,9 +189,9 @@ final class SettingsSearch {
         put(DESCRIPTIONS, "Curveball", "Curve VGP+ throws.");
         put(DESCRIPTIONS, "Catch speed", "How long VGP+ waits before each throw and scan.");
         put(DESCRIPTIONS, "Auto-spin Gym discs", "Spin nearby Gym discs while VGP is running.");
-        put(DESCRIPTIONS, "Candy species (Pinap)", "Species that receive Pinap berries.");
+        put(DESCRIPTIONS, "Candy species (Pinap)", "Caught Pokémon that get the candy berry; does not change what is caught.");
         put(DESCRIPTIONS, "Catch only shinies", "Open every Pokémon but throw only at shinies.");
-        put(DESCRIPTIONS, "Catch only", "Catch only the selected species.");
+        put(DESCRIPTIONS, "Catch only", "Catch only the selected species or tags; leave the rest.");
         put(DESCRIPTIONS, "Nearby Pokémon", "Let Virtual Go Plus catch nearby Pokémon.");
         put(DESCRIPTIONS, "Nearby PokéStops", "Let Virtual Go Plus spin nearby PokéStops.");
         put(DESCRIPTIONS, "Push notifications", "Notify when Virtual Go Plus acts.");

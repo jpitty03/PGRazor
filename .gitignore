@@ -1,5 +1,6 @@
 # Local builds, game inputs, keys, logs, and investigation material never belong in Git.
 .artifacts/
+.venv/
 .local/
 hermes-swarm/
 frida-monitor/

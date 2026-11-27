@@ -38,6 +38,38 @@
 - Fixed a Root startup crash when Vector replaces an ARM64 runtime hook during launch.
 - Hide the joystick on game menus, popups, and encounters, and restore it on the map without changing the saved toggle.
 - Max Battle catches now go through your transfer rules, whether thrown by hand or by Auto throw.
+## v0.3.6.2
+
+[Full release notes](docs/releases/v0.3.6.2.md)
+
+- Fixed settings backup import: tag-rule keys now have per-key validators and a default/custom export→import round-trip test.
+- Out-of-stock rule berries no longer hide the player's stocked fallback; the berry overlay and the native choice agree.
+- New "Fallback berries" setting: up to three berries in order, used only when the configured rare/candy berry is unavailable.
+- Silver Pinap now uses item 707, with migration of old 708 saves.
+- Storage-tag membership changes invalidate old VGP skips; tags still loading no longer cause a definitive rejection.
+- Added regression tests for berry fallback and tag-revision invalidation.
+
+## v0.3.6.1
+
+[Full release notes](docs/releases/v0.3.6.1.md)
+
+Based on PGRazor v0.3.6, with the fork's changes carried over:
+
+### New features
+
+- **TM shortcuts on the Pokémon screen:** a Fast TM / Charged TM icon before each move's power number starts the game's own TM flow. Settings › IV display.
+- **VGP+ tag rules:** "Catch only" and "Candy species" can use your Pokémon storage tags (whole candy family); candy berry (Pinap) for candy species; "Rare Pokémon: Ultra Ball + rare berry" with configurable rare criteria; "also catch rare Pokémon outside Catch only"; an overlay button to switch the tag rules on and off.
+- **Compact overlays:** smaller Buddy Emotion badge, smaller cooldown timer with the local time inside it, Gym feeder map icon switch, VGP status text switch.
+- **Double-tap on the map:** choose Walk or Teleport, with "Don't ask again".
+- **Manual catch berry follows the tag rules:** rare Pokémon get the rare berry (then Golden Razz, then the candy berry), candy families get the candy berry; the berry overlay shows the one in use.
+- **Settings layout:** separators and spacing between each option and its description across the menu; VGP+ Catch only / Candy species reordered with clearer descriptions.
+- Google sign-in works through the browser (Facebook sign-in is not possible on a re-signed APK).
+
+### Fixes
+
+- VGP+ reads a wild Pokémon's real IVs from the encounter response (the map's copy has none).
+- The IV line on the Pokémon screen is no longer hidden behind the model when opened from the Pokédex, and follows a power-up.
+- After changing VGP+ tag rules, Pokémon skipped under the old rules are considered again at once.
 
 ## v0.3.6
 
@@ -59,6 +91,30 @@
 - The gym automation map button is off by default on new installs; existing settings are kept.
 - Research automation handles up to 80 claims, deletions and encounter catches every 10 minutes, and says when it pauses at that limit and when it resumes.
 
+## v0.3.5.2
+
+[Full release notes](docs/releases/v0.3.5.2.md)
+
+### New features
+
+- TM shortcuts on the Pokémon screen (Fast/Charged TM icon before each move; uses the game's own TM flow).
+- VGP+ tag rules: "Catch only" and "Candy species" accept Pokémon storage tags (whole candy families, kept up to date), a candy-species berry, configurable "rare" criteria with their own berry, "Also catch rare Pokémon outside Catch only", and an overlay button.
+- Settings › Tools › "Export Pokémon for CalcyIV" (experimental CSV for CalcyIV's history import).
+
+### Improvements & fixes
+
+- VGP+ now reads wild Pokémon IVs from the encounter (IV rules never matched before).
+- IV line on the Pokémon screen: no longer hidden behind the model when opened from the Pokédex; updates after a power-up.
+- VGP with location spoofing off no longer waits forever for the location (unverified on affected devices).
+- Changing VGP+ tag rules re-checks Pokémon skipped under the old rules.
+
+## v0.3.5.1
+
+[Full release notes](docs/releases/v0.3.5.1.md)
+
+### Improvements & fixes
+
+- Based on PGRazor v0.3.5; all v0.3.4.1 fork changes (compact Buddy badge, smaller cooldown timer with local time, Gym feeder icon switch, VGP status text switch, double-tap Walk/Teleport choice) carried over to the redesigned interface.
 ## v0.3.5
 
 [Full release notes](docs/releases/v0.3.5.md)
@@ -82,6 +138,18 @@
 ### Contributors
 
 - [@dhanush-c-c](https://github.com/dhanush-c-c): interface redesign and settings search ([#6](https://github.com/jpitty03/PGRazor/pull/6)), ART bridge build fix for Windows ([#5](https://github.com/jpitty03/PGRazor/pull/5)).
+
+## v0.3.4.1
+
+[Full release notes](docs/releases/v0.3.4.1.md)
+
+### Improvements & fixes
+
+- Buddy Emotion overlay is now a compact one-line badge (heart, EP, excited star, maintenance minutes); tap it for the full status.
+- The cooldown timer is smaller, and with "Show local time" on it shows the local time as a small second line instead of a separate overlay.
+- Gyms settings have a direct "Show Gym feeder map icon" switch.
+- Virtual Go Plus has a "Show VGP status text" switch, so the map can show only the VGP icon.
+- Double-tap on the game map asks Walk or Teleport, with "Don't ask again". Remembering Walk switches map tap to Walk; changing the Game map tap mode asks again.
 
 ## v0.3.4
 

@@ -243,7 +243,7 @@ public final class ShinyScanner {
         if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
         prepare(activity); EncounterCounter.prepare(activity);
         Context ui = MapTheme.wrap(activity);
-        LinearLayout body = new LinearLayout(ui); body.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout body = new SettingsUi.OptionList(ui);
         int pad = MapTheme.dp(ui, 16); body.setPadding(pad, pad, pad, pad);
 
         TextView description = new TextView(ui);

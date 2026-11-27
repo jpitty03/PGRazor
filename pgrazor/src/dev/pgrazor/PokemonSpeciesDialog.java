@@ -52,6 +52,14 @@ final class PokemonSpeciesDialog {
         new Picker(activity, title, noun, max, load, save, onSaved, emptyLabel, false, track).open();
     }
 
+    /** As show(), plus a "Pokemon storage tags" entry under Browse by category whose selection is kept separately and stays up to date. */
+    static void showWithTags(Activity activity, String title, String noun, int max, Supplier<String> load,
+                             Consumer<String> save, Runnable onSaved, String emptyLabel, Supplier<String> loadTags, Consumer<String> saveTags) {
+        if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
+        Picker p = new Picker(activity, title, noun, max, load, save, onSaved, emptyLabel, false, null);
+        p.loadTags = loadTags; p.saveTags = saveTags; p.open();
+    }
+
     static void showRaid(Activity activity, String title, String noun, int max, Supplier<String> load,
                          Consumer<String> save, Runnable onSaved, String emptyLabel) {
         if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
@@ -87,6 +95,8 @@ final class PokemonSpeciesDialog {
         private EditText search;
         private AlertDialog dialog, categoryDialog;
         private boolean closed;
+        private java.util.function.Supplier<String> loadTags;
+        private java.util.function.Consumer<String> saveTags;
 
         Picker(Activity activity, String title, String noun, int max, java.util.function.Supplier<String> load,
                java.util.function.Consumer<String> save, Runnable onSaved, String emptyLabel, boolean raid, java.util.function.Consumer<AlertDialog> track) {
@@ -224,7 +234,13 @@ final class PokemonSpeciesDialog {
         private void openCategoryPicker() {
             AlertDialog d = new AlertDialog.Builder(ui).setTitle("Browse by category")
                 .setNegativeButton("Cancel", null).create();
-            ChoiceList.attach(d, PokemonCategories.LABELS, index -> {
+            String[] labels = PokemonCategories.LABELS;
+            if (loadTags != null) { labels = java.util.Arrays.copyOf(labels, labels.length + 1); labels[labels.length - 1] = "Pokémon storage tags (whole candy families)"; }
+            ChoiceList.attach(d, labels, index -> {
+                if (index == PokemonCategories.LABELS.length) {
+                    TagCatchSettings.pickTags(activity, "Tags", loadTags, saveTags, () -> { updateCount(); if (onSaved != null) onSaved.run(); });
+                    return;
+                }
                 category = index;
                 categoryButton.setText("Category: " + PokemonCategories.LABELS[category]);
                 categoryHelp.setText(categoryHelp(category, raid));
@@ -240,9 +256,14 @@ final class PokemonSpeciesDialog {
 
         private void updateCount() {
             String results = shown.isEmpty() ? "No matches" : shown.size() + " shown";
-            String picked = selected.isEmpty() && emptyLabel != null ? emptyLabel
-                : selected.size() + "/" + max + " " + noun + " selected";
+            int tags = loadTags == null ? 0 : TagCatchSettings.count(loadTags.get());
+            String tagText = tags + (tags == 1 ? " tag" : " tags") + " selected";
+            // With tags but no species, the empty label ("All species") would contradict the tags.
+            String picked = selected.isEmpty() ? (tags > 0 ? tagText : emptyLabel != null ? emptyLabel : "0/" + max + " " + noun + " selected")
+                : selected.size() + "/" + max + " " + noun + " selected" + (tags > 0 ? " + " + tagText : "");
             count.setText(results + " \u00b7 " + picked);
+            if (categoryHelp != null && tags > 0 && category == PokemonCategories.ALL)
+                categoryHelp.setText("Tags: " + loadTags.get().replace("\t", ", ") + ". Change them under Category > Pok\u00e9mon storage tags.");
         }
 
         private void commit() {

@@ -16,8 +16,8 @@ import org.json.*;
 /** User-selected, bounded backups. Never enumerates account or game storage. */
 final class SettingsBackup {
     private static final int EXPORT=71, IMPORT=72, LIMIT=512*1024;
-    private static final String[] SCOPES={"pgrazor-map","pgrazor-overlays","pgrazor-saved-places-v1","pgrazor-livefeed"};
-    private static final String[][] KEYS={{"Stops","Gyms","Raids"},{"cooldown.fx","cooldown.fy","vgp.fx","vgp.fy","transfer.fx","transfer.fy","gym-feed.fx","gym-feed.fy","local-time.fx","local-time.fy"},{"places"},{"category","radius","minIv","myShinies","filters_v1","filter_presets_v1"}};
+    private static final String[] SCOPES=PreferenceSchema.SCOPES;
+    private static final String[][] KEYS=PreferenceSchema.KEYS;
     private final Activity activity;
     private TextView status;
     private Button export,restore,back;

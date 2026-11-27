@@ -1,4 +1,6 @@
 #pragma once
+#include <algorithm>
+#include <vector>
 #include <cstdint>
 #include <cstdio>
 #include <string>
@@ -40,6 +42,26 @@ inline int grunt_type(const char *name) {
             if (key == prefix + suffix) return i + 1;
     }
     return 0;
+}
+
+// Line-up key of an InvasionCharacter name: its lowercase words sorted and joined by '-', without
+// "character", "executive" or "balloon" (CHARACTER_FIRE_GRUNT_FEMALE -> "female-fire-grunt").
+inline std::string lineup_key(const char *name) {
+    std::vector<std::string> words(1);
+    for (const char *p = name ? name : ""; *p; ++p) {
+        const char c = *p;
+        const bool upper = c >= 'A' && c <= 'Z', lower = c >= 'a' && c <= 'z';
+        if (!upper && !lower) { if (!words.back().empty()) words.emplace_back(); continue; }
+        if (upper && !words.back().empty() && p > name && p[-1] >= 'a' && p[-1] <= 'z') words.emplace_back();
+        words.back() += upper ? char(c + ('a' - 'A')) : c;
+    }
+    std::vector<std::string> kept;
+    for (const std::string &w : words)
+        if (!w.empty() && w != "character" && w != "executive" && w != "balloon") kept.push_back(w);
+    std::sort(kept.begin(), kept.end());
+    std::string key;
+    for (const std::string &w : kept) { if (!key.empty()) key += '-'; key += w; }
+    return key;
 }
 
 inline int team_size(int saved_size, bool rocket) {

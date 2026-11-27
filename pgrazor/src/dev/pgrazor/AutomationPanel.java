@@ -29,7 +29,7 @@ public final class AutomationPanel {
     public static void show(Activity activity) {
         if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
         Context ui = MapTheme.wrap(activity);
-        LinearLayout body = new LinearLayout(ui); body.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout body = new SettingsUi.OptionList(ui);
         int pad = MapTheme.dp(ui, 16); body.setPadding(pad, pad, pad, pad);
         TextView intro = new TextView(ui);
         intro.setText("Each task runs when you start it.");
@@ -59,7 +59,7 @@ public final class AutomationPanel {
     public static void showIncense(Activity activity) {
         if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
         Context ui = MapTheme.wrap(activity);
-        LinearLayout body = new LinearLayout(ui); body.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout body = new SettingsUi.OptionList(ui);
         int pad = MapTheme.dp(ui, 16); body.setPadding(pad, pad, pad, pad);
         TextView description = new TextView(ui);
         description.setText("Activate Daily Adventure Incense in the game first. This steers a straight line at 10.5 km/h "
@@ -106,7 +106,7 @@ public final class AutomationPanel {
     public static void showRemoteFeed(Activity activity) {
         if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
         Context ui = MapTheme.wrap(activity);
-        LinearLayout body = new LinearLayout(ui); body.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout body = new SettingsUi.OptionList(ui);
         int pad = MapTheme.dp(ui, 16); body.setPadding(pad, pad, pad, pad);
         TextView description = new TextView(ui);
         description.setText("Feeds the gyms you currently defend once, using surplus berries. Nanab is fed down to its "

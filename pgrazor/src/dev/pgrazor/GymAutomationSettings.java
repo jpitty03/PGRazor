@@ -52,6 +52,7 @@ public final class GymAutomationSettings {
     public static boolean feedEnabled(){stopForCooldown();return preferences.effectiveFeed();}
     public static boolean deployEnabled(){stopForCooldown();return preferences.effectiveDeploy();}
     public static boolean overlayEnabled(){return preferences.overlay();}
+    public static void setOverlayEnabled(boolean on){set("Overlay",on);}
     /** Stop the whole run on cooldown while retaining its selected actions. */
     public static boolean stopForCooldown(){
         if(!preferences.running()||Cooldown.remaining()<=0)return false;
@@ -98,7 +99,7 @@ public final class GymAutomationSettings {
     public static void show(Activity activity){
         if(activity==null||activity.isFinishing()||activity.isDestroyed())return;
         Context ui=MapTheme.wrap(activity);
-        LinearLayout body=new LinearLayout(ui);body.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout body=new SettingsUi.OptionList(ui);
         int pad=MapTheme.dp(ui,16);body.setPadding(pad,pad,pad,pad);
         TextView description=new TextView(ui);
         TextView progress=new TextView(ui);progress.setText(status());body.addView(progress);

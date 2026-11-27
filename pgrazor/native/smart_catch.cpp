@@ -2,6 +2,7 @@
 #include "runtime_transport.h"
 #include "vgp_incense.h"
 #include "safari_ball_policy.h"
+#include "tag_catch.h"
 #include <cstdio>
 #include <algorithm>
 #include <atomic>
@@ -188,17 +189,23 @@ extern "C" int pgr_smart_plan(void *target,void *itemBag,uint64_t owner,PgrSmart
  // Incense spawns keep the encountered Pokemon on their stored IncenseEncounterOutProto.
  Root response(incense?field<void*>(map.get(),incense->f_response):nullptr);
  if(incense&&(!response.h||!exact(response.get(),incense->class_response)))return PGR_SMART_ERR_IDENTITY;
- Root pokemon(incense?field<void*>(response.get(),incense->f_pokemon):field<void*>(map.get(),b.f_map_pokemon));
+ // The map's own PokemonProto has no IVs; the encounter response the game keeps on the map Pokemon does.
+ void *encountered=incense?nullptr:pgr_encounter_pokemon(map.get());
+ Root pokemon(incense?field<void*>(response.get(),incense->f_pokemon):exact(encountered,b.class_pokemon_proto)?encountered:field<void*>(map.get(),b.f_map_pokemon));
  if(!pokemon.h)return PGR_SMART_ERR_GCHANDLE;
  if(!exact(pokemon.get(),b.class_pokemon_proto))return PGR_SMART_ERR_IDENTITY;
  const int atk=field<int>(pokemon.get(),b.f_proto_atk),def=field<int>(pokemon.get(),b.f_proto_def),sta=field<int>(pokemon.get(),b.f_proto_sta);
  const int cp=field<int>(pokemon.get(),b.f_proto_cp),species=field<int>(pokemon.get(),b.f_proto_id);
- if(!pgr_smart_catch_wanted(&settings,species))return PGR_SMART_SKIP_SPECIES;
  const float multiplier=field<float>(pokemon.get(),b.f_proto_cpmul)+field<float>(pokemon.get(),b.f_proto_addcpmul);
  bool shiny=false;void *display=field<void*>(pokemon.get(),b.f_proto_display);
  if(display){if(!exact(display,b.class_display_proto))return PGR_SMART_ERR_IDENTITY;shiny=field<uint8_t>(display,b.f_display_shiny)!=0;}
  // Only shinies are caught: the encounter was the check, and anything else stays on the map.
  if(settings.shiny_only&&!shiny)return PGR_SMART_SKIP_SPECIES;
+ // Catch only (species and/or tag families); rare Pokemon may be caught outside it.
+ PgrTagRules rules{};
+ if(pgr_tag_rules(pokemon.get(),species,shiny,atk,def,sta,&rules)<0)return PGR_SMART_SKIP_SPECIES;
+ const bool listed=(!settings.catch_count&&!rules.filter)||(settings.catch_count&&pgr_smart_catch_wanted(&settings,species))||rules.tagged_catch;
+ if(!listed&&!(rules.also_rare&&rules.rare))return PGR_SMART_SKIP_SPECIES;
  const bool safari_bound=safari_strong_field&&safari_item>0&&safari_source;
  const bool mighty_known=safari_bound&&display;
  const bool mighty=mighty_known&&field<uint8_t>(display,safari_strong_field)==1;
@@ -214,7 +221,11 @@ extern "C" int pgr_smart_plan(void *target,void *itemBag,uint64_t owner,PgrSmart
    }
   }
  }
- pgr_smart_decide(&settings,shiny,atk+def+sta,atk>=0&&atk<=15&&def>=0&&def<=15&&sta>=0&&sta<=15,cp,level_half,species,out);
+ // The rare rule (configurable criteria and berry) replaces decide()'s fixed shiny / IV>=90% premium.
+ PgrSmartSettings plain=settings;plain.premium=0;
+ pgr_smart_decide(&plain,shiny,atk+def+sta,atk>=0&&atk<=15&&def>=0&&def<=15&&sta>=0&&sta<=15,cp,level_half,species,out);
+ if(rules.candy)out->berry=rules.candy_berry;
+ if(settings.premium&&rules.rare){out->ball=3;out->berry=rules.rare_berry;}
  // Throw variety: this throw's rating, picked before auto ball so its chance uses the same one.
  if(settings.variety)out->grade=pgr_smart_variety_grade(settings.variety,random32());
  bool use_safari=false,offered=false;int safari_stock=-1;

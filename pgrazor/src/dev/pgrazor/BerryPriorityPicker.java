@@ -15,21 +15,29 @@ final class BerryPriorityPicker {
     static final String[] NAMES={"Off","Razz Berry","Nanab Berry","Pinap Berry","Golden Razz Berry","Silver Pinap Berry"};
     private final Activity activity;
     private final Runnable changed;
+    private final String title;
+    private final java.util.function.Supplier<String> load;
+    private final java.util.function.IntConsumer select;
     private final Bitmap[] icons=new Bitmap[IDS.length];
     private AlertDialog picker;
     private LinearLayout[] rows;
     private TextView[] labels,ranks;
     private Context pickerContext;
     BerryPriorityPicker(Activity activity,Runnable changed){
-        this.activity=activity;this.changed=changed;
+        this(activity,changed,"Berry priority",Control::berryPriority,Control::selectBerryPriority);
+    }
+    /** Reuses the ordered 3-berry editor for a second, dedicated priority list. */
+    BerryPriorityPicker(Activity activity,Runnable changed,String title,java.util.function.Supplier<String> load,java.util.function.IntConsumer select){
+        this.activity=activity;this.changed=changed;this.title=title;this.load=load;this.select=select;
         for(int i=1;i<IDS.length;i++)try(InputStream in=PgAssets.open(activity,"pgrazor/map-icons/berry-"+IDS[i]+".png")){icons[i]=BitmapFactory.decodeStream(in);}catch(Exception ignored){}
     }
     private int dp(float n){return MapTheme.dp(activity,n);}
     private int pickerDp(float n){return MapTheme.dp(pickerContext,n);}
     void close(){if(picker!=null)picker.dismiss();}
-    static String summary(){
+    static String summary(){return summary(Control.berryPriority());}
+    static String summary(String value){
         StringBuilder names=new StringBuilder();
-        for(int id:BerryPriority.parse(Control.berryPriority()))for(int i=1;i<IDS.length;i++)if(IDS[i]==id){
+        for(int id:BerryPriority.parse(value))for(int i=1;i<IDS.length;i++)if(IDS[i]==id){
             if(names.length()>0)names.append(" \u2192 ");names.append(NAMES[i]);break;
         }
         return names.length()==0?"Off":names.toString();
@@ -51,10 +59,10 @@ final class BerryPriorityPicker {
             TextView name=new TextView(ui);name.setTextSize(15);name.setPadding(pickerDp(8),0,0,0);labels[i]=name;row.addView(name,new LinearLayout.LayoutParams(0,-2,1));
             TextView rank=new TextView(ui);rank.setGravity(Gravity.CENTER);rank.setTextSize(18);rank.setTypeface(Typeface.DEFAULT_BOLD);ranks[i]=rank;row.addView(rank,new LinearLayout.LayoutParams(pickerDp(34),pickerDp(40)));
             body.addView(row,new LinearLayout.LayoutParams(-1,pickerDp(54)));
-            row.setOnClickListener(v->{Control.selectBerryPriority(id);refresh();changed.run();});
+            row.setOnClickListener(v->{select.accept(id);refresh();changed.run();});
         }
         ScrollView scroll=new ScrollView(ui);scroll.addView(body);
-        picker=new AlertDialog.Builder(ui).setTitle("Berry priority").setView(scroll).setPositiveButton("Done",null).create();
+        picker=new AlertDialog.Builder(ui).setTitle(title).setView(scroll).setPositiveButton("Done",null).create();
         picker.setOnDismissListener(d->{picker=null;rows=null;labels=null;ranks=null;pickerContext=null;});
         picker.show();
         int baseWidth=Math.min(dp(400),activity.getResources().getDisplayMetrics().widthPixels-dp(48));
@@ -63,7 +71,7 @@ final class BerryPriorityPicker {
     }
     void refresh(){
         if(picker==null||rows==null)return;
-        int[] priority=BerryPriority.parse(Control.berryPriority());
+        int[] priority;try{priority=BerryPriority.parse(load.get());}catch(IllegalArgumentException invalid){priority=new int[0];}
         for(int i=0;i<IDS.length;i++){
             int rank=0;for(int j=0;j<priority.length;j++)if(priority[j]==IDS[i])rank=j+1;
             boolean selected=rank>0||(IDS[i]==0&&priority.length==0);

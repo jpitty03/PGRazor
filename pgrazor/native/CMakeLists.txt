@@ -81,6 +81,9 @@ add_library(pgrazor_core SHARED
   items.cpp
   accounts.cpp
   iv_display.cpp
+  tm_shortcut.cpp
+  pokemon_storage.cpp
+  tag_catch.cpp
   incoming_gifts.cpp
   encounter_berries.cpp
   battles.cpp
@@ -174,7 +177,7 @@ add_library(pgrazor_core SHARED
 
 target_sources(pgrazor_core PRIVATE events/event_collector.cpp)
 set_source_files_properties(events/event_collector.cpp evolve_transfer.cpp PROPERTIES COMPILE_OPTIONS "-fexceptions")
-set_source_files_properties(auto_raid.cpp gift_batch.cpp research.cpp session_stats.cpp route_gift.cpp storage_iv.cpp iv_panel.cpp ar_values.cpp catch_chance.cpp cutscene_skip.cpp rocket_swap.cpp smart_battle.cpp max_orbs.cpp heal.cpp auto_boost.cpp auto_rocket.cpp shundo.cpp shiny_scan.cpp battery.cpp remote_gym.cpp incense_guard.cpp batch_evolution.cpp gym_runtime.cpp gym_repeat.cpp buddy_emotion.cpp PROPERTIES COMPILE_OPTIONS "-fexceptions")
+set_source_files_properties(ar_values.cpp auto_boost.cpp auto_raid.cpp auto_rocket.cpp batch_evolution.cpp battery.cpp buddy_emotion.cpp catch_chance.cpp cutscene_skip.cpp gift_batch.cpp gym_repeat.cpp gym_runtime.cpp heal.cpp incense_guard.cpp iv_panel.cpp max_orbs.cpp pokemon_storage.cpp remote_gym.cpp research.cpp rocket_swap.cpp route_gift.cpp session_stats.cpp shiny_scan.cpp shundo.cpp smart_battle.cpp storage_iv.cpp tag_catch.cpp tm_shortcut.cpp PROPERTIES COMPILE_OPTIONS "-fexceptions")
 
 target_include_directories(pgrazor_core PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}

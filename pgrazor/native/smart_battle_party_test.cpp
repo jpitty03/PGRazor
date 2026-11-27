@@ -1,3 +1,4 @@
+#include <cassert>
 #include "smart_battle_party.h"
 #include "battle_counter.h"
 #include <cstdio>
@@ -5,6 +6,13 @@
 using namespace pgr_smart_party;
 void check(bool ok,const char *what){if(!ok){std::printf("FAIL %s\n",what);std::exit(1);}}
 int main(){
+    // Line-up keys match the words of LeekDuck's names ("Fire-type Female Grunt" -> female-fire-grunt).
+    assert(pgr_smart_party::lineup_key("CharacterFireGruntFemale")=="female-fire-grunt");
+    assert(pgr_smart_party::lineup_key("CHARACTER_FIRE_GRUNT_FEMALE")=="female-fire-grunt");
+    assert(pgr_smart_party::lineup_key("CharacterFireBalloonGruntFemale")=="female-fire-grunt");
+    assert(pgr_smart_party::lineup_key("CharacterExecutiveCliff")=="cliff");
+    assert(pgr_smart_party::lineup_key("CharacterGruntMale")=="grunt-male");
+    assert(pgr_smart_party::lineup_key("CharacterMetalGruntMale")=="grunt-male-metal");
     // Names from 0.435.1 InvasionCharacter metadata, in HoloPokemonType order.
     const char *types[]={"Normal","Fighting","Flying","Poison","Ground","Rock","Bug","Ghost","Metal","Fire","Water","Grass","Electric","Psychic","Ice","Dragon","Dark","Fairy"};
     for(int i=0;i<18;++i)for(const char *suffix:{"GruntMale","GruntFemale","BalloonGruntMale","BalloonGruntFemale"}){

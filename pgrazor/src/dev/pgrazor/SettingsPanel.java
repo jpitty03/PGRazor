@@ -88,7 +88,8 @@ final class SettingsPanel {
     private boolean transferKeepIvDragging;
     private BerryPriorityPicker berryPicker;
     private TextView quickSummaryLabel, vgpStatus, cutsceneStatus, healStatus, smartBattleStatus;
-    private Switch healSwitch, healReviveSwitch, smartBattleSwitch, gymRepeatSwitch;
+    private Switch healSwitch, healReviveSwitch, smartBattleSwitch, gymRepeatSwitch, raidCountersSwitch, raidShowCardSwitch;
+    private Button raidTeamSizeButton;
     private Button healWhen, healThreshold, healItems;
     private final CheckBox[] vgpChoices=new CheckBox[3];
     private CheckBox vgpCooldownStop;
@@ -139,7 +140,8 @@ final class SettingsPanel {
 
     /** Rows share a card, hairline dividers and flat press feedback. */
     private final class RowList extends LinearLayout {
-        RowList(){super(activity);rowLists.add(this);setOrientation(VERTICAL);setShowDividers(SHOW_DIVIDER_MIDDLE);setDividerDrawable(SettingsUi.hairline(activity));setDividerPadding(dp(12));}
+        RowList(){super(activity);rowLists.add(this);setOrientation(VERTICAL);}
+        @Override protected void dispatchDraw(android.graphics.Canvas canvas){super.dispatchDraw(canvas);SettingsUi.drawDividers(this,canvas,dp(12));}
         @Override public void addView(View child,int index,ViewGroup.LayoutParams params){
             if(child instanceof SettingsUi.RowButton)((SettingsUi.RowButton)child).setFlat(true);
             super.addView(child,index,params);
@@ -419,7 +421,7 @@ final class SettingsPanel {
 
         LinearLayout map = group(loc, "Game map");
         mapTap = button("Game map tap: Do nothing"); map.addView(mapTap);
-        mapTap.setOnClickListener(v -> { Control.setMapTapMode((Control.mapTapMode()+1)%4); host.refresh(); });
+        mapTap.setOnClickListener(v -> { Control.setMapTapMode((Control.mapTapMode()+1)%4); Control.setMapTapTeleportNoAsk(false); host.refresh(); });
         spawnSwitch = switchRow(map, "Spawn booster (80 m)"); spawnSwitch.setChecked(Control.spawnBooster());
         spawnSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.spawnBooster())return; Control.setSpawnBooster(spawnSwitch.isChecked()); });
         spawnStatus = caption(map, "");
@@ -619,6 +621,8 @@ final class SettingsPanel {
         ivCatchMode.setOnClickListener(v -> { Control.setIvCatchMode(Control.nextIvMode(Control.ivCatchMode())); host.refresh(); });
         ivOwnedMode = button(""); iv.addView(ivOwnedMode);
         ivOwnedMode.setOnClickListener(v -> { Control.setIvOwnedMode(Control.nextIvMode(Control.ivOwnedMode())); host.refresh(); });
+        CheckBox tmBox=new CheckBox(activity);tmBox.setText("TM shortcuts on the Pokémon screen");tmBox.setChecked(Control.tmShortcuts());iv.addView(tmBox);
+        tmBox.setOnCheckedChangeListener((b,checked)->{if(checked!=Control.tmShortcuts())Control.setTmShortcuts(checked);host.refresh();});
         storageIv = button(""); iv.addView(storageIv);
         storageIv.setOnClickListener(v -> { Control.setStorageIvMode(Control.nextIvMode(Control.storageIvMode())); host.refresh(); });
         ivStatus = caption(iv, "");
@@ -634,6 +638,8 @@ final class SettingsPanel {
         LinearLayout vgpC=group(page,"Virtual Go Plus");
         vgpSwitch=switchRow(vgpC,"VGP overlay");vgpSwitch.setChecked(Control.vgpOverlay());
         vgpSwitch.setOnCheckedChangeListener((b,checked)->{if(checked!=Control.vgpOverlay())Control.setVgpOverlay(checked);host.refresh();});
+        Switch vgpTextSwitch=switchRow(vgpC,"Show VGP status text");vgpTextSwitch.setChecked(Control.vgpStatusText());
+        vgpTextSwitch.setOnCheckedChangeListener((b,checked)->{if(checked!=Control.vgpStatusText())Control.setVgpStatusText(checked);host.refresh();});
         String[] vgpLabels={"Nearby Pokémon","Nearby PokéStops","Push notifications"};
         for(int i=0;i<3;i++){final int bit=1<<i;CheckBox box=new CheckBox(activity);box.setText(vgpLabels[i]);box.setChecked((Control.vgpOptions()&bit)!=0);vgpChoices[i]=box;vgpC.addView(box);
             box.setOnClickListener(v->{Control.setVgpOptions(box.isChecked()?Control.vgpOptions()|bit:Control.vgpOptions()&~bit);
@@ -687,6 +693,8 @@ final class SettingsPanel {
 
         LinearLayout gymC = group(battleC, "Gyms");
         launch(gymC, "Gym Slotter & Berry Feeder", () -> GymAutomationSettings.show(activity));
+        CheckBox gymOverlay=new CheckBox(activity);gymOverlay.setText("Show Gym feeder map icon");gymOverlay.setChecked(GymAutomationSettings.overlayEnabled());gymC.addView(gymOverlay);
+        gymOverlay.setOnClickListener(v->{GymAutomationSettings.setOverlayEnabled(gymOverlay.isChecked());host.refresh();});
         battleChoice(gymC,2,"Auto quick attack");
         battleChoice(gymC,3,"Auto charged attack");
         battleChoice(gymC,8,"Auto dodge");
@@ -714,6 +722,15 @@ final class SettingsPanel {
         smartBattleSwitch = switchRow(owner, "Smart battling"); smartBattleSwitch.setChecked(Control.smartBattle());
         smartBattleSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.smartBattle())return; Control.setSmartBattle(checked); refreshSmartBattle(); });
         caption(owner, "Picks counters for the Pokémon you are fighting: fills your team before gym, raid and Rocket battles, and swaps to your best counter during gym and Rocket battles.");
+        raidCountersSwitch = switchRow(owner, "Use counter party in raids");
+        raidCountersSwitch.setChecked(Control.raidCounters());
+        raidCountersSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.raidCounters())return; Control.setRaidCounters(checked); });
+        raidTeamSizeButton = button(""); owner.addView(raidTeamSizeButton);
+        raidTeamSizeButton.setOnClickListener(v -> { Control.setRaidCounterTeamSize(Control.raidCounterTeamSize()%6+1); refreshSmartBattle(); });
+        raidShowCardSwitch = switchRow(owner, "Show raid counter list");
+        raidShowCardSwitch.setChecked(Control.raidCounterShowCard());
+        raidShowCardSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.raidCounterShowCard())return; Control.setRaidCounterShowCard(checked); });
+        caption(owner, "Raid counter party sizes 1-6. The counter list shows the exact CP values; long-press it to copy CP1234, CP2345...");
         smartBattleStatus = caption(owner, "");
         refreshSmartBattle();
     }
@@ -721,6 +738,9 @@ final class SettingsPanel {
     private void refreshSmartBattle() {
         if(smartBattleSwitch==null)return;
         smartBattleSwitch.setChecked(Control.smartBattle());
+        if(raidCountersSwitch!=null)raidCountersSwitch.setChecked(Control.raidCounters());
+        if(raidShowCardSwitch!=null)raidShowCardSwitch.setChecked(Control.raidCounterShowCard());
+        if(raidTeamSizeButton!=null)raidTeamSizeButton.setText("Raid counter team size: "+Control.raidCounterTeamSize());
         status(smartBattleStatus,Control.smartBattleStatus());
     }
 
@@ -1120,7 +1140,7 @@ final class SettingsPanel {
         if(discord!=null)discord.setTextColor(accent());
         for(LinearLayout row:homeRows)row.setBackground(SettingsUi.ripple(SettingsUi.cardBackground(activity)));
         if(updateRow!=null){updateRow.setBackground(SettingsUi.ripple(SettingsUi.rounded(activity,SettingsUi.accentSoft(),12)));refreshUpdate();}
-        for(RowList rows:rowLists)rows.setDividerDrawable(SettingsUi.hairline(activity));
+        for(RowList rows:rowLists){rows.setDividerDrawable(SettingsUi.hairline(activity));rows.invalidate();}
         for(TextView name:homeNames){name.setTextColor(ink());name.setTypeface(SettingsUi.medium());}
         for(TextView summary:pageSummaries)summary.setTextColor(muted());
         if(searchBar!=null)searchBar.setBackground(SettingsUi.fieldBackground(activity));

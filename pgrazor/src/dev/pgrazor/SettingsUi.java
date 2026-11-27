@@ -137,6 +137,55 @@ final class SettingsUi {
         return d;
     }
 
+    /** Option lists: a hairline before each control or row, none between an option and the description under it. */
+    static boolean dividerBefore(ViewGroup list, int index) {
+        if (index <= 0 || index >= list.getChildCount()) return false;
+        View child = list.getChildAt(index);
+        if (child.getVisibility() == View.GONE || isNote(child)) return false;
+        for (int i = index - 1; i >= 0; i--) if (list.getChildAt(i).getVisibility() != View.GONE) return true;
+        return false;
+    }
+    private static boolean isNote(View v) {
+        return v instanceof TextView && !(v instanceof Button) && !(v instanceof android.widget.EditText) && !v.isClickable();
+    }
+    private static final Paint DIVIDER = new Paint();
+    /** Draws the dividerBefore hairlines over a vertical list, in the gap above each qualifying child. */
+    static void drawDividers(ViewGroup list, Canvas canvas, int inset) {
+        DIVIDER.setColor(border());
+        int h = Math.max(1, dp(list.getContext(), 1));
+        int previous = -1;
+        for (int i = 0; i < list.getChildCount(); i++) {
+            View child = list.getChildAt(i);
+            if (child.getVisibility() == View.GONE) continue;
+            if (previous >= 0 && dividerBefore(list, i)) {
+                int top = (list.getChildAt(previous).getBottom() + child.getTop() - h) / 2;  // middle of the gap
+                canvas.drawRect(list.getPaddingLeft() + inset, top, list.getWidth() - list.getPaddingRight() - inset, top + h, DIVIDER);
+            }
+            previous = i;
+        }
+    }
+    /**
+     * A vertical list that separates option + description pairs with hairlines (see dividerBefore), spaced
+     * like the Settings rows: room around each option, descriptions smaller and quieter.
+     */
+    static final class OptionList extends android.widget.LinearLayout {
+        OptionList(Context context) { super(context); setOrientation(VERTICAL); }
+        @Override public void addView(View child, int index, ViewGroup.LayoutParams params) {
+            MarginLayoutParams m = params instanceof MarginLayoutParams ? (MarginLayoutParams) params : new LayoutParams(params);
+            Context c = getContext();
+            if (isNote(child)) {
+                TextView t = (TextView) child;
+                t.setTextSize(12); t.setLineSpacing(0, 1.25f); t.setAlpha(0.75f);
+                t.setPadding(dp(c, 6), 0, dp(c, 6), 0);
+                m.topMargin = dp(c, 2); m.bottomMargin = dp(c, 10);
+            } else {
+                m.topMargin = dp(c, 10); m.bottomMargin = dp(c, 2);
+            }
+            super.addView(child, index, m);
+        }
+        @Override protected void dispatchDraw(Canvas canvas) { super.dispatchDraw(canvas); drawDividers(this, canvas, 0); }
+    }
+
     /** A transparent 1 x dp spacer usable as a LinearLayout middle divider. */
     static Drawable gap(Context context, int heightDp) {
         GradientDrawable d = new GradientDrawable(); d.setColor(Color.TRANSPARENT); d.setSize(1, dp(context, heightDp)); return d;

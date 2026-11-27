@@ -30,7 +30,7 @@ public final class AutoRaidDialog {
     public static void show(Activity activity) {
         if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
         Context ui = MapTheme.wrap(activity);
-        LinearLayout body = new LinearLayout(ui); body.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout body = new SettingsUi.OptionList(ui);
         int pad = MapTheme.dp(ui, 16); body.setPadding(pad, pad, pad, pad);
 
         // The draft is this dialog's own working copy; the controller keeps the authoritative one.
@@ -207,7 +207,7 @@ public final class AutoRaidDialog {
 
     private static void tierPicker(Activity a, AutoRaidPreferences draft, Runnable update) {
         Context ui = MapTheme.wrap(a);
-        LinearLayout body = new LinearLayout(ui); body.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout body = new SettingsUi.OptionList(ui);
         TextView help = new TextView(ui);
         help.setText("Select the raid tiers to join. Select none to join any tier."); body.addView(help);
         final int[] mask = {draft.tierMask};

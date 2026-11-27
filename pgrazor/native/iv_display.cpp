@@ -1276,6 +1276,7 @@ uint64_t next_token() {
 // Returns 0 without touching active_depth when the pass is not eligible. Never calls the
 // original. A root-allocation failure still claims (so the matching end releases active_depth)
 // but faults the catch channel and skips the capture -- no root can escape.
+extern "C" void pgr_tag_catch_note_encounter(void *map_pokemon);
 uint64_t catch_begin(void *self, void *map_pokemon, uint64_t tid) {
   bool eligible = false;
   if (g_active_depth.load(std::memory_order_relaxed) == 0 && owner_ready(tid)) {
@@ -1307,6 +1308,7 @@ uint64_t catch_begin(void *self, void *map_pokemon, uint64_t tid) {
   else
     publish_catch_unavailable(PGR_IV_REASON_GCHANDLE, tid);
   publish_encounter(tid);
+  pgr_tag_catch_note_encounter(map_pokemon);
   return token;
 }
 
@@ -1364,6 +1366,7 @@ void hook_setup(void *self, void *map_pokemon, int32_t weather, const void *meth
   if (token != 0) catch_end(token, tid);
 }
 
+extern "C" void pgr_tm_note_panel(void *panel);
 void hook_owned(void *self, void *proto, const void *method) {
   const uint64_t entry_apply_gen = snapshot_apply_gen(false);
   const uint64_t entry_stop_serial = g_stop_serial.load(std::memory_order_acquire);
@@ -1410,6 +1413,7 @@ void hook_owned(void *self, void *proto, const void *method) {
         g_pending_apply_gen = entry_apply_gen;
         g_pending_apply_valid = true;
         capture_owned(panel_root.target(), proto_root.target(), tid);
+        pgr_tm_note_panel(panel_root.target());
         g_pending_apply_gen = 0;
         g_pending_apply_valid = false;
       }
@@ -1418,6 +1422,32 @@ void hook_owned(void *self, void *proto, const void *method) {
     panel_root.reset();
     g_active_depth.fetch_sub(1, std::memory_order_relaxed);
   }
+}
+
+// The details screen redraws CP after a power-up without calling DoUpdate, so the IV line kept the old
+// level. tm_shortcut's tick notices the CP change on the visible panel and asks for a fresh capture.
+extern "C" void pgr_iv_owned_refresh(void *panel) {
+  const uint64_t tid = current_tid();
+  if (panel == nullptr || g_active_depth.load(std::memory_order_relaxed) != 0 || !owner_ready(tid) ||
+      g_owner_tid.load(std::memory_order_acquire) != tid || !is_exact(panel, g_cfg.class_panel))
+    return;
+  {
+    std::lock_guard<std::mutex> lock(g_state_mutex);
+    if (g_owned_fault != 0) return;
+  }
+  void *proto = field_ptr(panel, g_cfg.f_panel_displayed);
+  if (proto == nullptr || !is_exact(proto, g_cfg.class_pokemon)) return;
+  ScopedRoot panel_root, proto_root;
+  panel_root.acquire(panel);
+  proto_root.acquire(proto);
+  if (!panel_root.ok() || !proto_root.ok()) return;
+  g_active_depth.fetch_add(1, std::memory_order_relaxed);
+  g_pending_apply_gen = snapshot_apply_gen(false);
+  g_pending_apply_valid = true;
+  capture_owned(panel_root.target(), proto_root.target(), tid);
+  g_pending_apply_gen = 0;
+  g_pending_apply_valid = false;
+  g_active_depth.fetch_sub(1, std::memory_order_relaxed);
 }
 
 // --- install -----------------------------------------------------------------------

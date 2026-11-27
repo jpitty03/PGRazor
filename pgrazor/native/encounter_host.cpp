@@ -59,6 +59,9 @@
 #include "session_stats.h"
 #include "route_gift.h"
 #include "storage_iv.h"
+#include "tm_shortcut.h"
+#include "tag_catch.h"
+#include "pokemon_storage.h"
 #include "cutscene_skip.h"
 #include "rocket_swap.h"
 #include "smart_battle.h"
@@ -185,6 +188,7 @@ static uint32_t g_keep_species_count = 0;
 
 // Leaf API pointers
 static const pgr_berry_api_v1 *g_berries = nullptr;
+static uint32_t with_rule_berry(const int32_t *ids, uint32_t count, int32_t out[3]);
 static const PgrMapPoiApi *g_map_poi = nullptr;
 static const PgrVgpPolicyApi *g_vp = nullptr;
 static const PgrVgpActionsApi *g_va = nullptr;
@@ -1501,9 +1505,10 @@ static void sync_from_transport(uint64_t tid) {
   }
 
   if (g_berries && (g_active_caps & PGR_EH_CAP_BERRIES)) {
-    uint32_t cnt = g_opts.berries_allowed ? g_opts.berry_priority_count : 0u;
+    int32_t ids[3];
+    uint32_t cnt = g_opts.berries_allowed ? with_rule_berry(g_opts.berry_priority_ids, g_opts.berry_priority_count, ids) : 0u;
     uint64_t lease = (g_opts.berries_allowed && cnt > 0) ? g_opts.lease_remaining_ms : 0ULL;
-    g_berries->update(cnt ? g_opts.berry_priority_ids : nullptr, cnt, lease, tid);
+    g_berries->update(cnt ? ids : nullptr, cnt, lease, tid);
   }
 
   bool vgp_en = (g_opts.vgp_allowed && g_opts.vgp_enabled);
@@ -2477,10 +2482,11 @@ static int api_update_options(const PgrEncounterHostOptions *options, uint64_t p
   g_lease_deadline_ms = lease > 0 ? (monotonic_ms() + lease) : 0ULL;
 
   if (g_berries && (g_active_caps & PGR_EH_CAP_BERRIES)) {
+    int32_t ids[3];
     uint32_t cnt = (options->berries_allowed && options->berry_priority_count <= 3)
-                       ? options->berry_priority_count
+                       ? with_rule_berry(options->berry_priority_ids, options->berry_priority_count, ids)
                        : 0u;
-    g_berries->update(cnt ? options->berry_priority_ids : nullptr, cnt,
+    g_berries->update(cnt ? ids : nullptr, cnt,
                       options->berries_allowed ? lease : 0ULL, tid);
   }
 
@@ -2513,6 +2519,20 @@ static int api_set_keep_species(const int32_t *species_ids, uint32_t count) {
 }
 
 static int api_stop(uint64_t proven_tid);
+// VGP+ tag rules pick the berry for a manual encounter (rare / candy family): it goes first in the list.
+static uint32_t with_rule_berry(const int32_t *ids, uint32_t count, int32_t out[3]) {
+  const int packed = pgr_tag_catch_manual_berries();
+  uint32_t n = 0;
+  for (int s = 0; s < 30 && n < 3; s += 10) if (int32_t id = (packed >> s) & 1023) out[n++] = id;
+  const uint32_t rules = n;
+  for (uint32_t i = 0; i < count && n < 3; ++i) {
+    bool dup = false;
+    for (uint32_t j = 0; j < rules; ++j) dup = dup || out[j] == ids[i];
+    if (!dup) out[n++] = ids[i];
+  }
+  return n;
+}
+
 static int api_tick(uint64_t proven_tid) {
   if (g_stop_requested.load(std::memory_order_acquire)) return api_stop(proven_tid);
   StateGuard state; if (!state) return PGR_EH_RETRY;
@@ -2571,8 +2591,11 @@ static int api_tick(uint64_t proven_tid) {
     pgr_route_gift_tick(os_tid, &g_md);
   }
   pgr_storage_iv_tick(os_tid, &g_md);
+  pgr_tm_tick(os_tid, &g_md);
+  pgr_tag_catch_tick(os_tid, &g_md);
   pgr_cutscene_skip_tick(os_tid, &g_md);
   pgr_rocket_swap_tick(os_tid);
+  pgr_storage_tick(os_tid, &g_md);
   pgr_smart_battle_tick(os_tid, &g_md);
   pgr_ar_values_tick(os_tid, &g_md);
   pgr_catch_chance_tick(os_tid, &g_md);

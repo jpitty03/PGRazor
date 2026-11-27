@@ -327,14 +327,18 @@ void draw_in_front(const Line &l,void *anchor){
   const int children=unbox<int>(call(panel_transform,"get_childCount"));
   for(int i=0;i<children&&i<16;i++){void *index[]={&i};void *child=call(call(panel_transform,"GetChild",1,index),"get_gameObject");call(child,"set_layer",1,layer_args);}
  }
- if(!invoke(get_component,panel_transform,canvas_type)){
+ {
+  // The screen's order changes when the details screen opens over another (e.g. from the Pokedex), so
+  // the panel's order is refreshed on every show, not only when its canvas is added.
   static void *in_parent=nullptr,*add=nullptr;
   if(!in_parent)in_parent=overload("UnityEngine","Component","GetComponentInParent","System.Type");
   if(!add)add=overload("UnityEngine","GameObject","AddComponent","System.Type");
-  void *screen=invoke(in_parent,anchor,canvas_type);if(!screen)return;
+  void *canvas=invoke(get_component,panel_transform,canvas_type);
+  void *parent=call(panel_transform,"get_parent");
+  void *screen=parent?invoke(in_parent,parent,canvas_type):nullptr;if(!screen)return;
   const int order=unbox<int>(call(screen,"get_sortingOrder"));
-  void *canvas=invoke(add,l.panel,canvas_type);require(canvas,"IV panel canvas");
-  bool on=true;void *override_args[]={&on};call(canvas,"set_overrideSorting",1,override_args);
+  if(!canvas){canvas=invoke(add,l.panel,canvas_type);require(canvas,"IV panel canvas");
+   bool on=true;void *override_args[]={&on};call(canvas,"set_overrideSorting",1,override_args);}
   int above=order+1;void *order_args[]={&above};call(canvas,"set_sortingOrder",1,order_args);
  }
  // The scroll view's RectMask2D cannot clip into a nested canvas and culls it instead, so the panel's

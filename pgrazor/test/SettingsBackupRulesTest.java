@@ -1,4 +1,5 @@
 import dev.pgrazor.SettingsBackupRules;
+import dev.pgrazor.PreferenceSchema;
 import dev.pgrazor.BerryPriority;
 import dev.pgrazor.MapTapSequence;
 import org.json.*;
@@ -138,6 +139,46 @@ public class SettingsBackupRulesTest {
         String places="[{\"id\":\"a\",\"name\":\"Home\",\"latitude\":40,\"longitude\":-70}]";
         v=valid();v.getJSONObject("preferences").put("pgrazor-saved-places-v1",new JSONObject().put("places",places));SettingsBackupRules.validate(v);
         v.getJSONObject("preferences").getJSONObject("pgrazor-saved-places-v1").put("places",places.replace("40","400"));rejects(v);
-        System.out.println("PASS settings backup: valid settings/favorites, schema, credential and VGP exclusion, bounds, IV display booleans, transfer keep list/Keep All/overlay validation, evolve-before-transfer enable/mode/stages/species validation and preference types");
+        // Tag-rule backup round-trip: exact key/value shapes exported by TagCatchSettings.write().
+        JSONObject tagBackup=valid();JSONObject ts=tagBackup.getJSONObject("settings");
+        ts.put("smartCatchTagsActive","true").put("smartCatchTagsOverlay","true").put("smartCatchAlsoRare","false")
+          .put("smartCatchRareMask","34").put("smartCatchRareIvMin","90").put("smartCatchRareBerry","706")
+          .put("smartCatchCandyBerry","705").put("smartCatchUltraSpecies","201,480,481,482,610,782,885,996")
+          .put("smartCatchCatchTags","").put("smartCatchCandyTags","").put("smartCatchFallbackBerries","");
+        SettingsBackupRules.validate(tagBackup);                         // defaults
+        ts.put("smartCatchAlsoRare","true").put("smartCatchRareMask","511").put("smartCatchRareIvMin","80")
+          .put("smartCatchRareBerry","0").put("smartCatchCandyBerry","707").put("smartCatchUltraSpecies","1,2,3")
+          .put("smartCatchCatchTags","Amigos\tPokémon\t中文标签").put("smartCatchCandyTags","Équipe\tΩ")
+          .put("smartCatchFallbackBerries","705,701,703");
+        SettingsBackupRules.validate(tagBackup);                         // custom, multiple and Unicode tags
+        for(String[] bad:new String[][]{{"smartCatchRareMask","512"},{"smartCatchRareMask","-1"},
+                {"smartCatchRareIvMin","0"},{"smartCatchRareIvMin","101"},{"smartCatchRareBerry","702"},
+                {"smartCatchCandyBerry","abc"},{"smartCatchRareBerry","709"},{"smartCatchFallbackBerries","701,701"},
+                {"smartCatchFallbackBerries","708"},{"smartCatchUltraSpecies","0"},{"smartCatchUltraSpecies","abc"},
+                {"smartCatchCatchTags","A;B"},{"smartCatchCandyTags","A\nB"},{"smartCatchCatchTags","A\t\tB"}}){
+            JSONObject invalid=valid();invalid.getJSONObject("settings").put(bad[0],bad[1]);rejects(invalid);
+        }
+        // Fork settings added after v0.3.6: per-key validators and invalid-value rejection.
+        JSONObject raid=valid();raid.getJSONObject("settings").put("smartBattle","true").put("raidCounters","true")
+            .put("raidCounterTeamSize","6").put("raidCounterShowCard","false");SettingsBackupRules.validate(raid);
+        for(String[] bad:new String[][]{{"raidCounterTeamSize","0"},{"raidCounterTeamSize","7"},
+                {"raidCounters","maybe"},{"raidCounterShowCard","1"},{"smartBattle","yes"},
+                {"tmShortcuts","maybe"},{"vgpStatusText","1"},{"mapTapTeleportNoAsk","yes"}}){
+            JSONObject invalid=valid();invalid.getJSONObject("settings").put(bad[0],bad[1]);rejects(invalid);
+        }
+        JSONObject toggles=valid();toggles.getJSONObject("settings").put("tmShortcuts","true").put("vgpStatusText","false")
+            .put("mapTapTeleportNoAsk","true");SettingsBackupRules.validate(toggles);
+        // Every preference key registered for export must import; one shared schema keeps future plugins in sync.
+        if(PreferenceSchema.SCOPES.length!=PreferenceSchema.KEYS.length)throw new AssertionError("Preference schema length mismatch");
+        JSONObject full=valid();JSONObject prefs=full.getJSONObject("preferences");
+        JSONObject map=new JSONObject(),overlays=new JSONObject(),favorites=new JSONObject(),feed=new JSONObject();
+        for(String k:PreferenceSchema.KEYS[0])map.put(k,true);
+        for(String k:PreferenceSchema.KEYS[1])overlays.put(k,0.5);
+        favorites.put("places","[{\"id\":\"a\",\"name\":\"Home\",\"latitude\":40,\"longitude\":-70}]");
+        feed.put("category",1).put("radius",2).put("minIv",3).put("myShinies",false).put("filters_v1","{}").put("filter_presets_v1","{}");
+        prefs.put("pgrazor-map",map).put("pgrazor-overlays",overlays).put("pgrazor-saved-places-v1",favorites).put("pgrazor-livefeed",feed);
+        SettingsBackupRules.validate(full);
+        JSONObject rogue=valid();rogue.getJSONObject("preferences").put("pgrazor-overlays",new JSONObject().put("rogue.fx",0.5));rejects(rogue);
+        System.out.println("PASS settings backup: valid settings/favorites, schema, credential and VGP exclusion, bounds, IV display booleans, transfer keep list/Keep All/overlay validation, evolve-before-transfer enable/mode/stages/species validation, tag-rule round-trip, full preference schema round-trip and preference types");
     }
 }

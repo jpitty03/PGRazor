@@ -161,6 +161,13 @@ public final class Control {
     private static volatile int storageIvMode, storageIvFormat=3;
     private static volatile String storageIvStatus="";
     private static volatile int mapTapMode, mapTapEpoch;
+    private static volatile boolean mapTapTeleportNoAsk, vgpStatusText=true, tmShortcuts=true;
+    public static boolean mapTapTeleportNoAsk(){return mapTapTeleportNoAsk;}
+    public static void setMapTapTeleportNoAsk(boolean value){mapTapTeleportNoAsk=value;saveSettings();}
+    public static boolean vgpStatusText(){return vgpStatusText;}
+    public static boolean tmShortcuts(){return tmShortcuts;}
+    public static void setTmShortcuts(boolean value){tmShortcuts=value;saveSettings();}
+    public static void setVgpStatusText(boolean value){vgpStatusText=value;saveSettings();}
     private static final MapTapSequence mapTapSequence=new MapTapSequence();
     private static volatile boolean mapTapReady;
     private static volatile boolean spawnBooster,spawnReady;
@@ -742,11 +749,20 @@ public final class Control {
     // Smart battling: one switch, off by default. Native smart_battle.cpp owns all of the behaviour.
     private static volatile boolean smartBattle;
     private static volatile String smartBattleStatus="";
+    private static volatile boolean raidCounters=true,raidCounterShowCard=true;
+    private static volatile int raidCounterTeamSize=6;
     public static boolean smartBattle(){return smartBattle;}
     public static void setSmartBattle(boolean on){smartBattle=on;if(!on)smartBattleStatus="";saveSettings();event("smart-battle",on?"ON":"OFF");}
+    public static boolean raidCounters(){return raidCounters;}
+    public static void setRaidCounters(boolean on){raidCounters=on;saveSettings();event("raid-counters",on?"ON":"OFF");}
+    public static int raidCounterTeamSize(){return raidCounterTeamSize;}
+    public static void setRaidCounterTeamSize(int n){raidCounterTeamSize=n>=1&&n<=6?n:6;saveSettings();}
+    public static boolean raidCounterShowCard(){return raidCounterShowCard;}
+    public static void setRaidCounterShowCard(boolean on){raidCounterShowCard=on;saveSettings();}
     public static String smartBattleStatus(){return smartBattle?smartBattleStatus:"";}
-    /** "F1|enabled" for native Smart battling (transport slot 21). */
-    public static String smartBattleConfig(){return "F1|"+(smartBattle?1:0);}
+    /** "F2|smart|raidCounters|teamSize|showCard" for native counter engine (transport slot 21).
+     *  F1|enabled is still accepted by native for old backups. */
+    public static String smartBattleConfig(){return "F2|"+(smartBattle?1:0)+"|"+(raidCounters?1:0)+"|"+raidCounterTeamSize+"|"+(raidCounterShowCard?1:0);}
     /** "H2|enabled|when|threshold|revive|full" for the native healer (transport slot 18). */
     public static String healConfig(){return "H2|"+(healEnabled?1:0)+"|"+healWhen+"|"+healThreshold+"|"+(healRevive?1:0)+"|"+(healFull?1:0);}
     public static void configureQuickBall(boolean configured) {
@@ -1231,6 +1247,7 @@ public final class Control {
             quickMenuHidden=0;
             idleWalking=false;engine.setIdleWalking(false);
             SmartCatchSettings.read(new Properties());
+            TagCatchSettings.read(new Properties());
             GymAutomationSettings.read(new Properties());
             AutoRaid.read(new Properties());
             AutoRocket.read(new Properties());
@@ -1241,6 +1258,7 @@ public final class Control {
             try(FileInputStream in=settingsFile.openRead()) {
                 Properties p=new Properties(); p.load(in);
                 SmartCatchSettings.read(p);
+                TagCatchSettings.read(p);
                 GymAutomationSettings.read(p);
                 AutoRaid.read(p);
                 AutoRocket.read(p);
@@ -1334,6 +1352,10 @@ public final class Control {
                 batteryLowQuality=Boolean.parseBoolean(p.getProperty("batteryLowQuality","false"));
                 healEnabled=Boolean.parseBoolean(p.getProperty("smartHealEnabled","false"));
                 smartBattle=Boolean.parseBoolean(p.getProperty("smartBattle","false"));
+                raidCounters=Boolean.parseBoolean(p.getProperty("raidCounters","true"));
+                raidCounterShowCard=Boolean.parseBoolean(p.getProperty("raidCounterShowCard","true"));
+                try{raidCounterTeamSize=Integer.parseInt(p.getProperty("raidCounterTeamSize","6"));}catch(NumberFormatException invalid){raidCounterTeamSize=6;}
+                if(raidCounterTeamSize<1||raidCounterTeamSize>6)raidCounterTeamSize=6;
                 healRevive=Boolean.parseBoolean(p.getProperty("smartHealRevive","true"));
                 healFull=Boolean.parseBoolean(p.getProperty("smartHealFull","false"));
                 healWhen=boundedSetting(p,"smartHealWhen",2);
@@ -1345,7 +1367,7 @@ public final class Control {
                 throwCurve=Boolean.parseBoolean(p.getProperty("curve","false"));
                 throwAlwaysHit=Boolean.parseBoolean(p.getProperty("throwAlwaysHit","false"));
                 throwAr=Boolean.parseBoolean(p.getProperty("throwAr","false"));
-                throwGrade=boundedSetting(p,"grade",3); throwVariety=boundedSetting(p,"throwVariety",3); mapTapMode=boundedSetting(p,"mapTap",3);
+                throwGrade=boundedSetting(p,"grade",3); throwVariety=boundedSetting(p,"throwVariety",3); mapTapMode=boundedSetting(p,"mapTap",3); mapTapTeleportNoAsk=Boolean.parseBoolean(p.getProperty("mapTapTeleportNoAsk","false")); tmShortcuts=Boolean.parseBoolean(p.getProperty("tmShortcuts","true")); vgpStatusText=Boolean.parseBoolean(p.getProperty("vgpStatusText","true"));
                 event("settings-restored","dismiss="+quickSummaryEnabled+" fastBall="+quickBallEnabled+" grade="+throwGrade+" variety="+throwVariety+" curve="+throwCurve+" mapTap="+mapTapMode+" cameraRelative=true heal="+healConfig());
             } catch(FileNotFoundException missing) {
                 // Defaults apply only until the user first saves a choice.
@@ -1408,6 +1430,7 @@ public final class Control {
     private static Properties settingsSnapshot() {
         Properties p=new Properties();
         SmartCatchSettings.write(p);
+        TagCatchSettings.write(p);
         GymAutomationSettings.write(p);
         AutoRaid.write(p);
         AutoRocket.write(p);
@@ -1443,13 +1466,14 @@ public final class Control {
         p.setProperty("pvpKeepLeagues",String.valueOf(pvpKeepLeagues)); p.setProperty("skipCutscenes",String.valueOf(skipCutscenes)); p.setProperty("routeGiftExchange",String.valueOf(routeGiftExchange));
         p.setProperty("batteryLowRes",String.valueOf(batteryLowRes)); p.setProperty("batteryFps20",String.valueOf(batteryFps20)); p.setProperty("batteryLowQuality",String.valueOf(batteryLowQuality));
         p.setProperty("smartBattle",String.valueOf(smartBattle));
+        p.setProperty("raidCounters",String.valueOf(raidCounters));p.setProperty("raidCounterTeamSize",String.valueOf(raidCounterTeamSize));p.setProperty("raidCounterShowCard",String.valueOf(raidCounterShowCard));
         p.setProperty("smartHealEnabled",String.valueOf(healEnabled)); p.setProperty("smartHealRevive",String.valueOf(healRevive)); p.setProperty("smartHealFull",String.valueOf(healFull));
         p.setProperty("smartHealWhen",String.valueOf(healWhen)); p.setProperty("smartHealThreshold",String.valueOf(healThreshold));
         for(int i=0;i<3;i++)p.setProperty(PVP_RANK_KEYS[i],String.valueOf(pvpRanks[i]));
         p.setProperty("autoDismiss",String.valueOf(quickSummaryEnabled)); p.setProperty("fastBall",String.valueOf(quickBallEnabled));
         p.setProperty("throwAr",String.valueOf(throwAr)); p.setProperty("curve",String.valueOf(throwCurve)); p.setProperty("grade",String.valueOf(throwGrade)); p.setProperty("throwVariety",String.valueOf(throwVariety));
         p.setProperty("throwAlwaysHit",String.valueOf(throwAlwaysHit));
-        p.setProperty("mapTap",String.valueOf(mapTapMode));
+        p.setProperty("mapTap",String.valueOf(mapTapMode));p.setProperty("mapTapTeleportNoAsk",String.valueOf(mapTapTeleportNoAsk));p.setProperty("vgpStatusText",String.valueOf(vgpStatusText));p.setProperty("tmShortcuts",String.valueOf(tmShortcuts));
         return p;
     }
     /** Writer sink: serializes to the captured AtomicFile off-thread, rolling back on failure. Never takes stateLock. */

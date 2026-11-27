@@ -37,7 +37,7 @@ public final class LogExport {
     private static JSONObject preferenceGroups(Context context)throws IOException {
         String[] scopes={"pgrazor-map","pgrazor-overlays","pgrazor-livefeed","pgrazor-pogofeed"};
         String[][] keys={{"Stops","Gyms","Raids"},
-            {"cooldown.fx","cooldown.fy","vgp.fx","vgp.fy","transfer.fx","transfer.fy","gym-feed.fx","gym-feed.fy","local-time.fx","local-time.fy"},
+            {"cooldown.fx","cooldown.fy","vgp.fx","vgp.fy","transfer.fx","transfer.fy","tag-catch.fx","tag-catch.fy","gym-feed.fx","gym-feed.fy","local-time.fx","local-time.fy"},
             {"category","radius","minIv","myShinies","filters_v1"},
             {"feedMode","radiusKm","refreshIntervalIndex","filters_v1"}};
         try {

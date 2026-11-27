@@ -132,7 +132,7 @@ public final class BatchEvolutionSettings {
     public static void show(Activity activity) {
         if(activity==null||activity.isFinishing()||activity.isDestroyed())return;
         Context ui=MapTheme.wrap(activity);
-        LinearLayout body=new LinearLayout(ui);body.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout body=new SettingsUi.OptionList(ui);
         int pad=MapTheme.dp(ui,16);body.setPadding(pad,pad,pad,pad);
         TextView explanation=new TextView(ui);
         explanation.setText("Choose a tag to preview eligible Pokemon. Each is evolved once, without the animation. Favorites, your buddy, deployed Pokemon, eggs, Shadow and purified Pokemon, and evolutions needing a branch choice or special condition are skipped. Candy and items are checked before each evolution. Start your Lucky Egg yourself if wanted.");

@@ -156,6 +156,11 @@ public final class GymAutomationSettings {
 public final class CatchChance {
  public static void publish(String detail){}
 }''',
+    'dev/pgrazor/TagCatchSettings.java': '''package dev.pgrazor;
+final class TagCatchSettings {
+ static void read(java.util.Properties p){}
+ static void write(java.util.Properties p){}
+}''',
     'dev/pgrazor/SessionStats.java': '''package dev.pgrazor;
 public final class SessionStats {
  public static void publish(String detail){}

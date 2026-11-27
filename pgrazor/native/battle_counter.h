@@ -111,6 +111,14 @@ inline double matchup(const Fighter &f, const Foe &foe) {
     return std::pow(dps * dps * dps * (dps * f.hp / incoming), 0.25);
 }
 
+// A slot whose Pokemon is one of several candidates (a Rocket line-up): the average matchup, 0 if any is 0.
+inline double group_matchup(const Fighter &f, const std::vector<Foe> &group) {
+    if (group.empty()) return 0;
+    double sum = 0;
+    for (const Foe &e : group) { const double s = matchup(f, e); if (s <= 0) return 0; sum += s; }
+    return sum / double(group.size());
+}
+
 // scores[attacker][foe]. Takes foes in turn and gives each its best unused attacker, so a six-defender
 // gym gets one counter per defender and a single raid boss gets the top attackers in order. Returns
 // attacker indexes in team order; attackers scored 0 for a foe are never picked for it.

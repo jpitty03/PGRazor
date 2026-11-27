@@ -1,6 +1,8 @@
 #include "smart_battle.h"
 #include "battle_counter.h"
+#include "counter_engine.h"
 #include "smart_battle_party.h"
+#include "pokemon_storage.h"
 #include "combat_host.h"
 #include "game_bindings.h"
 #include "hook_engine.h"
@@ -11,6 +13,7 @@
 #include "shared_metadata.h"
 #include <algorithm>
 #include <atomic>
+#include <mutex>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -106,10 +109,20 @@ const PgrRuntimeTransportApi *transport(){return static_cast<const PgrRuntimeTra
 void event(const std::string &json){auto tr=transport();if(!tr)return;PgrRuntimeTransportString s[]={{"smart-battle",12},{json.c_str(),uint32_t(json.size())}};tr->emit(19,nullptr,0,s,2);}
 void status(const char *phase,const std::string &message){event(std::string("{\"phase\":\"")+phase+"\",\"message\":\""+message+"\"}");}
 
-// "F1|enabled"; anything else (or a stale snapshot) means off.
+// F2|smart|raidCounters|raidTeamSize|raidShowCard (slot 21). F1|enabled remains valid for old backups.
+bool raid_counter_enabled=true,raid_counter_show_card=true;int raid_team_size=6;
 bool configured(){
- auto tr=transport();PgrRuntimeTransportSample a{};char s[16]{};uint32_t n=0;
- if(!tr||tr->sample(&a)||!a.snapshot_fresh||a.fault||tr->get_string(21,s,sizeof(s)-1,&n)||n!=4||std::memcmp(s,"F1|1",4)!=0)return false;
+ auto tr=transport();PgrRuntimeTransportSample a{};char s[64]{};uint32_t n=0;
+ if(!tr||tr->sample(&a)||!a.snapshot_fresh||a.fault||tr->get_string(21,s,sizeof(s)-1,&n))return false;
+ s[n]=0;bool on=false;
+ if(n>=4&&!std::memcmp(s,"F1|",3))on=s[3]=='1';
+ else if(n>=4&&!std::memcmp(s,"F2|",3)){
+  int smart=0,raid=1,card=1;
+  if(std::sscanf(s,"F2|%d|%d|%d|%d",&smart,&raid,&raid_team_size,&card)!=4)return false;
+  on=smart==1;raid_counter_enabled=raid==1;raid_counter_show_card=card!=0;
+  if(raid_team_size<1||raid_team_size>6)raid_team_size=6;
+ }else return false;
+ if(!on)return false;
  int active=0,ready=0;tr->get_bool(3,&active);tr->get_bool(16,&ready);return active&&ready;
 }
 pgr_smart_party::HealingPolicy healing_policy(){
@@ -221,7 +234,6 @@ void load_proto_fields(){
  void *d=cls("Holoholo.Rpc","PokemonDisplayProto");display_form=off(d,"Form");display_align=off(d,"Alignment");
  pf=f;
 }
-bool has_text(void *o,size_t offset){void *s=at<void*>(o,offset);return s&&at<int32_t>(s,0x10)>0;}
 
 struct Stats {const Species *sp=nullptr;double attack=0,defense=0;};
 Stats stats_of(void *p){
@@ -232,6 +244,14 @@ Stats stats_of(void *p){
  out.attack=(out.sp->attack+at<int32_t>(p,pf.iva))*cpm;out.defense=(out.sp->defense+at<int32_t>(p,pf.ivd))*cpm;
  if(display&&at<int32_t>(display,display_align)==1){out.attack*=1.2;out.defense/=1.2;}  // Shadow
  return out;
+}
+bool fighter_from(const PgrOwnedPokemon &o,Fighter &f){
+ const Species *sp=species_of(o.species,o.form);if(!sp||sp->attack<=0)return false;
+ f.type[0]=sp->type[0];f.type[1]=sp->type[1];
+ f.attack=(sp->attack+o.atk)*o.cpm;f.defense=(sp->defense+o.def)*o.cpm;
+ if(o.alignment==1){f.attack*=1.2;f.defense/=1.2;}  // Shadow
+ f.hp=o.hp;f.fast=move_of(o.move1);f.charged[0]=move_of(o.move2);f.charged[1]=move_of(o.move3);
+ return f.attack>0;
 }
 // hp<0 means use the HP stored on the Pokemon.
 bool fighter_of(void *p,Fighter &f,int hp=-1){
@@ -260,36 +280,66 @@ std::vector<void*> storage(Root &hold){
  return out;
 }
 
+std::unordered_map<uint64_t,void*> storage_index(Root &hold);
+std::mutex counters_mutex;std::string counters_text;  // "key\nspecies,form,cp,shadow,nickname\n..." for Java
+static std::string card_field(const std::string &value){std::string out;for(char c:value)out+=(c==','||c=='\n'||c=='\r')?' ':c;if(out.size()>40)out.resize(40);return out;}
+void publish_counters(const std::string &key,const std::vector<std::vector<Foe>> &slots){
+ std::vector<PgrOwnedPokemon> owned;if(!pgr_storage_snapshot(&owned))return;
+ const auto healing=healing_policy();
+ std::vector<const PgrOwnedPokemon*> who;std::vector<std::vector<double>> scores;
+ for(const PgrOwnedPokemon &o:owned){
+  if(o.egg||o.deployed||o.hp<=0)continue;
+  Fighter f;if(!fighter_from(o,f))continue;
+  f.hp=pgr_smart_party::selection_hp(o.hp,o.max_hp,healing);
+  std::vector<double> s;bool any=false;for(const auto &g:slots){s.push_back(group_matchup(f,g));any=any||s.back()>0;}
+  if(any){who.push_back(&o);scores.push_back(std::move(s));}
+ }
+ std::string text=key+"\n";
+ const int card_size=key=="raid"&&raid_counter_enabled?raid_team_size:3;
+ for(int i:pick_team(scores,int(slots.size()),card_size)){const PgrOwnedPokemon &o=*who[size_t(i)];text+=std::to_string(o.species)+","+std::to_string(o.form)+","+std::to_string(o.cp)+","+(o.alignment==1?"1":"0")+","+card_field(o.nickname)+"\n";}
+ std::lock_guard<std::mutex> lock(counters_mutex);counters_text=text;
+}
 // ---- Before battle ---------------------------------------------------------------------------
 // The party to use instead of original, or null to keep it. filter is the game's own eligibility check.
-void *counter_party(const std::vector<Foe> &foes,void *original,void *filter,bool rocket=false){
+void *counter_party(const std::vector<std::vector<Foe>> &foes,void *original,void *filter,bool rocket=false,int size_override=0){
  if(foes.empty()||!original)return nullptr;
  void *party_class=klass(original);const size_t team_at=off(party_class,"TeamProtos");
  void *old_team=at<void*>(original,team_at);
  const uint64_t old_length=old_team?at<uint64_t>(old_team,0x18):0;if(old_length>6)return nullptr;
- const int old_size=int(old_length),size=pgr_smart_party::team_size(old_size,rocket);if(!size)return nullptr;
- Root hold;std::vector<void*> all=storage(hold);
- const auto healing=healing_policy();
- struct Rated {void *p;std::vector<double> scores;double best;};
- std::vector<Rated> rated;rated.reserve(all.size());
- for(void *p:all){
-  if(at<bool>(p,pf.egg)||has_text(p,pf.fort)||has_text(p,pf.station)||at<int32_t>(p,pf.hp)<=0)continue;
-  Fighter f;if(!fighter_of(p,f))continue;
-  f.hp=pgr_smart_party::selection_hp(at<int32_t>(p,pf.hp),at<int32_t>(p,pf.max_hp),healing);
-  Rated r{p,{},0};for(const Foe &e:foes){const double s=matchup(f,e);r.scores.push_back(s);r.best=std::max(r.best,s);}
-  if(r.best>0)rated.push_back(std::move(r));
- }
- std::sort(rated.begin(),rated.end(),[](const Rated &a,const Rated &b){return a.best>b.best;});
- // The game's filter is a managed call, so only ask it about the strongest candidates.
- std::vector<Rated> eligible;void *invoke_method=filter?method(klass(filter),"Invoke",1):nullptr;
- for(Rated &r:rated){
-  if(int(eligible.size())>=kMaxCandidates)break;
-  if(filter){void *args[]={r.p};if(!unbox<bool>(invoke(invoke_method,filter,args)))continue;}
-  eligible.push_back(std::move(r));
- }
- std::vector<std::vector<double>> scores;for(const Rated &r:eligible)scores.push_back(r.scores);
- const std::vector<int> picks=pick_team(scores,int(foes.size()),size);
- if(picks.empty())return nullptr;
+ const int old_size=int(old_length),size=size_override>0?size_override:pgr_smart_party::team_size(old_size,rocket);if(!size)return nullptr;
+  // Shared engine scores the plain storage snapshot; game objects are looked up only for candidates.
+  std::vector<PgrOwnedPokemon> owned;if(!pgr_storage_snapshot(&owned))return nullptr;
+  const auto healing=healing_policy();
+  std::vector<pgr_counter_engine::Entry> entries;
+  for(const PgrOwnedPokemon &o:owned){
+   if(o.egg||o.deployed||o.hp<=0)continue;
+   pgr_counter_engine::Entry e;e.id=o.id;e.hp=o.hp;e.max_hp=o.max_hp;
+   if(!fighter_from(o,e.fighter))continue;
+   entries.push_back(std::move(e));
+  }
+  pgr_counter_engine::Options opts;opts.team_size=size;opts.healing=healing;
+  const auto ranked=pgr_counter_engine::rank(entries,foes,opts);
+  struct Rated {void *p;uint64_t id;std::vector<double> scores;double best;};
+  std::vector<int> order;order.reserve(entries.size());
+  for(size_t i=0;i<entries.size();++i){
+   double best=0;for(const auto &row:ranked.scores[i])best=std::max(best,row);
+   if(best>0)order.push_back(int(i));
+  }
+  std::sort(order.begin(),order.end(),[&](int a,int b){
+   double x=0,y=0;for(double v:ranked.scores[a])x=std::max(x,v);for(double v:ranked.scores[b])y=std::max(y,v);return x>y;});
+  Root hold;const auto bag=storage_index(hold);
+  std::vector<Rated> eligible;void *invoke_method=filter?method(klass(filter),"Invoke",1):nullptr;
+  for(int i:order){
+   if(int(eligible.size())>=kMaxCandidates)break;
+   auto found=bag.find(entries[i].id);if(found==bag.end())continue;
+   void *obj=found->second;
+   if(filter){void *args[]={obj};if(!unbox<bool>(invoke(invoke_method,filter,args)))continue;}
+   double best=0;for(double v:ranked.scores[i])best=std::max(best,v);
+   eligible.push_back(Rated{obj,entries[i].id,ranked.scores[i],best});
+  }
+  std::vector<std::vector<double>> scores;for(const Rated &r:eligible)scores.push_back(r.scores);
+  const std::vector<int> picks=pick_team(scores,int(foes.size()),size);
+if(picks.empty())return nullptr;
  Root array(fn<void*(*)(void*,uintptr_t)>(exp("array_new"))(pf.k,uintptr_t(size)));require(bool(array),"team array");
  std::vector<void*> team;for(int i:picks)team.push_back(eligible[size_t(i)].p);
  // Slots we could not fill keep the game's own choices.
@@ -304,7 +354,7 @@ void *counter_party(const std::vector<Foe> &foes,void *original,void *filter,boo
  int number=at<int32_t>(original,off(party_class,"<TeamNumber>k__BackingField"));
  void *args[]={&number,at<void*>(original,off(party_class,"<TeamName>k__BackingField")),array.get(),at<void*>(original,off(party_class,"LeagueId"))};
  invoke(method(party_class,".ctor",4),out.get(),args);
- event("{\"phase\":\"team\",\"foes\":"+std::to_string(foes.size())+",\"size\":"+std::to_string(picks.size())+",\"candidates\":"+std::to_string(rated.size())+"}");
+ event("{\"phase\":\"team\",\"foes\":"+std::to_string(foes.size())+",\"size\":"+std::to_string(picks.size())+",\"candidates\":"+std::to_string(eligible.size())+"}");
  return out.get();
 }
 
@@ -312,6 +362,7 @@ using Construct=void*(*)(void*,void*,int,void*,float,void*,const void*);
 std::atomic<Construct> construct_original{nullptr};
 void *hook_construct(void *self,void *enemies,int number,void *conditions,float multiplier,void *filter,const void *m){
  void *result=construct_original.load(std::memory_order_acquire)(self,enemies,number,conditions,multiplier,filter,m);
+ event("{\"phase\":\"construct-call\",\"gate\":"+std::string(gate()?"true":"false")+",\"tables\":"+(tables_ready()?"true":"false")+"}");
  if(!result||!enemies||!gate()||!tables_ready())return result;
  try{
   void *enumerable=cls("System.Collections","IEnumerable"),*enumerator=cls("System.Collections","IEnumerator");
@@ -324,7 +375,11 @@ void *hook_construct(void *self,void *enemies,int number,void *conditions,float 
   void *receiver=it.get();
   if(fn<bool(*)(void*)>(exp("class_is_valuetype"))(klass(receiver)))receiver=fn<void*(*)(void*)>(boot.runtime.object_unbox)(receiver);
   while(foes.size()<12&&unbox<bool>(invoke(move_next,receiver))){void *p=invoke(current,receiver);Foe e;if(p&&klass(p)==pf.k&&foe_of(p,e))foes.push_back(e);}
-  if(void *party=counter_party(foes,result,filter))return party;
+  std::vector<std::vector<Foe>> groups;for(const Foe &e:foes)groups.push_back({e});
+  const bool raid=groups.size()==1;
+  const int override=raid&&raid_counter_enabled?raid_team_size:0;
+  if(raid&&raid_counter_show_card)publish_counters("raid",groups);
+  if(void *party=counter_party(groups,result,filter,false,override))return party;
  }catch(const Failure &f){status("error",std::string("Team pick skipped: ")+f.where);}
  catch(...){status("error","Team pick skipped: native failure");}
  return result;
@@ -332,6 +387,10 @@ void *hook_construct(void *self,void *enemies,int number,void *conditions,float 
 
 // InvasionCharacter value -> the type its managed name announces (CharacterFireGruntMale).
 std::unordered_map<int,int> grunt_types;
+std::unordered_map<int,std::string> grunt_keys;  // InvasionCharacter value -> line-up key (smart_battle_party.h)
+// Current line-ups from Java (RocketLineups): key -> three slots of candidates {type1,type2,dex}.
+struct LineupMon {int type[2];int dex;};
+std::mutex lineup_mutex;std::unordered_map<std::string,std::vector<std::vector<LineupMon>>> lineups;
 void load_grunt_types(void *hook_method){
  void *type=const_cast<void*>(fn<const void*(*)(void*,uint32_t)>(exp("method_get_param"))(hook_method,0));require(type,"grunt parameter");
  void *k=fn<void*(*)(void*)>(exp("class_from_type"))(type);require(k,"grunt enum");
@@ -341,6 +400,7 @@ void load_grunt_types(void *hook_method){
   const char *name=fn<const char*(*)(void*)>(exp("field_get_name"))(f);if(!name)continue;
   int value=0;fn<void(*)(void*,void*)>(boot.runtime.field_static_get_value)(f,&value);
   const int type_id=pgr_smart_party::grunt_type(name);if(type_id)grunt_types[value]=type_id;
+  grunt_keys[value]=pgr_smart_party::lineup_key(name);
  }
  require(!grunt_types.empty(),"No typed Rocket grunts recognized");
  event("{\"phase\":\"grunt-types\",\"count\":"+std::to_string(grunt_types.size())+"}");
@@ -349,13 +409,31 @@ using FindGrunt=void*(*)(void*,int,const void*);
 std::atomic<FindGrunt> grunt_original{nullptr};
 void *hook_grunt(void *self,int character,const void *m){
  void *result=grunt_original.load(std::memory_order_acquire)(self,character,m);
+ event("{\"phase\":\"grunt-call\",\"character\":"+std::to_string(character)+",\"gate\":"+(gate()?"true":"false")+",\"tables\":"+(tables_ready()?"true":"false")+"}");
  if(!gate()||!tables_ready())return result;
  try{
   auto it=grunt_types.find(character);
-  event("{\"phase\":\"grunt-party\",\"character\":"+std::to_string(character)+",\"type\":"+std::to_string(it==grunt_types.end()?0:it->second)+",\"saved\":"+(result?"true":"false")+"}");
-  if(it==grunt_types.end()||!result)return result;
-  Foe e;e.type[0]=it->second;
-  if(void *party=counter_party({e},result,nullptr,true))return party;
+  const auto key=grunt_keys.find(character);
+  // The known line-up first: counters against every candidate of each slot.
+  std::vector<std::vector<Foe>> slots;
+  if(key!=grunt_keys.end()){
+   std::lock_guard<std::mutex> lock(lineup_mutex);
+   auto found=lineups.find(key->second);
+   if(found!=lineups.end())for(const auto &slot:found->second){
+    std::vector<Foe> group;
+    for(const LineupMon &m:slot){
+     Foe e;e.type[0]=m.type[0];e.type[1]=m.type[1];
+     if(const Species *sp=m.dex?species_of(m.dex,0):nullptr){e.attack=(sp->attack+15)*0.7;e.defense=(sp->defense+15)*0.7;}  // as vnext_foe
+     group.push_back(e);
+    }
+    if(!group.empty())slots.push_back(std::move(group));
+   }
+  }
+  event("{\"phase\":\"grunt-party\",\"character\":"+std::to_string(character)+",\"key\":\""+(key==grunt_keys.end()?std::string():key->second)+"\",\"lineup\":"+std::to_string(slots.size())+",\"type\":"+std::to_string(it==grunt_types.end()?0:it->second)+",\"saved\":"+(result?"true":"false")+"}");
+  if(slots.empty()&&it!=grunt_types.end()){Foe e;e.type[0]=it->second;slots.push_back({e});}
+  if(!slots.empty())publish_counters(key==grunt_keys.end()?std::string():key->second,slots);
+  if(!result||slots.empty())return result;
+  if(void *party=counter_party(slots,result,nullptr,true))return party;
  }catch(const Failure &f){status("error",std::string("Rocket team pick skipped: ")+f.where);}
  catch(...){status("error","Rocket team pick skipped: native failure");}
  return result;
@@ -576,6 +654,33 @@ void install(){
 }  // namespace
 
 bool pgr_smart_battle_enabled(){return enabled.load(std::memory_order_acquire);}
+
+std::string pgr_smart_battle_counters(){std::lock_guard<std::mutex> lock(counters_mutex);std::string out;out.swap(counters_text);return out;}
+
+void pgr_smart_battle_lineups(const char *text){
+ std::unordered_map<std::string,std::vector<std::vector<LineupMon>>> next;
+ const std::string all=text?text:"";
+ size_t start=0;
+ while(start<all.size()){
+  size_t end=all.find('\n',start);if(end==std::string::npos)end=all.size();
+  const std::string line=all.substr(start,end-start);start=end+1;
+  std::vector<std::string> parts;size_t p=0;
+  while(true){size_t bar=line.find('|',p);parts.push_back(line.substr(p,bar==std::string::npos?std::string::npos:bar-p));if(bar==std::string::npos)break;p=bar+1;}
+  if(parts.size()!=4||parts[0].empty())continue;
+  std::vector<std::vector<LineupMon>> slots;
+  for(size_t s=1;s<4;++s){
+   std::vector<LineupMon> slot;size_t q=0;const std::string &list=parts[s];
+   while(q<list.size()){
+    size_t semi=list.find(';',q);if(semi==std::string::npos)semi=list.size();
+    LineupMon m{};if(std::sscanf(list.substr(q,semi-q).c_str(),"%d,%d,%d",&m.type[0],&m.type[1],&m.dex)==3&&m.type[0]>=1&&m.type[0]<=18)slot.push_back(m);
+    q=semi+1;
+   }
+   slots.push_back(std::move(slot));
+  }
+  next[parts[0]]=std::move(slots);
+ }
+ std::lock_guard<std::mutex> lock(lineup_mutex);lineups.swap(next);
+}
 
 int pgr_smart_battle_pick_prompt(void *const *buttons,int count){
  if(!gate()||!tables_ready()||!pf.k||count<=0||!buttons[0])return -1;

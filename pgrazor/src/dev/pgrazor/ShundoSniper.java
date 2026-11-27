@@ -693,7 +693,7 @@ public final class ShundoSniper {
     public static void show(Activity activity) {
         if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
         Context ui = MapTheme.wrap(activity);
-        LinearLayout body = new LinearLayout(ui); body.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout body = new SettingsUi.OptionList(ui);
         int pad = MapTheme.dp(ui, 16); body.setPadding(pad, pad, pad, pad);
         // Experimental, and it teleports and catches far more than a player could: say so before anything else.
         TextView warning = new TextView(ui);

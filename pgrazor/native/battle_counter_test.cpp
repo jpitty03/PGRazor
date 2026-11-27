@@ -114,6 +114,13 @@ int main() {
     check(choose_swap({0, 0}, 0) == -1, "nobody left");
     check(choose_swap({}, 0) == -1, "empty team");
 
+    {
+        Fighter f;f.type[0]=WATER;f.attack=200;f.defense=150;f.hp=150;f.fast={WATER,10,1,8,true};
+        Foe fire;fire.type[0]=FIRE;Foe grass;grass.type[0]=GRASS;
+        const double a=matchup(f,fire),b=matchup(f,grass);
+        check(near_(group_matchup(f,{fire,grass}),(a+b)/2),"group score is the average");
+        check(group_matchup(f,{})==0,"empty group scores 0");
+    }
     if (failures) return EXIT_FAILURE;
     std::printf("battle_counter_test ok\n");
     return 0;
