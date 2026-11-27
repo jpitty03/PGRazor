@@ -186,3 +186,12 @@ No code changes for this task yet.
 - Verification pending after last Java edit; build.py + check.py running.
 - 2026-11-26 v0.3.6.1j built and installed on R5CR60GFM8E (SHA in release build-info); game reopened, full logcat recording. Testing raid counter party + grunt saved-party path next.
 
+## 2026-11-27 rebase onto upstream v0.3.8 (game 0.439.0) - DONE, device install pending
+
+- Fetched upstream tags v0.3.7/v0.3.8. Direct `git rebase --onto v0.3.8 v0.3.6` hit conflicts in old v0.3.4.1 commits; aborted.
+- Instead patched the whole fork delta onto a fresh branch `update-v0.3.8` with `git diff --binary v0.3.6 backup-v0.3.6.2-engine | git apply -3 --binary`. Resolved 6 conflicts: CHANGELOG (kept upstream v0.3.7/v0.3.8 + fork notes), CMakeLists (union of fexceptions sources), Pad (AutoRocket + vgpStatusText), SettingsBackupRules (union of allowlists), SettingsPanel (updateRow + RowList divider/invalidate), TeleportDialog (upstream skipTeleportConfirm + fork confirmMapTap).
+- Feature audit of merged tree: all fork features present (tm shortcut, tag rules + revision, storage JSON, counter engine, raid settings, JNI methods, PreferenceSchema, berry fallback, telemetry tests).
+- build.py PASS, check.py PASS: 196 tests. Committed `018ea7d Merge fork features onto upstream v0.3.8`; backup branch `backup-v0.3.6.2-engine` preserved.
+- Downloaded pinned game bundle `input/com.nianticlabs.pokemongo_0.439.0.apkm` (SHA c6d3c04c38ca2f2446957633b4fee8c93dcc9cebdbbaddc9cb9651722ef8f54f) from APKMirror; `game_update.py verify-input` reports identity_verified=true.
+- Built v0.3.8.1 with `--google-browser-login`: `pgrazor/build/release-v0.3.8.1/PGRazor.apk`, SHA 0b3a2552f71bb2c174af91421c0d06624eb2fa3bae4c03510cf855c41f516026, same signer fdc134f7.... Install blocked: device offline. Reconnect/authorise S21, then install + device test.
+
